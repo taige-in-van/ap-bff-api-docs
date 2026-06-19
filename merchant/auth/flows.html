@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>注册 / 登录 / 认证 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 注册 / 登录 / 认证 —— 调用时序
+
+> 本文是 `openapi.yaml` 的**调用顺序伴档**:OpenAPI 讲清每个接口的入参 / 出参 / 错误码(WHAT),本文讲清**多步流程里先调谁、后调谁、分支怎么走、什么触发邮件 / 轮询**(HOW)。
+>
+> **视角**:浏览器(SPA)↔ BFF。前端只与 BFF 交互;BFF 内部对身份服务的委派不画(后端面,与前端无关)。外部参与方(邮箱收件箱 / 微信 / Authenticator App)仅在用户可见时出现。
+>
+> **接口 ID = `operationId`**:下方每个发往 BFF 的调用都标 `[operationId]`,即 OpenAPI 原生 `operationId`——全局唯一,也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**,直达 ReDoc 接口详情;时序图**内**的 `[operationId]` 受 Mermaid 限制不可点,点同名链接即可。
+>
+> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录成功 BFF 下发 httpOnly opaque 会话 cookie(`msession`),服务端持后端 token;非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`;错误体统一 `ErrorEnvelope`。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整,可据此并行开发,勿当冻结契约。
+
+## 接口 ID 对照(图例,点 operationId 跳接口)
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`login`](index.html#tag/session/operation/login) | `POST /sessions` | 密码登录(返回 ESTABLISHED / MFA_REQUIRED / PENDING) |
+| [`completeMfaChallenge`](index.html#tag/session/operation/completeMfaChallenge) | `POST /sessions/mfa` | 登录二次校验(提交 TOTP) |
+| [`initiateWechatLogin`](index.html#tag/session/operation/initiateWechatLogin) | `POST /sessions/wechat` | 扫码登录发起(拿二维码票据) |
+| [`pollWechatLogin`](index.html#tag/session/operation/pollWechatLogin) | `GET /sessions/wechat/{qrTicket}` | 扫码登录轮询 |
+| [`initiateLoginEmailChange`](index.html#tag/my-profile/operation/initiateLoginEmailChange) | `POST /account/login-email/change` | 改登录邮箱发起(返回身份校验方式) |
+| [`verifyLoginEmailChangeIdentity`](index.html#tag/my-profile/operation/verifyLoginEmailChangeIdentity) | `POST /account/login-email/change/identity-verification` | 改邮箱第 1 步:身份校验 |
+| [`submitNewLoginEmail`](index.html#tag/my-profile/operation/submitNewLoginEmail) | `POST /account/login-email/change/new-email` | 改邮箱第 2 步:提交新邮箱 |
+| [`confirmLoginEmailChange`](index.html#tag/my-profile/operation/confirmLoginEmailChange) | `POST /account/login-email/change/confirmation` | 改邮箱第 3 步:新邮箱 OTP 确认 |
+| [`enrollMfa`](index.html#tag/account-security/operation/enrollMfa) | `POST /account/security/mfa` | 启用 MFA 发起(返回 otpauthUri) |
+| [`activateMfa`](index.html#tag/account-security/operation/activateMfa) | `POST /account/security/mfa/activation` | 启用 MFA 确认(TOTP 激活) |
+| [`registerOwner`](index.html#tag/registration/operation/registerOwner) | `POST /registrations` | 自助注册 |
+| [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) | `POST /registrations/verification` | 邮箱激活 |
+| [`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail) | `POST /registrations/verification-email` | 重发验证邮件 |
+| [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword) | `POST /invitations/password` | 邮箱邀请员工设密激活 |
+
+---
+
+## 密码登录(含 MFA 二次校验分支)
+
+[`login`](index.html#tag/session/operation/login) 一次返回三种走向;只有 `ESTABLISHED` 才下发会话 cookie。已启 MFA 时**不在首调建会话**,需再走 [`completeMfaChallenge`](index.html#tag/session/operation/completeMfaChallenge)。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    B->>A: [login] POST /sessions { loginId, password, rememberMe }
+    alt 未启 MFA(凭据正确)
+        A-->>B: 200 LoginResult{ status= ESTABLISHED } + Set-Cookie(msession)
+    else 已启 MFA
+        A-->>B: 200 { status= MFA_REQUIRED, mfaChallenge }(不建会话)
+        B->>A: [completeMfaChallenge] POST /sessions/mfa { mfaChallenge, code }
+        A-->>B: 200 { status= ESTABLISHED } + Set-Cookie(msession)
+    else 待验证 / 待设密
+        A-->>B: 200 { status= PENDING_VERIFICATION | INVITED }(中间态，引导去验证 / 设密激活)
+    end
+    Note over B,A: 凭据错 401<br/>账号锁定 423<br/>商户 suspended 或账号禁用 403<br/>限流 429<br/>防爆破锁定计数在后端(AUTH-FR-04)
+```
+
+- 登录成功后,后续受保护请求靠会话 cookie;前端拿不到也不需要 token。
+- `rememberMe=true` → 会话不受关浏览器 / idle / absolute 自然过期影响(仍受登出 / 改密 / 禁用等系统侧失效)。
+
+---
+
+## WeChat 扫码登录(轮询)
+
+[`initiateWechatLogin`](index.html#tag/session/operation/initiateWechatLogin) 拿二维码票据,前端用 [`pollWechatLogin`](index.html#tag/session/operation/pollWechatLogin) **轮询**直到拿到非 `WAITING` 的终态。扫码登录**不追加 MFA**。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant W as 微信 App
+    B->>A: [initiateWechatLogin] POST /sessions/wechat
+    A-->>B: 200 { qrTicket, qrContent, expiresAt }
+    B->>B: 渲染二维码
+    par 用户侧
+        W->>W: 扫码并在微信内确认(已绑定用户)
+    and 前端轮询
+        loop 直到非 WAITING
+            B->>A: [pollWechatLogin] GET /sessions/wechat/{qrTicket}
+            A-->>B: 200 { status, reason? }
+        end
+    end
+    Note over B,A: WAITING：继续轮询<br/>EXPIRED：重新 initiateWechatLogin 换码<br/>ESTABLISHED：已 Set-Cookie(按未勾 Remember Me)<br/>REJECTED：展示 reason(账号禁用 / 商户异常)
+```
+
+- `EXPIRED`(二维码默认 5 分钟,可配置)→ 前端重新发起换新码继续等。
+- 未绑定 / 未扫 / 未确认对前端表现一致(`WAITING`),不区分以防枚举。
+
+---
+
+## 改登录邮箱(严格两步验证,4 调)
+
+仅邮箱格式账号可改(用户名格式 → 403)。**先验身份**([`verifyLoginEmailChangeIdentity`](index.html#tag/my-profile/operation/verifyLoginEmailChangeIdentity):已启 MFA 用 TOTP,未启用旧邮箱 OTP),**再验新邮箱**([`confirmLoginEmailChange`](index.html#tag/my-profile/operation/confirmLoginEmailChange):新邮箱 OTP)。[`initiateLoginEmailChange`](index.html#tag/my-profile/operation/initiateLoginEmailChange) 返回的 `challengeId` 串起全程。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant EO as 旧邮箱
+    participant EN as 新邮箱
+    B->>A: [initiateLoginEmailChange] POST /account/login-email/change
+    A-->>B: 200 { challengeId, identityVerification= MFA_TOTP | OLD_EMAIL_OTP }
+    opt identityVerification= OLD_EMAIL_OTP
+        A->>EO: 发旧邮箱 OTP
+    end
+    B->>A: [verifyLoginEmailChangeIdentity] POST .../identity-verification { challengeId, code }
+    A-->>B: 204(身份已校验)
+    B->>A: [submitNewLoginEmail] POST .../new-email { challengeId, newEmail }
+    A->>EN: 发新邮箱 OTP
+    A-->>B: 202(新邮箱 OTP 已发；newEmail pending 占用登录域唯一性)
+    B->>A: [confirmLoginEmailChange] POST .../confirmation { challengeId, code }
+    A->>EO: 旧邮箱安全通知
+    A-->>B: 204(登录邮箱已更新；不影响当前会话)
+    Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410<br/>身份校验失败 401<br/>Owner 同步商户主联系邮箱(FR-10)，员工仅个人(FR-15)
+```
+
+---
+
+## 启用 MFA(两段式:enroll → activate)
+
+[`enrollMfa`](index.html#tag/account-security/operation/enrollMfa) 需当前密码,返回 `otpauthUri` 供 Authenticator 添加;[`activateMfa`](index.html#tag/account-security/operation/activateMfa) 输一次 TOTP 激活。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant T as Authenticator App
+    B->>A: [enrollMfa] POST /account/security/mfa { currentPassword }
+    A-->>B: 200 { otpauthUri }(MFA_PENDING，未生效)
+    B->>B: 渲染 otpauth 二维码
+    B->>T: 用户扫码添加条目
+    T-->>B: 显示 6 位 TOTP
+    B->>A: [activateMfa] POST /account/security/mfa/activation { code }
+    A-->>B: 204(MFA_PENDING → ENABLED)
+    Note over B,A: 当前密码错 401(不计 AUTH-FR-04 锁定计数)<br/>TOTP 错 401，前端可重输
+```
+
+---
+
+## 自助注册 → 邮箱激活(两步,anti-prefetch)
+
+[`registerOwner`](index.html#tag/registration/operation/registerOwner) 建 `PENDING_VERIFICATION` 账号并发验证邮件;**确认页 GET 只展示、不激活**,用户主动点 Verify 才用 [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) 激活(防邮件扫描器 prefetch 误激活)。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant E as 邮箱
+    B->>A: [registerOwner] POST /registrations { email, password, agreeTerms, ... }
+    A->>E: 发验证邮件(含确认链接)
+    A-->>B: 201 PENDING_VERIFICATION(前端跳「等待验证」页)
+    Note over E,B: 用户点邮件链接 → 打开确认页(GET 只展示，不消费 token)
+    B->>A: [verifyRegistrationEmail] POST /registrations/verification { token }(用户在确认页主动点 Verify)
+    A-->>B: 200 ACTIVE(→ 进入入驻 ONB 起点)
+    Note over B,A: 链接过期 / 已用 410<br/>激活前任一步失败留 PENDING、可重试、不展示成功(AUTH-FR-01)
+```
+
+- 重发验证邮件:[`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail)(`POST /registrations/verification-email`,冷却内 429;新链接生效、旧链接失效)。
+- 邮箱邀请员工设密激活(FR-14)同形:确认页主动提交 [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword)(anti-prefetch GET 不激活),`INVITED → ACTIVE`。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>
