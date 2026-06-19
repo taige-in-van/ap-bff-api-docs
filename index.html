@@ -2,11 +2,12 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BFF API 契约</title>
-<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:760px;margin:3rem auto;padding:0 1rem;line-height:1.7;color:#24292f}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.warn{background:#fff8c5;border:1px solid #d4a72c55;padding:.6rem .9rem;border-radius:6px}h2{margin-top:1.6rem}</style>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:760px;margin:3rem auto;padding:0 1rem;line-height:1.7;color:#24292f}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.warn{background:#fff8c5;border:1px solid #d4a72c55;padding:.6rem .9rem;border-radius:6px}.conv{background:#ddf4ff;border:1px solid #54aeff55;padding:.6rem .9rem;border-radius:6px}h2{margin-top:1.6rem}</style>
 </head><body>
 <h1>BFF API 契约</h1>
 <p>前端消费的 BFF REST 契约,按 consumer / module 分目录。</p>
 <p class="warn">⚠️ <strong>design / review 阶段</strong>契约 —— 实现前可能调整;可据此并行开发,勿当冻结契约。</p>
+<p class="conv">📐 <a href="conventions.html"><strong>API 基础约定（先读）</strong></a> —— 错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额，所有模块共用。</p>
 <h2>商户后台 (Merchant Portal)</h2>
 <ul>
     <li><a href="merchant/auth/">注册 / 登录 / 认证</a> <small>(v0.4.1)</small> — <a href="merchant/auth/openapi.yaml">openapi.yaml</a> · <a href="merchant/auth/flows.html">调用时序</a></li>

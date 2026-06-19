@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API 基础约定 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# API 基础约定（先读）
+
+> 所有 BFF / 前端面 API 共用的基础约定 —— 进任何模块 spec 前先读这一份。各模块 `openapi.yaml` 的字段类型以该 spec 为准；本文讲的是**跨模块一致的公约**（错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额）。
+>
+> ⚠️ **design / review 阶段**约定 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
+
+## 编码与内容类型
+
+- 字符集 **UTF-8**；请求 / 响应体默认 `application/json`；请求头带 `Accept: application/json`。
+- 浏览器直接打开 `openapi.yaml` 若中文显示乱码（`å•†æˆ·`…），是浏览器把 UTF-8 内容按 Latin-1 猜了 charset，**文件本身没问题**——用 ReDoc 页面看、或下载后用 UTF-8 编辑器 / 直接喂 codegen 即正常。
+
+## 鉴权与 CSRF
+
+- **会话**：登录成功后 BFF 下发 httpOnly opaque 会话 cookie；**浏览器不持 token**（服务端持后端 token），前端拿不到也不需要。
+- **CSRF**：以 cookie 承载会话的面，非安全方法（POST / PUT / DELETE）一律带 `X-CSRF-Token`（double-submit）；缺失 / 不匹配 → `403`。
+- 公开端点（注册 / 登录 / 找回等 `security: []`）无会话、故无 CSRF。
+
+## HTTP 状态语义
+
+用 HTTP status 表达请求结果；非 `2xx` 时响应体只返 `ErrorEnvelope`（见下）。
+
+| 区间 | 含义 |
+|---|---|
+| `2xx` | `200` 成功 / `201` 创建 / **`202` 已受理**（非终态，结果待查询 / 事件 / 回调收敛） |
+| `4xx` | `400` 参数 · `401` 未认证 · `403` 无权 · `404` 不存在 · `409` 幂等键 payload 冲突或资源状态冲突 · **`410` 一次性凭据失效**（OTP / 验证链接 过期或已用）· **`423` 临时锁定**（防爆破）· `429` 限流 |
+| `5xx` | `500` 内部 · `502` 上游 · `504` 上游超时 |
+
+`202` 仅表示已受理，**不能当最终成功**。
+
+## 错误响应体 `ErrorEnvelope`
+
+非 `2xx` 统一返回：
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `code` | integer | 结构化整数错误码，**与 HTTP 状态正交**；可解析「责任方 + 来源域」，不必逐条查表 |
+| `detail` | string | 错误描述（面向调用方，按 locale 本地化） |
+| `links` | object（可选） | 错误说明 / 后续恢复操作链接 |
+| `traceId` | string（可选） | 串联日志 / 分布式 trace，出错可直连诊断 |
+| `details` | array（可选） | 字段级校验错误 `[{ field, issue }]`，把错误定位到具体字段 |
+
+必填仅 `code` + `detail`。
+
+### `code` 责任方维度 → 前端处理策略
+
+`code` 自带「谁的错」，可据此分流处理与告警分级：
+
+| 责任方 | 含义 | 前端策略 |
+|---|---|---|
+| 客户端·参数校验 | 报文 / 参数 / 格式 / 正则不合法（不含业务冲突） | 提示输入错误，结合 `details` 定位字段 |
+| 服务端·内部 | 内部异常 / 基础设施不可用 / 资源耗尽 | 提示系统繁忙，允许重试 |
+| 客户端·权限安全 | 令牌失效 / 签名失败 / 无权操作 | 跳登录或提示无权访问 |
+| 第三方·外部服务 | 微信 / 支付宝 / 银联等超时或返回失败 | 提示渠道繁忙或透传渠道错误 |
+| 业务·资源 | 请求合法但业务状态不满足 / 资源不存在 | 展示业务错误文案 |
+
+## 分页
+
+列表查询统一：
+
+- 请求：`pageNum`（默认 **1**，从 1 计）、`pageSize`（默认 **20**；上限可配置）
+- 响应：`{ total, data[] }`（`total` 总记录数，`data` 当页记录数组）
+- 排序由具体接口约定。
+
+## 幂等
+
+- **创建类 / 非天然幂等的写**（如改密〔失效其他会话〕、跨单写者）：带 `Idempotency-Key`（header）去重。
+- **天然幂等的 PUT / DELETE**：可不带。
+- **认证类（登录 / 登出 / MFA / 扫码）与多步 OTP 挑战类（改邮箱 / 找回）**：按流程语义**不带**幂等键（每次都应重新认证 / 校验）。
+- **命中语义**：同键 + 关键 payload（金额 / 场景）一致 → 返回首次结果、不重复副作用；同键 + payload 冲突 → `409`、不新建。
+- 另有**防重提交**短窗（防双击 / 误触，窗口可配置），独立于业务幂等。
+
+## 时间 / 金额 / 币种
+
+- **时间**：API 入参 / 出参用 ISO 8601 带时区 offset（如 `2026-05-19T10:30:00-04:00`）；服务端以 UTC 存储，商户后台按商户配置时区显示。
+- **金额**：**字符串**类型（避免 JSON Number 精度丢失）；默认最小货币单位的整数字符串（如「分」），scale 由币种 ISO 精度解释（CAD / USD 2 位、JPY 0 位）；接口若用十进制金额字符串（如 `"10.00"`）会在该接口契约显式声明。
+- **币种**：ISO 4217 三字母码（`CAD` / `CNY` / `USD`…）。
+
+## 版本化
+
+- API 版本走 URL path（如 `/api/merchant/v1`）；破坏性变更通过新版本路径并行，兼容期可配置。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>

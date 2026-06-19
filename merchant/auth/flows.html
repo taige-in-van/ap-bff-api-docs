@@ -3,7 +3,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>注册 / 登录 / 认证 — 调用时序</title>
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
-<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a></p>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 注册 / 登录 / 认证 —— 调用时序
@@ -14,7 +14,7 @@
 >
 > **接口 ID = `operationId`**:下方每个发往 BFF 的调用都标 `[operationId]`,即 OpenAPI 原生 `operationId`——全局唯一,也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**,直达 ReDoc 接口详情;时序图**内**的 `[operationId]` 受 Mermaid 限制不可点,点同名链接即可。
 >
-> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录成功 BFF 下发 httpOnly opaque 会话 cookie(`msession`),服务端持后端 token;非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`;错误体统一 `ErrorEnvelope`。
+> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录成功 BFF 下发 httpOnly opaque 会话 cookie(`msession`),服务端持后端 token;非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`;错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF 详见 [API 基础约定](../../conventions.html))。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整,可据此并行开发,勿当冻结契约。
 
