@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 / D-MERCH BFF) — 前端契约面
-  version: 0.4.1
+  version: 0.4.2
   contact:
     name: Merchant Portal BFF (D-MERCH owner)
   description: |
@@ -19,13 +19,13 @@ tags:
   - name: account-security
     description: 账户安全自助：启用 / 禁用 MFA（TOTP）、登录态改密。(FR-06/08)
   - name: my-profile
-    description: 个人账号自助（全员）：昵称、登录邮箱变更（严格两步验证：身份校验 → 新邮箱 OTP）、改密 / 找回入口。(FR-10/15)
-  - name: account-profile
+    description: 个人账号自助（全员）：昵称、登录邮箱变更（身份校验 → 新邮箱 OTP）。(FR-10/15)
+  - name: business-profile
     description: 商户联系人资料（Business Profile）：联系人姓名 / 头衔 / 电话，直接生效，owner-only。(FR-13)
   - name: password-reset
     description: 忘记密码自助重置：按已绑因子（TOTP / 邮箱 OTP）校验后重置，恒态反枚举，重置不绕过 MFA。(FR-09)
   - name: team
-    description: 团队成员管理：成员新增 / 编辑 / 启停 / 删除、邮箱邀请与重发、WeChat 绑定。(FR-07/11)
+    description: 团队成员管理：成员新增 / 编辑 / 启停 / 删除、邮箱邀请设密与重发、登录邮箱确认、WeChat 绑定。(FR-07/11/14)
 paths:
   /registrations:
     post:
@@ -719,7 +719,7 @@ paths:
   /account/profile:
     get:
       tags:
-        - account-profile
+        - business-profile
       operationId: getOwnContactProfile
       summary: FR-13 读 Owner Business Profile 联系人资料（First/Last Name / Business Title / Phone）
       responses:
@@ -735,7 +735,7 @@ paths:
         - AUTH-FR-13
     put:
       tags:
-        - account-profile
+        - business-profile
       operationId: updateOwnContactProfile
       summary: FR-13 改 Owner 联系人资料（直接生效，不需 OTP / MFA / 审核 / 邮件 / 不影响会话）
       description: 仅 Owner（员工 403）。不变更 Primary Email / 密码 / MFA / WeChat；改 Business Title 不触发 RBAC 重算。
