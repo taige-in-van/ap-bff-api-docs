@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 / D-MERCH BFF) — 前端契约面
-  version: 0.4.2
+  version: 0.4.4
   contact:
     name: Merchant Portal BFF (D-MERCH owner)
   description: |
@@ -34,7 +34,7 @@ paths:
       operationId: registerOwner
       summary: FR-01 Owner 自助注册（创建 PENDING_VERIFICATION 账号 + 发验证邮件）
       description: |
-        BFF 编排：调 40-06 建 unverified identity+credential（409 若 email 被占用），本地建 Operator(PENDING_VERIFICATION)+ 邮件校验物，发 Verify Email 邮件。 两单写者相继、良性中间态、幂等（见 design.md §跨域交互路由 注册标红）。
+        BFF 编排：调 40-06 建 unverified identity+credential（409 若 email 被占用），本地建 Operator(PENDING_VERIFICATION)+ 邮件校验物，发 Verify Email 邮件。 两单写者相继、良性中间态、幂等（见 design.md §跨部署服务交互路由 注册标红）。
       security: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -320,6 +320,7 @@ paths:
                       - EXPIRED
                       - ESTABLISHED
                       - REJECTED
+                      - CANCELLED
                   reason:
                     type: string
                     description: REJECTED 时的业务原因（账号已禁用 / 商户状态异常）
@@ -874,7 +875,7 @@ paths:
       operationId: listTeamMembers
       summary: FR-11 团队成员列表（BFF 合并 40-06 membership + 本地 Operator；搜索/筛选/排序/分页）
       description: |
-        团队规模小、有界 → BFF 取本商户 40-06 成员集 + 本地 Operator 合并，在 BFF 内存过滤/排序/分页（40-06 不发布只读视图，故不走 JOIN；见 design.md §跨域交互路由）。Owner 行置顶。
+        团队规模小、有界 → BFF 取本商户 40-06 成员集 + 本地 Operator 合并，在 BFF 内存过滤/排序/分页（40-06 不发布只读视图，故不走 JOIN；见 design.md §跨部署服务交互路由）。Owner 行置顶。
       parameters:
         - name: search
           in: query
@@ -1086,7 +1087,7 @@ paths:
         - team
       operationId: initiateMemberWechatBinding
       summary: FR-07 Owner 给成员（含自己）绑 WeChat — 发起（返回二维码，被绑定本人扫码）
-      description: BFF 调 40-06 成员级绑定（service-auth + 目标 membership，非 token sub）。已绑 → 409『请先解绑』；该 WeChat 被占 → 409『已被其他账号绑定』。
+      description: BFF 调 40-06 成员级 client enrollment 绑定（service-auth + 目标 membership，非 token sub）。已启用 → 409『请先解绑』；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 轮询只返回粗粒度 FAILED。BFF 将 40-06 challengeId 映射为 qrTicket，将 qrPayload 映射为 qrContent。
       parameters:
         - name: operatorId
           in: path
@@ -1124,6 +1125,7 @@ paths:
         - team
       operationId: unbindMemberWechat
       summary: FR-07 Owner 给成员解绑 WeChat（不影响其当前会话）
+      description: 只停用该成员在 merchant client 的 WeChat login enrollment；不删除平台级 WeChat 外部账号绑定，不影响其他 client。
       parameters:
         - name: operatorId
           in: path
@@ -1134,6 +1136,54 @@ paths:
       responses:
         '204':
           description: 已解绑
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-requirement-ids:
+        - AUTH-FR-07
+  /team/members/{operatorId}/wechat-binding/{qrTicket}:
+    get:
+      tags:
+        - team
+      operationId: pollMemberWechatBinding
+      summary: FR-07 WeChat 绑定 — 结果轮询（闭环结果腿；对称 pollWechatLogin）
+      description: |
+        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突(INV-05)只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。
+      parameters:
+        - name: operatorId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: qrTicket
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 轮询结果
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                properties:
+                  status:
+                    type: string
+                    enum:
+                      - PENDING
+                      - BOUND
+                      - FAILED
+                      - CANCELLED
+                      - EXPIRED
+                  reason:
+                    type: string
+                    enum:
+                      - TARGET_GONE
+                    description: FAILED 时的业务原因；占用冲突不向 Owner/BFF 暴露具体原因。
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1402,7 +1452,7 @@ components:
           type: boolean
         wechatBound:
           type: boolean
-          description: WeChat 绑定状态（40-06 凭据；FR-07）
+          description: 该商户用户在 merchant client 的 WeChat login enrollment 是否 enabled（FR-07）；不代表平台级 WeChat 外部账号凭据是否存在
         lastLoginAt:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'

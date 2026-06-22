@@ -26,6 +26,9 @@
 | [`completeMfaChallenge`](index.html#tag/session/operation/completeMfaChallenge) | `POST /sessions/mfa` | 登录二次校验(提交 TOTP) |
 | [`initiateWechatLogin`](index.html#tag/session/operation/initiateWechatLogin) | `POST /sessions/wechat` | 扫码登录发起(拿二维码票据) |
 | [`pollWechatLogin`](index.html#tag/session/operation/pollWechatLogin) | `GET /sessions/wechat/{qrTicket}` | 扫码登录轮询 |
+| [`initiateMemberWechatBinding`](index.html#tag/team/operation/initiateMemberWechatBinding) | `POST /team/members/{operatorId}/wechat-binding` | 代成员绑 WeChat 发起(返回二维码) |
+| [`pollMemberWechatBinding`](index.html#tag/team/operation/pollMemberWechatBinding) | `GET /team/members/{operatorId}/wechat-binding/{qrTicket}` | 绑定结果轮询(异设备回告发起端) |
+| [`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat) | `DELETE /team/members/{operatorId}/wechat-binding` | 代成员解绑 WeChat(只停本 client 启用) |
 | [`initiateLoginEmailChange`](index.html#tag/my-profile/operation/initiateLoginEmailChange) | `POST /account/login-email/change` | 改登录邮箱发起(返回身份校验方式) |
 | [`verifyLoginEmailChangeIdentity`](index.html#tag/my-profile/operation/verifyLoginEmailChangeIdentity) | `POST /account/login-email/change/identity-verification` | 改邮箱第 1 步:身份校验 |
 | [`submitNewLoginEmail`](index.html#tag/my-profile/operation/submitNewLoginEmail) | `POST /account/login-email/change/new-email` | 改邮箱第 2 步:提交新邮箱 |
@@ -36,6 +39,11 @@
 | [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) | `POST /registrations/verification` | 邮箱激活 |
 | [`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail) | `POST /registrations/verification-email` | 重发验证邮件 |
 | [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword) | `POST /invitations/password` | 邮箱邀请员工设密激活 |
+| [`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) | `POST /password-reset/request` | 找回密码发起(恒 202 反枚举) |
+| [`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) | `POST /password-reset/factor-verification` | 因子验证(邮箱 OTP/TOTP → resetToken) |
+| [`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) | `POST /password-reset/confirmation` | 设新密码(不绕过 MFA) |
+| [`updateTeamMember`](index.html#tag/team/operation/updateTeamMember) | `PUT /team/members/{operatorId}` | 代成员编辑(本流程:改 ACTIVE 员工登录邮箱) |
+| [`confirmMemberLoginEmail`](index.html#tag/team/operation/confirmMemberLoginEmail) | `POST /team/login-email-confirmations` | 员工确认 Owner 改的新登录邮箱 |
 
 ---
 
@@ -78,18 +86,52 @@ sequenceDiagram
     A-->>B: 200 { qrTicket, qrContent, expiresAt }
     B->>B: 渲染二维码
     par 用户侧
-        W->>W: 扫码并在微信内确认(已绑定用户)
+        W->>W: 扫码 → 微信内授权
+        W->>W: 用户在微信内显式确认登录(扫码≠认证；微信内不选 client/商户)
     and 前端轮询
         loop 直到非 WAITING
             B->>A: [pollWechatLogin] GET /sessions/wechat/{qrTicket}
             A-->>B: 200 { status, reason? }
         end
     end
-    Note over B,A: WAITING：继续轮询<br/>EXPIRED：重新 initiateWechatLogin 换码<br/>ESTABLISHED：已 Set-Cookie(按未勾 Remember Me)<br/>REJECTED：展示 reason(账号禁用 / 商户异常)
+    Note over B,A: WAITING：继续轮询<br/>EXPIRED：重新 initiateWechatLogin 换码<br/>ESTABLISHED：已 Set-Cookie(按未勾 Remember Me)<br/>REJECTED：展示 reason(账号禁用 / 商户异常)<br/>CANCELLED：用户微信内取消
 ```
 
 - `EXPIRED`(二维码默认 5 分钟,可配置)→ 前端重新发起换新码继续等。
 - 未绑定 / 未扫 / 未确认对前端表现一致(`WAITING`),不区分以防枚举。
+- 微信内须用户**显式确认**才登录(扫码本身不构成认证);确认前对前端仍是 `WAITING`。
+- 二维码请求时已带 client(商户后台),微信内**不选 client / 商户**;同一身份跨多 merchant 的切换在门户内完成,不在微信里。
+- `REJECTED` / `CANCELLED` 是 40-06 在用户**确认后**的裁决(`REJECTED`=无 active membership / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
+
+---
+
+## WeChat 绑定(代成员;异设备扫码 + 轮询)
+
+Owner 在 Users 页给成员(含自己)绑 WeChat:[`initiateMemberWechatBinding`](index.html#tag/team/operation/initiateMemberWechatBinding) 拿二维码,被绑定成员扫码确认,Owner 用 [`pollMemberWechatBinding`](index.html#tag/team/operation/pollMemberWechatBinding) **轮询**取结果。**异设备**(Owner 发起 / 成员扫码)是它比扫码登录更复杂之处。
+
+```mermaid
+sequenceDiagram
+    participant B as Owner 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant W as 成员微信
+    B->>A: [initiateMemberWechatBinding] POST /team/members/{operatorId}/wechat-binding
+    A-->>B: 200 { qrTicket, qrContent, expiresAt }
+    B->>B: 渲染二维码(交被绑定成员扫)
+    par 成员侧
+        W->>W: 扫码 → 微信内授权 → 显式确认绑定(异设备：成员手机)
+    and Owner 轮询
+        loop 直到非 PENDING
+            B->>A: [pollMemberWechatBinding] GET /team/members/{operatorId}/wechat-binding/{qrTicket}
+            A-->>B: 200 { status, reason? }
+        end
+    end
+    Note over B,A: PENDING：继续轮询<br/>BOUND：已绑(team 列表 wechatBound 走事件收敛)<br/>FAILED：粗粒度(占用细节不回泄 Owner，reason 仅 TARGET_GONE)<br/>CANCELLED：成员取消<br/>EXPIRED：换码重发
+```
+
+- **异设备是关键**:Owner 在商户后台(PC)发起、被绑定成员在自己微信(手机)扫码确认;无结果腿则 Owner 零回告,故 `pollMemberWechatBinding` 必备。
+- **占用冲突不回泄 Owner**(INV-19):成员微信已绑别的账号 → Owner 轮询只得粗粒度 `FAILED`(`reason` 仅 `TARGET_GONE`),精确「已被占用」仅成员微信内可见;杜绝 Owner 借代绑刺探成员微信是否在平台用过。
+- **绑定 = 启用本 client 微信登录**:成功即该成员可在商户后台扫码登录;解绑([`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat))只停本 client 启用,不删平台级 WeChat 绑定、不影响其他 client。
+- `wechatBound`(team 列表)= 本 client 启用状态,收敛走 40-06 `credential_changed` 事件(D4),非前端轮询兜底。
 
 ---
 
@@ -118,6 +160,62 @@ sequenceDiagram
     A-->>B: 204(登录邮箱已更新；不影响当前会话)
     Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410<br/>身份校验失败 401<br/>Owner 同步商户主联系邮箱(FR-10)，员工仅个人(FR-15)
 ```
+
+---
+
+## 找回密码(FR-09 自助重置,3 调)
+
+[`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) **恒 202 反枚举**(不暴露账号是否存在 / 因子);[`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) 按已绑因子(邮箱 OTP / TOTP)验证换 `resetToken`;[`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) 设新密码。**重置不绕过 MFA**(只改密码、不动 MfaBinding)。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(登录页/SPA)
+    participant A as 商户后台 BFF
+    participant E as 邮箱
+    participant T as Authenticator
+    B->>A: [requestPasswordReset] POST /password-reset/request { loginId }
+    A-->>B: 202 { challengeId }(恒态反枚举，不暴露账号存在性/因子)
+    alt 未绑 MFA 的邮箱格式(服务端判定)
+        A->>E: 发邮箱 OTP
+        E-->>B: 用户读取邮箱 OTP
+    else 已绑 MFA
+        T-->>B: 用户读取 Authenticator TOTP(不发邮箱 OTP，闭合降级)
+    end
+    B->>A: [verifyPasswordResetFactor] POST .../factor-verification { challengeId, code }
+    A-->>B: 200 { resetToken }(高熵单次)
+    B->>A: [confirmPasswordReset] POST .../confirmation { resetToken, newPassword }
+    A-->>B: 204(密码已重置；全平台会话失效；MfaBinding 不变→下次登录仍验 TOTP；回登录页)
+    Note over B,A: 恒 202 反枚举<br/>用户名+无 TOTP→不发(联系 Owner)<br/>因子错/过期/超限 400/410/423/429<br/>challengeId·resetToken 单次
+```
+
+- 因子由服务端按账号判定:已绑 MFA→TOTP(不发邮箱 OTP)、未绑 MFA 邮箱格式→邮箱 OTP、用户名+无 TOTP→不发(前端通用提示「联系 Owner」,不依赖账号存在性)。
+- **不绕过 MFA**:重置只改密码、不修改 MfaBinding,下次登录仍强制 TOTP(闭合 MFA 降级)。
+- 可从登录页(无会话)或 My Profile(FR-15,登录态)发起;成功后全平台会话失效、回登录页。
+
+---
+
+## Owner 改员工登录邮箱(FR-11,异步确认)
+
+Owner 在 Users 页改 **ACTIVE 邮箱格式员工**的登录邮箱([`updateTeamMember`](index.html#tag/team/operation/updateTeamMember))**不直接生效**——新邮箱发确认链接,员工本人点 [`confirmMemberLoginEmail`](index.html#tag/team/operation/confirmMemberLoginEmail) 确认才切换(任何成为生效凭据的登录邮箱都经控制权验证)。
+
+```mermaid
+sequenceDiagram
+    participant O as Owner 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant EN as 员工新邮箱
+    participant M as 员工浏览器
+    O->>A: [updateTeamMember] PUT /team/members/{operatorId} { loginId= 新登录邮箱 }
+    A->>EN: 发新邮箱确认链接(operator.email_change_pending)
+    A-->>O: 204(受理:不直接生效；确认前旧邮箱有效、pending 新邮箱不可登录/Forgot)
+    Note over EN,M: 员工点新邮箱确认链接 → 确认页(anti-prefetch GET 只展示)
+    M->>A: [confirmMemberLoginEmail] POST /team/login-email-confirmations { token }
+    A-->>M: 204(登录邮箱已切换；旧邮箱收安全通知)
+    Note over O,A: 仅 ACTIVE 邮箱格式员工<br/>INVITED 员工改→重发邀请<br/>用户名格式员工不可改邮箱<br/>token 单次 anti-prefetch
+```
+
+- 确认前旧邮箱仍有效、pending 新邮箱不可登录 / 不可 Forgot;切换后旧邮箱收安全通知。
+- 用户名格式员工无登录邮箱凭据(不可改);`INVITED` 员工改邮箱 → 重发邀请。
+- 与 §改登录邮箱(员工自助,FR-15)正交:此为 **Owner 代改**、走新邮箱确认链接;自助走身份校验 + 新邮箱 OTP。
 
 ---
 
