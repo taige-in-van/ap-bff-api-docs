@@ -14,7 +14,7 @@
 >
 > **接口 ID = `operationId`**:下方每个发往 BFF 的调用都标 `[operationId]`,即 OpenAPI 原生 `operationId`——全局唯一,也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**,直达 ReDoc 接口详情;时序图**内**的 `[operationId]` 受 Mermaid 限制不可点,点同名链接即可。
 >
-> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录成功 BFF 下发 httpOnly opaque 会话 cookie(`msession`),服务端持后端 token;非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`;错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF 详见 [API 基础约定](../../conventions.html))。
+> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录成功 BFF 下发 httpOnly opaque 会话 cookie(`__Host-msession`),服务端持后端 token;非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`;错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF 详见 [API 基础约定](../../conventions.html))。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整,可据此并行开发,勿当冻结契约。
 
@@ -57,11 +57,11 @@ sequenceDiagram
     participant A as 商户后台 BFF
     B->>A: [login] POST /sessions { loginId, password, rememberMe }
     alt 未启 MFA(凭据正确)
-        A-->>B: 200 LoginResult{ status= ESTABLISHED } + Set-Cookie(msession)
+        A-->>B: 200 LoginResult{ status= ESTABLISHED } + Set-Cookie(__Host-msession)
     else 已启 MFA
         A-->>B: 200 { status= MFA_REQUIRED, mfaChallenge }(不建会话)
         B->>A: [completeMfaChallenge] POST /sessions/mfa { mfaChallenge, code }
-        A-->>B: 200 { status= ESTABLISHED } + Set-Cookie(msession)
+        A-->>B: 200 { status= ESTABLISHED } + Set-Cookie(__Host-msession)
     else 待验证 / 待设密
         A-->>B: 200 { status= PENDING_VERIFICATION | INVITED }(中间态，引导去验证 / 设密激活)
     end

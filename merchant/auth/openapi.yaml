@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 / D-MERCH BFF) — 前端契约面
-  version: 0.4.6
+  version: 0.4.8
   contact:
     name: Merchant Portal BFF (D-MERCH owner)
   description: |
@@ -44,6 +44,14 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RegistrationRequest'
+            example:
+              email: jane@example.com
+              password: Str0ng!Pass
+              agreeTerms: true
+              firstName: Jane
+              lastName: Merchant
+              phone: '6045550123'
+              businessTitle: Manager
       responses:
         '201':
           description: 已受理；账号 PENDING_VERIFICATION，验证邮件已发
@@ -51,6 +59,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegistrationAccepted'
+              example:
+                status: PENDING_VERIFICATION
+                maskedEmail: j***@example.com
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -201,6 +212,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/LoginRequest'
+            example:
+              loginId: jane@example.com
+              password: Str0ng!Pass
+              rememberMe: false
       responses:
         '200':
           description: 登录结果（ESTABLISHED 时已 set-cookie；MFA_REQUIRED / PENDING_VERIFICATION 为中间态）
@@ -208,6 +223,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResult'
+              examples:
+                established:
+                  summary: 成功（无 MFA，已 set-cookie）
+                  value:
+                    status: ESTABLISHED
+                mfaRequired:
+                  summary: 需 MFA（返回挑战句柄，未建会话）
+                  value:
+                    status: MFA_REQUIRED
+                    mfaChallenge: chl_9f2a4c7e1b
+                pendingVerification:
+                  summary: 失败（账号待验证，无 active membership 不签发）
+                  value:
+                    status: PENDING_VERIFICATION
+                    maskedEmail: j***@example.com
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -295,7 +325,7 @@ paths:
       operationId: pollWechatLogin
       summary: FR-03 WeChat 扫码登录 — 轮询（确认成功则签发 BFF 会话）
       description: |
-        被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。 ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。
+        被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。 ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED，与「未扫」WAITING 反枚举一致。
       security: []
       parameters:
         - name: qrTicket
@@ -321,8 +351,11 @@ paths:
                       - ESTABLISHED
                       - REJECTED
                       - CANCELLED
+                    readOnly: true
+                    description: 服务端裁决的轮询态（可扩展枚举；消费方按 unknown-safe 处理：遇未知值视同 WAITING 继续轮询、不崩）
                   reason:
                     type: string
+                    readOnly: true
                     description: REJECTED 时的业务原因（账号已禁用 / 商户状态异常）
       x-requirement-ids:
         - AUTH-FR-03
@@ -340,6 +373,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionContext'
+              example:
+                operatorId: op_7a1c9
+                displayName: Jane Merchant
+                isOwner: true
+                merchantId: M10023
+                roles:
+                  - OWNER
+                landingPage: /dashboard
+                menus:
+                  - resourceId: dashboard
+                    type: menu
+                    label: Dashboard
+                    path: /dashboard
+                  - resourceId: settings
+                    type: menu
+                    label: Settings
+                    path: /settings
+                    children:
+                      - resourceId: settings.users
+                        type: menu
+                        label: Users
+                        path: /settings/users
         '401':
           $ref: '#/components/responses/Unauthorized'
       x-requirement-ids:
@@ -780,6 +835,8 @@ paths:
               properties:
                 loginId:
                   type: string
+            example:
+              loginId: jane@example.com
       responses:
         '202':
           description: 已受理(反枚举,不暴露账号是否存在 / 因子)
@@ -787,6 +844,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PasswordResetChallenge'
+              example:
+                challengeId: pwr_4e1a8c9b2d
         '429':
           $ref: '#/components/responses/TooManyRequests'
       x-requirement-ids:
@@ -917,6 +976,39 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/TeamMember'
+              example:
+                total: 3
+                data:
+                  - operatorId: op_7a1c9
+                    displayName: Jane Merchant
+                    loginId: jane@example.com
+                    role: Owner
+                    status: ACTIVE
+                    pendingLoginEmail: null
+                    isOwner: true
+                    wechatBound: true
+                    lastLoginAt: '2026-06-22T14:05:00Z'
+                    createdAt: '2026-01-10T09:00:00Z'
+                  - operatorId: op_3b8f2
+                    displayName: Sam Clerk
+                    loginId: sam@example.com
+                    role: Operator
+                    status: ACTIVE
+                    pendingLoginEmail: null
+                    isOwner: false
+                    wechatBound: false
+                    lastLoginAt: '2026-06-20T11:30:00Z'
+                    createdAt: '2026-03-02T16:20:00Z'
+                  - operatorId: op_5d4e1
+                    displayName: Pat Pending
+                    loginId: pat@example.com
+                    role: Operator
+                    status: INVITED
+                    pendingLoginEmail: null
+                    isOwner: false
+                    wechatBound: false
+                    lastLoginAt: null
+                    createdAt: '2026-06-21T08:15:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1150,7 +1242,7 @@ paths:
       operationId: pollMemberWechatBinding
       summary: FR-07 WeChat 绑定 — 结果轮询（闭环结果腿；对称 pollWechatLogin）
       description: |
-        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突(INV-05)只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。
+        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突(INV-05)只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED。
       parameters:
         - name: operatorId
           in: path
@@ -1180,10 +1272,13 @@ paths:
                       - FAILED
                       - CANCELLED
                       - EXPIRED
+                    readOnly: true
+                    description: 服务端裁决的绑定轮询态（可扩展枚举；消费方按 unknown-safe 处理：遇未知值视同 PENDING 继续轮询、不崩）
                   reason:
                     type: string
                     enum:
                       - TARGET_GONE
+                    readOnly: true
                     description: FAILED 时的业务原因；占用冲突不向 Owner/BFF 暴露具体原因。
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -1196,9 +1291,9 @@ components:
     cookieAuth:
       type: apiKey
       in: cookie
-      name: msession
+      name: __Host-msession
       description: |
-        BFF 服务端会话 cookie（httpOnly / secure / SameSite）。浏览器不见 40-06 token； BFF 映射 cookie → 40-06 access/refresh token。写接口另需 CSRF 防护（见 design.md §安全落地）。
+        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）。
   schemas:
     RegistrationRequest:
       type: object
@@ -1532,7 +1627,7 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: UTC ISO-8601(存储 UTC,展示按商户时区)。
+      description: 'RFC 3339 date-time。in/out 非对称(骨干07):**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -1541,13 +1636,17 @@ components:
       description: 幂等键(写接口;骨干07 三段命中语义)
       schema:
         type: string
+        minLength: 1
+        pattern: \S
     CsrfToken:
       name: X-CSRF-Token
       in: header
       required: true
-      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/DELETE]必带;缺失/不匹配 → 403 fail-closed)
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)
       schema:
         type: string
+        minLength: 1
+        pattern: \S
     PageNum:
       name: pageNum
       in: query
