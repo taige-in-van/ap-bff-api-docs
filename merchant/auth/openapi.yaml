@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 / D-MERCH BFF) — 前端契约面
-  version: 0.4.4
+  version: 0.4.6
   contact:
     name: Merchant Portal BFF (D-MERCH owner)
   description: |
@@ -193,7 +193,7 @@ paths:
       operationId: login
       summary: FR-02 密码登录（邮箱或用户名 + 密码；MFA 联动；签发 BFF 会话）
       description: |
-        BFF 调 40-06 认证。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。 PENDING_VERIFICATION（自助注册待验）/ INVITED（邮箱员工待设密,前端提示「请用邀请邮件设密激活」）→ 无 active membership 不签发会话;锁定 423;商户 suspended / 账号禁用 403。防爆破计数归 40-06（FR-04 / INV-14）。
+        BFF 调 40-06 认证（clientId = merchant portal,由 BFF 注入、前端不传）。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。 PENDING_VERIFICATION（自助注册待验）/ INVITED（邮箱员工待设密,前端提示「请用邀请邮件设密激活」）→ 无 active membership 不签发会话;锁定 423;商户 suspended / 账号禁用 403。防爆破计数归 40-06（FR-04 / INV-14）。
       security: []
       requestBody:
         required: true
@@ -459,6 +459,7 @@ paths:
         - account-security
       operationId: disableMfa
       summary: FR-06 禁用 MFA（输 TOTP 验证，状态 → DISABLED）
+      description: BFF 转发 40-06 resetMfa；`code` 作为 `currentTotpCode` step-up 凭据（关 MFA = 降级，须 step-up）；TOTP 错保持 ENABLED、不计 FR-04。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -766,7 +767,7 @@ paths:
       operationId: requestPasswordReset
       summary: FR-09 商户用户自助重置 — 发起（**恒 202 反枚举**;因子由服务端判定,不在响应泄露）
       description: |
-        BFF 透传 40-06。**恒返 202、不在响应体暴露因子/账号存在性**(FR-09-AC-01)。服务端按可用因子处理:已绑 MFA → 后续要 TOTP(不发邮箱 OTP,闭合 MFA 降级);未绑 MFA 的邮箱格式 → 发邮箱 OTP;用户名格式+无 TOTP → 不发(联系 Owner)。 可从无会话(登录页)或登录态(My Profile,FR-15)发起;用户名格式「联系 Owner」提示由前端按 loginId 格式通用展示(不依赖账号存在性)。
+        BFF 透传 40-06（clientId = merchant portal,由 BFF 注入,前端只传 loginId）。**恒返 202、不在响应体暴露因子/账号存在性**(FR-09-AC-01)。服务端按可用因子处理:已绑 MFA → 后续要 TOTP(不发邮箱 OTP,闭合 MFA 降级);未绑 MFA 的邮箱格式 → 发邮箱 OTP;用户名格式+无 TOTP → 不发(联系 Owner)。 可从无会话(登录页)或登录态(My Profile,FR-15)发起;用户名格式「联系 Owner」提示由前端按 loginId 格式通用展示(不依赖账号存在性)。
       security: []
       requestBody:
         required: true
@@ -798,7 +799,7 @@ paths:
       operationId: verifyPasswordResetFactor
       summary: FR-09 自助重置 — 因子验证（邮箱 OTP / TOTP → resetToken）
       description: |
-        BFF 透传 40-06 factor-verification。challengeId 不泄露账号存在性；因子错误 / 过期 / 尝试超限均按共享错误模型返回。验证成功才签发单次 resetToken,供 /password-reset/confirmation 设置新密码。
+        BFF 透传 40-06 factor-verification。challengeId 不泄露账号存在性；因子错误 / 过期 → `410`、锁定 → `423`、限流 → `429`（共享错误模型）。`400` = BFF 入参校验失败（如缺字段），非 40-06 透传。验证成功才签发单次 resetToken,供 /password-reset/confirmation 设置新密码。
       security: []
       requestBody:
         required: true
