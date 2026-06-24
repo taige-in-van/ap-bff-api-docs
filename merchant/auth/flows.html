@@ -65,7 +65,7 @@ sequenceDiagram
     else 待验证 / 待设密
         A-->>B: 200 { status= PENDING_VERIFICATION | INVITED }(中间态，引导去验证 / 设密激活)
     end
-    Note over B,A: 凭据错 401<br/>账号锁定 423<br/>商户 suspended 或账号禁用 403<br/>限流 429<br/>防爆破锁定计数在后端(AUTH-FR-04)
+    Note over B,A: 凭据错 401<br/>账号锁定 423<br/>商户 suspended 或账号禁用 403<br/>限流 429<br/>防爆破锁定计数在后端
 ```
 
 - 登录成功后,后续受保护请求靠会话 cookie;前端拿不到也不需要 token。
@@ -101,7 +101,7 @@ sequenceDiagram
 - 未绑定 / 未扫 / 未确认对前端表现一致(`WAITING`),不区分以防枚举。
 - 微信内须用户**显式确认**才登录(扫码本身不构成认证);确认前对前端仍是 `WAITING`。
 - 二维码请求时已带 client(商户后台),微信内**不选 client / 商户**;同一身份跨多 merchant 的切换在门户内完成,不在微信里。
-- `REJECTED` / `CANCELLED` 是 40-06 在用户**确认后**的裁决(`REJECTED`=无 active membership / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
+- `REJECTED` / `CANCELLED` 是身份服务在用户**确认后**的裁决(`REJECTED`=无 active membership / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
 
 ---
 
@@ -129,9 +129,9 @@ sequenceDiagram
 ```
 
 - **异设备是关键**:Owner 在商户后台(PC)发起、被绑定成员在自己微信(手机)扫码确认;无结果腿则 Owner 零回告,故 `pollMemberWechatBinding` 必备。
-- **占用冲突不回泄 Owner**(INV-19):成员微信已绑别的账号 → Owner 轮询只得粗粒度 `FAILED`(`reason` 仅 `TARGET_GONE`),精确「已被占用」仅成员微信内可见;杜绝 Owner 借代绑刺探成员微信是否在平台用过。
+- **占用冲突不回泄 Owner**:成员微信已绑别的账号 → Owner 轮询只得粗粒度 `FAILED`(`reason` 仅 `TARGET_GONE`),精确「已被占用」仅成员微信内可见;杜绝 Owner 借代绑刺探成员微信是否在平台用过。
 - **绑定 = 启用本 client 微信登录**:成功即该成员可在商户后台扫码登录;解绑([`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat))只停本 client 启用,不删平台级 WeChat 绑定、不影响其他 client。
-- `wechatBound`(team 列表)= 本 client 启用状态,收敛走 40-06 `credential_changed` 事件(D4),非前端轮询兜底。
+- `wechatBound`(team 列表)= 本 client 启用状态,收敛走身份服务的凭据变更事件,非前端轮询兜底。
 
 ---
 
@@ -158,12 +158,12 @@ sequenceDiagram
     B->>A: [confirmLoginEmailChange] POST .../confirmation { challengeId, code }
     A->>EO: 旧邮箱安全通知
     A-->>B: 204(登录邮箱已更新；不影响当前会话)
-    Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410<br/>身份校验失败 401<br/>Owner 同步商户主联系邮箱(FR-10)，员工仅个人(FR-15)
+    Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410<br/>身份校验失败 401<br/>Owner 同步商户主联系邮箱，员工仅个人
 ```
 
 ---
 
-## 找回密码(FR-09 自助重置,3 调)
+## 找回密码(自助重置,3 调)
 
 [`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) **恒 202 反枚举**(不暴露账号是否存在 / 因子);[`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) 按已绑因子(邮箱 OTP / TOTP)验证换 `resetToken`;[`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) 设新密码。**重置不绕过 MFA**(只改密码、不动 MfaBinding)。
 
@@ -190,11 +190,11 @@ sequenceDiagram
 
 - 因子由服务端按账号判定:已绑 MFA→TOTP(不发邮箱 OTP)、未绑 MFA 邮箱格式→邮箱 OTP、用户名+无 TOTP→不发(前端通用提示「联系 Owner」,不依赖账号存在性)。
 - **不绕过 MFA**:重置只改密码、不修改 MfaBinding,下次登录仍强制 TOTP(闭合 MFA 降级)。
-- 可从登录页(无会话)或 My Profile(FR-15,登录态)发起;成功后全平台会话失效、回登录页。
+- 可从登录页(无会话)或 My Profile(登录态)发起;成功后全平台会话失效、回登录页。
 
 ---
 
-## Owner 改员工登录邮箱(FR-11,异步确认)
+## Owner 改员工登录邮箱(异步确认)
 
 Owner 在 Users 页改 **ACTIVE 邮箱格式员工**的登录邮箱([`updateTeamMember`](index.html#tag/team/operation/updateTeamMember))**不直接生效**——新邮箱发确认链接,员工本人点 [`confirmMemberLoginEmail`](index.html#tag/team/operation/confirmMemberLoginEmail) 确认才切换(任何成为生效凭据的登录邮箱都经控制权验证)。
 
@@ -215,7 +215,7 @@ sequenceDiagram
 
 - 确认前旧邮箱仍有效、pending 新邮箱不可登录 / 不可 Forgot;切换后旧邮箱收安全通知。
 - 用户名格式员工无登录邮箱凭据(不可改);`INVITED` 员工改邮箱 → 重发邀请。
-- 与 §改登录邮箱(员工自助,FR-15)正交:此为 **Owner 代改**、走新邮箱确认链接;自助走身份校验 + 新邮箱 OTP。
+- 与「改登录邮箱(员工自助)」正交:此为 **Owner 代改**、走新邮箱确认链接;自助走身份校验 + 新邮箱 OTP。
 
 ---
 
@@ -235,7 +235,7 @@ sequenceDiagram
     T-->>B: 显示 6 位 TOTP
     B->>A: [activateMfa] POST /account/security/mfa/activation { code }
     A-->>B: 204(MFA_PENDING → ENABLED)
-    Note over B,A: 当前密码错 401(不计 AUTH-FR-04 锁定计数)<br/>TOTP 错 401，前端可重输
+    Note over B,A: 当前密码错 401(不计锁定计数)<br/>TOTP 错 401，前端可重输
 ```
 
 ---
@@ -255,11 +255,11 @@ sequenceDiagram
     Note over E,B: 用户点邮件链接 → 打开确认页(GET 只展示，不消费 token)
     B->>A: [verifyRegistrationEmail] POST /registrations/verification { token }(用户在确认页主动点 Verify)
     A-->>B: 200 ACTIVE(→ 进入入驻 ONB 起点)
-    Note over B,A: 链接过期 / 已用 410<br/>激活前任一步失败留 PENDING、可重试、不展示成功(AUTH-FR-01)
+    Note over B,A: 链接过期 / 已用 410<br/>激活前任一步失败留 PENDING、可重试、不展示成功
 ```
 
 - 重发验证邮件:[`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail)(`POST /registrations/verification-email`,冷却内 429;新链接生效、旧链接失效)。
-- 邮箱邀请员工设密激活(FR-14)同形:确认页主动提交 [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword)(anti-prefetch GET 不激活),`INVITED → ACTIVE`。
+- 邮箱邀请员工设密激活同形:确认页主动提交 [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword)(anti-prefetch GET 不激活),`INVITED → ACTIVE`。
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

@@ -10,7 +10,7 @@
 
 > 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走、什么触发 OTP / 轮询**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对身份服务(40-06 的 Owner OTP)、账务核心(10-05 的资金划转)的委派**不画**（后端面，与前端无关）。外部参与方（Owner 邮箱）仅在用户可见时出现。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对身份服务（Owner OTP）、账务核心（资金划转）的委派**不画**（后端面，与前端无关）。外部参与方（Owner 邮箱）仅在用户可见时出现。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**，直达 ReDoc 接口详情；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
@@ -109,7 +109,7 @@ sequenceDiagram
     Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（防并发 TOCTOU）<br/>Reserve 不足 → status＝FAILED、不划转<br/>amount 与 max 二选一（both/neither 非法 400）<br/>幂等键复用、payload 冲突 409、限流 429
 ```
 
-- **全额用 `max=true`**：「取回全部」由服务端在临界区内原子算当时可取额（BFF 内部转发账务核心的 `drainReserve`、后端面前端不可见），前端**不要**自己读余额再填 `amount`（会引入并发竞态）。固定额才传 `amount`。
+- **全额用 `max=true`**：「取回全部」由服务端在临界区内原子算当时可取额（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（会引入并发竞态）。固定额才传 `amount`。
 - **`amount` 与 `max` 二选一**：都传 / 都不传 → 400。
 - 取回去向 = 商户当前生效结算账户（只读展示）；Reserve 不足则 `FAILED`、不划转。
 
