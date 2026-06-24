@@ -32,7 +32,7 @@ paths:
       tags:
         - registration
       operationId: registerOwner
-      summary: FR-01 Owner 自助注册（创建 PENDING_VERIFICATION 账号 + 发验证邮件）
+      summary: Owner 自助注册（创建 PENDING_VERIFICATION 账号 + 发验证邮件）
       description: |
         BFF 编排：调 40-06 建 unverified identity+credential（409 若 email 被占用），本地建 Operator(PENDING_VERIFICATION)+ 邮件校验物，发 Verify Email 邮件。 两单写者相继、良性中间态、幂等（见 design.md §跨部署服务交互路由 注册标红）。
       security: []
@@ -66,14 +66,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-requirement-ids:
-        - AUTH-FR-01
   /registrations/verification:
     post:
       tags:
         - registration
       operationId: verifyRegistrationEmail
-      summary: FR-01 邮箱激活（确认页主动点击触发的 POST；防扫描器 prefetch）
+      summary: 邮箱激活（确认页主动点击触发的 POST；防扫描器 prefetch）
       description: |
         校验一次性验证 token（**仅在 membership 成功提交时消费;之前各步失败 token 不消费、可用同 token 重试**,避免卡在 PENDING 但 token 已失效）→ 编排激活,**membership 最后提交**:**先**本地事务备 ONB Application(DRAFT) + Merchant Shell + Operator 就绪（此刻仍无 membership → 登录仍 gate）,**成功后**才调 40-06 provisionMember 建 active membership（= 启用登录的提交点 + 消费 token）。 membership 之前任一步失败 → 不返回成功、Operator 仍 PENDING、可重试（AC-11）;membership 成功后才返回 ACTIVE。验证链接的 GET 确认页是前端路由、不激活账号，故不在本 API。
       security: []
@@ -100,14 +98,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '410':
           $ref: '#/components/responses/Gone'
-      x-requirement-ids:
-        - AUTH-FR-01
   /registrations/verification-email:
     post:
       tags:
         - registration
       operationId: resendVerificationEmail
-      summary: FR-01 重发验证邮件（冷却内 429；新链接生效旧链接失效）
+      summary: 重发验证邮件（冷却内 429；新链接生效旧链接失效）
       description: Resend 仅刷新链接，不重置 24h 清理计时器（计时从注册时刻起算）。
       security: []
       requestBody:
@@ -127,14 +123,12 @@ paths:
           description: 已重发（或冷却结束后发新邮件）
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-01
   /invitations/password:
     post:
       tags:
         - team
       operationId: acceptInvitationSetPassword
-      summary: FR-14 邮箱邀请员工设密激活（确认页主动提交;INVITED→ACTIVE,邮箱即验证为安全凭据）
+      summary: 邮箱邀请员工设密激活（确认页主动提交;INVITED→ACTIVE,邮箱即验证为安全凭据）
       description: |
         员工点邀请链接 → 确认页设密提交。BFF 校验邀请 token + 密码规则 → 本地 Operator `INVITED→ACTIVE`、邮箱标记已验证 → 经 40-06 建凭据(password)+ 建 active membership(membership-last 提交点)+ 发 `operator.activated`。token 单次,设密成功即失效。
       security: []
@@ -166,14 +160,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '410':
           $ref: '#/components/responses/Gone'
-      x-requirement-ids:
-        - AUTH-FR-14
   /team/login-email-confirmations:
     post:
       tags:
         - team
       operationId: confirmMemberLoginEmail
-      summary: FR-11 员工确认 Owner 改的新登录邮箱（点新邮箱确认链接 → 切换生效）
+      summary: 员工确认 Owner 改的新登录邮箱（点新邮箱确认链接 → 切换生效）
       description: Owner 改 ACTIVE 邮箱格式员工登录邮箱后,新邮箱收确认链接;员工主动确认 → 切换新邮箱 + 旧邮箱收安全通知 + 发 `operator.email_changed`;确认前旧邮箱有效。token 单次,anti-prefetch。
       security: []
       requestBody:
@@ -195,14 +187,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '410':
           $ref: '#/components/responses/Gone'
-      x-requirement-ids:
-        - AUTH-FR-11
   /sessions:
     post:
       tags:
         - session
       operationId: login
-      summary: FR-02 密码登录（邮箱或用户名 + 密码；MFA 联动；签发 BFF 会话）
+      summary: 密码登录（邮箱或用户名 + 密码；MFA 联动；签发 BFF 会话）
       description: |
         BFF 调 40-06 认证（clientId = merchant portal,由 BFF 注入、前端不传）。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。 PENDING_VERIFICATION（自助注册待验）/ INVITED（邮箱员工待设密,前端提示「请用邀请邮件设密激活」）→ 无 active membership 不签发会话;锁定 423;商户 suspended / 账号禁用 403。防爆破计数归 40-06（FR-04 / INV-14）。
       security: []
@@ -246,15 +236,12 @@ paths:
           $ref: '#/components/responses/Locked'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-02
-        - AUTH-FR-04
   /sessions/mfa:
     post:
       tags:
         - session
       operationId: completeMfaChallenge
-      summary: FR-02/06 登录二次校验（提交 TOTP，通过则签发 BFF 会话）
+      summary: 登录二次校验（提交 TOTP，通过则签发 BFF 会话）
       security: []
       requestBody:
         required: true
@@ -284,16 +271,12 @@ paths:
           $ref: '#/components/responses/Locked'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-02
-        - AUTH-FR-04
-        - AUTH-FR-06
   /sessions/wechat:
     post:
       tags:
         - session
       operationId: initiateWechatLogin
-      summary: FR-03 WeChat 扫码登录 — 发起（返回二维码票据；轮询见 GET）
+      summary: WeChat 扫码登录 — 发起（返回二维码票据；轮询见 GET）
       description: 二维码默认 5 分钟有效（可配置），超时前端轮询拿到过期态后自动刷新继续等待。
       security: []
       responses:
@@ -316,14 +299,12 @@ paths:
                     $ref: '#/components/schemas/Timestamp'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-03
   /sessions/wechat/{qrTicket}:
     get:
       tags:
         - session
       operationId: pollWechatLogin
-      summary: FR-03 WeChat 扫码登录 — 轮询（确认成功则签发 BFF 会话）
+      summary: WeChat 扫码登录 — 轮询（确认成功则签发 BFF 会话）
       description: |
         被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。 ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED，与「未扫」WAITING 反枚举一致。
       security: []
@@ -357,14 +338,12 @@ paths:
                     type: string
                     readOnly: true
                     description: REJECTED 时的业务原因（账号已禁用 / 商户状态异常）
-      x-requirement-ids:
-        - AUTH-FR-03
   /sessions/current:
     get:
       tags:
         - session
       operationId: getCurrentSession
-      summary: FR-05 会话校验 + 身份摘要 + 可见菜单树 + 落地页（BFF 聚合 40-06 /me）
+      summary: 会话校验 + 身份摘要 + 可见菜单树 + 落地页（BFF 聚合 40-06 /me）
       description: 受保护请求的会话校验入口；BFF 聚合 40-06 CON-03 /me（撤销感知）+ 本地 Operator 展示字段。无效 → 401 前端跳登录页。
       responses:
         '200':
@@ -397,13 +376,11 @@ paths:
                         path: /settings/users
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-05
     delete:
       tags:
         - session
       operationId: logout
-      summary: FR-05 登出（撤销当前 BFF 会话 + 触发 40-06 撤销当前会话）
+      summary: 登出（撤销当前 BFF 会话 + 触发 40-06 撤销当前会话）
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -411,14 +388,12 @@ paths:
           description: 已登出（cookie 已清除）
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-05
   /account/security:
     get:
       tags:
         - account-security
       operationId: getAccountSecurity
-      summary: FR-06 账户安全状态（Security Level + MFA 状态，派生展示）
+      summary: 账户安全状态（Security Level + MFA 状态，派生展示）
       responses:
         '200':
           description: OK
@@ -445,14 +420,12 @@ paths:
                       - ENABLED
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-06
   /account/security/mfa:
     post:
       tags:
         - account-security
       operationId: enrollMfa
-      summary: FR-06 启用 MFA — 发起（输当前密码 → 返回 provisioning，待 activation）
+      summary: 启用 MFA — 发起（输当前密码 → 返回 provisioning，待 activation）
       description: BFF 转发 40-06 enrollMfa（凭据写单写者 = 40-06）；当前密码错 → 401，不计 FR-04。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -480,14 +453,12 @@ paths:
                     type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-06
   /account/security/mfa/activation:
     post:
       tags:
         - account-security
       operationId: activateMfa
-      summary: FR-06 启用 MFA — 确认（输 TOTP 激活，状态 → ENABLED）
+      summary: 启用 MFA — 确认（输 TOTP 激活，状态 → ENABLED）
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -506,14 +477,12 @@ paths:
           description: 已激活（MFA_PENDING → ENABLED）
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-06
   /account/security/mfa/deactivation:
     post:
       tags:
         - account-security
       operationId: disableMfa
-      summary: FR-06 禁用 MFA（输 TOTP 验证，状态 → DISABLED）
+      summary: 禁用 MFA（输 TOTP 验证，状态 → DISABLED）
       description: BFF 转发 40-06 resetMfa；`code` 作为 `currentTotpCode` step-up 凭据（关 MFA = 降级，须 step-up）；TOTP 错保持 ENABLED、不计 FR-04。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -533,14 +502,12 @@ paths:
           description: 已禁用（ENABLED → DISABLED）
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-06
   /account/security/password:
     put:
       tags:
         - account-security
       operationId: changeOwnPassword
-      summary: FR-08 登录态改密（Owner + 员工统一用旧密码；其他会话失效、当前保留）
+      summary: 登录态改密（Owner + 员工统一用旧密码；其他会话失效、当前保留）
       description: BFF 转发 40-06 changePassword（单写者 = 40-06）。**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**（v0.45）;旧密码错 → 401,不计 FR-04;忘记旧密码 → 前端「Forgot your password?」路由 FR-09 自助重置。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -572,14 +539,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-08
   /account/login-email/change:
     post:
       tags:
         - my-profile
       operationId: initiateLoginEmailChange
-      summary: FR-10/FR-15 自助改登录邮箱 — 发起（返回身份校验方式：MFA→TOTP / 无 MFA→旧邮箱 OTP）
+      summary: 自助改登录邮箱 — 发起（返回身份校验方式：MFA→TOTP / 无 MFA→旧邮箱 OTP）
       description: |
         邮箱格式账号自助改登录邮箱。严格两步验证:MFA 已启 → TOTP;未启 → 旧邮箱 OTP;通过后再发新邮箱 OTP。 **Owner = FR-10**(同步商户主联系邮箱 + FR-12 非本人救济),**员工 = FR-15**(仅个人登录邮箱、不同步);用户名格式 → 403。返回 challengeId 串起后续步骤。
       parameters:
@@ -606,15 +571,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-10
-        - AUTH-FR-15
   /account/login-email/change/identity-verification:
     post:
       tags:
         - my-profile
       operationId: verifyLoginEmailChangeIdentity
-      summary: FR-10/FR-15 改登录邮箱 — 第 1 步身份校验（MFA TOTP 或旧邮箱 OTP）
+      summary: 改登录邮箱 — 第 1 步身份校验（MFA TOTP 或旧邮箱 OTP）
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -638,15 +600,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '410':
           $ref: '#/components/responses/Gone'
-      x-requirement-ids:
-        - AUTH-FR-10
-        - AUTH-FR-15
   /account/login-email/change/new-email:
     post:
       tags:
         - my-profile
       operationId: submitNewLoginEmail
-      summary: FR-10/FR-15 改登录邮箱 — 第 2 步提交新邮箱（校验格式/唯一/不同 + 发新邮箱 OTP）
+      summary: 改登录邮箱 — 第 2 步提交新邮箱（校验格式/唯一/不同 + 发新邮箱 OTP）
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -673,15 +632,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-requirement-ids:
-        - AUTH-FR-10
-        - AUTH-FR-15
   /account/login-email/change/confirmation:
     post:
       tags:
         - my-profile
       operationId: confirmLoginEmailChange
-      summary: FR-10/FR-15 改登录邮箱 — 第 3 步确认（新邮箱 OTP → 更新登录邮箱 + 旧邮箱收安全通知）
+      summary: 改登录邮箱 — 第 3 步确认（新邮箱 OTP → 更新登录邮箱 + 旧邮箱收安全通知）
       description: 更新不影响会话。Owner 变更同步商户主联系邮箱、旧邮箱通知无 Reset password CTA(FR-12);员工仅个人安全通知。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -706,16 +662,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '410':
           $ref: '#/components/responses/Gone'
-      x-requirement-ids:
-        - AUTH-FR-10
-        - AUTH-FR-15
-        - AUTH-FR-12
   /account/me:
     get:
       tags:
         - my-profile
       operationId: getMyProfile
-      summary: FR-15 My Profile（显示名 / 登录 ID / 角色;改密改邮箱入口）
+      summary: My Profile（显示名 / 登录 ID / 角色;改密改邮箱入口）
       responses:
         '200':
           description: OK
@@ -744,13 +696,11 @@ paths:
                       type: string
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-15
     put:
       tags:
         - my-profile
       operationId: updateMyNickname
-      summary: FR-15 改自己 Nick Name（直接生效;不改 MFA/WeChat/密码/不影响会话）
+      summary: 改自己 Nick Name（直接生效;不改 MFA/WeChat/密码/不影响会话）
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -771,14 +721,12 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-15
   /account/profile:
     get:
       tags:
         - business-profile
       operationId: getOwnContactProfile
-      summary: FR-13 读 Owner Business Profile 联系人资料（First/Last Name / Business Title / Phone）
+      summary: 读 Owner Business Profile 联系人资料（First/Last Name / Business Title / Phone）
       responses:
         '200':
           description: OK
@@ -788,13 +736,11 @@ paths:
                 $ref: '#/components/schemas/ContactProfile'
         '401':
           $ref: '#/components/responses/Unauthorized'
-      x-requirement-ids:
-        - AUTH-FR-13
     put:
       tags:
         - business-profile
       operationId: updateOwnContactProfile
-      summary: FR-13 改 Owner 联系人资料（直接生效，不需 OTP / MFA / 审核 / 邮件 / 不影响会话）
+      summary: 改 Owner 联系人资料（直接生效，不需 OTP / MFA / 审核 / 邮件 / 不影响会话）
       description: 仅 Owner（员工 403）。不变更 Primary Email / 密码 / MFA / WeChat；改 Business Title 不触发 RBAC 重算。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -813,14 +759,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-13
   /password-reset/request:
     post:
       tags:
         - password-reset
       operationId: requestPasswordReset
-      summary: FR-09 商户用户自助重置 — 发起（**恒 202 反枚举**;因子由服务端判定,不在响应泄露）
+      summary: 商户用户自助重置 — 发起（**恒 202 反枚举**;因子由服务端判定,不在响应泄露）
       description: |
         BFF 透传 40-06（clientId = merchant portal,由 BFF 注入,前端只传 loginId）。**恒返 202、不在响应体暴露因子/账号存在性**(FR-09-AC-01)。服务端按可用因子处理:已绑 MFA → 后续要 TOTP(不发邮箱 OTP,闭合 MFA 降级);未绑 MFA 的邮箱格式 → 发邮箱 OTP;用户名格式+无 TOTP → 不发(联系 Owner)。 可从无会话(登录页)或登录态(My Profile,FR-15)发起;用户名格式「联系 Owner」提示由前端按 loginId 格式通用展示(不依赖账号存在性)。
       security: []
@@ -848,15 +792,12 @@ paths:
                 challengeId: pwr_4e1a8c9b2d
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-09
-        - AUTH-FR-11
   /password-reset/factor-verification:
     post:
       tags:
         - password-reset
       operationId: verifyPasswordResetFactor
-      summary: FR-09 自助重置 — 因子验证（邮箱 OTP / TOTP → resetToken）
+      summary: 自助重置 — 因子验证（邮箱 OTP / TOTP → resetToken）
       description: |
         BFF 透传 40-06 factor-verification。challengeId 不泄露账号存在性；因子错误 / 过期 → `410`、锁定 → `423`、限流 → `429`（共享错误模型）。`400` = BFF 入参校验失败（如缺字段），非 40-06 透传。验证成功才签发单次 resetToken,供 /password-reset/confirmation 设置新密码。
       security: []
@@ -890,14 +831,12 @@ paths:
           $ref: '#/components/responses/Locked'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-09
   /password-reset/confirmation:
     post:
       tags:
         - password-reset
       operationId: confirmPasswordReset
-      summary: FR-09 自助重置 — 确认（因子 + 新密码 → 全会话失效;**MfaBinding 不变、不绕过 MFA**;不签发新会话）
+      summary: 自助重置 — 确认（因子 + 新密码 → 全会话失效;**MfaBinding 不变、不绕过 MFA**;不签发新会话）
       description: '**重置只改密码、不修改 MfaBinding**——下次登录仍强制 TOTP(闭合 MFA 降级)。'
       security: []
       requestBody:
@@ -926,14 +865,12 @@ paths:
           $ref: '#/components/responses/Gone'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-09
   /team/members:
     get:
       tags:
         - team
       operationId: listTeamMembers
-      summary: FR-11 团队成员列表（BFF 合并 40-06 membership + 本地 Operator；搜索/筛选/排序/分页）
+      summary: 团队成员列表（BFF 合并 40-06 membership + 本地 Operator；搜索/筛选/排序/分页）
       description: |
         团队规模小、有界 → BFF 取本商户 40-06 成员集 + 本地 Operator 合并，在 BFF 内存过滤/排序/分页（40-06 不发布只读视图，故不走 JOIN；见 design.md §跨部署服务交互路由）。Owner 行置顶。
       parameters:
@@ -1013,13 +950,11 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-11
     post:
       tags:
         - team
       operationId: createTeamMember
-      summary: FR-11 Owner 新建员工（邮箱→INVITED 发邀请 / 用户名→Owner 设密 ACTIVE）
+      summary: Owner 新建员工（邮箱→INVITED 发邀请 / 用户名→Owner 设密 ACTIVE）
       description: |
         按登录 ID 格式分两支:**含 @（邮箱格式)** → 不填密码,① 40-06 建无凭据 unverified identity → ② AUTH 本地建 `Operator(INVITED)` + `Invitation` token + 发邀请链接邮件(员工自设密激活,FR-14),**不建 membership**(membership-last,设密时建);**不含 @（用户名格式)** → Owner 填临时密码,三相继单写者(① 40-06 建 identity+credential → ② AUTH 本地 Operator → ③ 40-06 provisionMember active membership)→ `ACTIVE`。 membership 之前 Operator 已就绪 → 无「可登录但无 profile」孤儿;前置步失败留良性态、幂等重试。不可选 Owner 角色。
       parameters:
@@ -1057,14 +992,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-requirement-ids:
-        - AUTH-FR-11
   /team/members/{operatorId}:
     put:
       tags:
         - team
       operationId: updateTeamMember
-      summary: FR-11 编辑员工（Nick Name / Role / 用户名直接改 / 填 newPassword 重置 / ACTIVE 邮箱改走确认链接）
+      summary: 编辑员工（Nick Name / Role / 用户名直接改 / 填 newPassword 重置 / ACTIVE 邮箱改走确认链接）
       description: |
         BFF 按字段归属拆单写者:**Nick Name → AUTH 本地 Operator**;**Role → 40-06 setMembershipRoles**;**newPassword → 40-06 adminResetMemberPassword**(失效该员工全部会话);**用户名(loginId 不含 @) → 40-06 changeMemberLoginId 直接生效**(非安全凭据,无需控制权验证)。 **ACTIVE 邮箱格式员工改登录邮箱**:Owner 无需额外自证,但**不直接生效**——校验新邮箱格式/唯一(含 pending 占用)后向**新邮箱发确认链接**(`operator.email_change_pending`),确认前旧邮箱仍有效、pending 新邮箱不可登录/不可 Forgot;员工经 `/team/login-email-confirmations` 确认后切换(任何成为生效凭据的登录邮箱都经控制权验证)。`INVITED` 员工改邮箱 → 重发邀请。 Owner row：仅 Nick Name 可改、Role 不可改、不经此重置 Owner 密码(改密 FR-08、改邮箱 FR-10)。改 loginId/Role 不失效会话(session 绑 identity)；填 newPassword → 该员工全会话失效。
       parameters:
@@ -1092,14 +1025,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-requirement-ids:
-        - AUTH-FR-11
   /team/members/{operatorId}/invitation:
     post:
       tags:
         - team
       operationId: resendInvitation
-      summary: FR-11 对 INVITED 员工 Resend 邀请链接（冷却默认 60s 可配;旧链接失效）
+      summary: 对 INVITED 员工 Resend 邀请链接（冷却默认 60s 可配;旧链接失效）
       parameters:
         - name: operatorId
           in: path
@@ -1118,13 +1049,11 @@ paths:
           $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-requirement-ids:
-        - AUTH-FR-11
     delete:
       tags:
         - team
       operationId: deleteTeamMember
-      summary: FR-11 删除员工（软删 status→DELETED + 全会话失效；Owner 不可删 → 403）
+      summary: 删除员工（软删 status→DELETED + 全会话失效；Owner 不可删 → 403）
       parameters:
         - name: operatorId
           in: path
@@ -1139,14 +1068,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-11
   /team/members/{operatorId}/enablement:
     put:
       tags:
         - team
       operationId: setMemberEnablement
-      summary: FR-11 启用 / 禁用员工（禁用 → 全会话失效；Owner 不可禁用 → 403）
+      summary: 启用 / 禁用员工（禁用 → 全会话失效；Owner 不可禁用 → 403）
       parameters:
         - name: operatorId
           in: path
@@ -1172,14 +1099,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-11
   /team/members/{operatorId}/wechat-binding:
     post:
       tags:
         - team
       operationId: initiateMemberWechatBinding
-      summary: FR-07 Owner 给成员（含自己）绑 WeChat — 发起（返回二维码，被绑定本人扫码）
+      summary: Owner 给成员（含自己）绑 WeChat — 发起（返回二维码，被绑定本人扫码）
       description: BFF 调 40-06 成员级 client enrollment 绑定（service-auth + 目标 membership，非 token sub）。已启用 → 409『请先解绑』；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 轮询只返回粗粒度 FAILED。BFF 将 40-06 challengeId 映射为 qrTicket，将 qrPayload 映射为 qrContent。
       parameters:
         - name: operatorId
@@ -1211,13 +1136,11 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/Conflict'
-      x-requirement-ids:
-        - AUTH-FR-07
     delete:
       tags:
         - team
       operationId: unbindMemberWechat
-      summary: FR-07 Owner 给成员解绑 WeChat（不影响其当前会话）
+      summary: Owner 给成员解绑 WeChat（不影响其当前会话）
       description: 只停用该成员在 merchant client 的 WeChat login enrollment；不删除平台级 WeChat 外部账号绑定，不影响其他 client。
       parameters:
         - name: operatorId
@@ -1233,14 +1156,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-07
   /team/members/{operatorId}/wechat-binding/{qrTicket}:
     get:
       tags:
         - team
       operationId: pollMemberWechatBinding
-      summary: FR-07 WeChat 绑定 — 结果轮询（闭环结果腿；对称 pollWechatLogin）
+      summary: WeChat 绑定 — 结果轮询（闭环结果腿；对称 pollWechatLogin）
       description: |
         被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突(INV-05)只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED。
       parameters:
@@ -1284,8 +1205,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-      x-requirement-ids:
-        - AUTH-FR-07
 components:
   securitySchemes:
     cookieAuth:
