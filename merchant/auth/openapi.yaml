@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 / D-MERCH BFF) — 前端契约面
-  version: 0.4.8
+  version: 0.4.12
   contact:
     name: Merchant Portal BFF (D-MERCH owner)
   description: |
@@ -73,7 +73,7 @@ paths:
       operationId: verifyRegistrationEmail
       summary: 邮箱激活（确认页主动点击触发的 POST；防扫描器 prefetch）
       description: |
-        校验一次性验证 token（**仅在 membership 成功提交时消费;之前各步失败 token 不消费、可用同 token 重试**,避免卡在 PENDING 但 token 已失效）→ 编排激活,**membership 最后提交**:**先**本地事务备 ONB Application(DRAFT) + Merchant Shell + Operator 就绪（此刻仍无 membership → 登录仍 gate）,**成功后**才调 40-06 provisionMember 建 active membership（= 启用登录的提交点 + 消费 token）。 membership 之前任一步失败 → 不返回成功、Operator 仍 PENDING、可重试（AC-11）;membership 成功后才返回 ACTIVE。验证链接的 GET 确认页是前端路由、不激活账号，故不在本 API。
+        校验一次性验证 token（**仅在 membership 成功提交时消费;之前各步失败 token 不消费、可用同 token 重试**,避免卡在 PENDING 但 token 已失效）→ 编排激活,**membership 最后提交**:**先**本地事务备 ONB Application(DRAFT) + Merchant Shell + Operator 就绪（此刻仍无 membership → 登录仍 gate）,**成功后**才调 40-06 provisionMember 建 active membership（= 启用登录的提交点 + 消费 token）。 membership 之前任一步失败 → 不返回成功、Operator 仍 PENDING、可重试（AC-11）;membership 成功后才返回 ACTIVE。验证链接的 GET 确认页是前端路由、不激活账号，故不在本 API。 **激活成功即建立 BFF 会话（set-cookie，与 login 一致）**——前端直接走应用启动链路；merchantId / 落地页 / 入驻路由统一经 getCurrentSession + getOnboardingStatus 取，**不在本响应返回**。
       security: []
       requestBody:
         required: true
@@ -87,13 +87,17 @@ paths:
                 token:
                   type: string
                   description: 一次性邮箱验证 token（单次消费，anti-prefetch）
+            example:
+              token: vtok_a1b2c3d4e5
       responses:
         '200':
-          description: 激活成功；账号 ACTIVE，前端按入驻状态路由到 ONB 起点
+          description: 激活成功；账号 ACTIVE + 已建 BFF 会话（set-cookie）；前端经启动链路（getCurrentSession → getOnboardingStatus.routeTo）分流
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ActivationResult'
+              example:
+                status: ACTIVE
         '400':
           $ref: '#/components/responses/BadRequest'
         '410':
@@ -118,6 +122,8 @@ paths:
                 email:
                   type: string
                   format: email
+            example:
+              email: jane@example.com
       responses:
         '202':
           description: 已重发（或冷却结束后发新邮件）
@@ -153,8 +159,12 @@ paths:
                 confirmPassword:
                   type: string
                   format: password
+            example:
+              token: itok_5d4e1f2a3b
+              newPassword: Str0ng!Pass
+              confirmPassword: Str0ng!Pass
       responses:
-        '200':
+        '204':
           description: 已激活;账号 ACTIVE,前端跳登录页
         '400':
           $ref: '#/components/responses/BadRequest'
@@ -180,6 +190,8 @@ paths:
                 token:
                   type: string
                   description: 一次性新邮箱确认 token(anti-prefetch)
+            example:
+              token: etok_7c2d9e4f1a
       responses:
         '204':
           description: 登录邮箱已切换为新邮箱
@@ -258,6 +270,9 @@ paths:
                   description: login 返回的短时挑战句柄（绑定待认证 identity）
                 code:
                   type: string
+            example:
+              mfaChallenge: chl_9f2a4c7e1b
+              code: '123456'
       responses:
         '200':
           description: 校验通过，已 set-cookie
@@ -265,6 +280,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResult'
+              example:
+                status: ESTABLISHED
         '401':
           $ref: '#/components/responses/Unauthorized'
         '423':
@@ -297,6 +314,10 @@ paths:
                     description: 二维码内容 / 图片 URL（前端渲染）
                   expiresAt:
                     $ref: '#/components/schemas/Timestamp'
+              example:
+                qrTicket: wxq_3f8a1c0d92
+                qrContent: https://login.example.com/wxqr/wxq_3f8a1c0d92.png
+                expiresAt: '2026-06-22T14:10:00Z'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /sessions/wechat/{qrTicket}:
@@ -338,6 +359,8 @@ paths:
                     type: string
                     readOnly: true
                     description: REJECTED 时的业务原因（账号已禁用 / 商户状态异常）
+              example:
+                status: WAITING
   /sessions/current:
     get:
       tags:
@@ -356,7 +379,7 @@ paths:
                 operatorId: op_7a1c9
                 displayName: Jane Merchant
                 isOwner: true
-                merchantId: M10023
+                merchantId: '1000023'
                 roles:
                   - OWNER
                 landingPage: /dashboard
@@ -418,6 +441,9 @@ paths:
                       - DISABLED
                       - MFA_PENDING
                       - ENABLED
+              example:
+                securityLevel: Strong
+                mfaStatus: ENABLED
         '401':
           $ref: '#/components/responses/Unauthorized'
   /account/security/mfa:
@@ -441,6 +467,8 @@ paths:
                 currentPassword:
                   type: string
                   format: password
+            example:
+              currentPassword: Str0ng!Pass
       responses:
         '200':
           description: provisioning（otpauth URI），待 activation
@@ -451,6 +479,8 @@ paths:
                 properties:
                   otpauthUri:
                     type: string
+              example:
+                otpauthUri: otpauth://totp/:jane@example.com?secret=JBSWY3DPEHPK3PXP&issuer=
         '401':
           $ref: '#/components/responses/Unauthorized'
   /account/security/mfa/activation:
@@ -472,6 +502,8 @@ paths:
               properties:
                 code:
                   type: string
+            example:
+              code: '123456'
       responses:
         '204':
           description: 已激活（MFA_PENDING → ENABLED）
@@ -497,6 +529,8 @@ paths:
               properties:
                 code:
                   type: string
+            example:
+              code: '123456'
       responses:
         '204':
           description: 已禁用（ENABLED → DISABLED）
@@ -508,7 +542,7 @@ paths:
         - account-security
       operationId: changeOwnPassword
       summary: 登录态改密（Owner + 员工统一用旧密码；其他会话失效、当前保留）
-      description: BFF 转发 40-06 changePassword（单写者 = 40-06）。**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**（v0.45）;旧密码错 → 401,不计 FR-04;忘记旧密码 → 前端「Forgot your password?」路由 FR-09 自助重置。
+      description: BFF 转发 40-06 changePassword（单写者 = 40-06）。**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**（v0.47）;旧密码错 → 401,不计 FR-04;忘记旧密码 → 前端「Forgot your password?」路由 FR-09 自助重置。Idempotency-Key 重放:同键同 payload → 一致重放 204;同键异 payload → 409。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -532,6 +566,10 @@ paths:
                 confirmPassword:
                   type: string
                   format: password
+            example:
+              currentPassword: Str0ng!Pass
+              newPassword: N3w!Str0ngPass
+              confirmPassword: N3w!Str0ngPass
       responses:
         '204':
           description: 改密成功（其他会话已失效，当前会话保留）
@@ -539,6 +577,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
   /account/login-email/change:
     post:
       tags:
@@ -567,6 +607,9 @@ paths:
                     enum:
                       - MFA_TOTP
                       - OLD_EMAIL_OTP
+              example:
+                challengeId: chg_6b1d3f8a90
+                identityVerification: MFA_TOTP
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -593,6 +636,9 @@ paths:
                   type: string
                 code:
                   type: string
+            example:
+              challengeId: chg_6b1d3f8a90
+              code: '123456'
       responses:
         '204':
           description: 身份已校验，可提交新邮箱
@@ -623,6 +669,9 @@ paths:
                 newEmail:
                   type: string
                   format: email
+            example:
+              challengeId: chg_6b1d3f8a90
+              newEmail: jane.new@example.com
       responses:
         '202':
           description: 新邮箱 OTP 已发（新邮箱含 pending 占用登录域唯一性）
@@ -655,6 +704,9 @@ paths:
                   type: string
                 code:
                   type: string
+            example:
+              challengeId: chg_6b1d3f8a90
+              code: '654321'
       responses:
         '204':
           description: 登录邮箱已更新（旧邮箱已收安全通知）
@@ -694,6 +746,13 @@ paths:
                     type: array
                     items:
                       type: string
+              example:
+                operatorId: op_7a1c9
+                displayName: Jane Merchant
+                loginId: jane@example.com
+                loginIdEditable: true
+                roles:
+                  - OWNER
         '401':
           $ref: '#/components/responses/Unauthorized'
     put:
@@ -714,6 +773,8 @@ paths:
               properties:
                 nickName:
                   type: string
+            example:
+              nickName: Jane M.
       responses:
         '204':
           description: 已保存
@@ -734,6 +795,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ContactProfile'
+              example:
+                firstName: Jane
+                lastName: Merchant
+                businessTitle: Manager
+                phone: '6045550123'
         '401':
           $ref: '#/components/responses/Unauthorized'
     put:
@@ -750,6 +816,11 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ContactProfile'
+            example:
+              firstName: Jane
+              lastName: Merchant
+              businessTitle: Manager
+              phone: '6045550123'
       responses:
         '204':
           description: 已保存
@@ -816,6 +887,9 @@ paths:
                 code:
                   type: string
                   description: 邮箱 OTP 或 TOTP code
+            example:
+              challengeId: pwr_4e1a8c9b2d
+              code: '123456'
       responses:
         '200':
           description: 因子验证通过，返回单次 resetToken
@@ -823,6 +897,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PasswordResetFactorVerified'
+              example:
+                resetToken: rst_8f3c1a9e6b2d4f7a0c5e
         '400':
           $ref: '#/components/responses/BadRequest'
         '410':
@@ -856,6 +932,9 @@ paths:
                 newPassword:
                   type: string
                   format: password
+            example:
+              resetToken: rst_8f3c1a9e6b2d4f7a0c5e
+              newPassword: N3w!Str0ngPass
       responses:
         '204':
           description: 重置成功（该用户全平台会话已失效;MfaBinding 不变;前端回登录页）
@@ -874,6 +953,7 @@ paths:
       description: |
         团队规模小、有界 → BFF 取本商户 40-06 成员集 + 本地 Operator 合并，在 BFF 内存过滤/排序/分页（40-06 不发布只读视图，故不走 JOIN；见 design.md §跨部署服务交互路由）。Owner 行置顶。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: search
           in: query
           schema:
@@ -950,6 +1030,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
     post:
       tags:
         - team
@@ -958,6 +1040,7 @@ paths:
       description: |
         按登录 ID 格式分两支:**含 @（邮箱格式)** → 不填密码,① 40-06 建无凭据 unverified identity → ② AUTH 本地建 `Operator(INVITED)` + `Invitation` token + 发邀请链接邮件(员工自设密激活,FR-14),**不建 membership**(membership-last,设密时建);**不含 @（用户名格式)** → Owner 填临时密码,三相继单写者(① 40-06 建 identity+credential → ② AUTH 本地 Operator → ③ 40-06 provisionMember active membership)→ `ACTIVE`。 membership 之前 Operator 已就绪 → 无「可登录但无 profile」孤儿;前置步失败留良性态、幂等重试。不可选 Owner 角色。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -966,6 +1049,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CreateTeamMemberRequest'
+            example:
+              loginId: sam@example.com
+              nickName: Sam Clerk
+              role: Operator
       responses:
         '201':
           description: 已创建（邮箱格式 = INVITED 待设密;用户名格式 = ACTIVE）
@@ -984,6 +1071,9 @@ paths:
                     enum:
                       - INVITED
                       - ACTIVE
+              example:
+                operatorId: op_3b8f2
+                status: INVITED
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -991,7 +1081,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/Conflict'
+          $ref: '#/components/responses/MerchantBffConflict'
   /team/members/{operatorId}:
     put:
       tags:
@@ -1001,6 +1091,7 @@ paths:
       description: |
         BFF 按字段归属拆单写者:**Nick Name → AUTH 本地 Operator**;**Role → 40-06 setMembershipRoles**;**newPassword → 40-06 adminResetMemberPassword**(失效该员工全部会话);**用户名(loginId 不含 @) → 40-06 changeMemberLoginId 直接生效**(非安全凭据,无需控制权验证)。 **ACTIVE 邮箱格式员工改登录邮箱**:Owner 无需额外自证,但**不直接生效**——校验新邮箱格式/唯一(含 pending 占用)后向**新邮箱发确认链接**(`operator.email_change_pending`),确认前旧邮箱仍有效、pending 新邮箱不可登录/不可 Forgot;员工经 `/team/login-email-confirmations` 确认后切换(任何成为生效凭据的登录邮箱都经控制权验证)。`INVITED` 员工改邮箱 → 重发邀请。 Owner row：仅 Nick Name 可改、Role 不可改、不经此重置 Owner 密码(改密 FR-08、改邮箱 FR-10)。改 loginId/Role 不失效会话(session 绑 identity)；填 newPassword → 该员工全会话失效。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
           in: path
           required: true
@@ -1014,6 +1105,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/UpdateTeamMemberRequest'
+            example:
+              nickName: Sam Clerk
+              role: Operator
       responses:
         '204':
           description: 已更新（ACTIVE 邮箱改邮箱为受理:确认链接已发新邮箱,待员工确认）
@@ -1024,7 +1118,29 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/Conflict'
+          $ref: '#/components/responses/MerchantBffConflict'
+    delete:
+      tags:
+        - team
+      operationId: deleteTeamMember
+      summary: 删除员工（软删 status→DELETED + 全会话失效；Owner 不可删 → 403；INVITED/ACTIVE/DISABLED 均经此删成员本体）
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: operatorId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: 已软删
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /team/members/{operatorId}/invitation:
     post:
       tags:
@@ -1032,6 +1148,7 @@ paths:
       operationId: resendInvitation
       summary: 对 INVITED 员工 Resend 邀请链接（冷却默认 60s 可配;旧链接失效）
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
           in: path
           required: true
@@ -1046,28 +1163,9 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/Conflict'
+          $ref: '#/components/responses/MerchantBffConflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-    delete:
-      tags:
-        - team
-      operationId: deleteTeamMember
-      summary: 删除员工（软删 status→DELETED + 全会话失效；Owner 不可删 → 403）
-      parameters:
-        - name: operatorId
-          in: path
-          required: true
-          schema:
-            type: string
-        - $ref: '#/components/parameters/CsrfToken'
-      responses:
-        '204':
-          description: 已软删
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
   /team/members/{operatorId}/enablement:
     put:
       tags:
@@ -1075,6 +1173,7 @@ paths:
       operationId: setMemberEnablement
       summary: 启用 / 禁用员工（禁用 → 全会话失效；Owner 不可禁用 → 403）
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
           in: path
           required: true
@@ -1092,6 +1191,8 @@ paths:
               properties:
                 enabled:
                   type: boolean
+            example:
+              enabled: false
       responses:
         '204':
           description: 已切换（ACTIVE ↔ DISABLED）
@@ -1099,6 +1200,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /team/members/{operatorId}/wechat-binding:
     post:
       tags:
@@ -1107,6 +1210,7 @@ paths:
       summary: Owner 给成员（含自己）绑 WeChat — 发起（返回二维码，被绑定本人扫码）
       description: BFF 调 40-06 成员级 client enrollment 绑定（service-auth + 目标 membership，非 token sub）。已启用 → 409『请先解绑』；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 轮询只返回粗粒度 FAILED。BFF 将 40-06 challengeId 映射为 qrTicket，将 qrPayload 映射为 qrContent。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
           in: path
           required: true
@@ -1130,12 +1234,16 @@ paths:
                     type: string
                   expiresAt:
                     $ref: '#/components/schemas/Timestamp'
+              example:
+                qrTicket: wxb_2a7f9c1e04
+                qrContent: https://login.example.com/wxbind/wxb_2a7f9c1e04.png
+                expiresAt: '2026-06-22T14:10:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/Conflict'
+          $ref: '#/components/responses/MerchantBffConflict'
     delete:
       tags:
         - team
@@ -1143,6 +1251,7 @@ paths:
       summary: Owner 给成员解绑 WeChat（不影响其当前会话）
       description: 只停用该成员在 merchant client 的 WeChat login enrollment；不删除平台级 WeChat 外部账号绑定，不影响其他 client。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
           in: path
           required: true
@@ -1156,6 +1265,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /team/members/{operatorId}/wechat-binding/{qrTicket}:
     get:
       tags:
@@ -1165,6 +1276,7 @@ paths:
       description: |
         被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突(INV-05)只能扫码确认后判定，扫码本人微信内可见具体原因，Owner/BFF 发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
           in: path
           required: true
@@ -1201,10 +1313,14 @@ paths:
                       - TARGET_GONE
                     readOnly: true
                     description: FAILED 时的业务原因；占用冲突不向 Owner/BFF 暴露具体原因。
+              example:
+                status: PENDING
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
 components:
   securitySchemes:
     cookieAuth:
@@ -1212,7 +1328,7 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）。
+        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     RegistrationRequest:
       type: object
@@ -1254,8 +1370,10 @@ components:
           type: string
           enum:
             - PENDING_VERIFICATION
+          readOnly: true
         maskedEmail:
           type: string
+          readOnly: true
           description: 脱敏邮箱，供「等待验证」页展示
     ActivationResult:
       type: object
@@ -1266,12 +1384,7 @@ components:
           type: string
           enum:
             - ACTIVE
-        next:
-          type: string
-          description: 前端路由目标（新注册 Owner → ONB 5 步入驻起点）
-        merchantId:
-          type: string
-          description: 可展示的 Merchant ID（来自 Merchant Shell）
+          readOnly: true
     LoginRequest:
       type: object
       required:
@@ -1370,25 +1483,39 @@ components:
       description: FR-05 会话上下文 = 40-06 /me（身份 + 可见菜单树 + 落地页）+ 本地 Operator 展示字段（BFF 聚合）
       required:
         - operatorId
+        - merchantId
+        - landingPage
         - menus
       properties:
         operatorId:
           type: string
+          readOnly: true
         displayName:
           type: string
+          readOnly: true
         isOwner:
           type: boolean
+          readOnly: true
         merchantId:
-          type: string
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: 当前商户内部 id；**可为 null = 无当前商户**（撤回 / 无可访问商户，FE 走 listMerchants 选择或进入无可用商户态）；非 null 时据此初始化 X-Merchant-Context（见启动链路）
         roles:
           type: array
+          readOnly: true
           items:
             type: string
         landingPage:
-          type: string
-          description: 角色主项决定的默认落地页（未配置默认 Dashboard）
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: 角色主项决定的默认落地页（未配置默认 Dashboard；无当前商户时为 null）；**仅 routeTo=MERCHANT_HOME 时采用**——ONB / 审核 / 拒绝区域由 getOnboardingStatus.routeTo 决定
         menus:
           type: array
+          readOnly: true
           description: 过滤后的可见菜单树（前端只渲染所返回项；来自 40-06 RBAC 求值）
           items:
             $ref: '#/components/schemas/MenuNode'
@@ -1441,6 +1568,7 @@ components:
       properties:
         operatorId:
           type: string
+          readOnly: true
         displayName:
           type: string
           description: Nick Name（本地 Operator）
@@ -1456,6 +1584,7 @@ components:
             - INVITED
             - ACTIVE
             - DISABLED
+          readOnly: true
           description: 账号态:INVITED(邮箱邀请待设密,附 Resend)= 本地 Operator;ACTIVE/DISABLED 权威 = 40-06 membership state(active→ACTIVE/disabled→DISABLED);removed 不呈现
         pendingLoginEmail:
           oneOf:
@@ -1472,9 +1601,11 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
+          readOnly: true
           description: 最近登录（40-06）；从未登录为 null，前端显示「从未登录」
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+          readOnly: true
     CreateTeamMemberRequest:
       type: object
       required:
@@ -1547,6 +1678,21 @@ components:
       type: string
       format: date-time
       description: 'RFC 3339 date-time。in/out 非对称(骨干07):**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+    MerchantBffError:
+      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
+      allOf:
+        - $ref: '#/components/schemas/ErrorEnvelope'
+        - type: object
+          properties:
+            context:
+              type: object
+              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
+              properties:
+                currentMerchantId:
+                  type:
+                    - string
+                    - 'null'
+                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null；schema 不用 if/then——redocly example 校验不兼容；由 contract-test enforce）。
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -1566,6 +1712,15 @@ components:
         type: string
         minLength: 1
         pattern: \S
+    MerchantContextGuard:
+      name: X-Merchant-Context
+      in: header
+      required: true
+      description: |
+        merchant-current-scoped 请求守卫（stale-tab 一致性，**读写统一**）：页面预期商户 ID（expected merchant）。**仅与会话 current merchant 比对、非 scope selector**—— 会话 current 仍是 merchant scope 唯一权威；一致才执行；**≠ 会话 current → 409 `MerchantBffConflict`**（语义名 `MERCHANT_CONTEXT_CHANGED`，整数 `code` `208001`、SSOT 见 `20-商户后台/api/error-codes.yaml`）——**读不返回错商户数据、写不执行**； **`context.currentMerchantId`**（非 `details` 字段校验数组）回显服务端会话当前商户供前端直接 re-sync。统一挂在各 module **所有 merchant-current-scoped 读 + 写 operation**； 前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户；BroadcastChannel / focus 只作提前发现、改善体验）。 **治理范围仅 cookieAuth 浏览器 BFF 面 + 依赖当前商户的 op**；**不适用** `.internal` serviceAuth 面 / 公开 register·login·callback（`security:[]`）/ 设备面 / 其他不依赖当前商户的接口。**BFF 面内豁免**：listMerchants（re-sync 发现入口、返回 currentMerchantId）、switchCurrentMerchant（设当前 authority changer）、**withdrawOnboardingApplication（path-selector：target 由 path 定、与会话 current 无关）**、全局接口。
+      schema:
+        type: string
+        minLength: 1
     PageNum:
       name: pageNum
       in: query
@@ -1626,3 +1781,23 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    MerchantBffConflict:
+      description: |
+        409 冲突。整数 `code` 结构（`XX·Y·ZZZ`、责任方位 `Y` 4-8）见骨干07；**码 SSOT = `20-商户后台/api/error-codes.yaml`**（本描述仅引用、非登记源）。D-MERCH 业务·资源型 `208xxx`（前端据整数 `code` 区分子因）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**契约不变量：必携 `context.currentMerchantId`**（contract-test enforce；schema 不用 if/then 因 redocly example 校验不兼容）供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208004` 基线漂移（`baselineVersion` / URL 指纹 CAS 失败，需重载最新态）； `208005` 幂等键复用但 payload 不一致。 前端动作：208001 刷新当前商户、208002 提示已存在、208003·208004 重载最新态、208005 排查重复请求。本 409 response BFF 面 + `.internal` 面共用同末段语义（internal 面走域中立 `ErrorEnvelope`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MerchantBffError'
+          examples:
+            staleTab:
+              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
+              value:
+                code: 208001
+                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
+                context:
+                  currentMerchantId: '1000024'
+            businessConflict:
+              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
+              value:
+                code: 208002
+                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交

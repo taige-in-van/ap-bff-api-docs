@@ -14,7 +14,7 @@
 >
 > **接口 ID = `operationId`**:下方每个发往 BFF 的调用都标 `[operationId]`,即 OpenAPI 原生 `operationId`——全局唯一,也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**,直达 ReDoc 接口详情;时序图**内**的 `[operationId]` 受 Mermaid 限制不可点,点同名链接即可。
 >
-> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录成功 BFF 下发 httpOnly opaque 会话 cookie(`__Host-msession`),服务端持后端 token;非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`;错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF 详见 [API 基础约定](../../conventions.html))。
+> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录/激活成功 BFF 下发 httpOnly opaque 会话 cookie(`__Host-msession`),服务端持后端 token;**使用 cookieAuth 的非安全方法(POST/PUT/DELETE)带 `X-CSRF-Token`**(注册 / 登录 / 找回 / 邮箱激活等 `security:[]` 公开端点不带);**team 等当前商户相关读写携带页面当前 merchantId(`X-Merchant-Context`)**(与会话当前商户不一致 → 409 `MERCHANT_CONTEXT_CHANGED`,FE 统一处理);错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 启动链路与守卫 详见 [API 基础约定](../../conventions.html))。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整,可据此并行开发,勿当冻结契约。
 
@@ -28,7 +28,7 @@
 | [`pollWechatLogin`](index.html#tag/session/operation/pollWechatLogin) | `GET /sessions/wechat/{qrTicket}` | 扫码登录轮询 |
 | [`initiateMemberWechatBinding`](index.html#tag/team/operation/initiateMemberWechatBinding) | `POST /team/members/{operatorId}/wechat-binding` | 代成员绑 WeChat 发起(返回二维码) |
 | [`pollMemberWechatBinding`](index.html#tag/team/operation/pollMemberWechatBinding) | `GET /team/members/{operatorId}/wechat-binding/{qrTicket}` | 绑定结果轮询(异设备回告发起端) |
-| [`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat) | `DELETE /team/members/{operatorId}/wechat-binding` | 代成员解绑 WeChat(只停本 client 启用) |
+| [`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat) | `DELETE /team/members/{operatorId}/wechat-binding` | 代成员解绑 WeChat(仅停用该成员的商户后台 WeChat 登录) |
 | [`initiateLoginEmailChange`](index.html#tag/my-profile/operation/initiateLoginEmailChange) | `POST /account/login-email/change` | 改登录邮箱发起(返回身份校验方式) |
 | [`verifyLoginEmailChangeIdentity`](index.html#tag/my-profile/operation/verifyLoginEmailChangeIdentity) | `POST /account/login-email/change/identity-verification` | 改邮箱第 1 步:身份校验 |
 | [`submitNewLoginEmail`](index.html#tag/my-profile/operation/submitNewLoginEmail) | `POST /account/login-email/change/new-email` | 改邮箱第 2 步:提交新邮箱 |
@@ -87,7 +87,7 @@ sequenceDiagram
     B->>B: 渲染二维码
     par 用户侧
         W->>W: 扫码 → 微信内授权
-        W->>W: 用户在微信内显式确认登录(扫码≠认证；微信内不选 client/商户)
+        W->>W: 用户在微信内显式确认登录(扫码≠认证；微信内不选业务端/商户)
     and 前端轮询
         loop 直到非 WAITING
             B->>A: [pollWechatLogin] GET /sessions/wechat/{qrTicket}
@@ -100,8 +100,8 @@ sequenceDiagram
 - `EXPIRED`(二维码默认 5 分钟,可配置)→ 前端重新发起换新码继续等。
 - 未绑定 / 未扫 / 未确认对前端表现一致(`WAITING`),不区分以防枚举。
 - 微信内须用户**显式确认**才登录(扫码本身不构成认证);确认前对前端仍是 `WAITING`。
-- 二维码请求时已带 client(商户后台),微信内**不选 client / 商户**;同一身份跨多 merchant 的切换在门户内完成,不在微信里。
-- `REJECTED` / `CANCELLED` 是身份服务在用户**确认后**的裁决(`REJECTED`=无 active membership / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
+- 二维码请求时已带业务端(商户后台),微信内**不选业务端 / 商户**;同一身份跨多商户的切换在门户内完成,不在微信里。
+- `REJECTED` / `CANCELLED` 是身份服务在用户**确认后**的裁决(`REJECTED`=无有效的商户后台访问资格 / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
 
 ---
 
@@ -125,13 +125,13 @@ sequenceDiagram
             A-->>B: 200 { status, reason? }
         end
     end
-    Note over B,A: PENDING：继续轮询<br/>BOUND：已绑(team 列表 wechatBound 走事件收敛)<br/>FAILED：粗粒度(占用细节不回泄 Owner，reason 仅 TARGET_GONE)<br/>CANCELLED：成员取消<br/>EXPIRED：换码重发
+    Note over B,A: PENDING：继续轮询<br/>BOUND：已绑(绑定成功后更新页面状态，后续刷新团队列表可取得最新 wechatBound)<br/>FAILED：粗粒度(占用细节不回泄 Owner，reason 仅 TARGET_GONE)<br/>CANCELLED：成员取消<br/>EXPIRED：换码重发
 ```
 
 - **异设备是关键**:Owner 在商户后台(PC)发起、被绑定成员在自己微信(手机)扫码确认;无结果腿则 Owner 零回告,故 `pollMemberWechatBinding` 必备。
 - **占用冲突不回泄 Owner**:成员微信已绑别的账号 → Owner 轮询只得粗粒度 `FAILED`(`reason` 仅 `TARGET_GONE`),精确「已被占用」仅成员微信内可见;杜绝 Owner 借代绑刺探成员微信是否在平台用过。
-- **绑定 = 启用本 client 微信登录**:成功即该成员可在商户后台扫码登录;解绑([`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat))只停本 client 启用,不删平台级 WeChat 绑定、不影响其他 client。
-- `wechatBound`(team 列表)= 本 client 启用状态,收敛走身份服务的凭据变更事件,非前端轮询兜底。
+- **绑定 = 启用商户后台微信登录**:成功即该成员可在商户后台扫码登录;解绑([`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat))仅停用该成员的商户后台 WeChat 登录,不删平台级 WeChat 绑定、不影响其他业务端。
+- `wechatBound`(team 列表)= 商户后台启用状态；绑定成功后更新页面状态,后续刷新团队列表可取得最新 wechatBound。
 
 ---
 
@@ -165,7 +165,7 @@ sequenceDiagram
 
 ## 找回密码(自助重置,3 调)
 
-[`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) **恒 202 反枚举**(不暴露账号是否存在 / 因子);[`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) 按已绑因子(邮箱 OTP / TOTP)验证换 `resetToken`;[`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) 设新密码。**重置不绕过 MFA**(只改密码、不动 MfaBinding)。
+[`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) **恒 202 反枚举**(不暴露账号是否存在 / 因子);[`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) 按已绑因子(邮箱 OTP / TOTP)验证换 `resetToken`;[`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) 设新密码。**重置不绕过 MFA**(只改密码、MFA 保持启用)。
 
 ```mermaid
 sequenceDiagram
@@ -184,12 +184,12 @@ sequenceDiagram
     B->>A: [verifyPasswordResetFactor] POST .../factor-verification { challengeId, code }
     A-->>B: 200 { resetToken }(高熵单次)
     B->>A: [confirmPasswordReset] POST .../confirmation { resetToken, newPassword }
-    A-->>B: 204(密码已重置；全平台会话失效；MfaBinding 不变→下次登录仍验 TOTP；回登录页)
+    A-->>B: 204(密码已重置；全平台会话失效；MFA 保持启用→下次登录仍验 TOTP；回登录页)
     Note over B,A: 恒 202 反枚举<br/>用户名+无 TOTP→不发(联系 Owner)<br/>因子错/过期/超限 400/410/423/429<br/>challengeId·resetToken 单次
 ```
 
 - 因子由服务端按账号判定:已绑 MFA→TOTP(不发邮箱 OTP)、未绑 MFA 邮箱格式→邮箱 OTP、用户名+无 TOTP→不发(前端通用提示「联系 Owner」,不依赖账号存在性)。
-- **不绕过 MFA**:重置只改密码、不修改 MfaBinding,下次登录仍强制 TOTP(闭合 MFA 降级)。
+- **不绕过 MFA**:重置只改密码、MFA 保持启用,下次登录仍强制 TOTP(闭合 MFA 降级)。
 - 可从登录页(无会话)或 My Profile(登录态)发起;成功后全平台会话失效、回登录页。
 
 ---
@@ -205,12 +205,12 @@ sequenceDiagram
     participant EN as 员工新邮箱
     participant M as 员工浏览器
     O->>A: [updateTeamMember] PUT /team/members/{operatorId} { loginId= 新登录邮箱 }
-    A->>EN: 发新邮箱确认链接(operator.email_change_pending)
+    A->>EN: 发送新邮箱确认链接
     A-->>O: 204(受理:不直接生效；确认前旧邮箱有效、pending 新邮箱不可登录/Forgot)
-    Note over EN,M: 员工点新邮箱确认链接 → 确认页(anti-prefetch GET 只展示)
+    Note over EN,M: 员工点新邮箱确认链接 → 确认页(GET 只展示，用户主动提交后才生效)
     M->>A: [confirmMemberLoginEmail] POST /team/login-email-confirmations { token }
     A-->>M: 204(登录邮箱已切换；旧邮箱收安全通知)
-    Note over O,A: 仅 ACTIVE 邮箱格式员工<br/>INVITED 员工改→重发邀请<br/>用户名格式员工不可改邮箱<br/>token 单次 anti-prefetch
+    Note over O,A: 仅 ACTIVE 邮箱格式员工<br/>INVITED 员工改→重发邀请<br/>用户名格式员工不可改邮箱<br/>token 单次；邮件链接 GET 只展示、主动提交才生效
 ```
 
 - 确认前旧邮箱仍有效、pending 新邮箱不可登录 / 不可 Forgot;切换后旧邮箱收安全通知。
@@ -240,9 +240,9 @@ sequenceDiagram
 
 ---
 
-## 自助注册 → 邮箱激活(两步,anti-prefetch)
+## 自助注册 → 邮箱激活(两步：链接只展示、主动提交才激活)
 
-[`registerOwner`](index.html#tag/registration/operation/registerOwner) 建 `PENDING_VERIFICATION` 账号并发验证邮件;**确认页 GET 只展示、不激活**,用户主动点 Verify 才用 [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) 激活(防邮件扫描器 prefetch 误激活)。
+[`registerOwner`](index.html#tag/registration/operation/registerOwner) 建 `PENDING_VERIFICATION` 账号并发验证邮件;**确认页 GET 只展示、不激活**,用户主动点 Verify 才用 [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) 激活(防邮件客户端自动预取误激活)。
 
 ```mermaid
 sequenceDiagram
@@ -254,12 +254,33 @@ sequenceDiagram
     A-->>B: 201 PENDING_VERIFICATION(前端跳「等待验证」页)
     Note over E,B: 用户点邮件链接 → 打开确认页(GET 只展示，不消费 token)
     B->>A: [verifyRegistrationEmail] POST /registrations/verification { token }(用户在确认页主动点 Verify)
-    A-->>B: 200 ACTIVE(→ 进入入驻 ONB 起点)
+    A-->>B: 200 ACTIVE + set-cookie 建会话(→ 走启动链路 getCurrentSession → getOnboardingStatus，见 API 基础约定)
     Note over B,A: 链接过期 / 已用 410<br/>激活前任一步失败留 PENDING、可重试、不展示成功
 ```
 
 - 重发验证邮件:[`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail)(`POST /registrations/verification-email`,冷却内 429;新链接生效、旧链接失效)。
-- 邮箱邀请员工设密激活同形:确认页主动提交 [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword)(anti-prefetch GET 不激活),`INVITED → ACTIVE`。
+- 邮箱邀请员工设密激活：完整时序见下「邮箱邀请员工设密激活」。
+
+## 邮箱邀请员工设密激活（Owner 建 → 员工设密 → ACTIVE）
+
+Owner 用**邮箱格式**新建员工 [`createTeamMember`](index.html#tag/team/operation/createTeamMember) → 系统建员工账号（`INVITED`）+ 发邀请链接邮件（**账号尚未激活、不能登录**）；员工点链接在确认页主动设密 [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword) → `INVITED → ACTIVE`（邮箱即验证为安全凭据）→ 跳登录页自行登录。**跨用户、跨邮箱多步**。
+
+```mermaid
+sequenceDiagram
+    participant O as Owner(浏览器)
+    participant A as 商户后台 BFF
+    participant E as 员工邮箱
+    participant S as 员工(浏览器)
+    O->>A: [createTeamMember] POST /team/members { loginId(邮箱), nickName, role }（X-Merchant-Context + Idempotency-Key）
+    A->>E: 发邀请链接邮件
+    A-->>O: 201 { operatorId, status= INVITED }（待员工设密；账号尚未激活、不能登录）
+    Note over E,S: 员工点邀请链接 → 打开确认页（GET 只展示、不激活，用户主动提交后才生效）
+    S->>A: [acceptInvitationSetPassword] POST /invitations/password { token, newPassword, confirmPassword }
+    A-->>S: 204（INVITED → ACTIVE、邮箱即验证；跳登录页，员工自行登录）
+    Note over S,A: token 单次、设密成功即失效<br/>链接过期 / 已用 410<br/>密码不符规则 / 两次不一致 400
+```
+
+- **用户名格式**新建员工不走邀请：Owner 直接设临时密码 → 即 `ACTIVE`（见 `createTeamMember` 描述）。
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>

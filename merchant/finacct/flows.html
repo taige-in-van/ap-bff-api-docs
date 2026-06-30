@@ -14,9 +14,9 @@
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**，直达 ReDoc 接口详情；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；金额一律**最小币种单位整数字符串 + 币种**（如 `{ amount: "150000", currency: CAD }`）；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带页面当前 merchantId（`X-Merchant-Context`）**——与会话当前商户不一致 → 409 `MERCHANT_CONTEXT_CHANGED`，FE 统一处理（见 [API 基础约定](../../conventions.html)）；金额一律**最小币种单位整数字符串 + 币种**（如 `{ amount: "150000", currency: CAD }`）；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
 >
-> ⚠️ **碰钱红线**：储备金 Top Up / Withdraw 是**资金动作**——写请求带 `Idempotency-Key`，**重试必须复用同一个键**（BFF 凭它幂等推进、绝不重复划转）；金额格式 / OTP 失败一律服务端 fail-closed，前端**不放大重试**、按错误码引导用户。
+> ⚠️ **碰钱红线**：储备金 Top Up / Withdraw 是**资金动作**——写请求带 `Idempotency-Key`，**重试必须复用同一个键**（同一幂等键重试会继续原操作，不重复划转）；金额格式 / OTP 校验失败即不生效，前端**不放大重试**、按错误码引导用户。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
 
@@ -64,7 +64,7 @@ sequenceDiagram
     participant EO as Owner 邮箱
     B->>A: [requestRefundReserveOtp] POST /refund-reserve/otp-challenges { topUpAmount?, autoReplenish? }
     A->>EO: 发 Owner email OTP(绑定本次操作摘要 + 会话)
-    A-->>B: 202 OtpChallenge{ challengeId, 脱敏目标邮箱, 冷却 }
+    A-->>B: 202 OtpChallenge{ challengeId, deliveredTo, cooldownSeconds, expiresAt }
     EO-->>B: 用户读取 Owner 邮箱 OTP
     B->>A: [submitRefundReserveFunding] POST /refund-reserve/funding<br/>Idempotency-Key ＋ { otp(challengeId ＋ 验证码), 同一 topUpAmount?/autoReplenish? }
     alt 子项均同步达终态
@@ -76,14 +76,14 @@ sequenceDiagram
             A-->>B: 200 OperationDetail{ opType＝FUNDING, topUpResult/autoReplenishResult 子项 status }
         end
     end
-    Note over B,A: 重试必须复用同一 Idempotency-Key → BFF 凭已通过 marker 推进，不重验 OTP、不重复划转<br/>提交摘要与 challenge 绑定不一致 403（防夹带/改额，须重发 OTP）<br/>challenge 过期 410（重发 OTP）<br/>OTP 错误超限锁定 423<br/>冷却中/限流 429<br/>幂等键 payload 冲突 409<br/>金额格式/校验 400
+    Note over B,A: 重试必须复用同一 Idempotency-Key → 同一幂等键重试会继续原操作，不重复验证 OTP、也不重复划转<br/>提交内容与申请 OTP 时不一致 403（防夹带/改额，须重发 OTP）<br/>challenge 过期 410（重发 OTP）<br/>OTP 错误超限锁定 423<br/>冷却中/限流 429<br/>同一幂等键对应的请求内容不一致 409<br/>金额格式/校验 400
 ```
 
 - **OTP 发往 Owner 邮箱、非操作者邮箱**：202 返回脱敏目标邮箱供前端展示「OTP 已发至 o***@example.com」；若操作者非 Owner，需 Owner 转告 OTP（资金动作须 Owner 联签）。
-- **同一摘要贯穿两阶段**：funding 提交的 `topUpAmount` / `autoReplenish` 必须与发 OTP 时**完全一致**——服务端按操作摘要 canonical 指纹比对，失配 403（杜绝「批了 A 改成 B / 改币种 / 夹带配置」）。前端两阶段间不要让用户改额。
+- **同一摘要贯穿两阶段**：funding 提交的 `topUpAmount` / `autoReplenish` 必须与发 OTP 时**完全一致**——服务端校验提交内容与申请 OTP 时完全一致，不一致 403（杜绝「批了 A 改成 B / 改币种 / 夹带配置」）。前端两阶段间不要让用户改额。
 - **项 ⟺ 提交项、可部分成功**：提交 `topUpAmount` + `autoReplenish` → 回 `topUpResult`（status `SUCCEEDED/FAILED/PENDING`）+ `autoReplenishResult`（status `SAVED/FAILED/PENDING`）；可能一项成功、一项失败，前端**分项回报**、别整体判成败。
 - **PENDING 轮询**：`RefundReserveFundingResult` / `OperationDetail` **无顶层 `status`**——看各子项（`topUpResult` / `autoReplenishResult`）的 `status`；未同步达终态时拿 `operationId` 轮询 `getReserveOperation` 至子项终态，终态以账务核心为准。
-- **失败两者都不生效**：OTP 校验失败 / 摘要失配 / 会话不符时，Top Up 与配置**都不落地**（fail-closed），前端按错误码引导（重发 OTP / 稍后重试）。
+- **失败两者都不生效**：OTP 校验失败 / 提交内容不一致 / 会话不符时，Top Up 与配置**都不生效**，前端按错误码引导（重发 OTP / 稍后重试）。
 - **金额由 PositiveMoney 守 > 0**；auto-replenish 开启时 Account Limit 必填且 > 0。
 
 ---
@@ -106,10 +106,10 @@ sequenceDiagram
             A-->>B: 200 OperationDetail{ opType＝WITHDRAW, withdrawResult.status }
         end
     end
-    Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（防并发 TOCTOU）<br/>Reserve 不足 → status＝FAILED、不划转<br/>amount 与 max 二选一（both/neither 非法 400）<br/>幂等键复用、payload 冲突 409、限流 429
+    Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（避免余额变化造成取回金额错误）<br/>Reserve 不足 → status＝FAILED、不划转<br/>amount 与 max 二选一（both/neither 非法 400）<br/>幂等键复用、同一幂等键对应的请求内容不一致 409、限流 429
 ```
 
-- **全额用 `max=true`**：「取回全部」由服务端在临界区内原子算当时可取额（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（会引入并发竞态）。固定额才传 `amount`。
+- **全额用 `max=true`**：「取回全部」由服务端按执行时的实际可取金额处理（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（会引入并发竞态）。固定额才传 `amount`。
 - **`amount` 与 `max` 二选一**：都传 / 都不传 → 400。
 - 取回去向 = 商户当前生效结算账户（只读展示）；Reserve 不足则 `FAILED`、不划转。
 
@@ -123,7 +123,7 @@ sequenceDiagram
 sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
-    B->>A: [createExport] POST /exports<br/>Idempotency-Key ＋ { kind, format(Excel/PDF), resourceId?, filters? }
+    B->>A: [createExport] POST /exports<br/>Idempotency-Key ＋ { kind, format(XLSX/PDF), resourceId?, filters? }
     A-->>B: 202 ExportJob{ exportJobId, status＝ PENDING }
     loop 直到 status 终态
         B->>A: [getExport] GET /exports/{exportJobId}
@@ -132,7 +132,7 @@ sequenceDiagram
     Note over B,A: 按当前查询条件导出（filters，不局限当前分页）<br/>完成后 downloadUrl 短期有效（expiresAt 过期需重新导出）<br/>大结果集异步、超限/非法过滤 400
 ```
 
-- **按查询条件、非当前页**：`filters` 镜像对应列表端点的过滤字段，导出的是符合条件的**全集**、不是当前分页；导出 scope 由会话商户冻结，不信 `filters` 放宽。
+- **按查询条件、非当前页**：`filters` 镜像对应列表端点的过滤字段，导出的是符合条件的**全集**、不是当前分页；导出范围固定为发起时的当前商户，`filters` 仅表达筛选条件、不能扩大商户范围。
 - **完成才有 `downloadUrl`**：轮询到终态(完成)再触发下载；`downloadUrl` 短期有效（`expiresAt`），过期需重新发起导出。
 - 大结果集异步执行，前端发起后给 toast / 通知，不阻塞页面。
 

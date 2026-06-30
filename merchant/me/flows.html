@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商户实体 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 商户实体（主体资料 / 结算 / Refund PIN / 多商户 / Service Page / 集成）—— 调用时序
+
+> 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走、什么触发上传 / OTP / 审核分流**（HOW）。
+>
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对身份服务（Owner email OTP）、通道目录、审核团队的委派**不画**（后端面，与前端无关）。外部参与方（Owner 邮箱收件箱）仅在用户可见时出现。
+>
+> **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**，直达 ReDoc 接口详情；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
+>
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带页面当前 merchantId（`X-Merchant-Context`）**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；目标商户不在可访问范围 → 404；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 字段级 details / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
+>
+> ⚠️ **碰钱红线**：Refund PIN 是**资金动作凭据**——写入后**绝不回显**（任何响应里都没有 PIN 字段），改 PIN 需当前 PIN、Forgot 走 Owner email 一次性 OTP；结算银行账户（account_number）read **仅末 4 位掩码**、集成凭据（token / secret / private key）read **仅掩码摘要**，明文不返回、不二次回显；结算银行字段变更**必先上传 Void cheque + Owner email OTP 校验**才能创建审核请求，**旧值持续生效至审核通过**；创建类 + 非天然幂等写（Add Merchant / Connect AcceptanceMode / Connect Ecommerce / 创建结算变更请求 / **改 Refund PIN** / Forgot PIN 重置 / **改 URL 触发重审**）带 `Idempotency-Key`，**重试用同键返回首次结果**（改 PIN〔currentPin 已消费〕/ 改 URL〔撞 pending → 409〕非天然幂等，绝不重复建实体）；OTP 错误分类：错误可重试 → 400（含剩余次数）/ 尝试超限锁定 → 423 / 过期·已用 → 410 / Resend 冷却 → 429，前端**不放大重试**、按错误码引导。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
+
+## 接口 ID 对照(图例，点 operationId 跳接口)
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | Profile 概览（Header card + 4 section；account_number 掩码 + Locked 标识 + 资金只读） |
+| [`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) | `PUT /account/profile/business-information` | 编辑 7 可编辑字段（直接生效；Locked 字段出现即 403） |
+| [`uploadLogo`](index.html#tag/profile/operation/uploadLogo) | `POST /account/profile/logo` | 上传 / 更换 Logo（multipart；即时生效） |
+| [`removeLogo`](index.html#tag/profile/operation/removeLogo) | `DELETE /account/profile/logo` | 移除 Logo（回退默认首字母标识） |
+| [`getSettlement`](index.html#tag/settlement/operation/getSettlement) | `GET /account/settlement` | 当前结算字段（account_number 掩码 + `pendingReview` 标识） |
+| [`uploadSettlementVoidCheque`](index.html#tag/settlement/operation/uploadSettlementVoidCheque) | `POST /account/settlement/void-cheque` | 上传 Void cheque（银行字段变更第 1 步前置；返回 `fileRef`） |
+| [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) | `POST /account/settlement/change-requests/otp` | 发结算变更 OTP 到 Owner email（返回 `challengeId` + 脱敏邮箱） |
+| [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) | `POST /account/settlement/change-requests/otp/verification` | 校验 OTP，通过签发单次 `otpToken` |
+| [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) | `POST /account/settlement/change-requests` | 创建结算变更请求（→ PENDING_REVIEW；旧值生效） |
+| [`changeRefundPin`](index.html#tag/refund-pin/operation/changeRefundPin) | `PUT /account/refund-pin` | 登录态改 Refund PIN（current + new + confirm；不需 OTP） |
+| [`requestRefundPinResetOtp`](index.html#tag/refund-pin/operation/requestRefundPinResetOtp) | `POST /account/refund-pin/reset/otp` | Forgot PIN 发重置 OTP 到 Owner email（脱敏邮箱 + 冷却） |
+| [`resetRefundPin`](index.html#tag/refund-pin/operation/resetRefundPin) | `POST /account/refund-pin/reset` | Forgot PIN 单步重置（OTP + new + confirm） |
+| [`listMerchants`](index.html#tag/merchants/operation/listMerchants) | `GET /merchants` | switcher 商户列表（仅 ACTIVE / INCOMPLETE / PENDING_REVIEW） |
+| [`addMerchant`](index.html#tag/merchants/operation/addMerchant) | `POST /merchants` | 添加关联商户（创建 INCOMPLETE → 进入驻向导） |
+| [`withdrawOnboardingApplication`](index.html#tag/merchants/operation/withdrawOnboardingApplication) | `DELETE /merchants/{merchantId}/application` | 撤回未激活商户在途入驻申请（仅 INCOMPLETE / PENDING_REVIEW；Application → WITHDRAWN） |
+| [`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) | `PUT /merchants/current` | 切换当前商户上下文（更新会话；直接生效） |
+| [`getServicePage`](index.html#tag/service-page/operation/getServicePage) | `GET /service-page` | 浏览 Service Page（AcceptanceMode/PaymentMethod 2 层 + Integrations 摘要） |
+| [`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) | `PUT /service-page/acceptance-modes/{mode}/payment-methods` | 启停 mode 内 PaymentMethod（覆盖式；即时生效） |
+| [`uploadStorePhoto`](index.html#tag/service-page/operation/uploadStorePhoto) | `POST /service-page/acceptance-modes/store-photo` | 上传店铺照（in_store Connect 凭证；返回 storePhotoFileId） |
+| [`connectAcceptanceMode`](index.html#tag/service-page/operation/connectAcceptanceMode) | `POST /service-page/acceptance-modes` | 申请新增 AcceptanceMode（Connect → PENDING_REVIEW） |
+| [`changeAcceptanceModeWebsiteUrl`](index.html#tag/service-page/operation/changeAcceptanceModeWebsiteUrl) | `PUT /service-page/acceptance-modes/{mode}/website-url` | online mode 改 website URL（触发重审；原 URL 继续生效） |
+| [`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration) | `PUT /integrations/terminal` | 连接 / 切换 Terminal（Moneris / Clover 互斥；即时生效） |
+| [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration) | `DELETE /integrations/terminal` | 停用 Terminal（清当前 provider；凭据保留） |
+| [`connectEcommerceIntegration`](index.html#tag/integrations/operation/connectEcommerceIntegration) | `POST /integrations/ecommerce` | 连接 Ecommerce（Shopify / Allvalue review-gated → PENDING_REVIEW） |
+| [`manageEcommerceIntegration`](index.html#tag/integrations/operation/manageEcommerceIntegration) | `PUT /integrations/ecommerce/{integrationId}` | 管理 Ecommerce（改 URL 重审 / 仅改方式配置不重审） |
+| [`getDocuments`](index.html#tag/documents/operation/getDocuments) | `GET /account/documents` | Documents 只读展示（5 必传 + 2 可选；缺失占位） |
+
+---
+
+## 读类与单调用写：无编排
+
+下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
+
+- **Profile 浏览**：[`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) 一次聚合 Header card + 4 section；Locked 字段附 `locked: true`、account_number 走 `accountNumberMasked`（`•••• 5678`）、资金字段（`funds.accountBalance` / `funds.refundReserved`）只读展示。当前商户非 ACTIVE 时不返回 Profile（前端按 Merchant 状态分流到入驻向导 / 审核状态页）。
+- **结算字段查看**：[`getSettlement`](index.html#tag/settlement/operation/getSettlement) 返回当前生效结算（`accountNumberMasked` + `pendingReview`）；`pendingReview: true` 时前端隐藏 Edit 入口、展示审核中提示。
+- **Business Information 编辑**：[`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) 仅接收 7 可编辑字段（`address` / `city` / `province` / `postalCode` / `country` / `timeZone` / `businessPhone`），直接生效（204）。任一 Locked 字段出现在请求体即 **403、不持久化**（服务端 enforce，不依赖前端隐藏）；字段非法 400。
+- **Logo**：[`uploadLogo`](index.html#tag/profile/operation/uploadLogo)（multipart，返回 `logoUrl`）/ [`removeLogo`](index.html#tag/profile/operation/removeLogo)（204，回退默认首字母标识），均即时生效。
+- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / `pendingUrlChange`）+ `integrations`（terminal `activeProvider` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回。
+- **PaymentMethod 启停**：[`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) 在已 ACTIVE 的 mode 内**覆盖式**提交 `enabledMethodIds`，立即生效（204）；method 不属该 mode / 不存在 400；mode 未开通或未 ACTIVE 409。
+- **Terminal 连接 / 停用**：[`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration)（Moneris / Clover 互斥，`provider` 判别多态请求体，即时生效，返回掩码 `credentialSummary` + 当前 `activeProvider` + `threedsEnabled`；凭据校验失败 400）/ [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration)（清 `activeProvider`、凭据保留以便再连，204）。
+- **切换当前商户**：[`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) 把当前商户切到目标商户（204）；目标商户不在当前账号可访问范围 → 404、REJECTED / 无权切 → 403。切换成功后，后续页面均使用新的当前商户。
+- **撤回未激活商户在途入驻**：[`withdrawOnboardingApplication`](index.html#tag/merchants/operation/withdrawOnboardingApplication) 把在途 Application 迁 `WITHDRAWN`（该商户从切换列表隐藏）→ **200 `{contextChanged, currentMerchantId}`**；ACTIVE / REJECTED（及无上级关联关系的商户）不可撤回 → 409。若撤回的是当前选中商户，服务端切换到可访问的上级商户、无则 `currentMerchantId=null`（前端按 `contextChanged` 刷新、null 时重选商户）；撤回非当前商户则 `contextChanged=false`、会话不变。
+- **Documents 只读**：[`getDocuments`](index.html#tag/documents/operation/getDocuments) 返回 `required`（5 必传，未上传项 `present: false` 缺失占位）+ `optional`（2 可选，仅已上传时返回）；无自助上传 / 替换 / 删除入口（续期走客服）。
+
+---
+
+## 结算字段变更（事前审批；银行字段 4 调 / 非银行字段 3 调）
+
+结算字段变更**必经事前审批**：成功提交只创建审核请求（PENDING_REVIEW），**旧值持续生效至审核通过**；同一商户至多 1 个 PENDING_REVIEW（已存在再创建 → 409）。银行账户字段（`bankName` / `transitNumber` / `institutionNumber` / `accountNumber`）变更走 4 步——[`uploadSettlementVoidCheque`](index.html#tag/settlement/operation/uploadSettlementVoidCheque) 拿 `fileRef` → [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) 发 Owner email OTP → [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) 换 `otpToken` → [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) 提交；非银行字段（仅 `storeId` / `settlementSchedule`）跳过 Void cheque，3 步（发 OTP → 验 OTP → 提交）。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant EO as Owner 邮箱
+    alt 银行账户字段变更（4 调）
+        B->>A: [uploadSettlementVoidCheque] POST /account/settlement/void-cheque（image/pdf）
+        A-->>B: 200 { fileRef }（作账户身份证明，供创建请求引用）
+    else 仅 storeId / settlementSchedule（3 调，跳过 Void cheque）
+        B->>B: 直接进入 OTP 前置
+    end
+    B->>A: [requestSettlementOtp] POST .../otp { changes, voidChequeRef? }（绑定变更意图到 OTP）
+    A->>EO: 发 Owner email OTP
+    A-->>B: 202 OtpChallenge{ challengeId, deliveredTo, cooldownSeconds, expiresAt }（FE 用 cooldownSeconds 起重发倒计时、expiresAt 判挑战有效）
+    B->>A: [verifySettlementOtp] POST .../otp/verification { challengeId, code }
+    A-->>B: 200 { otpToken }（OTP 一次性消费；锚定绑定的变更摘要）
+    B->>A: [createSettlementChangeRequest] POST .../change-requests { otpToken, voidChequeRef?, changes }（Idempotency-Key）
+    A->>EO: 异步发送结算变更审核中通知邮件
+    A-->>B: 201 { changeRequestId, status= PENDING_REVIEW }（旧值仍生效，Edit 入口隐藏）
+    Note over B,A: OTP 错→400+剩余次数 / 锁定→423 / 过期·已用→410（不签发 otpToken）<br/>Resend 冷却中 429<br/>已有 PENDING_REVIEW 或 changes 摘要≠otpToken 绑定 → 409<br/>缺有效 otpToken / 银行变更缺 voidChequeRef 400<br/>Void cheque 格式 / 超限 400（不进 OTP 步）
+```
+
+- **银行字段才需 Void cheque**：`createSettlementChangeRequest` 的 `voidChequeRef` 仅银行账户字段变更必带（引用 `uploadSettlementVoidCheque` 返回的 `fileRef`）；`changes` 只含本次改动字段，其中 `accountNumber` 明文输入、read 视图永远掩码。
+- **旧值生效语义**：提交成功后结算字段**不立即变**——审核通过才落新值、拒绝则旧值保留并归档。审核结果由审核团队回传（不在本契约面）；前端靠 [`getSettlement`](index.html#tag/settlement/operation/getSettlement) 的 `pendingReview` 在审核期隐 Edit 入口。
+- **OTP 一次性 + 冷却 + 错误分类**：每次 `requestSettlementOtp` 发新 OTP（旧 OTP 失效）；冷却中重发 429；OTP 错误分类——错可重试 400（含剩余次数）/ 尝试超限锁定 423 / 过期·已用 410，前端按错误码引导、不放大重试。
+
+---
+
+## Forgot Refund PIN（自助重置，2 调）
+
+忘记 Refund PIN 时**不需要当前 PIN**：[`requestRefundPinResetOtp`](index.html#tag/refund-pin/operation/requestRefundPinResetOtp) 发重置 OTP 到 Owner email（返回脱敏邮箱 + 启动 Resend 冷却），[`resetRefundPin`](index.html#tag/refund-pin/operation/resetRefundPin) 一步提交 OTP + 新 PIN 完成重置。登录态改 PIN 走 [`changeRefundPin`](index.html#tag/refund-pin/operation/changeRefundPin)（单 PUT，需 current + new + confirm，见上「读类与单调用写」，不在此图）。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant EO as Owner 邮箱
+    B->>A: [requestRefundPinResetOtp] POST /account/refund-pin/reset/otp
+    A->>EO: 发重置 OTP
+    A-->>B: 202 OtpChallenge{ challengeId, deliveredTo, cooldownSeconds, expiresAt }（FE 用 cooldownSeconds 起重发倒计时、expiresAt 判挑战有效）
+    B->>A: [resetRefundPin] POST /account/refund-pin/reset { challengeId, code, newPin, confirmPin }
+    A->>EO: PIN-changed 安全通知
+    A-->>B: 204（旧 PIN 失效、新 PIN 生效；响应不含任何 PIN）
+    Note over B,A: OTP 错→400+剩余次数 / 锁定→423 / 过期·已用→410（不改 PIN）<br/>Resend 冷却中 429<br/>newPin 格式非法 / newPin≠confirmPin 400<br/>PIN 任何响应都不回显（写入即不可读）
+```
+
+- **PIN 永不回显**：`newPin` / `confirmPin` 是 write-only 输入，重置成功只回 204；任何读接口 / 任何响应里都没有 PIN 字段。
+- **OTP 一次性**：OTP 单次消费，过期 / 已用 / 不匹配 410、不重置；冷却中重发 429。
+- **与登录态改 PIN 互斥收敛**：登录态 [`changeRefundPin`](index.html#tag/refund-pin/operation/changeRefundPin) 成功后，任何未完成的 Forgot PIN 重置挑战失效。
+
+---
+
+## 申请新增 AcceptanceMode（Connect；in_store 传店铺照 / online 选类型 + URL）
+
+未开通的 AcceptanceMode 走自助申请 → 审核：[`connectAcceptanceMode`](index.html#tag/service-page/operation/connectAcceptanceMode) 附凭证创建 `PENDING_REVIEW` 申请，**审核通过才 ACTIVE**（结果由审核团队回传，不在本契约面）。in_store 须先经 [`uploadStorePhoto`](index.html#tag/service-page/operation/uploadStorePhoto) 上传店铺照拿 `storePhotoFileId`，online 提交 `onlineServiceType` + （Website 类型时）`websiteUrl`。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    alt mode= in_store（店铺照凭证）
+        B->>A: [uploadStorePhoto] POST /service-page/acceptance-modes/store-photo（PNG/JPEG）
+        A-->>B: 200 { storePhotoFileId }
+        B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= in_store, storePhotoFileId }
+    else mode= online（线上服务类型 + Website URL）
+        B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= online, onlineServiceType= Website, websiteUrl }
+    end
+    A-->>B: 201 { enrollmentId, mode, status= PENDING_REVIEW }（待审核；审核动作归审核团队）
+    Note over B,A: 同 mode 已 PENDING_REVIEW 或已 ACTIVE 409（禁重复提交）<br/>凭证缺失 / 格式非法 400（不创建）<br/>审核结果异步回传，前端靠 getServicePage 的 mode status 收敛
+```
+
+- **审核分流**：申请创建后主状态 `PENDING_REVIEW`；前端靠 [`getServicePage`](index.html#tag/service-page/operation/getServicePage) 各 mode 的 `status` 反映审核进展，无前端轮询。
+- **online URL 改 = 重审、原 URL 继续生效**：已 ACTIVE 的 online mode 改 website URL 走 [`changeAcceptanceModeWebsiteUrl`](index.html#tag/service-page/operation/changeAcceptanceModeWebsiteUrl) → 200 受理待审核变更（返 `pendingUrlChange: true`），主状态仍 ACTIVE、**原 URL 继续生效**（`getServicePage` 的 `pendingUrlChange: true`）；审核通过新 URL 才生效。已有待审核 URL 变更再改 → 409；mode 非 online ACTIVE → 409。
+
+---
+
+## 连接 / 管理 Ecommerce 集成（连接 review-gated；管理区分改 URL 重审 vs 仅改方式即时）
+
+Ecommerce（Shopify / Allvalue）**不互斥**、可各自 ACTIVE，但连接 **review-gated**：[`connectEcommerceIntegration`](index.html#tag/integrations/operation/connectEcommerceIntegration) 创建 `PENDING_REVIEW` 待审核（结果由审核团队回传）。已 ACTIVE 的集成用 [`manageEcommerceIntegration`](index.html#tag/integrations/operation/manageEcommerceIntegration) 管理——**仅改方式配置（URL 未变）立即生效不重审**；**改 URL 触发重审、原 URL / 原配置继续生效**。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    B->>A: [connectEcommerceIntegration] POST /integrations/ecommerce { provider, websiteUrl, paymentMethodConfig }
+    A-->>B: 201 { integrationId, provider, status= PENDING_REVIEW }（待审核；审核动作归审核团队）
+    Note over B,A: 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode<br/>同平台审核中重复提交 409<br/>URL / 配置校验失败 400
+    opt 集成 ACTIVE 后管理
+        alt 仅改 paymentMethodConfig（URL 未变）
+            B->>A: [manageEcommerceIntegration] PUT /integrations/ecommerce/{integrationId} { paymentMethodConfig }
+            A-->>B: 200 { status= ACTIVE, pendingUrlChange= false }（立即生效、不重审）
+        else 改 websiteUrl
+            B->>A: [manageEcommerceIntegration] PUT /integrations/ecommerce/{integrationId} { websiteUrl }
+            A-->>B: 200 { status= ACTIVE, pendingUrlChange= true }（受理待审核变更、原配置继续生效）
+        end
+        Note over B,A: 已有待审核 URL 变更时再改 URL 409<br/>校验失败 400<br/>本域不提供 Ecommerce 自助断开（走客服）
+    end
+```
+
+- **连接独立于 AcceptanceMode**：Ecommerce 连接不要求对应 online AcceptanceMode 已 ACTIVE，也不自动开通 mode；二者独立申请。
+- **改 URL 不原地改**：`manageEcommerceIntegration` 带 `websiteUrl` 时创建待审核变更、主状态仍 ACTIVE、原配置继续生效，审核通过新 URL 才生效；前端靠 `getServicePage` 的 Ecommerce `pendingUrlChange` 反映审核期。
+- **凭据掩码**：集成凭据 read 仅 `credentialSummary` 掩码摘要，明文不返回 / 不二次回显。
+
+---
+
+## 多商户切换 + 新增关联商户（接力入驻向导）
+
+顶栏 switcher 用 [`listMerchants`](index.html#tag/merchants/operation/listMerchants) 拉可访问商户（仅 ACTIVE / INCOMPLETE / PENDING_REVIEW，REJECTED 不展示）+ 当前选中标识，选目标商户用 [`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) 更新会话上下文。从 switcher "Add New Merchant" 创建关联商户用 [`addMerchant`](index.html#tag/merchants/operation/addMerchant)（**创建 INCOMPLETE 商户 + 对应 Application DRAFT**），**仅创建不切会话——前端显式 `switchCurrentMerchant` 后进入入驻向导续填**（向导加载已建 DRAFT、5 步提交属另一契约面）。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    B->>A: [listMerchants] GET /merchants
+    A-->>B: 200 { currentMerchantId, data:[{ merchantId, merchantCode, tradeName, status, relationType }] }
+    alt 切换到已有商户
+        B->>A: [switchCurrentMerchant] PUT /merchants/current { merchantId }
+        A-->>B: 204（会话 merchant context 更新；后续页面按新上下文裁决）
+    else 新增关联商户
+        B->>A: [addMerchant] POST /merchants { tradeName, country, currency, relationType }
+        A-->>B: 201 { merchantId, merchantCode, status= INCOMPLETE }（创建 Merchant + 对应 Application DRAFT；仅创建、不切会话）
+        B->>A: [switchCurrentMerchant] PUT /merchants/current { merchantId }（显式切上下文，幂等）
+        A-->>B: 204
+        B->>B: 进入入驻向导续填（GET /onboarding/application 加载已建 DRAFT；向导加载 + 5 步提交属另一契约面）
+    end
+    Note over B,A: 目标商户不在可访问范围 404 / REJECTED 无权切 403<br/>当前商户已是二级关联商户再 Add 409（2 层上限）<br/>Country × Currency 组合非法 400<br/>Add 创建类挂 Idempotency-Key（同一幂等键重试返回首次结果、不重复建商户）
+```
+
+- **当前商户从会话取**：`switchCurrentMerchant` 切换成功后，后续页面均使用新的当前商户（服务端不信请求体里的 merchant id）；**单会话单当前商户**：另一标签页切换当前商户后，本标签页下次操作前弹窗提示 → 确认后同步切到当前商户。
+- **Add 的边界**：2 层上限——当前商户已是二级关联商户再 Add → 409；Country × Currency 非法组合 → 400；创建类挂 `Idempotency-Key`、同一幂等键重试返回首次结果、不重复建商户。
+- **接力入驻向导**：`addMerchant` 创建 Merchant{INCOMPLETE} + 对应 Application{DRAFT}（创建即 INCOMPLETE，向导可加载该 DRAFT）；前端**显式 `switchCurrentMerchant`** 切上下文后进向导（GET /onboarding/application **加载**已建 DRAFT）。字段预填 / 5 步规则 / 提交审核归入驻向导那一契约面。关联商户各自独立申请，状态互不阻塞。
+
+---
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>

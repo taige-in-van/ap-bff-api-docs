@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 (20-06 / D-MERCH BFF) — 前端契约面
-  version: 0.5.0
+  version: 0.5.3
   contact:
     name: Merchant Portal BFF (D-MERCH owner)
   description: |
@@ -23,7 +23,7 @@ tags:
   - name: refund-reserve
     description: 退款预留金管理：Top Up（手动充值）/ auto-replenish 配置（均经 Owner email OTP）/ Withdraw（取回 Account Balance，无 OTP）。Top Up/Withdraw 转发 10-05;auto-replenish 配置 FINACCT 本地、执行由 FINACCT 触发;OTP 经 40-06。(FINACCT-FR-06/07/08)
   - name: export
-    description: 数据导出：结算单 / 流水 / 账单（Excel / PDF），与当前查询条件一致、不局限当前分页；大结果集异步处理、记审计。(FINACCT-FR-09)
+    description: 数据导出：结算单 / 流水 / 账单（XLSX / PDF），与当前查询条件一致、不局限当前分页；大结果集异步处理、记审计。(FINACCT-FR-09)
 paths:
   /account/overview:
     get:
@@ -33,6 +33,8 @@ paths:
       summary: 资金概览（Account Balance / To Settle / Refund Reserve / 可用额）
       description: |
         投影 10-05 v_account_balance_v1（商户 scope）：Account Balance（canonical 账本值恒 ≥ 0）、To Settle（D-CORE 按手续费结算模式派生、本域不二次计算）、Refund Reserve、可用额（= AB − 应收商户款,可呈负,纯展示）。 Account Balance 卡片展示值是否并入平台侧预授权挂起额由**管理后台设置的 per-商户展示配置**控制（默认并入,20-06 只读消费、不改 canonical 账本值）。上游超时 → degraded=true 降级展示"暂不可用",不阻塞页面（FR-01-AC-04）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
         '200':
           description: 资金概览（商户唯一结算币种）
@@ -59,6 +61,8 @@ paths:
                 degraded: false
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /account/ledger:
     get:
       tags:
@@ -68,6 +72,7 @@ paths:
       description: |
         投影 10-05 v_account_statement_v1（商户 scope，L2，索引 + 时间范围 + posted_at 倒序）。 时间倒序分页;每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。默认时间窗避免空窗（业务参数可配 X-07）。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: dateFrom
           in: query
           schema:
@@ -150,6 +155,8 @@ paths:
                       label: '#88102-R'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /settlements:
     get:
       tags:
@@ -159,6 +166,7 @@ paths:
       description: |
         投影 10-06 v_settlement_summary_v1（商户 scope，L2）。日期倒序默认;状态过滤为商户视角四态投影（待结算 / 处理中 / 已结算 / 失败,UNCONFIRMED 并入处理中,不展示具名冻结态）。 FAILED 行标记并提示资金退回待结算池、后续重新归集或人工处置。默认窗覆盖近期有数据范围（业务参数可配 X-07）。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: dateFrom
           in: query
           schema:
@@ -229,6 +237,8 @@ paths:
                     settlementDate: '2026-05-19T08:00:00Z'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /settlements/{settlementId}:
     get:
       tags:
@@ -238,6 +248,7 @@ paths:
       description: |
         投影 10-06 v_settlement_summary_v1（汇总）+ v_settlement_line_v1（逐笔明细，商户 scope）。 逐笔结算金额合计 = 汇总本期结算金额（手续费列另计、不参与该合计,FR-04-AC-02）;退款行金额为负;非交易类结算影响明细（Top Up / auto-replenish / Withdraw / 系统账务）展示来源标识与带符号结算金额、计入合计。当前生效结算账户（银行后 4 位）只读消费自 ME。跨 scope settlementId → 404（防枚举）。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: settlementId
           in: path
           required: true
@@ -301,6 +312,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /statements:
     get:
       tags:
@@ -310,6 +323,7 @@ paths:
       description: |
         投影 10-07 v_statement_v1（商户 scope，**待建上游契约,见 design 决策 B**）。服务费账单——按年份过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如上游提供）。无数据返回空态。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: year
           in: query
           schema:
@@ -352,6 +366,8 @@ paths:
                     status: ISSUED
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /statements/{statementId}:
     get:
       tags:
@@ -361,6 +377,7 @@ paths:
       description: |
         投影 10-07 v_statement_v1 详情（商户 scope）。含发票号 + 出具日期 + 服务明细（按服务 / 渠道分行:笔数 / Gross / 费率 / Fee）+ Gross Volume / Service Fee / Net Settlement;不含税 / 终端 APP 订阅费、不区分收费模式（FR-05-AC-03）。跨 scope → 404。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: statementId
           in: path
           required: true
@@ -412,6 +429,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /statements/{statementId}/pdf:
     get:
       tags:
@@ -420,6 +439,7 @@ paths:
       summary: 单月账单 PDF 导出
       description: 按 FR-05 详情口径生成可下载 PDF（列头 / 枚举 / 日期 / 金额按用户 locale 本地化 X-06,金额带商户结算币种）。跨 scope → 404。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: statementId
           in: path
           required: true
@@ -437,6 +457,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /refund-reserve/otp-challenges:
     post:
       tags:
@@ -446,6 +468,7 @@ paths:
       description: |
         编排 40-06 **资金动作 step-up**（`POST /step-up/fund-actions`;本服务不自管 OTP）。BFF 据请求体操作摘要按 canonical 形式算 `actionFingerprint`、并注入 **`actionType`（常量 `REFUND_RESERVE_FUNDING`、BFF 固定生成）** + 据**会话当前 merchant 上下文**定的 `merchantId` 与 **Owner `approverIdentityId`（谁是该 merchant 的 Owner 由本域确定，40-06 不判定）**，一并传 40-06——`actionType` / `merchantId` / Owner 一律 BFF 注入、取会话 scope、**不信请求体**（无有效 scope → 403 不发起）。challenge **绑定 actionType + 操作摘要 canonical 指纹**（topUpAmount + autoReplenish.enabled/accountLimit + **字段存在性**）+ merchant + approver + identity + client + **发起会话 sid** —— funding 提交时校验摘要指纹一致 ∧ 当前会话 sid == challenge 绑定 sid（跨会话提交 → 403）,**防 confused-deputy**（批 A 放行 B:员工发起小额 challenge、Owner 报码、员工改提交大额 / 任意 accountLimit）。40-06 向 Owner（`approverIdentityId` 的已验证邮箱）发一次性 OTP,返回 challengeId + 脱敏目标 + 冷却。`displaySummary` 由 BFF 从**同一 canonical 摘要派生**（不可与 fingerprint 分叉,防 Owner 看小额放大额）。OTP 有效期 / 冷却 / 错误尝试上限为业务参数（默认可配 X-07,上限委派 40-06）。挑战类不挂幂等键（每次重新发起）。Top Up 与 auto-replenish 同次共用一次 OTP（FR-07-AC-07;摘要含 config 全字段,Owner 知悉同时变更自动补足规则）。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
@@ -478,6 +501,8 @@ paths:
                 expiresAt: '2026-05-19T14:35:00Z'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /refund-reserve/funding:
@@ -489,6 +514,7 @@ paths:
       description: |
         合并入口（FR-06 Top Up + FR-07 auto-replenish 配置可单独或同次提交,FR-07-AC-07 单 OTP 覆盖）。**两阶段 OTP-gated intent 编排**(见 design §跨部署服务交互路由「储备金 funding 单 OTP 双写」): ① 首次以 `Idempotency-Key` 创建 `reserve_operation_intent`(持久化操作摘要**归一规范形式** + challengeId + **确定性派生键**:两子写键 `{intentId}:top_up` / `{intentId}:auto_replenish_config` + **40-06 verify 幂等键 `{intentId}:{challengeId}:stepup`**〔**per-challenge**:重绑新 challenge 自然换键、不撞旧已消费行〕——崩溃重试复用、绝不新生成); ② 校验提交摘要与 challenge 绑定摘要一致(失配 → 拒绝重挑战,防 confused-deputy)→ 调 40-06 verify 校验 OTP(**以确定性键 `{intentId}:{challengeId}:stepup` 调用**——响应丢 / 崩溃后重试同键 → 40-06 短 TTL 返**首次 verification 成功事实**〔`verified`/`verificationId`,即使 challenge 此刻已过期〕、**不撞「异键→已消费→410」死锁**;失败 → 二者都不生效,FR-06-AC-03 / FR-07-AC-02;OTP 错误尝试上限锁定 → 40-06 返 **423**、限流 → 429,BFF 不放大尝试)→ **持久化「OTP 放行 marker」入 intent**(marker = verify 成功事实,**40-06 不再签放行 proof**;放行维度在子写阶段由 intent 摘要真相源（摘要绑定不变量）等价 enforce,见 §安全落地); ③ 凭 marker 推进两单写者(**OTP 不再二次校验** —— 解 40-06 OTP 单次原子消费与重试冲突):topUpAmount → 转发 10-05 `POST /ledger/reserve-movements(top_up)` 以子写键 `{intentId}:top_up` 作 `idempotencyKey=businessDocRef`(守 AB 足额 LEDGER-INV-05);autoReplenish → **FINACCT 本地 `refund_reserve_config` upsert**(配置写幂等、非 10-05 转发;auto-replenish 实际补足执行由 FINACCT `AutoReplenishService` 后续反应 Reserve-low 时发起)。 **重试**:同 `Idempotency-Key` 重投 → 载入既有 intent → 凭已持久化 marker + 子写键复用推进未完成子写(**绝不新生成键** → 10-05 凭子写键幂等去重,LEDGER-ERR-03,**不重复划转**);**重投摘要须与 intent 持久化摘要 canonical 一致,否则 409(同键异摘要),不推进子写**;**同 `Idempotency-Key` 但带异 `otp.challengeId` 默认按冲突拒——唯一例外 = marker 未落 ∧ 旧 challenge 已过期 ∧ 摘要不变时的「重绑」**(`reserve_operation_intent.challenge_id` 经 CAS 指向 BFF 新 initiate 的 challenge、verify 键随 challengeId 换新,见 §安全落地恢复矩阵格③);部分失败(topUp 成功 / config 失败)各自凭子写键重试(无跨 owner 原子写,良性中间态)。 **资金真相源(摘要绑定不变量)**:子写转发 10-05 的 amount / operation / config **一律取 intent 持久化摘要、不取本次请求体**(请求体仅作幂等键匹配 + 摘要一致性校验)——堵「重试维度放大已 OTP 背书的金额 / 夹带 config」。摘要绑定 + 会话 sid 校验见 §安全落地。金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0(FR-07-AC-08,if/then + PositiveMoney 守)。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: Idempotency-Key
           in: header
           required: true
@@ -542,17 +568,11 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
+          $ref: '#/components/responses/Forbidden'
           description: OTP 校验失败 / 摘要与 challenge 绑定失配(摘要绑定不变量) / challenge 会话 sid 不符 / 无权限(fail-secure;失败时二者都不生效,FR-06-AC-03)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
         '409':
-          description: 同 front Idempotency-Key 但提交摘要与 intent 持久化摘要不一致（同键异摘要,不推进子写;防重试维度放大）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+          $ref: '#/components/responses/MerchantBffConflict'
+          description: 同 front Idempotency-Key 但提交摘要与 intent 持久化摘要不一致（同键异摘要,不推进子写;防重试维度放大）；页面预期商户 ≠ 会话当前 → 同 409（X-Merchant-Context 守卫、stale-tab 防串写，资金红线）
         '410':
           $ref: '#/components/responses/Gone'
         '423':
@@ -566,8 +586,9 @@ paths:
       operationId: submitRefundReserveWithdrawal
       summary: 储备金取回 Account Balance（无 OTP）
       description: |
-        转发 10-05 POST /ledger/reserve-movements(withdraw,守 Refund Reserve 足额,LEDGER-INV-05)以 BFF 生成的子写键作 `idempotencyKey=businessDocRef`。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP（FR-08-AC-03）。 **应收抵扣在 10-05 账本内部完成**(借 Refund Reserve / 贷 应收先冲减 → AB,账本口径归 10-05,BFF 不可见不编排)。`max=true`（取回全部）转发 10-05 `drainReserve`（**已落地**:10-05 在 reserve 的 per-account version CAS 临界区内 resolve drain 额 = 当时 balance−reserved,原子无 TOCTOU、按子写键幂等;BFF 不自读余额填 amount〔防重引 TOCTOU〕）。固定额 Withdraw 走 amount。金额 ≤ 0 / 执行时 Refund Reserve 不足 → 拒绝、不划转、不创建子写（FR-08-AC-02）。资金路径幂等（X-05;同 `Idempotency-Key` 重投载入 intent 复用子写键、不重复划转）。
+        转发 10-05 POST /ledger/reserve-movements(withdraw,守 Refund Reserve 足额,LEDGER-INV-05)以 BFF 生成的子写键作 `idempotencyKey=businessDocRef`。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP（FR-08-AC-03）。 **应收抵扣在 10-05 账本内部完成**(借 Refund Reserve / 贷 应收先冲减 → AB,账本口径归 10-05,BFF 不可见不编排)。`max=true`（取回全部）转发 10-05 `drainReserve`（**已落地**:10-05 在 reserve 的 per-account version CAS 临界区内 resolve drain 额 = 当时 balance−reserved,原子无 TOCTOU、按子写键幂等;BFF 不自读余额填 amount〔防重引 TOCTOU〕）。固定额 Withdraw 走 amount。金额 ≤ 0 / 执行时 Refund Reserve 不足 → 拒绝、不划转、不创建子写（FR-08-AC-02）。资金路径幂等（X-05;同 `Idempotency-Key` 重投载入 intent 复用子写键、不重复划转）；同 `Idempotency-Key` 异 amount/max（同键异 payload）→ 409（208005）、不推进子写（对齐 funding / createExport 冲突码口径）。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: Idempotency-Key
           in: header
           required: true
@@ -615,7 +636,7 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
-          $ref: '#/components/responses/Conflict'
+          $ref: '#/components/responses/MerchantBffConflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
   /refund-reserve/operations/{operationId}:
@@ -626,6 +647,7 @@ paths:
       summary: 查询储备金操作状态（PENDING 轮询入口）
       description: 查询储备金操作（intent）的**全部子写**状态（前端**不直连 10-05**,BFF 代查 10-05 getFundEventResult 收敛后返回 `OperationDetail`,含 topUp / withdraw / **auto-replenish config 子写**——解「浏览器丢 Idempotency-Key / 换端后 config PENDING 不可见」）。PENDING 子项凭 `operationId` 轮询本端点收敛,或以原 `Idempotency-Key` 重投原写端点（幂等返原结果、BFF 不另划转）。跨 scope operationId → 404。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operationId
           in: path
           required: true
@@ -660,15 +682,18 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /exports:
     post:
       tags:
         - export
       operationId: createExport
-      summary: 创建导出任务（结算单 / 流水 / 账单；Excel / PDF；异步）
+      summary: 创建导出任务（结算单 / 流水 / 账单；XLSX / PDF；异步）
       description: |
-        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页（FR-09-AC-01/03）。**导出 scope = 发起会话 merchant scope**(持久化进 export_job.scope_snapshot 作 **scope 上界冻结、只防放宽**;worker 执行复用同一行级授权 chokepoint,**不在执行时重信 filters / resourceId 放宽 scope**;resourceId 跨 scope → 拒绝/404)。导出是绕分页的批量读路径——实时授权**分阶段**:**worker 异步执行 = 发起 operator 的 membership / 读权限当前有效(40-06 在线求值、与活跃会话解耦;operator 登出 / 会话自然过期不拒执行,仅 membership 撤销 / 降权拒)**;**同步下载 = 会话 + membership 双裁决**。即「scope_snapshot 不放宽 ∩ 实时 membership 不越当前权限」取交集——撤权 operator 不能带走数据,又不误伤登出后的正常异步任务。详 design §安全落地。大结果集异步处理、超业务参数上限不静默丢弃而给超限提示或转异步（FR-09-AC-07）;导出请求记审计事件（X-03,FR-09-AC-08）;空结果导出空表头文件或提示无数据。OWNS 导出任务（D-MERCH 本地 export_job）。
+        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页（FR-09-AC-01/03）。**导出 scope = 发起会话 merchant scope**(持久化进 export_job.scope_snapshot 作 **scope 上界冻结、只防放宽**;worker 执行复用同一行级授权 chokepoint,**不在执行时重信 filters / resourceId 放宽 scope**;resourceId 跨 scope → 拒绝/404)。导出是绕分页的批量读路径——实时授权**分阶段**:**worker 异步执行 = 发起 operator 的 membership / 读权限当前有效(40-06 在线求值、与活跃会话解耦;operator 登出 / 会话自然过期不拒执行,仅 membership 撤销 / 降权拒)**;**同步下载 = 会话 + membership 双裁决**。即「scope_snapshot 不放宽 ∩ 实时 membership 不越当前权限」取交集——撤权 operator 不能带走数据,又不误伤登出后的正常异步任务。详 design §安全落地。大结果集异步处理、超业务参数上限不静默丢弃而给超限提示或转异步（FR-09-AC-07）;导出请求记审计事件（X-03,FR-09-AC-08）;空结果导出空表头文件或提示无数据。OWNS 导出任务（D-MERCH 本地 export_job）。**幂等**：挂 `Idempotency-Key`、同键重投返**首次创建的 export_job**（不重复建任务、响应丢失可安全重试）；同键异 scope/参数 → 409。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -698,6 +723,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
   /exports/{exportJobId}:
     get:
       tags:
@@ -706,6 +733,7 @@ paths:
       summary: 查询导出任务状态 / 下载
       description: 查询导出任务状态;READY 时 downloadUrl **指向本 BFF 下载端点**(应用代理流式回源 + 会话鉴权 + merchant scope + **实时授权裁决**:发起 operator 当时仍须对该 merchant 有有效 membership / 读权限,撤权 → 403),**不得**指向对象存储 presigned 直链(纯凭 URL 取数 = 旁路会话);短期 + 不可枚举是纵深、非唯一控制。详 §安全落地。跨 scope exportJobId → 404。
       parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
         - name: exportJobId
           in: path
           required: true
@@ -727,6 +755,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
 components:
   securitySchemes:
     cookieAuth:
@@ -734,7 +764,7 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）。
+        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     FundPool:
       type: string
@@ -750,7 +780,7 @@ components:
         - MONTHLY
     SettlementStatus:
       type: string
-      description: 结算单商户视角状态投影（10-06 四态;UNCONFIRMED 并入 PROCESSING、不展示具名冻结态）。
+      description: 结算单商户视角状态投影（10-06 四态;UNCONFIRMED 并入 PROCESSING、不展示具名冻结态）。封闭枚举：上游投影扩值按破坏性变更版本化。
       enum:
         - PENDING
         - PROCESSING
@@ -758,7 +788,7 @@ components:
         - FAILED
     LedgerEntryType:
       type: string
-      description: 账户流水类型（商户视角）。**两组枚举非对称(各有对方没有的一项,均有注脚)**:① `SETTLEMENT_PAYOUT`（结算出款腿）仅在流水、**不是 settlement_line 明细类型**（payout 是批输出非输入明细）;② **退款失败回冲在流水侧归 `REFUND`（带相反正号、与原退款负腿抵消）、流水不单列 REFUND_REVERSAL**——而 settlement_line 侧单列 `REFUND_REVERSAL`（逐笔可追溯需要）,这是同概念两命名空间的有意差异（流水按账本腿、settlement 按可追溯明细）。
+      description: 账户流水类型（商户视角）。**两组枚举非对称(各有对方没有的一项,均有注脚)**:① `SETTLEMENT_PAYOUT`（结算出款腿）仅在流水、**不是 settlement_line 明细类型**（payout 是批输出非输入明细）;② **退款失败回冲在流水侧归 `REFUND`（带相反正号、与原退款负腿抵消）、流水不单列 REFUND_REVERSAL**——而 settlement_line 侧单列 `REFUND_REVERSAL`（逐笔可追溯需要）,这是同概念两命名空间的有意差异（流水按账本腿、settlement 按可追溯明细）。封闭枚举：上游扩值按破坏性变更版本化。
       enum:
         - PAYMENT
         - REFUND
@@ -906,7 +936,7 @@ components:
       properties:
         type:
           type: string
-          description: 明细类型（逐值对齐 10-06 settlement_line.source_type;REFUND_REVERSAL = 退款失败回冲、正向明细,符号与 REFUND 相反、不可坍缩进 REFUND）。
+          description: 明细类型（逐值对齐 10-06 settlement_line.source_type;REFUND_REVERSAL = 退款失败回冲、正向明细,符号与 REFUND 相反、不可坍缩进 REFUND）。封闭枚举：上游扩值按破坏性变更版本化。
           enum:
             - PAYMENT
             - REFUND
@@ -984,7 +1014,7 @@ components:
         status:
           type: string
           readOnly: true
-          description: 可见状态（ISSUED 已出具 / PAID 已结清,如上游提供;轧差模式多停留 ISSUED）。
+          description: 可见状态（ISSUED 已出具 / PAID 已结清,如上游提供;轧差模式多停留 ISSUED）。封闭枚举：上游扩值按破坏性变更版本化。
           enum:
             - ISSUED
             - PAID
@@ -1386,6 +1416,21 @@ components:
                 type: string
               issue:
                 type: string
+    MerchantBffError:
+      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
+      allOf:
+        - $ref: '#/components/schemas/ErrorEnvelope'
+        - type: object
+          properties:
+            context:
+              type: object
+              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
+              properties:
+                currentMerchantId:
+                  type:
+                    - string
+                    - 'null'
+                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null；schema 不用 if/then——redocly example 校验不兼容；由 contract-test enforce）。
     Timestamp:
       type: string
       format: date-time
@@ -1399,50 +1444,16 @@ components:
             amount:
               type: string
               pattern: ^[1-9][0-9]*$
-  responses:
-    Forbidden:
-      description: 403 无权限(fail-secure,默认拒绝)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    NotFound:
-      description: 404 资源不存在
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    TooManyRequests:
-      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    BadRequest:
-      description: 400 业务/校验错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Gone:
-      description: 410 一次性凭据失效(OTP / 验证链接 过期 / 已使用)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Locked:
-      description: 423 登录临时锁定(防爆破)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Conflict:
-      description: 409 冲突(幂等键冲突 / 状态冲突 / 标识已占用)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
   parameters:
+    MerchantContextGuard:
+      name: X-Merchant-Context
+      in: header
+      required: true
+      description: |
+        merchant-current-scoped 请求守卫（stale-tab 一致性，**读写统一**）：页面预期商户 ID（expected merchant）。**仅与会话 current merchant 比对、非 scope selector**—— 会话 current 仍是 merchant scope 唯一权威；一致才执行；**≠ 会话 current → 409 `MerchantBffConflict`**（语义名 `MERCHANT_CONTEXT_CHANGED`，整数 `code` `208001`、SSOT 见 `20-商户后台/api/error-codes.yaml`）——**读不返回错商户数据、写不执行**； **`context.currentMerchantId`**（非 `details` 字段校验数组）回显服务端会话当前商户供前端直接 re-sync。统一挂在各 module **所有 merchant-current-scoped 读 + 写 operation**； 前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户；BroadcastChannel / focus 只作提前发现、改善体验）。 **治理范围仅 cookieAuth 浏览器 BFF 面 + 依赖当前商户的 op**；**不适用** `.internal` serviceAuth 面 / 公开 register·login·callback（`security:[]`）/ 设备面 / 其他不依赖当前商户的接口。**BFF 面内豁免**：listMerchants（re-sync 发现入口、返回 currentMerchantId）、switchCurrentMerchant（设当前 authority changer）、**withdrawOnboardingApplication（path-selector：target 由 path 定、与会话 current 无关）**、全局接口。
+      schema:
+        type: string
+        minLength: 1
     PageNum:
       name: pageNum
       in: query
@@ -1478,3 +1489,60 @@ components:
         type: string
         minLength: 1
         pattern: \S
+  responses:
+    Forbidden:
+      description: 403 无权限(fail-secure,默认拒绝)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    MerchantBffConflict:
+      description: |
+        409 冲突。整数 `code` 结构（`XX·Y·ZZZ`、责任方位 `Y` 4-8）见骨干07；**码 SSOT = `20-商户后台/api/error-codes.yaml`**（本描述仅引用、非登记源）。D-MERCH 业务·资源型 `208xxx`（前端据整数 `code` 区分子因）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**契约不变量：必携 `context.currentMerchantId`**（contract-test enforce；schema 不用 if/then 因 redocly example 校验不兼容）供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208004` 基线漂移（`baselineVersion` / URL 指纹 CAS 失败，需重载最新态）； `208005` 幂等键复用但 payload 不一致。 前端动作：208001 刷新当前商户、208002 提示已存在、208003·208004 重载最新态、208005 排查重复请求。本 409 response BFF 面 + `.internal` 面共用同末段语义（internal 面走域中立 `ErrorEnvelope`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MerchantBffError'
+          examples:
+            staleTab:
+              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
+              value:
+                code: 208001
+                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
+                context:
+                  currentMerchantId: '1000024'
+            businessConflict:
+              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
+              value:
+                code: 208002
+                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
+    NotFound:
+      description: 404 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    TooManyRequests:
+      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    BadRequest:
+      description: 400 业务/校验错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Gone:
+      description: 410 一次性凭据失效(OTP / 验证链接 过期 / 已使用)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Locked:
+      description: 423 登录临时锁定(防爆破)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

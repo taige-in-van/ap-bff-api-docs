@@ -1,0 +1,1263 @@
+openapi: 3.1.0
+info:
+  title: 商户后台 商户入驻 (20-02 / D-MERCH BFF) — 前端契约面
+  version: 0.4.3
+  contact:
+    name: Merchant Portal BFF (D-MERCH owner)
+  description: |
+    商户后台 React SPA 消费的 5 步入驻向导 / 草稿持久化 / Documents 上传 / 提交审核 / 审核状态分流 契约。 本服务 OWNS Application（入驻申请单：Step 1-5 字段 + Documents 引用 + missingFields + 状态机 DRAFT/UNDER_REVIEW/MORE_INFO_REQUIRED/APPROVED/REJECTED/WITHDRAWN）+ initialRefundPin（Step 4 采集、加密持有至激活移交）。 Application 由 AUTH 邮箱激活成功时备为 DRAFT，本模块从 DRAFT 接管 lifecycle、不重建（ONB-FR-01-AC-01）。 字段类型以本 spec 为准，业务规则见 requirements。 幂等/CSRF 口径：① 草稿分步保存（PUT，整体覆盖当前 step、`mode=next|draft` 两语义）/ Submit（CAS WHERE 上一状态，重放命中目标态返一致）天然幂等故不挂 Idempotency-Key； **Documents 上传非幂等**（每次产生新 fileId，孤儿由 D-XCUT 回收，绑定在 step 保存时按 docKey 覆盖）。 ② cookieAuth 的非安全方法（POST/PUT）一律挂 X-CSRF-Token（double-submit，fail-closed）。 ③ Add Merchant 创建端点不在本 spec（归 ME `POST /merchants`，ME-FR-10）；ME `addMerchant` 原子建 Merchant + link + Application{DRAFT}、前端显式调 ME `switchCurrentMerchant` 切上下文后，本模块经 GET /onboarding/application **加载**已建 DRAFT 续走向导。 ④ 向导渲染所需的后端动态配置（支付方式 / 费率 / Currency×Country 有效组合 / 级联）见 GET /onboarding/config。
+servers:
+  - url: /api/merchant/v1
+    description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
+security:
+  - cookieAuth: []
+tags:
+  - name: onboarding-wizard
+    description: 5 步入驻向导：加载当前 Application 草稿 + 字段 + missingFields + 状态（GET）；分步保存草稿 + 返回 validationErrors（PUT）；Review 页 Submit 提交审核（POST，DRAFT/MORE_INFO_REQUIRED → UNDER_REVIEW）。(ONB-FR-01/02/03/05)
+  - name: documents
+    description: Documents 上传：Step 5 的 5 必传 + 2 可选 Other 文档；multipart 上传返 FileRef，绑定到 Application 发生在 step 保存（PUT steps/documents）。(ONB-FR-04)
+  - name: onboarding-status
+    description: 审核状态 + 登录后页面分流数据 + 拒绝结果（粗分类 + 申诉联系入口）；按当前选中 Merchant 的 Application 状态裁决。只读。(ONB-FR-05/08)
+  - name: onboarding-config
+    description: 向导动态配置：Step 2 支付方式 + 费率 + 可选状态、Step 3 有效 Currency×Country 组合 + Industry→MCC 级联 + 线上服务类型。只读、驱动前端渲染。(ONB-FR-01)
+paths:
+  /onboarding/application:
+    get:
+      tags:
+        - onboarding-wizard
+      operationId: getOnboardingApplication
+      summary: ONB-FR-01 加载当前 Application 草稿（状态 + 各 step 字段 + missingFields + 绑定文档）
+      description: |
+        加载当前选中 Merchant 的 Application（AUTH 邮箱激活时已备为 DRAFT，或 ME Add Merchant 时已备新 DRAFT）。 本接口只 LOAD、不创建（ONB-FR-01-AC-01）：Step 1 Contact 预填 AUTH Sign Up 已有字段（已预填字段只读）+ Merchant ID。 merchant 上下文从会话当前选中商户取、不信请求体；多 Application 按当前选中 Merchant 独立返回。 missingFields 仅在 MORE_INFO_REQUIRED 时非空（写权归 30-管理后台审核动作；只承载字段 key + 所属 step，不携带审核原因）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 当前 Application 草稿（含状态 / 各 step 字段 / missingFields / 已绑定文档引用）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+              example:
+                applicationId: app_8f3a2c
+                merchantId: '1000023'
+                merchantCode: C3BM68
+                status: MORE_INFO_REQUIRED
+                entryMode: FIRST_ONBOARDING
+                resumeStep: documents
+                completedSteps:
+                  - contact
+                  - services
+                  - business
+                  - settlement
+                readonlyFields:
+                  - contact.firstName
+                  - contact.lastName
+                  - contact.email
+                  - contact.phone
+                  - contact.referredBy
+                  - contact.monerisMid
+                  - contact.monerisManagerName
+                steps:
+                  contact:
+                    firstName: Jane
+                    lastName: Merchant
+                    email: jane@example.com
+                    businessTitle: Manager
+                    phoneCountryCode: '+1'
+                    phone: '6045550123'
+                    referredBy: Moneris
+                    monerisMid: MON-44821
+                    monerisManagerName: Alex Lee
+                  services:
+                    selectedPaymentMethods:
+                      - methodId: instore-wechat
+                        acceptanceMode: in_store
+                      - methodId: online-wechat
+                        acceptanceMode: online
+                  business:
+                    currency: CAD
+                    country: CA
+                    legalBusinessName: Maple Foods Inc.
+                    tradeName: Maple Bistro
+                    typeOfOwnership: Corporation
+                    registrationNumber: '1234567'
+                    businessAddress: 88 King St W
+                    city: Toronto
+                    province: 'ON'
+                    postalCode: M5H 1A1
+                    timeZone: America/Toronto
+                    businessPhoneCountryCode: '+1'
+                    businessPhone: '4165550199'
+                    industryCategory: Food & Beverage
+                    mcc: '5812'
+                    typeOfOnlineService: Website
+                    websiteUrl: https://maplebistro.example.com
+                    note: null
+                  settlement:
+                    bankName: Royal Bank of Canada
+                    transitNumber: '00123'
+                    institutionNumber: '003'
+                    accountNumberMasked: •••• 4567
+                    accountNumberSet: true
+                    refundPinSet: true
+                    settlementCycle: T+2
+                    storeId: STORE-001
+                    legalBusinessNameReadonly: Maple Foods Inc.
+                  documents:
+                    docStoreInside:
+                      fileId: file_a1
+                      fileName: store-inside.jpg
+                      fileSize: 1572864
+                      uploadedAt: '2026-06-22T14:05:00Z'
+                    docStoreOutside:
+                      fileId: file_a2
+                      fileName: store-outside.jpg
+                      fileSize: 1310720
+                      uploadedAt: '2026-06-22T14:06:00Z'
+                    docIncorporation:
+                      fileId: file_a3
+                      fileName: incorporation.pdf
+                      fileSize: 524288
+                      uploadedAt: '2026-06-22T14:07:00Z'
+                    docVoidCheque:
+                      fileId: file_a5
+                      fileName: void-cheque.pdf
+                      fileSize: 262144
+                      uploadedAt: '2026-06-22T14:09:00Z'
+                missingFields:
+                  - field: docOwnerId
+                    step: documents
+                submittedAt: null
+                decidedAt: null
+                createdAt: '2026-06-20T09:00:00Z'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
+  /onboarding/application/steps/{step}:
+    put:
+      tags:
+        - onboarding-wizard
+      operationId: saveOnboardingStep
+      summary: ONB-FR-01/02/03 分步保存当前 step 字段到草稿（校验失败返 400 + 字段级 validationErrors）
+      description: |
+        分步保存单个 step（ONB-FR-03 保存点；Back/stepper 不触发后端保存）。**两种语义由 `mode` 区分**：`next` = 校验当前 step 完整后保存 + 推进（校验失败 → 400 + ErrorEnvelope.details〔field-level validationErrors〕，不写持久化 missingFields）；`draft` = 离开前持久化**未完成**草稿（放宽必填、仍校验已填字段格式，不推进）。 **请求体恰含一个 step key 且须 == path `{step}`**（不一致 → 400）；该 step **整体覆盖**已存值，但 **write-only 凭据字段（accountNumber / refundPin / confirmRefundPin）省略 = 保留已有值、仅传新值才替换**（跨设备恢复后前端无明文、故省略不清空；`mode=next` 完整性按 accountNumberSet / refundPinSet 判定、不强制重输）。同 step 重复保存覆盖、不挂 Idempotency-Key。 Documents step 保存 = 全量覆盖该 step 文档映射：按 docKey 绑定上传返回的 fileId，**省略某 docKey = 移除该绑定**（上传成功但未保存 / 移除的 fileId 不绑定，回收归 D-XCUT）。 预填 / 来源锁定 / 继承只读字段（Step 1 已预填项 / Merchant ID / Branch 继承身份字段）服务端忽略写入（保持只读，ONB-FR-01/07）。 仅 DRAFT / MORE_INFO_REQUIRED 可保存；UNDER_REVIEW / APPROVED / REJECTED 草稿冻结 → 409。 initialRefundPin 经 settlement step 的 refundPin + confirmRefundPin 采集，write-only、加密持有、零发布视图（不在任何响应出现，ONB-FR-01-AC-10）。
+      parameters:
+        - name: step
+          in: path
+          required: true
+          description: 向导步骤标识
+          schema:
+            type: string
+            enum:
+              - contact
+              - services
+              - business
+              - settlement
+              - documents
+        - name: mode
+          in: query
+          required: false
+          description: 保存语义：next = 校验当前 step 完整 + 推进（默认）；draft = 离开前持久化未完成草稿（放宽必填、仍校验已填字段格式、不推进）
+          schema:
+            type: string
+            enum:
+              - next
+              - draft
+            default: next
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        description: 单个 step 的字段体；按 step 取对应 schema（contact/services/business/settlement/documents）
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StepSaveRequest'
+            examples:
+              contact:
+                summary: Step 1 Contact（含 Moneris 条件字段）
+                value:
+                  contact:
+                    businessTitle: Manager
+                    phoneCountryCode: '+1'
+                    phone: '6045550123'
+                    referredBy: Moneris
+                    monerisMid: MON-44821
+                    monerisManagerName: Alex Lee
+              services:
+                summary: Step 2 Services（至少选 1 个支付方式）
+                value:
+                  services:
+                    selectedPaymentMethods:
+                      - methodId: instore-wechat
+                        acceptanceMode: in_store
+                      - methodId: online-alipay
+                        acceptanceMode: online
+              business:
+                summary: Step 3 Business（含 Online 条件字段）
+                value:
+                  business:
+                    currency: CAD
+                    country: CA
+                    legalBusinessName: Maple Foods Inc.
+                    tradeName: Maple Bistro
+                    typeOfOwnership: Corporation
+                    registrationNumber: '1234567'
+                    businessAddress: 88 King St W
+                    city: Toronto
+                    province: 'ON'
+                    postalCode: M5H 1A1
+                    timeZone: America/Toronto
+                    businessPhoneCountryCode: '+1'
+                    businessPhone: '4165550199'
+                    industryCategory: Food & Beverage
+                    mcc: '5812'
+                    typeOfOnlineService: Website
+                    websiteUrl: https://maplebistro.example.com
+                    note: Seasonal hours
+              settlement:
+                summary: Step 4 Settlement（refundPin + confirmRefundPin write-only）
+                value:
+                  settlement:
+                    bankName: Royal Bank of Canada
+                    transitNumber: '00123'
+                    institutionNumber: '003'
+                    accountNumber: '1234567'
+                    settlementCycle: T+2
+                    storeId: STORE-001
+                    refundPin: '123456'
+                    confirmRefundPin: '123456'
+              documents:
+                summary: Step 5 Documents（绑定已上传 fileId）
+                value:
+                  documents:
+                    docStoreInside:
+                      fileId: file_a1
+                    docStoreOutside:
+                      fileId: file_a2
+                    docIncorporation:
+                      fileId: file_a3
+                    docOwnerId:
+                      fileId: file_a4
+                    docVoidCheque:
+                      fileId: file_a5
+      responses:
+        '200':
+          description: 当前 step 已保存（返回保存结果 saved + 该 step 当前 missingFields 命中项；**非完整快照**，掩码 / set 回显需重 GET application）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StepSaveResult'
+              example:
+                step: business
+                saved: true
+                stepMissingFields: []
+        '400':
+          description: 字段级校验失败（validationErrors 走 ErrorEnvelope.details）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                code: 204001
+                detail: 字段校验未通过
+                details:
+                  - field: websiteUrl
+                    issue: Type of Online Service = Website 时 Website URL 必填
+                  - field: confirmRefundPin
+                    issue: 两次输入的 Refund PIN 不一致
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '400':
+          - 204001
+        '409':
+          - 208001
+  /onboarding/application/submit:
+    post:
+      tags:
+        - onboarding-wizard
+      operationId: submitOnboardingApplication
+      summary: ONB-FR-05 Review 页提交审核（DRAFT / MORE_INFO_REQUIRED → UNDER_REVIEW）
+      description: |
+        从 Review 页提交：校验所有字段 + 5 必传 Documents 完整 → **单 D-MERCH 本地事务原子**：Application → UNDER_REVIEW（CAS WHERE 上一状态）+ **条件投影 Merchant（M4，防 switcher 漂移）**：① 从 `DRAFT` → Merchant `INCOMPLETE → PENDING_REVIEW`；② 从 `MORE_INFO_REQUIRED` → Merchant **保持 PENDING_REVIEW**（补料重提；同事务清空 `missingFields`，见下）→ 一次性提交确认（刷新后转审核状态页）。 application-received 邮件**仅首次 DRAFT → UNDER_REVIEW 触发**（ONB-FR-06）；MORE_INFO_REQUIRED → UNDER_REVIEW 是补料重提、**不重发** application-received，且同事务清空 missingFields（防残留，ONB-FR-02-AC-05）。 事件按源态分：首次发 `application.submitted`（→ application-received 邮件）、补料重提发 `application.resubmitted`（不触发邮件）；邮件由 40-05 通知与事件引擎（独立部署）经 outbox 投递（非进程内发信）。 天然幂等：一致重放（已 UNDER_REVIEW 再 Submit）→ 返当前态 **200**、不重复发事件；非目标源态 / 非法迁移（终态 APPROVED / REJECTED / WITHDRAWN → UNDER_REVIEW）→ 409 `208003`； 字段或 Documents 不完整 → 400（204001 字段 / 204002 文档）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: 已提交；状态迁移到 UNDER_REVIEW，返回一次性提交确认信息（含审核 SLA）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmitResult'
+              example:
+                applicationId: app_8f3a2c
+                status: UNDER_REVIEW
+                submittedAt: '2026-06-22T15:00:00Z'
+                reviewSlaBusinessDays:
+                  min: 2
+                  max: 3
+        '400':
+          description: 字段或 5 必传 Documents 不完整（field-level validationErrors 走 ErrorEnvelope.details）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+              example:
+                code: 204002
+                detail: 提交前校验未通过
+                details:
+                  - field: docOwnerId
+                    issue: 必传文档缺失
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '400':
+          - 204001
+          - 204002
+        '409':
+          - 208001
+          - 208003
+  /onboarding/documents:
+    post:
+      tags:
+        - documents
+      operationId: uploadOnboardingDocument
+      summary: ONB-FR-04 上传单个 Document（multipart：file + docKey → FileRef）
+      description: |
+        上传到 D-XCUT 文件存储返回 FileRef（fileId / fileName / fileSize / uploadedAt）。 前端 + 后端兜底校验：大小（默认 ≤ 2MB 可配 X-07）+ 格式（PNG / JPEG / PDF，**按文件实际内容判定、非声明 MIME**）白名单 → 不合规返 400。 **非幂等**：每次上传产生新 fileId（重试不复用、不挂 Idempotency-Key）；本接口只上传不绑定——绑定到 Application 发生在 Documents step 保存（PUT /onboarding/application/steps/documents 按 docKey 写 fileId、同 docKey 覆盖）； 上传成功但未保存 / 重试产生的**孤儿 fileId 不绑定、由 D-XCUT 回收**。返回的 FileRef 不含文件内容（仅引用 metadata）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - file
+                - docKey
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 文件内容（PNG / JPEG / PDF；默认 ≤ 2MB 可配 X-07）
+                docKey:
+                  $ref: '#/components/schemas/DocKey'
+            encoding:
+              file:
+                contentType: image/png, image/jpeg, application/pdf
+      responses:
+        '201':
+          description: 上传成功；返回文件引用 metadata（待 step 保存时绑定到 Application）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileRef'
+              example:
+                fileId: file_a4
+                fileName: owner-id.jpg
+                fileSize: 880640
+                uploadedAt: '2026-06-22T14:08:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+      x-error-codes:
+        '409':
+          - 208001
+  /onboarding/status:
+    get:
+      tags:
+        - onboarding-status
+      operationId: getOnboardingStatus
+      summary: ONB-FR-05/08 审核状态 + 登录后页面分流数据 + 拒绝结果（按当前选中 Merchant）
+      description: |
+        登录后页面分流真相源（ONB-FR-05）：返回当前选中 Merchant 的 Application 状态 + 前端应路由到的业务页面 （入驻向导 / 审核状态页 / 拒绝结果页；商户后台首页 / switcher 实现归 ME）。 UNDER_REVIEW 返回审核 SLA 文案；REJECTED 返回粗分类拒绝原因 + 申诉联系入口（ONB-FR-08，不含细节、不承载 6 个月重申资格判定）。 只读。merchant 上下文从会话取；切换器选另一 Merchant 后重新调本接口按那个 Merchant 状态分流。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 审核状态 + 页面分流 + （REJECTED 时）拒绝结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingStatus'
+              examples:
+                underReview:
+                  summary: 审核中
+                  value:
+                    applicationId: app_8f3a2c
+                    status: UNDER_REVIEW
+                    routeTo: REVIEW_STATUS_PAGE
+                    reviewSlaBusinessDays:
+                      min: 2
+                      max: 3
+                    submittedAt: '2026-06-22T15:00:00Z'
+                rejected:
+                  summary: 已拒绝（粗分类 + 申诉入口）
+                  value:
+                    applicationId: app_8f3a2c
+                    status: REJECTED
+                    routeTo: REJECTED_PAGE
+                    decidedAt: '2026-06-24T10:00:00Z'
+                    rejectInfo:
+                      category: DOCUMENTATION
+                      appealContact: support@example.com
+                draft:
+                  summary: 草稿（路由回入驻向导）
+                  value:
+                    applicationId: app_8f3a2c
+                    status: DRAFT
+                    routeTo: ONBOARDING_WIZARD
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
+  /onboarding/config:
+    get:
+      tags:
+        - onboarding-config
+      operationId: getOnboardingConfig
+      summary: ONB-FR-01 加载向导动态配置（支付方式 + 费率 + Currency×Country 有效组合 + 级联）
+      description: |
+        前端渲染向导所需的后端动态配置（ONB-FR-01「列表 / 费率 / 可选性 / 有效组合由后端配置动态提供」）： Step 2 各营业场景可选支付方式 + 展示费率 + 可选状态；Step 3 有效 Currency × Country 组合、Industry→MCC 级联、线上服务类型、默认结算周期。 **多来源聚合**：支付方式 / 可选性 ← 10-04 通道路由；费率 ← 10-07；配置录入 ← 30-02；Currency×Country ← 系统配置（首期 D-MERCH 部署配置、偏静态）。按当前选中 Merchant 上下文返回（不同 Merchant 可用集可能不同）。**前端渲染用；Step 2/3 有效性以 Next/Submit 时服务端按权威源重新校验为准**（不信客户端缓存 config）。只读、可缓存。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 向导动态配置
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingConfig'
+              example:
+                paymentMethods:
+                  - acceptanceMode: in_store
+                    methodId: instore-wechat
+                    displayName: WeChat Pay
+                    displayRate: 1.5% + $0.10
+                    selectable: true
+                  - acceptanceMode: online
+                    methodId: online-alipay
+                    displayName: Alipay
+                    displayRate: 1.8%
+                    selectable: true
+                currencyCountries:
+                  - currency: CAD
+                    countries:
+                      - CA
+                  - currency: USD
+                    countries:
+                      - CA
+                      - US
+                onlineServiceTypes:
+                  - Website
+                  - App
+                  - MiniProgram
+                  - Other
+                industries:
+                  - code: FOOD_BEVERAGE
+                    name: Food & Beverage
+                    mccOptions:
+                      - '5812'
+                      - '5814'
+                settlementCycleDefault: T+2 Business Days
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-msession
+      description: |
+        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+  schemas:
+    ApplicationStatus:
+      type: string
+      enum:
+        - DRAFT
+        - UNDER_REVIEW
+        - MORE_INFO_REQUIRED
+        - APPROVED
+        - REJECTED
+        - WITHDRAWN
+      description: Application 状态机（ONB-FR-05）；服务端裁决，前端只读。WITHDRAWN = 商户用户撤回在途入驻申请（ME-FR-10；终态，商户壳派生隐藏）。闭枚举、增值走版本化。
+    StepName:
+      type: string
+      enum:
+        - contact
+        - services
+        - business
+        - settlement
+        - documents
+      description: 向导步骤标识。
+    DocKey:
+      type: string
+      enum:
+        - docStoreInside
+        - docStoreOutside
+        - docIncorporation
+        - docOwnerId
+        - docVoidCheque
+        - docOther1
+        - docOther2
+      description: Documents 文档 key（5 必传 + 2 可选 Other；ONB-FR-04）。
+    FileRef:
+      type: object
+      description: 文件引用 metadata（D-XCUT 上传返回；不含文件内容）。
+      additionalProperties: false
+      required:
+        - fileId
+        - fileName
+        - fileSize
+        - uploadedAt
+      properties:
+        fileId:
+          type: string
+          readOnly: true
+          description: D-XCUT 文件 ID（服务端拥有）。
+        fileName:
+          type: string
+          readOnly: true
+        fileSize:
+          type: integer
+          format: int64
+          readOnly: true
+          description: 文件字节数。
+        uploadedAt:
+          $ref: '#/components/schemas/Timestamp'
+    MissingField:
+      type: object
+      description: 审核侧写入的补料字段条目（仅 MORE_INFO_REQUIRED 非空；只承载 key + step，不含审核原因）。写权归 30-管理后台审核动作。
+      additionalProperties: false
+      required:
+        - field
+        - step
+      properties:
+        field:
+          type: string
+          readOnly: true
+          description: 需补料的字段 key 或文档 key（如 docOwnerId）。
+        step:
+          allOf:
+            - $ref: '#/components/schemas/StepName'
+          readOnly: true
+          description: 该补料字段所属的向导步骤。
+    SelectedPaymentMethod:
+      type: object
+      description: Step 2 选中的支付方式（instance 级）；所属营业场景即申请开通的 AcceptanceMode。
+      additionalProperties: false
+      required:
+        - methodId
+        - acceptanceMode
+      properties:
+        methodId:
+          type: string
+          description: instance 级 method id（按 mode 区分，如 instore-wechat / online-wechat；catalog 以 10-04 为准，列表 / 费率 / 可选性由后端配置动态提供、前端不写死）。
+        acceptanceMode:
+          type: string
+          enum:
+            - in_store
+            - online
+          description: 营业场景 = 申请开通的 AcceptanceMode（选中方式所属分组推导，无需单独选场景）。
+    ContactStep:
+      type: object
+      description: Step 1 Contact（ONB-FR-01 字段表）。已预填字段（AUTH Sign Up）服务端保持只读；referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
+      additionalProperties: false
+      properties:
+        firstName:
+          type: string
+          description: AUTH Sign Up 预填则只读（ONB-FR-01）。
+        lastName:
+          type: string
+        email:
+          type: string
+          format: email
+        businessTitle:
+          type: string
+          description: 选 Other 时须另填具体 title（自定义文本，归 design）。
+        phoneCountryCode:
+          type: string
+          description: 默认 +1；区号白名单部署可配（X-07）。
+        phone:
+          type: string
+        referredBy:
+          type: string
+          description: 来源；Welcome 链接带来则只读，否则 Owner 可在 Step 1 填；填 Moneris 触发条件字段。
+        monerisMid:
+          type: string
+          description: 条件必填：referredBy = Moneris 时（Moneris 为唯一已知特例 partner）。
+        monerisManagerName:
+          type: string
+          description: 条件必填：referredBy = Moneris 时。
+    ServicesStep:
+      type: object
+      description: Step 2 Services（ONB-FR-01）；至少选 1 个支付方式（可跨场景多选）。
+      additionalProperties: false
+      required:
+        - selectedPaymentMethods
+      properties:
+        selectedPaymentMethods:
+          type: array
+          minItems: 1
+          description: 选中的支付方式（≥1）；所属营业场景推导 AcceptanceMode。
+          items:
+            $ref: '#/components/schemas/SelectedPaymentMethod'
+    BusinessStep:
+      type: object
+      description: Step 3 Business（ONB-FR-01）。Currency × Country 有效组合以后端配置为准（当前 CAD→CA、USD→CA/US）；Step 2 选了任一 Online 支付方式时 typeOfOnlineService 必填、Website 时 websiteUrl 必填。
+      additionalProperties: false
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        country:
+          type: string
+          description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
+        legalBusinessName:
+          type: string
+          description: ME 锁定身份字段（激活后不可改，归 ME）。
+        tradeName:
+          type: string
+          description: Trade Name (DBA)。
+        typeOfOwnership:
+          type: string
+          description: ME 锁定身份字段。
+        registrationNumber:
+          type: string
+        businessAddress:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        postalCode:
+          type: string
+          description: 邮编（格式按 country 服务端校验：CA 6 位 / US 5 位等，不设单一静态 pattern）。
+        timeZone:
+          type: string
+          description: 商户 IANA 时区（驱动显示 / 清算切日；offset ≠ timezone）。
+        businessPhoneCountryCode:
+          type: string
+          description: 默认 +1；区号白名单部署可配（X-07）。
+        businessPhone:
+          type: string
+        industryCategory:
+          type: string
+          description: ME 锁定身份字段。
+        mcc:
+          type: string
+          description: 级联 Industry；ME 锁定身份字段。
+        typeOfOnlineService:
+          type:
+            - string
+            - 'null'
+          enum:
+            - Website
+            - App
+            - MiniProgram
+            - Other
+            - null
+          description: 条件字段：Step 2 选了任一 Online 支付方式时出现且必填（默认 Website）；否则不出现（null）。
+        websiteUrl:
+          type:
+            - string
+            - 'null'
+          format: uri
+          description: 条件字段：typeOfOnlineService = Website 时必填（https 合法 host；online mode 的 website URL 凭证来源，归 ME AcceptanceEnrollment）；其他类型不采集（null）。
+        note:
+          type:
+            - string
+            - 'null'
+          description: 可选备注。
+    SettlementStep:
+      type: object
+      description: Step 4 Settlement（ONB-FR-01）。refundPin + confirmRefundPin / accountNumber 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（accountNumberMasked / accountNumberSet / refundPinSet）供跨设备恢复（ONB-FR-03）。refundPin 两者须一致否则 400（ONB-FR-01-AC-10）。**write-only 字段在 step 保存省略 = 保留已有值、仅传新值替换**（不被整体覆盖清空）。格式 pattern 为默认（服务端为准、部署可配 X-07）。legalBusinessNameReadonly 为 Step 3 回显（只读）。
+      additionalProperties: false
+      properties:
+        bankName:
+          type: string
+        transitNumber:
+          type: string
+          pattern: ^[0-9]{5}$
+          description: 5 位数字（默认；服务端为准）。
+        institutionNumber:
+          type: string
+          pattern: ^[0-9]{3}$
+          description: 3 位数字（默认；服务端为准）。
+        accountNumber:
+          type: string
+          writeOnly: true
+          pattern: ^[0-9]{6,12}$
+          description: 银行账号（write-only 输入；6-12 位数字默认；read 走 accountNumberMasked，明文不回显）。
+        accountNumberMasked:
+          type: string
+          readOnly: true
+          description: 账号末 4 位掩码回显（如 `•••• 5678`；跨设备恢复用，不泄明文）。
+        accountNumberSet:
+          type: boolean
+          readOnly: true
+          description: 是否已填 accountNumber（重新登录后前端据此判断 Step 4 银行账号是否已填）。
+        settlementCycle:
+          type: string
+          description: 结算周期（默认 T+2 Business Days，可配 X-07）。
+        storeId:
+          type:
+            - string
+            - 'null'
+          description: 可选；归 ME 后续可改。
+        refundPin:
+          type: string
+          writeOnly: true
+          pattern: ^[0-9]{6}$
+          description: 6 位数字 Refund PIN（write-only：仅入参采集，加密持有至激活移交、绝不出现在任何响应；pattern 为默认长度、服务端为准可配 X-07；ONB 不长期持有可用 PIN、不参与退款验证）。
+        confirmRefundPin:
+          type: string
+          writeOnly: true
+          pattern: ^[0-9]{6}$
+          description: 再次输入 Refund PIN（write-only；须与 refundPin 一致，不一致 → 400）。
+        refundPinSet:
+          type: boolean
+          readOnly: true
+          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；ONB-FR-03 跨设备恢复）。
+        legalBusinessNameReadonly:
+          type: string
+          readOnly: true
+          description: Step 3 Legal Business Name 只读回显（便于核对结算账户与法人主体；非本步采集字段）。
+    DocumentRef:
+      type: object
+      description: Documents step 保存时绑定的文档引用（按 fileId 关联已上传文件）。
+      additionalProperties: false
+      required:
+        - fileId
+      properties:
+        fileId:
+          type: string
+          description: 上传接口返回的 fileId（仅绑定已上传文件；未保存的 fileId 不绑定）。
+        fileName:
+          type: string
+          readOnly: true
+        fileSize:
+          type: integer
+          format: int64
+          readOnly: true
+        uploadedAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+    DocumentsStep:
+      type: object
+      description: Step 5 Documents（ONB-FR-04）；5 必传（docStoreInside / docStoreOutside / docIncorporation / docOwnerId / docVoidCheque）+ 2 可选 Other。绑定按 fileId。
+      additionalProperties: false
+      properties:
+        docStoreInside:
+          $ref: '#/components/schemas/DocumentRef'
+        docStoreOutside:
+          $ref: '#/components/schemas/DocumentRef'
+        docIncorporation:
+          $ref: '#/components/schemas/DocumentRef'
+        docOwnerId:
+          $ref: '#/components/schemas/DocumentRef'
+        docVoidCheque:
+          $ref: '#/components/schemas/DocumentRef'
+        docOther1:
+          $ref: '#/components/schemas/DocumentRef'
+        docOther2:
+          $ref: '#/components/schemas/DocumentRef'
+    ApplicationSteps:
+      type: object
+      description: 各 step 的已保存草稿字段聚合（GET 加载时返回）。
+      additionalProperties: false
+      properties:
+        contact:
+          $ref: '#/components/schemas/ContactStep'
+        services:
+          $ref: '#/components/schemas/ServicesStep'
+        business:
+          $ref: '#/components/schemas/BusinessStep'
+        settlement:
+          $ref: '#/components/schemas/SettlementStep'
+        documents:
+          $ref: '#/components/schemas/DocumentsStep'
+    Application:
+      type: object
+      description: 入驻申请单（ONB OWNS）；GET 加载当前选中 Merchant 的草稿。Refund PIN 凭据为 write-only、不在此出现。
+      additionalProperties: false
+      required:
+        - applicationId
+        - merchantId
+        - merchantCode
+        - status
+        - entryMode
+        - steps
+        - missingFields
+        - readonlyFields
+      properties:
+        applicationId:
+          type: string
+          readOnly: true
+        merchantId:
+          type: string
+          readOnly: true
+          description: 内部 Merchant 标识（服务端拥有；merchant 上下文从会话取、不信请求体）。
+        merchantCode:
+          type: string
+          readOnly: true
+          description: 可展示 Merchant ID（如 C3BM68；AUTH 邮箱激活时备好，Step 1 预填）。
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        entryMode:
+          type: string
+          enum:
+            - FIRST_ONBOARDING
+            - BRANCH
+            - NEW_ENTITY
+          readOnly: true
+          description: 入驻模式（驱动字段锁定规则集；Branch / New Entity 的只读规则 ≠ 首次入驻，ONB-FR-07）。
+        resumeStep:
+          oneOf:
+            - $ref: '#/components/schemas/StepName'
+            - type: 'null'
+          readOnly: true
+          description: 跨设备 / 重新登录恢复到的步骤（最近一次保存进度；未开始为 null；ONB-FR-03）。
+        completedSteps:
+          type: array
+          readOnly: true
+          description: 已完成（校验通过）的步骤集合，前端据此渲染步骤条完成态。
+          items:
+            $ref: '#/components/schemas/StepName'
+        readonlyFields:
+          type: array
+          readOnly: true
+          description: 本申请下只读的字段 key 列表，**key 为 step-qualified 形式 `<step>.<field>`（如 `contact.referredBy`）以避免跨 step 同名碰撞**；服务端按 entryMode + 来源算出（Step 1 预填项 / Welcome 来源 referredBy / Branch 继承身份字段 / Merchant ID 等）。前端据此渲染只读——例如 `contact.referredBy` 在列表里 = Welcome 来源只读、不在 = 用户可填（解 Moneris 来源歧义）。
+          items:
+            type: string
+        steps:
+          $ref: '#/components/schemas/ApplicationSteps'
+        missingFields:
+          type: array
+          readOnly: true
+          description: 补料字段清单（仅 MORE_INFO_REQUIRED 非空；写权归 30-管理后台审核动作）。
+          items:
+            $ref: '#/components/schemas/MissingField'
+        submittedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          readOnly: true
+          description: Submit 时间；未提交为 null。
+        decidedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          readOnly: true
+          description: 审核决策时间（APPROVED / REJECTED）；未决策为 null。
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+    StepSaveRequest:
+      type: object
+      description: 分步保存请求体；**恰含一个 step key、且须 == path `{step}`**（服务端校验，不一致 → 400）；该 step 整体覆盖。
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 1
+      properties:
+        contact:
+          $ref: '#/components/schemas/ContactStep'
+        services:
+          $ref: '#/components/schemas/ServicesStep'
+        business:
+          $ref: '#/components/schemas/BusinessStep'
+        settlement:
+          $ref: '#/components/schemas/SettlementStep'
+        documents:
+          $ref: '#/components/schemas/DocumentsStep'
+    StepSaveResult:
+      type: object
+      description: 分步保存结果。
+      additionalProperties: false
+      required:
+        - step
+        - saved
+      properties:
+        step:
+          allOf:
+            - $ref: '#/components/schemas/StepName'
+          readOnly: true
+        saved:
+          type: boolean
+          readOnly: true
+          description: 当前 step 是否已写入草稿。
+        stepMissingFields:
+          type: array
+          readOnly: true
+          description: 保存后该 step 仍命中的 missingFields（MORE_INFO_REQUIRED 时用于红框定位；其他状态为空）。
+          items:
+            $ref: '#/components/schemas/MissingField'
+    ReviewSlaBusinessDays:
+      type: object
+      additionalProperties: false
+      required:
+        - min
+        - max
+      description: 审核 SLA（工作日；固定 2-3，结构化供前端本地化渲染、不返英文 prose；X-06 i18n）。
+      properties:
+        min:
+          type: integer
+        max:
+          type: integer
+    SubmitResult:
+      type: object
+      description: 提交审核结果（一次性提交确认；刷新后转审核状态页）。
+      additionalProperties: false
+      required:
+        - applicationId
+        - status
+      properties:
+        applicationId:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+            - $ref: '#/components/schemas/ApplicationStatus'
+          readOnly: true
+          description: 迁移后状态（UNDER_REVIEW）。
+        submittedAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+        reviewSlaBusinessDays:
+          allOf:
+            - $ref: '#/components/schemas/ReviewSlaBusinessDays'
+          readOnly: true
+          description: 审核 SLA（工作日 min/max，固定 2-3，结构化；文案本地化交前端）。
+    RejectInfo:
+      type: object
+      description: 拒绝结果信息（ONB-FR-08）；粗分类 + 申诉联系入口，不含细节。
+      additionalProperties: false
+      required:
+        - category
+      properties:
+        category:
+          type: string
+          readOnly: true
+          description: 粗分类拒绝原因（不分享细节，合规 / 防 gaming）。
+        appealContact:
+          type: string
+          readOnly: true
+          description: 申诉路径联系入口（具体邮箱 / SLA 归 design + 通知模块协调）。
+    OnboardingStatus:
+      type: object
+      description: 审核状态 + 登录后页面分流数据 + 拒绝结果（ONB-FR-05/08）；只读。
+      additionalProperties: false
+      required:
+        - applicationId
+        - status
+        - routeTo
+      properties:
+        applicationId:
+          type: string
+          readOnly: true
+        status:
+          $ref: '#/components/schemas/ApplicationStatus'
+        routeTo:
+          type: string
+          enum:
+            - ONBOARDING_WIZARD
+            - REVIEW_STATUS_PAGE
+            - REJECTED_PAGE
+            - MERCHANT_HOME
+          readOnly: true
+          description: 前端应路由到的业务页面（分流真相源；完整有限分流集 = 闭包枚举；MERCHANT_HOME 实现归 ME）。
+        reviewSlaBusinessDays:
+          oneOf:
+            - $ref: '#/components/schemas/ReviewSlaBusinessDays'
+            - type: 'null'
+          readOnly: true
+          description: UNDER_REVIEW 时的审核 SLA（工作日 min/max，固定 2-3，结构化）；其他状态为 null。
+        submittedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          readOnly: true
+        decidedAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+          readOnly: true
+        rejectInfo:
+          oneOf:
+            - $ref: '#/components/schemas/RejectInfo'
+            - type: 'null'
+          readOnly: true
+          description: 仅 REJECTED 时非空。
+    OnboardingConfig:
+      type: object
+      description: 向导动态配置（ONB-FR-01；后端配置驱动，前端不写死方式 / 费率 / 组合）。
+      additionalProperties: false
+      required:
+        - paymentMethods
+        - currencyCountries
+        - onlineServiceTypes
+        - settlementCycleDefault
+      properties:
+        paymentMethods:
+          type: array
+          readOnly: true
+          description: Step 2 各营业场景可选支付方式 + 展示费率 + 可选状态（费率为展示示例、非固定业务参数）。
+          items:
+            $ref: '#/components/schemas/ConfigPaymentMethod'
+        currencyCountries:
+          type: array
+          readOnly: true
+          description: Step 3 有效 Currency × Country 组合（当前 CAD→CA、USD→CA/US；以后端配置为准）。
+          items:
+            $ref: '#/components/schemas/ConfigCurrencyCountry'
+        onlineServiceTypes:
+          type: array
+          readOnly: true
+          description: 线上服务类型选项（Step 3 条件字段）。
+          items:
+            type: string
+        industries:
+          type: array
+          readOnly: true
+          description: Industry → MCC 级联选项。
+          items:
+            $ref: '#/components/schemas/ConfigIndustry'
+        settlementCycleDefault:
+          type: string
+          readOnly: true
+          description: 默认结算周期（可配 X-07）。
+    ConfigPaymentMethod:
+      type: object
+      additionalProperties: false
+      required:
+        - acceptanceMode
+        - methodId
+        - displayName
+        - selectable
+      properties:
+        acceptanceMode:
+          type: string
+          enum:
+            - in_store
+            - online
+        methodId:
+          type: string
+          description: instance 级 method id（如 instore-wechat；catalog 以 10-04 为准）
+        displayName:
+          type: string
+        displayRate:
+          type: string
+          description: 展示费率（示例文案，非固定业务参数）。
+        selectable:
+          type: boolean
+    ConfigCurrencyCountry:
+      type: object
+      additionalProperties: false
+      required:
+        - currency
+        - countries
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        countries:
+          type: array
+          items:
+            type: string
+    ConfigIndustry:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - name
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        mccOptions:
+          type: array
+          items:
+            type: string
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+    Timestamp:
+      type: string
+      format: date-time
+      description: 'RFC 3339 date-time。in/out 非对称(骨干07):**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+    ErrorEnvelope:
+      type: object
+      description: 统一错误返回(骨干07 错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      required:
+        - code
+        - detail
+      properties:
+        code:
+          type: integer
+          description: 结构化整数错误码(骨干07:能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+        detail:
+          type: string
+          description: 错误描述(面向调用方;本地化按 locale,X-06)。
+        links:
+          type: object
+          description: 可选:错误说明 / 后续恢复操作链接(骨干07)。
+          additionalProperties:
+            type: string
+        traceId:
+          type: string
+          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
+        details:
+          type: array
+          description: 可选:字段级校验错误(骨干07)。
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+    MerchantBffError:
+      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
+      allOf:
+        - $ref: '#/components/schemas/ErrorEnvelope'
+        - type: object
+          properties:
+            context:
+              type: object
+              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
+              properties:
+                currentMerchantId:
+                  type:
+                    - string
+                    - 'null'
+                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null；schema 不用 if/then——redocly example 校验不兼容；由 contract-test enforce）。
+  parameters:
+    MerchantContextGuard:
+      name: X-Merchant-Context
+      in: header
+      required: true
+      description: |
+        merchant-current-scoped 请求守卫（stale-tab 一致性，**读写统一**）：页面预期商户 ID（expected merchant）。**仅与会话 current merchant 比对、非 scope selector**—— 会话 current 仍是 merchant scope 唯一权威；一致才执行；**≠ 会话 current → 409 `MerchantBffConflict`**（语义名 `MERCHANT_CONTEXT_CHANGED`，整数 `code` `208001`、SSOT 见 `20-商户后台/api/error-codes.yaml`）——**读不返回错商户数据、写不执行**； **`context.currentMerchantId`**（非 `details` 字段校验数组）回显服务端会话当前商户供前端直接 re-sync。统一挂在各 module **所有 merchant-current-scoped 读 + 写 operation**； 前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户；BroadcastChannel / focus 只作提前发现、改善体验）。 **治理范围仅 cookieAuth 浏览器 BFF 面 + 依赖当前商户的 op**；**不适用** `.internal` serviceAuth 面 / 公开 register·login·callback（`security:[]`）/ 设备面 / 其他不依赖当前商户的接口。**BFF 面内豁免**：listMerchants（re-sync 发现入口、返回 currentMerchantId）、switchCurrentMerchant（设当前 authority changer）、**withdrawOnboardingApplication（path-selector：target 由 path 定、与会话 current 无关）**、全局接口。
+      schema:
+        type: string
+        minLength: 1
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)
+      schema:
+        type: string
+        minLength: 1
+        pattern: \S
+  responses:
+    Unauthorized:
+      description: 401 未认证 / 凭证无效或已撤销
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: 404 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    MerchantBffConflict:
+      description: |
+        409 冲突。整数 `code` 结构（`XX·Y·ZZZ`、责任方位 `Y` 4-8）见骨干07；**码 SSOT = `20-商户后台/api/error-codes.yaml`**（本描述仅引用、非登记源）。D-MERCH 业务·资源型 `208xxx`（前端据整数 `code` 区分子因）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**契约不变量：必携 `context.currentMerchantId`**（contract-test enforce；schema 不用 if/then 因 redocly example 校验不兼容）供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208004` 基线漂移（`baselineVersion` / URL 指纹 CAS 失败，需重载最新态）； `208005` 幂等键复用但 payload 不一致。 前端动作：208001 刷新当前商户、208002 提示已存在、208003·208004 重载最新态、208005 排查重复请求。本 409 response BFF 面 + `.internal` 面共用同末段语义（internal 面走域中立 `ErrorEnvelope`）。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MerchantBffError'
+          examples:
+            staleTab:
+              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
+              value:
+                code: 208001
+                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
+                context:
+                  currentMerchantId: '1000024'
+            businessConflict:
+              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
+              value:
+                code: 208002
+                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
+    Forbidden:
+      description: 403 无权限(fail-secure,默认拒绝)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    BadRequest:
+      description: 400 业务/校验错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    PayloadTooLarge:
+      description: 413 上传内容超过大小上限(文件 / 请求体；尺寸上限部署可配 X-07)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    BadGateway:
+      description: 502 上游通道错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

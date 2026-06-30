@@ -23,6 +23,28 @@
 - **CSRF**：以 cookie 承载会话的面，非安全方法（POST / PUT / DELETE）一律带 `X-CSRF-Token`（double-submit）；缺失 / 不匹配 → `403`。
 - 公开端点（注册 / 登录 / 找回等 `security: []`）无会话、故无 CSRF。
 
+## 应用启动链路（bootstrap，登录 / 扫码 / 激活后必走）
+
+登录 / 微信扫码 / 邮箱激活成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录 / 激活响应直接携带 merchantId 或路由**：
+
+1. `getCurrentSession`（`GET /sessions/current`）→ 取 `merchantId`（当前商户内部 id）、`menus`（可见菜单树）、`landingPage`（默认落地页）。
+2. 以该 `merchantId` 初始化 `X-Merchant-Context`，作为后续所有 merchant-scoped 调用的 header（见下「merchant scope 守卫」）。
+3. `getOnboardingStatus`（`GET /onboarding/status`，带 `X-Merchant-Context`）→ `routeTo` 决定落到哪个区域：`ONBOARDING_WIZARD` / `REVIEW_STATUS_PAGE` / `REJECTED_PAGE` / `MERCHANT_HOME`。
+4. **`routeTo` 是区域分流的唯一真相源**；**仅 `routeTo = MERCHANT_HOME` 时才采用 `landingPage`**（商户后台内默认页）。入驻 / 审核 / 拒绝区域不看 `landingPage`。
+
+> **`merchantId = null`（无当前商户）分支**：`getCurrentSession.merchantId` 可为 null（撤回当前商户 / 无可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / ONB**。
+>
+> 邮箱激活与登录在此链路上等价：激活成功即建会话，FE 同样从 `getCurrentSession` 起步。
+
+## merchant scope + stale-tab 守卫（`X-Merchant-Context`）
+
+商户后台**单会话单当前商户**；会话当前商户 = merchant scope **唯一权威**（服务端不信请求体里的 merchantId）。FE 须实现**统一 interceptor**：
+
+- **发送**：所有 merchant-current-scoped 读 + 写请求带 header `X-Merchant-Context = 当前 merchantId`（来源 = `getCurrentSession`；切换商户后更新）。它是**守卫、非 selector**——服务端只比对、不据它选商户。
+- **冲突**：`X-Merchant-Context` ≠ 会话当前商户（如另一标签页已切换）→ 服务端**读不返回错商户数据、写不执行**，返 **`409` `208001`（`MERCHANT_CONTEXT_CHANGED`）**，body `context.currentMerchantId` = 会话真实当前商户。
+- **interceptor 处理**：读 `context.currentMerchantId` → 更新前端当前商户 + 提示用户；**安全读（GET）自动重放**到新当前商户；**写请求不自动重放**（由用户重新发起，杜绝静默跨商户写）。
+- **豁免**（不带守卫 / 不触发该 409）：`listMerchants`、`switchCurrentMerchant`、`withdrawOnboardingApplication`（path-selector，target 由 path 定）、以及不依赖当前商户的全局 / 公开接口。
+
 ## HTTP 状态语义
 
 用 HTTP status 表达请求结果；非 `2xx` 时响应体只返 `ErrorEnvelope`（见下）。
