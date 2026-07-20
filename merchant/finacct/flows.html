@@ -71,7 +71,7 @@ sequenceDiagram
     alt 子项均同步达终态
         A-->>B: 200 RefundReserveFundingResult{ operationId(轮询键), topUpResult?, autoReplenishResult? }(项 ⟺ 提交项)
     else 有子项未达终态
-        A-->>B: 200 RefundReserveFundingResult{ operationId(轮询键;config-only PENDING 也返回), topUpResult/autoReplenishResult 含 PENDING 子项 }
+        A-->>B: 200 RefundReserveFundingResult{ operationId(轮询键；config-only PENDING 也返回), topUpResult/autoReplenishResult 含 PENDING 子项 }
         loop 直到子项终态
             B->>A: [getReserveOperation] GET /refund-reserve/operations/{operationId}
             A-->>B: 200 OperationDetail{ opType＝FUNDING, topUpResult/autoReplenishResult 子项 status }
