@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>收单配置 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 收单配置（Store QR / 收款页 / Invoice / Payment Link / 设备 / 配置）—— 调用时序
+
+> 本文是 `04-收单配置.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+>
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对支付核心系统的命令与取数**不画**（后端面，与前端无关）；跨部署核心态变化（账单被支付 / 设备扫码激活）由系统驱动、前端靠刷新读到。外部参与方（收款设备等）仅在用户可见 / 真参与异步交互时出现；点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+>
+> **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
+>
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST/PUT/PATCH/DELETE)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带 `X-Merchant-Context`**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；目标资源不在可访问范围 → 404；错误体统一 `MerchantBffError`（整数 `code` → 前端策略）。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
+
+## 接口 ID 对照(图例，点 operationId 跳接口)
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`listStoreQrVariants`](index.html#tag/store-qr/operation/listStoreQrVariants) | `GET /store-qr` | 店铺码展示变体（主 QR + More） |
+| [`downloadStoreQrImage`](index.html#tag/store-qr/operation/downloadStoreQrImage) | `GET /store-qr/{variantId}/image` | 下载变体 PNG |
+| [`getPaymentPageSettings`](index.html#tag/payment-page/operation/getPaymentPageSettings) | `GET /payment-page` | 读收款页设置 + 小费 + 可用方式候选 |
+| [`savePaymentPageSettings`](index.html#tag/payment-page/operation/savePaymentPageSettings) | `PUT /payment-page` | 保存收款页设置 + 小费（两组共同成功 / 失败） |
+| [`uploadPaymentPageLogo`](index.html#tag/payment-page/operation/uploadPaymentPageLogo) | `POST /payment-page/logo` | 上传 Logo（multipart → logoRef） |
+| [`getInvoiceCreateConfig`](index.html#tag/invoices/operation/getInvoiceCreateConfig) | `GET /products/invoices/creation-config` | 账单创建候选（可选标价币种） |
+| [`listInvoices`](index.html#tag/invoices/operation/listInvoices) | `GET /products/invoices` | 账单列表 + 汇总卡 |
+| [`createInvoice`](index.html#tag/invoices/operation/createInvoice) | `POST /products/invoices` | 创建账单 |
+| [`getInvoice`](index.html#tag/invoices/operation/getInvoice) | `GET /products/invoices/{invoiceId}` | 账单详情 |
+| [`downloadInvoicePoster`](index.html#tag/invoices/operation/downloadInvoicePoster) | `GET /products/invoices/{invoiceId}/poster` | 下载账单收款海报 PNG |
+| [`deleteInvoice`](index.html#tag/invoices/operation/deleteInvoice) | `DELETE /products/invoices/{invoiceId}` | 作废(UNPAID/OVERDUE) / 隐藏(PAID) |
+| [`getPaymentLinkCreateConfig`](index.html#tag/payment-links/operation/getPaymentLinkCreateConfig) | `GET /products/payment-links/creation-config` | 支付链接创建候选（币种 + 方式 + 各方式可标价币种） |
+| [`listPaymentLinks`](index.html#tag/payment-links/operation/listPaymentLinks) | `GET /products/payment-links` | 支付链接列表 |
+| [`createPaymentLink`](index.html#tag/payment-links/operation/createPaymentLink) | `POST /products/payment-links` | 创建（giftcard/product/ticket） |
+| [`getPaymentLink`](index.html#tag/payment-links/operation/getPaymentLink) | `GET /products/payment-links/{linkId}` | 详情（Overview） |
+| [`updatePaymentLink`](index.html#tag/payment-links/operation/updatePaymentLink) | `PATCH /products/payment-links/{linkId}` | 分段编辑配置 |
+| [`downloadPaymentLinkQr`](index.html#tag/payment-links/operation/downloadPaymentLinkQr) | `GET /products/payment-links/{linkId}/qr` | 下载支付链接收款 QR PNG |
+| [`setPaymentLinkStatus`](index.html#tag/payment-links/operation/setPaymentLinkStatus) | `PUT /products/payment-links/{linkId}/status` | 启停（ACTIVE↔DISABLED） |
+| [`deletePaymentLink`](index.html#tag/payment-links/operation/deletePaymentLink) | `DELETE /products/payment-links/{linkId}` | 删除（软删 DELETED） |
+| [`savePaymentLinkPolicies`](index.html#tag/payment-links/operation/savePaymentLinkPolicies) | `PUT /products/payment-links/{linkId}/policies` | 保存 Policies（三语 + 商户级默认） |
+| [`uploadGiftcardStock`](index.html#tag/payment-links/operation/uploadGiftcardStock) | `POST /products/payment-links/{linkId}/giftcard-stock` | 卡密上传 / 补货（同步返逐条结果） |
+| [`uploadPaymentLinkBanner`](index.html#tag/payment-links/operation/uploadPaymentLinkBanner) | `POST /products/payment-links/{linkId}/banner` | 上传 Banner（multipart → bannerRef） |
+| [`getPaymentLinkRedemptions`](index.html#tag/payment-links/operation/getPaymentLinkRedemptions) | `GET /products/payment-links/{linkId}/redemptions` | Redemptions 只读（发卡 / 核销记录） |
+| [`listDevices`](index.html#tag/devices/operation/listDevices) | `GET /devices` | 设备列表（不含 RELEASED） |
+| [`bindDevice`](index.html#tag/devices/operation/bindDevice) | `POST /devices` | 绑定新设备 |
+| [`getDevice`](index.html#tag/devices/operation/getDevice) | `GET /devices/{deviceId}` | 设备详情 |
+| [`unbindDevice`](index.html#tag/devices/operation/unbindDevice) | `DELETE /devices/{deviceId}` | 解绑（→ RELEASED） |
+| [`setDeviceStatus`](index.html#tag/devices/operation/setDeviceStatus) | `PUT /devices/{deviceId}/status` | 启停（ACTIVE↔DISABLED） |
+| [`regenerateActivationQr`](index.html#tag/devices/operation/regenerateActivationQr) | `PUT /devices/{deviceId}/activation-qr` | 重发激活 QR（挂 Idempotency-Key） |
+| [`listDeviceLogs`](index.html#tag/device-logs/operation/listDeviceLogs) | `GET /devices/{deviceId}/logs` | 设备日志（3 类 + 导出） |
+| [`getGeneralSettings`](index.html#tag/settings/operation/getGeneralSettings) | `GET /settings/general` | 读 Order Expiry / Service Fee / Checkout 入口 |
+| [`listOrderExpiryOptions`](index.html#tag/settings/operation/listOrderExpiryOptions) | `GET /settings/order-expiry-options` | Order Expiry 候选值集 |
+| [`setOrderExpiry`](index.html#tag/settings/operation/setOrderExpiry) | `PUT /settings/order-expiry` | 设置 Order Expiry |
+| [`setCustomerServiceFee`](index.html#tag/settings/operation/setCustomerServiceFee) | `PUT /settings/customer-service-fee` | 切换 Customer Service Fee 总开关 |
+| [`getReceiptContent`](index.html#tag/receipt/operation/getReceiptContent) | `GET /settings/receipt` | 读 POS 小票内容 |
+| [`saveReceiptContent`](index.html#tag/receipt/operation/saveReceiptContent) | `PUT /settings/receipt` | 保存 POS 小票内容 |
+
+---
+
+## 读类与单调用写：无编排
+
+下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
+
+- **列表 / 详情读**：`listStoreQrVariants` / `listInvoices`（+ 汇总卡）/ `getInvoice` / `listPaymentLinks` / `getPaymentLink` / `getPaymentLinkRedemptions` / `listDevices` / `getDevice` / `listDeviceLogs`（`format=xlsx` 同一端点导出）—— BFF 内部向支付核心系统取数、前端只见聚合结果。
+- **二进制下载**：`downloadStoreQrImage` / `downloadInvoicePoster`（账单海报 = 收款 QR + 品牌 + 金额 + 当前可用支付方式标识）/ `downloadPaymentLinkQr`（收款 QR）—— `image/png` + `Content-Disposition: attachment`；**Copy Link 是前端本地复制 paymentUrl、不调端点**。
+- **创建向导前置读**：`getInvoiceCreateConfig` / `getPaymentLinkCreateConfig` —— 取可选标价币种 / 方式候选（含各方式 `pricingCurrencies`），驱动创建表单与 currency × method 联动；**空候选 → 停止提交、展示开通引导**（见流程一 / 三）。
+- **配置单调用写**：`savePaymentPageSettings`（两组共同成功 / 失败；保存前经受理判定收窄校验，方式空 → 400、不通过 → 409）/ `savePaymentLinkPolicies`（同步商户级默认）/ `setPaymentLinkStatus` / `setOrderExpiry` / `setCustomerServiceFee` / `saveReceiptContent` —— 天然幂等 PUT。
+- **上传**：`uploadPaymentPageLogo` / `uploadPaymentLinkBanner`（multipart → ref，供后续 save 引用）。
+- **Payment Link Transactions tab**：展示该链接的交易列表 + 行内退款，**契约由交易管理模块发布**（不在当前收单配置契约重复暴露）。⚠️ **当前无可调用端点，前端不要假设已有接口**（契约随交易管理模块后续发布）。
+
+---
+
+## 流程一：账单创建 → 分享 → 作废 / 隐藏
+
+> 创建前先取可选币种候选；账单核心记录归支付核心系统、BFF 内部命令不画。作废分「有无未终态支付尝试」分支。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+
+    Note over B,A: 打开创建向导先取候选
+    B->>A: [getInvoiceCreateConfig]
+    A-->>B: 200 可选标价币种集
+    alt 无可标价币种（无已开通方式）
+        B->>B: 停止提交、展示开通引导
+    else 有候选
+        B->>B: 渲染 Currency 下拉（限候选）+ Amount + Due Date
+        B->>A: [createInvoice]（Idempotency-Key）
+        Note over A: 系统创建账单 UNPAID + 生成付款链接
+        A-->>B: 201 InvoiceDetail（含 paymentUrl 整串）
+        B->>B: 展示账单详情 + Copy Link（本地复制 paymentUrl）
+        opt 下载收款海报
+            B->>A: [downloadInvoicePoster]
+            A-->>B: 200 image/png（QR + 品牌 + 金额 + 可用方式标识；attachment）
+        end
+    end
+
+    opt 针对已存在账单（列表行 Delete；新建成功后或从列表打开）——作废或隐藏
+        B->>A: [deleteInvoice]
+        alt UNPAID / OVERDUE 且无未终态支付尝试
+            Note over A: 系统作废账单（VOIDED、链接失效）
+            A-->>B: 200 InvoiceDetail（status=VOIDED）
+        else 存在未终态支付尝试
+            A-->>B: 409 INVOICE_HAS_PENDING_PAYMENT
+            B->>B: 提示待支付结果收敛后再操作
+        else PAID
+            Note over A: 隐藏已支付记录（不改已付事实）
+            A-->>B: 200 InvoiceDetail（hidden=true）
+        end
+    end
+```
+
+---
+
+## 流程二：设备绑定 → 展示激活 QR → 激活（跨域） / 重发
+
+> 设备生命周期归支付核心系统、BFF 内部命令不画。设备扫码激活由系统确认（跨域），前端靠刷新列表读到 ACTIVE。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    actor DEV as 收款设备
+
+    B->>A: [bindDevice]（Idempotency-Key；Model / SN / Source / Store）
+    alt Serial 已被在册设备占用
+        A-->>B: 409 STATE_PRECONDITION_MISMATCH
+        B->>B: 字段级错误、不创建
+    else 可绑定
+        Note over A: 系统建 PENDING_ACTIVATION + 生成 Activation QR
+        A-->>B: 201 DeviceDetail（activationQrRef）
+        B->>B: 展示激活二维码
+
+        opt QR 过期需重发
+            B->>A: [regenerateActivationQr]（**Idempotency-Key**）
+            Note over A: 每次轮换新凭据、旧 QR 立即失效、状态不变；同键重试返同一次新 QR（防网络重试使刚返回的 QR 立即失效）
+            A-->>B: 200 DeviceDetail（新 activationQrRef）
+        end
+
+        DEV->>DEV: 扫 Activation QR（系统确认激活，跨域）
+        B->>A: [listDevices]（刷新）
+        A-->>B: 200 设备列表（该设备 ACTIVE + 连接健康）
+    end
+```
+
+---
+
+## 流程三：支付链接类型化创建向导
+
+> 先取候选（驱动 currency × method 联动）→ 创建链接（成功返回 linkId + 链接详情）→ **详情阶段**（已有 linkId）按需上传 Banner / 装载卡密 / 编辑 Policies。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+
+    Note over B,A: 打开创建向导先取候选（驱动 currency × method 联动）
+    B->>A: [getPaymentLinkCreateConfig]
+    A-->>B: 200 可选币种 + online 候选方式（每方式带可标价币种 pricingCurrencies）
+    alt 无候选方式（未开通 online）
+        B->>B: 停止提交、展示开通引导
+    else 有候选
+        B->>B: 选 type（giftcard / product / ticket）→ 按 type 渲染字段 → 选 Currency + 方式（联动过滤：方式须支持所选标价币种；内容价格币种须 = 顶层 Currency）
+        B->>A: [createPaymentLink]（Idempotency-Key；type 判别内容）
+        alt 币种 × 方式不兼容 / 方式不适用
+            A-->>B: 409 PAYMENT_METHOD_NOT_ACCEPTABLE
+            B->>B: 提示改币种 / 方式
+        else 内容币种 ≠ 顶层 Currency / 方式空
+            A-->>B: 400（CONTENT_CURRENCY_MISMATCH / PAYMENT_METHOD_SELECTION_EMPTY）
+            B->>B: 字段级错误
+        else 通过
+            Note over A: 创建 ACTIVE 实例 + 生成链接 URL / QR（整串），返回链接详情
+            A-->>B: 201 PaymentLinkDetail
+            B->>B: 跳详情页继续配置
+        end
+    end
+
+    Note over B,A: 详情阶段——针对已存在链接（新建成功后进入、或从列表打开已有链接）：按需上传 / 保存
+    opt giftcard / ticket 传 Banner
+        B->>A: [uploadPaymentLinkBanner]（multipart → bannerRef）
+        A-->>B: 200 bannerRef
+        B->>A: [updatePaymentLink]（type + 对应内容对象中的 bannerRef：giftcard.bannerRef / ticket.bannerRef）
+        A-->>B: 200 PaymentLinkDetail
+    end
+
+    opt giftcard 装载本地卡密池
+        B->>A: [uploadGiftcardStock]（Idempotency-Key；cardSecrets）
+        Note over A: 同步入池（敏感明文全链路禁记录、响应不回显卡密）
+        A-->>B: 200 GiftcardStockUploadResult（逐条 accepted / rejected + errors）
+    end
+
+    opt 编辑 Policies（三语）
+        B->>A: [savePaymentLinkPolicies]
+        A-->>B: 200（当前链接 + 商户级默认同步）
+    end
+
+    opt 下载收款 QR
+        B->>A: [downloadPaymentLinkQr]
+        A-->>B: 200 image/png（编码 paymentUrl；attachment）
+    end
+```
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>

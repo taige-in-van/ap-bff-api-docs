@@ -10,7 +10,7 @@
 
 > 本文是 `openapi.yaml` 的**调用顺序伴档**:OpenAPI 讲清每个接口的入参 / 出参 / 错误码(WHAT),本文讲清**多步流程里先调谁、后调谁、分支怎么走、什么触发邮件 / 轮询**(HOW)。
 >
-> **视角**:浏览器(SPA)↔ BFF。前端只与 BFF 交互;BFF 内部对身份服务的委派不画(后端面,与前端无关)。外部参与方(邮箱收件箱 / 微信 / Authenticator App)仅在用户可见时出现。
+> **视角**:浏览器(SPA)↔ BFF。前端只与 BFF 交互;BFF 内部委派不画(后端面,与前端无关)。外部参与方(邮箱收件箱 / 微信 / Authenticator App)仅在用户可见时出现。
 >
 > **接口 ID = `operationId`**:下方每个发往 BFF 的调用都标 `[operationId]`,即 OpenAPI 原生 `operationId`——全局唯一,也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**,直达 ReDoc 接口详情;时序图**内**的 `[operationId]` 受 Mermaid 限制不可点,点同名链接即可。
 >
@@ -29,21 +29,27 @@
 | [`initiateMemberWechatBinding`](index.html#tag/team/operation/initiateMemberWechatBinding) | `POST /team/members/{operatorId}/wechat-binding` | 代成员绑 WeChat 发起(返回二维码) |
 | [`pollMemberWechatBinding`](index.html#tag/team/operation/pollMemberWechatBinding) | `GET /team/members/{operatorId}/wechat-binding/{qrTicket}` | 绑定结果轮询(异设备回告发起端) |
 | [`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat) | `DELETE /team/members/{operatorId}/wechat-binding` | 代成员解绑 WeChat(仅停用该成员的商户后台 WeChat 登录) |
-| [`initiateLoginEmailChange`](index.html#tag/my-profile/operation/initiateLoginEmailChange) | `POST /account/login-email/change` | 改登录邮箱发起(返回身份校验方式) |
-| [`verifyLoginEmailChangeIdentity`](index.html#tag/my-profile/operation/verifyLoginEmailChangeIdentity) | `POST /account/login-email/change/identity-verification` | 改邮箱第 1 步:身份校验 |
-| [`submitNewLoginEmail`](index.html#tag/my-profile/operation/submitNewLoginEmail) | `POST /account/login-email/change/new-email` | 改邮箱第 2 步:提交新邮箱 |
-| [`confirmLoginEmailChange`](index.html#tag/my-profile/operation/confirmLoginEmailChange) | `POST /account/login-email/change/confirmation` | 改邮箱第 3 步:新邮箱 OTP 确认 |
-| [`enrollMfa`](index.html#tag/account-security/operation/enrollMfa) | `POST /account/security/mfa` | 启用 MFA 发起(返回 otpauthUri) |
-| [`activateMfa`](index.html#tag/account-security/operation/activateMfa) | `POST /account/security/mfa/activation` | 启用 MFA 确认(TOTP 激活) |
+| [`initiateLoginEmailChange`](index.html#tag/my-profile/operation/initiateLoginEmailChange) | `POST /me/login-email/change-requests` | 改登录邮箱发起变更请求(返回身份校验方式) |
+| [`verifyLoginEmailChangeIdentity`](index.html#tag/my-profile/operation/verifyLoginEmailChangeIdentity) | `POST /me/login-email/change-requests/{challengeId}/identity-verification` | 改邮箱第 1 步:身份校验 |
+| [`submitNewLoginEmail`](index.html#tag/my-profile/operation/submitNewLoginEmail) | `POST /me/login-email/change-requests/{challengeId}/new-address` | 改邮箱第 2 步:提交新邮箱 |
+| [`confirmLoginEmailChange`](index.html#tag/my-profile/operation/confirmLoginEmailChange) | `POST /me/login-email/change-requests/{challengeId}/confirmation` | 改邮箱确认(新邮箱 OTP;一次性、非幂等) |
+| [`enrollMfa`](index.html#tag/account-security/operation/enrollMfa) | `POST /me/security/mfa` | 启用 MFA 发起(返回 otpauthUri) |
+| [`activateMfa`](index.html#tag/account-security/operation/activateMfa) | `POST /me/security/mfa/activation` | 启用 MFA 确认(TOTP 激活) |
 | [`registerOwner`](index.html#tag/registration/operation/registerOwner) | `POST /registrations` | 自助注册 |
 | [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) | `POST /registrations/verification` | 邮箱激活 |
 | [`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail) | `POST /registrations/verification-email` | 重发验证邮件 |
 | [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword) | `POST /invitations/password` | 邮箱邀请员工设密激活 |
-| [`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) | `POST /password-reset/request` | 找回密码发起(恒 202 反枚举) |
-| [`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) | `POST /password-reset/factor-verification` | 因子验证(邮箱 OTP/TOTP → resetToken) |
-| [`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) | `POST /password-reset/confirmation` | 设新密码(不绕过 MFA) |
+| [`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) | `POST /password-resets` | 找回密码发起(恒 202 反枚举) |
+| [`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) | `POST /password-resets/{challengeId}/factor-verification` | 因子验证(邮箱 OTP/TOTP → resetToken) |
+| [`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) | `POST /password-resets/{challengeId}/confirmation` | 设新密码(不绕过 MFA) |
 | [`updateTeamMember`](index.html#tag/team/operation/updateTeamMember) | `PUT /team/members/{operatorId}` | 代成员编辑(本流程:改 ACTIVE 员工登录邮箱) |
 | [`confirmMemberLoginEmail`](index.html#tag/team/operation/confirmMemberLoginEmail) | `POST /team/login-email-confirmations` | 员工确认 Owner 改的新登录邮箱 |
+| [`getOwnerContact`](index.html#tag/owner-contact/operation/getOwnerContact) | `GET /owner-contact` | 读 Owner 联系人(Profile 读权限;first/last/title/phone + 只读 primaryEmail) |
+| [`updateOwnerContact`](index.html#tag/owner-contact/operation/updateOwnerContact) | `PUT /owner-contact` | 改 Owner 联系人(编辑权限默认 Owner;直接生效) |
+| [`initiateOwnerPrimaryEmailChange`](index.html#tag/owner-contact/operation/initiateOwnerPrimaryEmailChange) | `POST /owner-contact/primary-email/change-requests` | 改 Primary Email 发起(返回身份校验方式) |
+| [`verifyOwnerPrimaryEmailChangeIdentity`](index.html#tag/owner-contact/operation/verifyOwnerPrimaryEmailChangeIdentity) | `POST /owner-contact/primary-email/change-requests/{challengeId}/identity-verification` | 该 Owner 身份因子校验 |
+| [`submitOwnerNewPrimaryEmail`](index.html#tag/owner-contact/operation/submitOwnerNewPrimaryEmail) | `POST /owner-contact/primary-email/change-requests/{challengeId}/new-address` | 提交新邮箱 + 发新邮箱 OTP |
+| [`confirmOwnerPrimaryEmailChange`](index.html#tag/owner-contact/operation/confirmOwnerPrimaryEmailChange) | `POST /owner-contact/primary-email/change-requests/{challengeId}/confirmation` | 确认(新邮箱 OTP → 替换 Primary Email) |
 
 ---
 
@@ -101,7 +107,7 @@ sequenceDiagram
 - 未绑定 / 未扫 / 未确认对前端表现一致(`WAITING`),不区分以防枚举。
 - 微信内须用户**显式确认**才登录(扫码本身不构成认证);确认前对前端仍是 `WAITING`。
 - 二维码请求时已带业务端(商户后台),微信内**不选业务端 / 商户**;同一身份跨多商户的切换在门户内完成,不在微信里。
-- `REJECTED` / `CANCELLED` 是身份服务在用户**确认后**的裁决(`REJECTED`=无有效的商户后台访问资格 / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
+- `REJECTED` / `CANCELLED` 是用户**确认后**的裁决结果(`REJECTED`=无有效的商户后台访问资格 / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
 
 ---
 
@@ -145,17 +151,17 @@ sequenceDiagram
     participant A as 商户后台 BFF
     participant EO as 旧邮箱
     participant EN as 新邮箱
-    B->>A: [initiateLoginEmailChange] POST /account/login-email/change
-    A-->>B: 200 { challengeId, identityVerification= MFA_TOTP | OLD_EMAIL_OTP }
+    B->>A: [initiateLoginEmailChange] POST /me/login-email/change-requests
+    A-->>B: 201 { challengeId, identityVerification= MFA_TOTP | OLD_EMAIL_OTP }
     opt identityVerification= OLD_EMAIL_OTP
         A->>EO: 发旧邮箱 OTP
     end
-    B->>A: [verifyLoginEmailChangeIdentity] POST .../identity-verification { challengeId, code }
+    B->>A: [verifyLoginEmailChangeIdentity] POST .../change-requests/{challengeId}/identity-verification { code }
     A-->>B: 204(身份已校验)
-    B->>A: [submitNewLoginEmail] POST .../new-email { challengeId, newEmail }
+    B->>A: [submitNewLoginEmail] POST .../change-requests/{challengeId}/new-address { newEmail }
     A->>EN: 发新邮箱 OTP
     A-->>B: 202(新邮箱 OTP 已发；newEmail pending 占用登录域唯一性)
-    B->>A: [confirmLoginEmailChange] POST .../confirmation { challengeId, code }
+    B->>A: [confirmLoginEmailChange] POST .../change-requests/{challengeId}/confirmation { code }
     A->>EO: 旧邮箱安全通知
     A-->>B: 204(登录邮箱已更新；不影响当前会话)
     Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410<br/>身份校验失败 401<br/>Owner 同步商户主联系邮箱，员工仅个人
@@ -163,9 +169,46 @@ sequenceDiagram
 
 ---
 
+## Owner 联系人 / Primary Email(business profile 写面;非 /me)
+
+Contact section 的联系人(first/last/title/phone)与 Primary Email 编辑。**读**走 Profile 页聚合展示;**写**归本组(RBAC 授权、默认 Owner)。联系人直接改;Primary Email = 登录邮箱 = Contact email 三合一,走严格两步验证。
+
+- **读联系人**:Profile 页 Contact section 展示走 ME `/account/profile` 聚合(只读视图);**进入编辑时**才 [`getOwnerContact`](index.html#tag/owner-contact/operation/getOwnerContact) `GET /owner-contact` 刷新 authoritative 编辑源资源(Profile 读权限即可读)。
+- **改联系人**:[`updateOwnerContact`](index.html#tag/owner-contact/operation/updateOwnerContact) `PUT /owner-contact`(编辑权限、默认 Owner;未获权限 403),直接生效 204、名下多商户同步展示。
+
+改 Primary Email(严格两步验证,4 调):
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant EO as Owner 旧邮箱
+    participant EN as 新邮箱
+    B->>A: [initiateOwnerPrimaryEmailChange] POST /owner-contact/primary-email/change-requests
+    A-->>B: 201 { challengeId, identityVerification= MFA_TOTP | OLD_EMAIL_OTP }
+    opt identityVerification= OLD_EMAIL_OTP
+        A->>EO: 发旧邮箱 OTP
+    end
+    B->>A: [verifyOwnerPrimaryEmailChangeIdentity] POST .../{challengeId}/identity-verification { code }
+    A-->>B: 204(身份已校验)
+    B->>A: [submitOwnerNewPrimaryEmail] POST .../{challengeId}/new-address { newEmail }
+    A->>EN: 发新邮箱 OTP
+    A-->>B: 202(新邮箱 OTP 已发；newEmail pending 占全平台登录域唯一性)
+    B->>A: [confirmOwnerPrimaryEmailChange] POST .../{challengeId}/confirmation { code }
+    A->>EO: Registration Email Changed 通知(无 Reset password CTA)
+    A-->>B: 204(Primary Email 已更新；三合一同步、不影响会话)
+    Note over B,A: 无编辑权限 403<br/>新邮箱占用 409<br/>challenge 过期 410 / 切商户 409<br/>身份校验失败 401<br/>四步全程随发起时商户上下文
+```
+
+- **切商户 / 换会话即失效**:改邮箱四步全程绑发起时的商户上下文与会话,中途切商户或换会话则后续步骤拒(需重新发起)。
+- **确认命令重试(410 收敛)**:`confirmation` 消费一次性 OTP,重试遇 410 时刷新当前邮箱——**已是新邮箱 → 按成功收敛**(上一次已生效);**仍是旧邮箱 → 重新发起**流程。
+- **三合一**:Primary Email = 登录邮箱 = Contact email 同一字段,改一处三者同步。
+
+---
+
 ## 找回密码(自助重置,3 调)
 
-[`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) **恒 202 反枚举**(不暴露账号是否存在 / 因子);[`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) 按已绑因子(邮箱 OTP / TOTP)验证换 `resetToken`;[`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) 设新密码。**重置不绕过 MFA**(只改密码、MFA 保持启用)。
+[`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) **恒 202 反枚举**(不暴露账号是否存在 / 因子);[`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) 按已绑因子(邮箱 OTP / TOTP)验证换 `resetToken`;[`confirmPasswordReset`](index.html#tag/password-reset/operation/confirmPasswordReset) 设新密码。**重置不绕过 MFA**(只改密码、MFA 保持启用)。**发起响应返 `resendCooldownSeconds`(默认 60、部署可配、非 FE hardcode);FE 据此从收到响应时刻本地倒计时、冷却内不重发;冷却后重复调用 `requestPasswordReset` = 重发,产生新 challenge + 新 OTP、旧 challenge/OTP 失效**。
 
 ```mermaid
 sequenceDiagram
@@ -173,7 +216,7 @@ sequenceDiagram
     participant A as 商户后台 BFF
     participant E as 邮箱
     participant T as Authenticator
-    B->>A: [requestPasswordReset] POST /password-reset/request { loginId }
+    B->>A: [requestPasswordReset] POST /password-resets { loginId }
     A-->>B: 202 { challengeId }(恒态反枚举，不暴露账号存在性/因子)
     alt 未绑 MFA 的邮箱格式(服务端判定)
         A->>E: 发邮箱 OTP
@@ -181,9 +224,9 @@ sequenceDiagram
     else 已绑 MFA
         T-->>B: 用户读取 Authenticator TOTP(不发邮箱 OTP，闭合降级)
     end
-    B->>A: [verifyPasswordResetFactor] POST .../factor-verification { challengeId, code }
+    B->>A: [verifyPasswordResetFactor] POST /password-resets/{challengeId}/factor-verification { code }
     A-->>B: 200 { resetToken }(高熵单次)
-    B->>A: [confirmPasswordReset] POST .../confirmation { resetToken, newPassword }
+    B->>A: [confirmPasswordReset] POST /password-resets/{challengeId}/confirmation { resetToken, newPassword }
     A-->>B: 204(密码已重置；全平台会话失效；MFA 保持启用→下次登录仍验 TOTP；回登录页)
     Note over B,A: 恒 202 反枚举<br/>用户名+无 TOTP→不发(联系 Owner)<br/>因子错/过期/超限 400/410/423/429<br/>challengeId·resetToken 单次
 ```
@@ -228,12 +271,12 @@ sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
     participant T as Authenticator App
-    B->>A: [enrollMfa] POST /account/security/mfa { currentPassword }
+    B->>A: [enrollMfa] POST /me/security/mfa { currentPassword }
     A-->>B: 200 { otpauthUri }(MFA_PENDING，未生效)
     B->>B: 渲染 otpauth 二维码
     B->>T: 用户扫码添加条目
     T-->>B: 显示 6 位 TOTP
-    B->>A: [activateMfa] POST /account/security/mfa/activation { code }
+    B->>A: [activateMfa] POST /me/security/mfa/activation { code }
     A-->>B: 204(MFA_PENDING → ENABLED)
     Note over B,A: 当前密码错 401(不计锁定计数)<br/>TOTP 错 401，前端可重输
 ```
@@ -242,7 +285,7 @@ sequenceDiagram
 
 ## 自助注册 → 邮箱激活(两步：链接只展示、主动提交才激活)
 
-[`registerOwner`](index.html#tag/registration/operation/registerOwner) 建 `PENDING_VERIFICATION` 账号并发验证邮件;**确认页 GET 只展示、不激活**,用户主动点 Verify 才用 [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) 激活(防邮件客户端自动预取误激活)。
+[`registerOwner`](index.html#tag/registration/operation/registerOwner) 建 `PENDING_VERIFICATION` 账号并**发起验证邮件的异步发送**(投递失败不阻塞);**确认页 GET 只展示、不激活**,用户主动点 Verify 才用 [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) 激活(防邮件客户端自动预取误激活)。
 
 ```mermaid
 sequenceDiagram
@@ -250,15 +293,15 @@ sequenceDiagram
     participant A as 商户后台 BFF
     participant E as 邮箱
     B->>A: [registerOwner] POST /registrations { email, password, agreeTerms, ... }
-    A->>E: 发验证邮件(含确认链接)
+    A->>E: 发起验证邮件异步发送(含确认链接)
     A-->>B: 201 PENDING_VERIFICATION(前端跳「等待验证」页)
     Note over E,B: 用户点邮件链接 → 打开确认页(GET 只展示，不消费 token)
     B->>A: [verifyRegistrationEmail] POST /registrations/verification { token }(用户在确认页主动点 Verify)
     A-->>B: 200 ACTIVE + set-cookie 建会话(→ 走启动链路 getCurrentSession → getOnboardingStatus，见 API 基础约定)
-    Note over B,A: 链接过期 / 已用 410<br/>激活前任一步失败留 PENDING、可重试、不展示成功
+    Note over B,A: 已激活(已用)→410 AUTH_REGISTRATION_ALREADY_ACTIVATED 跳登录<br/>无效/过期→410 AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED 重发或重注册<br/>激活前任一步失败留 PENDING、可重试、不展示成功<br/>200 且 sessionEstablished=false→激活成立但未建会话、跳登录页首次密码登录
 ```
 
-- 重发验证邮件:[`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail)(`POST /registrations/verification-email`,冷却内 429;新链接生效、旧链接失效)。
+- 重发验证邮件:[`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail)(`POST /registrations/verification-email`,**恒 202 反枚举**〔存在 / 不存在同一外观、不回显账号存在性〕;冷却剩余秒数前端本地计时〔`resendCooldownSeconds` 来自响应、部署可配、非 hardcode〕;冷却后重复调用即重发、新链接生效旧链接失效)。
 - 邮箱邀请员工设密激活：完整时序见下「邮箱邀请员工设密激活」。
 
 ## 邮箱邀请员工设密激活（Owner 建 → 员工设密 → ACTIVE）

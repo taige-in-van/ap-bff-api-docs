@@ -10,7 +10,7 @@
 
 > 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走、什么触发 OTP / 轮询**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对身份服务（Owner OTP）、账务核心（资金划转）的委派**不画**（后端面，与前端无关）。外部参与方（Owner 邮箱）仅在用户可见时出现。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部委派**不画**（后端面，与前端无关）。外部参与方（Owner 邮箱）仅在用户可见时出现。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**，直达 ReDoc 接口详情；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
@@ -24,8 +24,8 @@
 
 | operationId | method + path | 用途 |
 |---|---|---|
-| [`getAccountOverview`](index.html#tag/account-overview/operation/getAccountOverview) | `GET /account/overview` | 资金概览(Account Balance / To Settle / Refund Reserve 三池) |
-| [`listAccountLedger`](index.html#tag/account-ledger/operation/listAccountLedger) | `GET /account/ledger` | 账户流水(过滤 + 搜索 + 分页，只读分录投影) |
+| [`getAccountOverview`](index.html#tag/account-overview/operation/getAccountOverview) | `GET /account/overview` | 资金概览(Account Balance / To Settle / Refund Reserve 三项余额) |
+| [`listAccountLedger`](index.html#tag/account-ledger/operation/listAccountLedger) | `GET /account/ledger` | 账户流水(过滤 + 搜索 + 分页，只读分录) |
 | [`listSettlements`](index.html#tag/settlement/operation/listSettlements) | `GET /settlements` | 结算单列表(周期 / 状态过滤 + 搜索 + 排序 + 分页) |
 | [`getSettlementDetail`](index.html#tag/settlement/operation/getSettlementDetail) | `GET /settlements/{settlementId}` | 结算单详情(批次汇总 + 逐笔结算影响明细) |
 | [`listStatements`](index.html#tag/statement/operation/listStatements) | `GET /statements` | 月度账单列表(按年份过滤) |
@@ -35,8 +35,9 @@
 | [`submitRefundReserveFunding`](index.html#tag/refund-reserve/operation/submitRefundReserveFunding) | `POST /refund-reserve/funding` | 储备金充值 + auto-replenish 配置(单次 Owner OTP) |
 | [`submitRefundReserveWithdrawal`](index.html#tag/refund-reserve/operation/submitRefundReserveWithdrawal) | `POST /refund-reserve/withdrawals` | 储备金取回 Account Balance(无 OTP) |
 | [`getReserveOperation`](index.html#tag/refund-reserve/operation/getReserveOperation) | `GET /refund-reserve/operations/{operationId}` | 储备金操作状态(PENDING 轮询入口) |
-| [`createExport`](index.html#tag/export/operation/createExport) | `POST /exports` | 创建导出任务(结算单 / 流水 / 账单；异步) |
-| [`getExport`](index.html#tag/export/operation/getExport) | `GET /exports/{exportJobId}` | 导出任务状态 / 下载 |
+| [`createExport`](index.html#tag/export/operation/createExport) | `POST /exports` | 创建导出任务(结算单 / 流水 XLSX；异步。账单 PDF 走同步 getStatementPdf) |
+| [`getExport`](index.html#tag/export/operation/getExport) | `GET /exports/{exportJobId}` | 导出任务状态(轮询) |
+| [`downloadExport`](index.html#tag/export/operation/downloadExport) | `GET /exports/{exportJobId}/download` | 下载导出文件(BFF 代理流式、READY 后) |
 
 ---
 
@@ -68,9 +69,9 @@ sequenceDiagram
     EO-->>B: 用户读取 Owner 邮箱 OTP
     B->>A: [submitRefundReserveFunding] POST /refund-reserve/funding<br/>Idempotency-Key ＋ { otp(challengeId ＋ 验证码), 同一 topUpAmount?/autoReplenish? }
     alt 子项均同步达终态
-        A-->>B: 200 RefundReserveFundingResult{ topUpResult?, autoReplenishResult? }(项 ⟺ 提交项)
+        A-->>B: 200 RefundReserveFundingResult{ operationId(轮询键), topUpResult?, autoReplenishResult? }(项 ⟺ 提交项)
     else 有子项未达终态
-        A-->>B: 200 RefundReserveFundingResult{ topUpResult/autoReplenishResult 含 PENDING 子项 }
+        A-->>B: 200 RefundReserveFundingResult{ operationId(轮询键;config-only PENDING 也返回), topUpResult/autoReplenishResult 含 PENDING 子项 }
         loop 直到子项终态
             B->>A: [getReserveOperation] GET /refund-reserve/operations/{operationId}
             A-->>B: 200 OperationDetail{ opType＝FUNDING, topUpResult/autoReplenishResult 子项 status }
@@ -82,7 +83,7 @@ sequenceDiagram
 - **OTP 发往 Owner 邮箱、非操作者邮箱**：202 返回脱敏目标邮箱供前端展示「OTP 已发至 o***@example.com」；若操作者非 Owner，需 Owner 转告 OTP（资金动作须 Owner 联签）。
 - **同一摘要贯穿两阶段**：funding 提交的 `topUpAmount` / `autoReplenish` 必须与发 OTP 时**完全一致**——服务端校验提交内容与申请 OTP 时完全一致，不一致 403（杜绝「批了 A 改成 B / 改币种 / 夹带配置」）。前端两阶段间不要让用户改额。
 - **项 ⟺ 提交项、可部分成功**：提交 `topUpAmount` + `autoReplenish` → 回 `topUpResult`（status `SUCCEEDED/FAILED/PENDING`）+ `autoReplenishResult`（status `SAVED/FAILED/PENDING`）；可能一项成功、一项失败，前端**分项回报**、别整体判成败。
-- **PENDING 轮询**：`RefundReserveFundingResult` / `OperationDetail` **无顶层 `status`**——看各子项（`topUpResult` / `autoReplenishResult`）的 `status`；未同步达终态时拿 `operationId` 轮询 `getReserveOperation` 至子项终态，终态以账务核心为准。
+- **PENDING 轮询**：`RefundReserveFundingResult` / `OperationDetail` **无顶层 `status`**——看各子项（`topUpResult` / `autoReplenishResult`）的 `status`；未同步达终态时拿 `operationId` 轮询 `getReserveOperation`，以其返回的各子项终态为准。
 - **失败两者都不生效**：OTP 校验失败 / 提交内容不一致 / 会话不符时，Top Up 与配置**都不生效**，前端按错误码引导（重发 OTP / 稍后重试）。
 - **金额由 PositiveMoney 守 > 0**；auto-replenish 开启时 Account Limit 必填且 > 0。
 
@@ -111,25 +112,27 @@ sequenceDiagram
 
 - **全额用 `max=true`**：「取回全部」由服务端按执行时的实际可取金额处理（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（会引入并发竞态）。固定额才传 `amount`。
 - **`amount` 与 `max` 二选一**：都传 / 都不传 → 400。
-- 取回去向 = 商户当前生效结算账户（只读展示）；Reserve 不足则 `FAILED`、不划转。
+- 资金去向 = 商户**最终正常结算入账账户**（取回资金**先回 Account Balance、再随正常结算入该账户**，非独立提现）：确认前调用**商户实体契约的 `getSettlement`（`GET /account/settlement`）** 展示该账户（末 4 位掩码、只读仅供核对），由**具备对应权限的商户用户**核对后再提交；**复用商户实体契约的 `getSettlement`、不另设「当前结算账户」端点**。Reserve 不足则 `FAILED`、不划转。
 
 ---
 
 ## 数据导出(异步：创建 → 轮询 → 下载)
 
-列表 / 账单页的导出按钮走异步任务：[`createExport`](index.html#tag/export/operation/createExport) 受理建任务，前端用 [`getExport`](index.html#tag/export/operation/getExport) **轮询**到完成拿下载链接。
+列表页（结算单 / 流水）的导出按钮走异步任务：[`createExport`](index.html#tag/export/operation/createExport) 受理建任务，前端用 [`getExport`](index.html#tag/export/operation/getExport) **轮询**到 READY 再经 [`downloadExport`](index.html#tag/export/operation/downloadExport) 下载。**月度账单 PDF 是已出具稳定单据、走同步 `getStatementPdf`、不经此异步路径**。
 
 ```mermaid
 sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
-    B->>A: [createExport] POST /exports<br/>Idempotency-Key ＋ { kind, format(XLSX/PDF), resourceId?, filters? }
+    B->>A: [createExport] POST /exports<br/>Idempotency-Key ＋ { kind(SETTLEMENTS/SETTLEMENT_DETAIL/LEDGER), format＝XLSX, resourceId?, filters? }
     A-->>B: 202 ExportJob{ exportJobId, status＝ PENDING }
     loop 直到 status 终态
         B->>A: [getExport] GET /exports/{exportJobId}
         A-->>B: 200 ExportJob{ status, downloadUrl?, expiresAt? }
     end
-    Note over B,A: 按当前查询条件导出（filters，不局限当前分页）<br/>完成后 downloadUrl 短期有效（expiresAt 过期需重新导出）<br/>大结果集异步、超限/非法过滤 400
+    B->>A: [downloadExport] GET /exports/{exportJobId}/download（downloadUrl 指向此 BFF 端点）
+    A-->>B: 200 文件流 XLSX ｜ 403 撤权 / 404 跨scope / 409 未 READY / 410 过期
+    Note over B,A: 按当前查询条件导出（filters，不局限当前分页）<br/>downloadUrl 指向 download 端点、经会话鉴权、短期有效（expiresAt 过期 410）<br/>大结果集异步、超限/非法过滤 400
 ```
 
 - **按查询条件、非当前页**：`filters` 镜像对应列表端点的过滤字段，导出的是符合条件的**全集**、不是当前分页；导出范围固定为发起时的当前商户，`filters` 仅表达筛选条件、不能扩大商户范围。

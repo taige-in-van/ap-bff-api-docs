@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: 商户后台 账户账务与清结算 (20-06 / D-MERCH BFF) — 前端契约面
-  version: 0.5.3
+  title: 商户后台 账户账务与清结算 (20-06) — 前端契约面
+  version: 0.5.7
   contact:
-    name: Merchant Portal BFF (D-MERCH owner)
+    name: 商户后台 BFF
   description: |
-    商户后台 React SPA 消费的资金概览 / 账户流水 / 结算单 / 月度账单 / 退款预留金管理 / 数据导出 契约。 本服务是**投影读 + 薄写编排**层：读经 JOIN 上游发布视图（10-05 余额 / 流水、10-06 结算单、10-07 月度账单）， 写经编排:储备金资金动作 → 10-05 reserve-movements（Top Up / Withdraw / auto-replenish 执行）、**auto-replenish 配置 → FINACCT 本地 `refund_reserve_config`**、Owner email OTP → 40-06 step-up； 本服务**不自落资金分录、不自管 OTP、不重定义资金口径**，OWNS 仅 D-MERCH 本地：展示配置 / 导出任务 / 储备金操作发起记录（BFF 侧，非权威资金）。 金额一律商户唯一结算币种（单商户单结算币种，骨干 11）；金额最小币种单位整数字符串（components Money）。字段类型以本 spec 为准，业务规则见 requirements。 幂等 / CSRF 口径:① **有副作用的写**（储备金 funding / withdrawal、导出创建）挂 Idempotency-Key（资金路径强一致，重投返原结果）;OTP 挑战类按流程语义不挂幂等键。 ② cookieAuth 的非安全方法（POST/PUT/DELETE）一律挂 X-CSRF-Token（double-submit，fail-closed）;无公开端点（资金面全程受 RBAC + 会话）。 鉴权 / 行级授权:所有读写均限会话当前 merchant scope（merchant 上下文从会话取、不信请求体）;储备金 funding（Top Up / auto-replenish）经 Owner email OTP（40-06 **资金动作 step-up** `/step-up/fund-actions`,BFF 编排）放行,Withdraw 不要求 OTP（仅内部回 Account Balance、不外流）。 状态码约定（同 20-01 BFF）:会话失效 / 未认证由边缘网关 + 会话层统一 **401**,业务面端点只表达 **403**（无权限 / scope 不符 / OTP 失败 / fail-secure），故各端点列 403 不列 401（有意一致省略）;跨 scope 资源统一 **404** 防枚举。
+    商户后台 React SPA 消费的资金概览 / 账户流水 / 结算单 / 月度账单 / 退款预留金管理 / 数据导出 契约。 资金概览 / 流水 / 结算单 / 月度账单为**只读**；结算金额由平台资金能力产出，本面只展示、不二次计算。 储备金 Top Up / Withdraw 为**资金动作**，结算影响归清结算能力；auto-replenish 配置由本面管理、其自动补足由平台触发；Owner email OTP 二次验证经身份验证能力。 金额一律商户唯一结算币种（单商户单结算币种）；金额最小币种单位整数字符串（components Money）。字段类型以本 spec 为准。 幂等 / CSRF 口径:① **有副作用的写**（储备金 funding / withdrawal、导出创建）挂 Idempotency-Key（资金路径强一致，重投返原结果）;OTP 挑战类按流程语义不挂幂等键。 ② cookieAuth 的非安全方法（POST/PUT/DELETE）一律挂 X-CSRF-Token（double-submit，fail-closed）;无公开端点（资金面全程受 RBAC + 会话）。 鉴权 / 行级授权:所有读写均限会话当前 merchant scope（merchant 上下文从会话取、不信请求体）;储备金 funding（Top Up / auto-replenish）经 Owner email OTP（身份验证能力，资金动作二次验证）放行,Withdraw 不要求 OTP（仅内部回 Account Balance、不外流）。 状态码约定（同商户后台其它 BFF 面）:会话失效 / 未认证由边缘网关 + 会话层统一 **401**,业务面端点只表达 **403**（无权限 / scope 不符 / OTP 失败 / fail-secure），故各端点列 403 不列 401（有意一致省略）;跨 scope 资源统一 **404** 防枚举。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
@@ -13,17 +13,17 @@ security:
   - cookieAuth: []
 tags:
   - name: account-overview
-    description: 资金概览：Account Balance / To Settle（派生展示）/ Refund Reserve / 可用额，商户结算币种。只读投影 10-05 v_account_balance_v1。(FINACCT-FR-01)
+    description: 资金概览：Account Balance / To Settle（派生展示）/ Refund Reserve / 可用额，商户结算币种。只读。
   - name: account-ledger
-    description: 账户流水（Account Ledger）：每笔资金进出只读分页查询（过滤 + 搜索 + 双池可见）。只读投影 10-05 v_account_statement_v1。(FINACCT-FR-02)
+    description: 账户流水（Account Ledger）：每笔资金进出只读分页查询（过滤 + 搜索 + 双池可见）。只读。
   - name: settlement
-    description: 结算单（Settlement）：按清算周期 / 状态查列表 + 逐笔结算影响明细详情。只读投影 10-06 v_settlement_summary_v1 / v_settlement_line_v1。(FINACCT-FR-03/04)
+    description: 结算单（Settlement）：按清算周期 / 状态查列表 + 逐笔结算影响明细详情。只读。
   - name: statement
-    description: 月度账单（Statement）：服务费账单查阅 + 详情 + PDF 导出。只读投影 10-07 v_statement_v1（待建上游契约）。(FINACCT-FR-05)
+    description: 月度账单（Statement）：服务费账单查阅 + 详情 + PDF 导出。只读。
   - name: refund-reserve
-    description: 退款预留金管理：Top Up（手动充值）/ auto-replenish 配置（均经 Owner email OTP）/ Withdraw（取回 Account Balance，无 OTP）。Top Up/Withdraw 转发 10-05;auto-replenish 配置 FINACCT 本地、执行由 FINACCT 触发;OTP 经 40-06。(FINACCT-FR-06/07/08)
+    description: 退款预留金管理：Top Up（手动充值）/ auto-replenish 配置（均经 Owner email OTP）/ Withdraw（取回 Account Balance，无 OTP）。OTP 经身份验证能力，结算影响归清结算能力。
   - name: export
-    description: 数据导出：结算单 / 流水 / 账单（XLSX / PDF），与当前查询条件一致、不局限当前分页；大结果集异步处理、记审计。(FINACCT-FR-09)
+    description: 数据导出：结算单 / 流水**异步 XLSX**（createExport → 轮询 → downloadExport）+ **Statement 同步 PDF**（getStatementPdf）；与当前查询条件一致、不局限当前分页；大结果集异步处理、均记导出审计事件。
 paths:
   /account/overview:
     get:
@@ -32,7 +32,7 @@ paths:
       operationId: getAccountOverview
       summary: 资金概览（Account Balance / To Settle / Refund Reserve / 可用额）
       description: |
-        投影 10-05 v_account_balance_v1（商户 scope）：Account Balance（canonical 账本值恒 ≥ 0）、To Settle（D-CORE 按手续费结算模式派生、本域不二次计算）、Refund Reserve、可用额（= AB − 应收商户款,可呈负,纯展示）。 Account Balance 卡片展示值是否并入平台侧预授权挂起额由**管理后台设置的 per-商户展示配置**控制（默认并入,20-06 只读消费、不改 canonical 账本值）。上游超时 → degraded=true 降级展示"暂不可用",不阻塞页面（FR-01-AC-04）。
+        资金概览（商户 scope）：Account Balance（账本值恒 ≥ 0）、To Settle（按手续费结算模式派生、本面不二次计算）、Refund Reserve、可用额（= Account Balance − 应收商户款,可呈负,纯展示）。 Account Balance 卡片展示值是否并入平台侧预授权挂起额由**管理后台设置的 per-商户展示配置**控制（默认并入,本面只展示、不改账本值）。上游账务查询超时 → degraded=true 降级展示"暂不可用"、不伪造资金,不阻塞页面。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -63,14 +63,17 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /account/ledger:
     get:
       tags:
         - account-ledger
       operationId: listAccountLedger
-      summary: 账户流水查询（过滤 + 搜索 + 分页，只读分录投影）
+      summary: 账户流水查询（过滤 + 搜索 + 分页，只读）
       description: |
-        投影 10-05 v_account_statement_v1（商户 scope，L2，索引 + 时间范围 + posted_at 倒序）。 时间倒序分页;每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。默认时间窗避免空窗（业务参数可配 X-07）。
+        账户流水（商户 scope）：按时间倒序分页;每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。默认时间窗避免空窗（业务参数可配）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: dateFrom
@@ -100,7 +103,7 @@ paths:
           schema:
             type: string
             maxLength: 128
-          description: 关键字（关联订单号 / 流水号 / 操作记录号;上界防注入 / DoS）
+          description: 关键字（关联订单号 / 流水号 / 操作记录号;有长度上界）
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -157,6 +160,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /settlements:
     get:
       tags:
@@ -164,7 +170,7 @@ paths:
       operationId: listSettlements
       summary: 结算单列表（周期 / 状态过滤 + 搜索 + 排序 + 分页）
       description: |
-        投影 10-06 v_settlement_summary_v1（商户 scope，L2）。日期倒序默认;状态过滤为商户视角四态投影（待结算 / 处理中 / 已结算 / 失败,UNCONFIRMED 并入处理中,不展示具名冻结态）。 FAILED 行标记并提示资金退回待结算池、后续重新归集或人工处置。默认窗覆盖近期有数据范围（业务参数可配 X-07）。
+        结算单列表（商户 scope）。日期倒序默认;状态过滤为商户视角四态（待结算 / 处理中 / 已结算 / 失败,不展示具名冻结态）。 FAILED 行标记并提示资金退回待结算池、后续重新归集或人工处置。默认窗覆盖近期有数据范围（业务参数可配）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: dateFrom
@@ -185,7 +191,7 @@ paths:
           schema:
             type: string
             maxLength: 128
-          description: 结算单号 / 金额（上界防注入 / DoS）
+          description: 结算单号 / 金额（有长度上界）
         - name: sort
           in: query
           description: 排序（默认 settlementDate 倒序）
@@ -239,6 +245,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /settlements/{settlementId}:
     get:
       tags:
@@ -246,7 +255,7 @@ paths:
       operationId: getSettlementDetail
       summary: 结算单详情（批次汇总 + 逐笔结算影响明细）
       description: |
-        投影 10-06 v_settlement_summary_v1（汇总）+ v_settlement_line_v1（逐笔明细，商户 scope）。 逐笔结算金额合计 = 汇总本期结算金额（手续费列另计、不参与该合计,FR-04-AC-02）;退款行金额为负;非交易类结算影响明细（Top Up / auto-replenish / Withdraw / 系统账务）展示来源标识与带符号结算金额、计入合计。当前生效结算账户（银行后 4 位）只读消费自 ME。跨 scope settlementId → 404（防枚举）。
+        结算单详情（商户 scope）= 汇总 + 逐笔明细。 逐笔结算金额合计 = 汇总本期结算金额（手续费列另计、不参与该合计）;退款行金额为负;非交易类结算影响明细（Top Up / auto-replenish / Withdraw / 系统账务）展示来源标识与带符号结算金额、计入合计。当前生效结算账户（银行后 4 位）只读展示。跨 scope settlementId → 404（防枚举）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: settlementId
@@ -314,6 +323,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /statements:
     get:
       tags:
@@ -321,7 +333,7 @@ paths:
       operationId: listStatements
       summary: 月度账单列表（按年份过滤）
       description: |
-        投影 10-07 v_statement_v1（商户 scope，**待建上游契约,见 design 决策 B**）。服务费账单——按年份过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如上游提供）。无数据返回空态。
+        月度服务费账单（商户 scope）——按年份过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如可用）。无数据返回空态。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: year
@@ -368,6 +380,9 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /statements/{statementId}:
     get:
       tags:
@@ -375,7 +390,7 @@ paths:
       operationId: getStatementDetail
       summary: 月度账单详情（服务明细分行 + Net Settlement）
       description: |
-        投影 10-07 v_statement_v1 详情（商户 scope）。含发票号 + 出具日期 + 服务明细（按服务 / 渠道分行:笔数 / Gross / 费率 / Fee）+ Gross Volume / Service Fee / Net Settlement;不含税 / 终端 APP 订阅费、不区分收费模式（FR-05-AC-03）。跨 scope → 404。
+        月度账单详情（商户 scope）。含发票号 + 出具日期 + 服务明细（按服务 / 渠道分行:笔数 / Gross / 费率 / Fee）+ Gross Volume / Service Fee / Net Settlement;不含税 / 终端 APP 订阅费、不区分收费模式。跨 scope → 404。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: statementId
@@ -431,13 +446,16 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /statements/{statementId}/pdf:
     get:
       tags:
         - statement
       operationId: getStatementPdf
       summary: 单月账单 PDF 导出
-      description: 按 FR-05 详情口径生成可下载 PDF（列头 / 枚举 / 日期 / 金额按用户 locale 本地化 X-06,金额带商户结算币种）。跨 scope → 404。
+      description: 按账单详情口径生成可下载 PDF（列头 / 枚举 / 日期 / 金额按用户 locale 本地化,金额带商户结算币种）。**同步下载也记一条导出审计事件（与异步导出同口径）**。跨 scope → 404。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: statementId
@@ -459,6 +477,9 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /refund-reserve/otp-challenges:
     post:
       tags:
@@ -466,7 +487,7 @@ paths:
       operationId: requestRefundReserveOtp
       summary: 发起 Owner email OTP 挑战（绑定本次操作摘要）
       description: |
-        编排 40-06 **资金动作 step-up**（`POST /step-up/fund-actions`;本服务不自管 OTP）。BFF 据请求体操作摘要按 canonical 形式算 `actionFingerprint`、并注入 **`actionType`（常量 `REFUND_RESERVE_FUNDING`、BFF 固定生成）** + 据**会话当前 merchant 上下文**定的 `merchantId` 与 **Owner `approverIdentityId`（谁是该 merchant 的 Owner 由本域确定，40-06 不判定）**，一并传 40-06——`actionType` / `merchantId` / Owner 一律 BFF 注入、取会话 scope、**不信请求体**（无有效 scope → 403 不发起）。challenge **绑定 actionType + 操作摘要 canonical 指纹**（topUpAmount + autoReplenish.enabled/accountLimit + **字段存在性**）+ merchant + approver + identity + client + **发起会话 sid** —— funding 提交时校验摘要指纹一致 ∧ 当前会话 sid == challenge 绑定 sid（跨会话提交 → 403）,**防 confused-deputy**（批 A 放行 B:员工发起小额 challenge、Owner 报码、员工改提交大额 / 任意 accountLimit）。40-06 向 Owner（`approverIdentityId` 的已验证邮箱）发一次性 OTP,返回 challengeId + 脱敏目标 + 冷却。`displaySummary` 由 BFF 从**同一 canonical 摘要派生**（不可与 fingerprint 分叉,防 Owner 看小额放大额）。OTP 有效期 / 冷却 / 错误尝试上限为业务参数（默认可配 X-07,上限委派 40-06）。挑战类不挂幂等键（每次重新发起）。Top Up 与 auto-replenish 同次共用一次 OTP（FR-07-AC-07;摘要含 config 全字段,Owner 知悉同时变更自动补足规则）。
+        向该商户 Owner 的已验证邮箱发起一次性 email OTP（经身份验证能力）。挑战**绑定本次操作摘要**（Top Up 金额 + auto-replenish 配置的开关 / 阈值 + 字段存在性）与发起会话——提交 funding 时须摘要一致、同会话提交,否则 → 403（防串改金额 / 币种 / 夹带配置）。操作上下文（商户 / Owner）取会话 scope、不信请求体（无有效 scope → 403 不发起）。返回 challengeId + 脱敏投递目标 + 冷却。展示摘要与绑定摘要同源（防 Owner 看小额、放大额）。OTP 有效期 / 冷却 / 错误尝试上限为业务参数（默认可配）。挑战类不挂幂等键（每次重新发起）。Top Up 与 auto-replenish 同次共用一次 OTP（摘要含配置全字段,Owner 知悉同时变更自动补足规则）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -499,12 +520,17 @@ paths:
                 deliveredTo: o***@e***.com
                 cooldownSeconds: 60
                 expiresAt: '2026-05-19T14:35:00Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+      x-error-codes:
+        '409':
+          - 208001
   /refund-reserve/funding:
     post:
       tags:
@@ -512,13 +538,13 @@ paths:
       operationId: submitRefundReserveFunding
       summary: 储备金充值 + auto-replenish 配置（单次 Owner email OTP；二者至少其一）
       description: |
-        合并入口（FR-06 Top Up + FR-07 auto-replenish 配置可单独或同次提交,FR-07-AC-07 单 OTP 覆盖）。**两阶段 OTP-gated intent 编排**(见 design §跨部署服务交互路由「储备金 funding 单 OTP 双写」): ① 首次以 `Idempotency-Key` 创建 `reserve_operation_intent`(持久化操作摘要**归一规范形式** + challengeId + **确定性派生键**:两子写键 `{intentId}:top_up` / `{intentId}:auto_replenish_config` + **40-06 verify 幂等键 `{intentId}:{challengeId}:stepup`**〔**per-challenge**:重绑新 challenge 自然换键、不撞旧已消费行〕——崩溃重试复用、绝不新生成); ② 校验提交摘要与 challenge 绑定摘要一致(失配 → 拒绝重挑战,防 confused-deputy)→ 调 40-06 verify 校验 OTP(**以确定性键 `{intentId}:{challengeId}:stepup` 调用**——响应丢 / 崩溃后重试同键 → 40-06 短 TTL 返**首次 verification 成功事实**〔`verified`/`verificationId`,即使 challenge 此刻已过期〕、**不撞「异键→已消费→410」死锁**;失败 → 二者都不生效,FR-06-AC-03 / FR-07-AC-02;OTP 错误尝试上限锁定 → 40-06 返 **423**、限流 → 429,BFF 不放大尝试)→ **持久化「OTP 放行 marker」入 intent**(marker = verify 成功事实,**40-06 不再签放行 proof**;放行维度在子写阶段由 intent 摘要真相源（摘要绑定不变量）等价 enforce,见 §安全落地); ③ 凭 marker 推进两单写者(**OTP 不再二次校验** —— 解 40-06 OTP 单次原子消费与重试冲突):topUpAmount → 转发 10-05 `POST /ledger/reserve-movements(top_up)` 以子写键 `{intentId}:top_up` 作 `idempotencyKey=businessDocRef`(守 AB 足额 LEDGER-INV-05);autoReplenish → **FINACCT 本地 `refund_reserve_config` upsert**(配置写幂等、非 10-05 转发;auto-replenish 实际补足执行由 FINACCT `AutoReplenishService` 后续反应 Reserve-low 时发起)。 **重试**:同 `Idempotency-Key` 重投 → 载入既有 intent → 凭已持久化 marker + 子写键复用推进未完成子写(**绝不新生成键** → 10-05 凭子写键幂等去重,LEDGER-ERR-03,**不重复划转**);**重投摘要须与 intent 持久化摘要 canonical 一致,否则 409(同键异摘要),不推进子写**;**同 `Idempotency-Key` 但带异 `otp.challengeId` 默认按冲突拒——唯一例外 = marker 未落 ∧ 旧 challenge 已过期 ∧ 摘要不变时的「重绑」**(`reserve_operation_intent.challenge_id` 经 CAS 指向 BFF 新 initiate 的 challenge、verify 键随 challengeId 换新,见 §安全落地恢复矩阵格③);部分失败(topUp 成功 / config 失败)各自凭子写键重试(无跨 owner 原子写,良性中间态)。 **资金真相源(摘要绑定不变量)**:子写转发 10-05 的 amount / operation / config **一律取 intent 持久化摘要、不取本次请求体**(请求体仅作幂等键匹配 + 摘要一致性校验)——堵「重试维度放大已 OTP 背书的金额 / 夹带 config」。摘要绑定 + 会话 sid 校验见 §安全落地。金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0(FR-07-AC-08,if/then + PositiveMoney 守)。
+        合并入口：Top Up 与 auto-replenish 配置可单独或同次提交,共用一次 OTP。 提交须携带发起时拿到的 OTP challengeId + 验证码,且**提交摘要须与该 challenge 绑定的摘要一致、同会话提交**,否则 → 403（防串改金额 / 夹带配置）;失败时 **Top Up 与配置两者都不生效**。OTP 错误尝试上限锁定 → 423、冷却中 / 限流 → 429。 Top Up 从 Account Balance 划入 Refund Reserve（守 Account Balance 足额,不足 → 拒）;auto-replenish 保存配置（其自动补足执行由平台在 Refund Reserve 低于阈值时触发,不在本次写内）。 **幂等**：挂 `Idempotency-Key`、同键重投返**首次结果**、**不重复划转**;**同键异摘要 → 409**（同键异 payload,不推进）。**响应项 ⟺ 提交项**、可部分成功——各子项独立 status,未达终态时 PENDING、凭 operationId 轮询收敛。金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: Idempotency-Key
           in: header
           required: true
-          description: '**端点级必填**（资金写资损红线;BFF 据此建 / 载入 intent + 确定性派生子写键,缺失 → 400 不可推进）。**注**:此前端面键 ≠ 转发 10-05 的 `idempotencyKey`——BFF 按 intent 派生 per-子写键作下游 idempotencyKey,前端键仅用于 BFF 侧 intent 去重,**严禁透传为下游 body idempotencyKey**。'
+          description: '**端点级必填**（资金写资损红线;缺失 → 400 不可推进）。同键重投返首次结果、不重复划转;重试请复用同一键。'
           schema:
             type: string
             minLength: 1
@@ -544,14 +570,15 @@ paths:
                 code: '482915'
       responses:
         '200':
-          description: 已处理（**响应项 ⟺ 请求提交项**:topUpAmount 提交则有 topUpResult、autoReplenish 提交则有 autoReplenishResult;部分项失败时该项 status=FAILED、未达终态时 PENDING,各凭子写键可重试）
+          description: 已处理（**响应项 ⟺ 请求提交项**:topUpAmount 提交则有 topUpResult、autoReplenish 提交则有 autoReplenishResult;部分项失败时该项 status=FAILED、未达终态时 PENDING,凭 operationId 轮询收敛）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RefundReserveFundingResult'
               example:
+                operationId: rri_7a1c9
                 topUpResult:
-                  operationId: rop_5f31a0
+                  operationId: rri_7a1c9
                   kind: TOP_UP
                   status: SUCCEEDED
                   amount:
@@ -569,16 +596,20 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '403':
           $ref: '#/components/responses/Forbidden'
-          description: OTP 校验失败 / 摘要与 challenge 绑定失配(摘要绑定不变量) / challenge 会话 sid 不符 / 无权限(fail-secure;失败时二者都不生效,FR-06-AC-03)
+          description: OTP 校验失败 / 提交摘要与 challenge 绑定摘要失配 / 提交会话与发起会话不符 / 无权限（失败时 Top Up 与配置两者都不生效）
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
-          description: 同 front Idempotency-Key 但提交摘要与 intent 持久化摘要不一致（同键异摘要,不推进子写;防重试维度放大）；页面预期商户 ≠ 会话当前 → 同 409（X-Merchant-Context 守卫、stale-tab 防串写，资金红线）
+          description: 同 Idempotency-Key 但提交摘要与首次不一致（同键异 payload,不推进）；页面预期商户 ≠ 会话当前 → 同 409（stale-tab 防串写，资金红线）
         '410':
           $ref: '#/components/responses/Gone'
         '423':
           $ref: '#/components/responses/Locked'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+      x-error-codes:
+        '409':
+          - 208001
+          - 208005
   /refund-reserve/withdrawals:
     post:
       tags:
@@ -586,13 +617,13 @@ paths:
       operationId: submitRefundReserveWithdrawal
       summary: 储备金取回 Account Balance（无 OTP）
       description: |
-        转发 10-05 POST /ledger/reserve-movements(withdraw,守 Refund Reserve 足额,LEDGER-INV-05)以 BFF 生成的子写键作 `idempotencyKey=businessDocRef`。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP（FR-08-AC-03）。 **应收抵扣在 10-05 账本内部完成**(借 Refund Reserve / 贷 应收先冲减 → AB,账本口径归 10-05,BFF 不可见不编排)。`max=true`（取回全部）转发 10-05 `drainReserve`（**已落地**:10-05 在 reserve 的 per-account version CAS 临界区内 resolve drain 额 = 当时 balance−reserved,原子无 TOCTOU、按子写键幂等;BFF 不自读余额填 amount〔防重引 TOCTOU〕）。固定额 Withdraw 走 amount。金额 ≤ 0 / 执行时 Refund Reserve 不足 → 拒绝、不划转、不创建子写（FR-08-AC-02）。资金路径幂等（X-05;同 `Idempotency-Key` 重投载入 intent 复用子写键、不重复划转）；同 `Idempotency-Key` 异 amount/max（同键异 payload）→ 409（208005）、不推进子写（对齐 funding / createExport 冲突码口径）。
+        把 Refund Reserve 取回到 Account Balance（守 Refund Reserve 足额）。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP。 应收抵扣在平台账本内部完成、本面不可见不编排。`max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 走 amount。金额 ≤ 0 / 执行时 Refund Reserve 不足 → 拒绝、不划转。资金路径幂等（同 `Idempotency-Key` 重投、不重复划转）；同 `Idempotency-Key` 异 amount/max（同键异 payload）→ 409（208005,与 funding / createExport 冲突码同口径）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: Idempotency-Key
           in: header
           required: true
-          description: '**端点级必填**（资金写资损红线;BFF 据此建 / 载入 intent + 派生子写键,缺失 → 400 不可推进）。前端面键 ≠ 转发 10-05 的 `idempotencyKey`,**严禁透传同值**。'
+          description: '**端点级必填**（资金写资损红线;缺失 → 400 不可推进）。同键重投返首次结果、不重复划转;重试请复用同一键。'
           schema:
             type: string
             minLength: 1
@@ -612,18 +643,18 @@ paths:
                     amount: '30000'
                     currency: CAD
               drainAll:
-                summary: 取回全部（转发 10-05 drainReserve）
+                summary: 取回全部（服务端定额）
                 value:
                   max: true
       responses:
         '200':
-          description: 取回处理结果（未达终态时 status=PENDING,凭子写键可重试收敛）
+          description: 取回处理结果（未达终态时 status=PENDING,凭 operationId 轮询收敛）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReserveOperationResult'
               example:
-                operationId: rop_6a02bd
+                operationId: rri_6a02bd
                 kind: WITHDRAW
                 status: SUCCEEDED
                 amount:
@@ -639,13 +670,17 @@ paths:
           $ref: '#/components/responses/MerchantBffConflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+      x-error-codes:
+        '409':
+          - 208001
+          - 208005
   /refund-reserve/operations/{operationId}:
     get:
       tags:
         - refund-reserve
       operationId: getReserveOperation
       summary: 查询储备金操作状态（PENDING 轮询入口）
-      description: 查询储备金操作（intent）的**全部子写**状态（前端**不直连 10-05**,BFF 代查 10-05 getFundEventResult 收敛后返回 `OperationDetail`,含 topUp / withdraw / **auto-replenish config 子写**——解「浏览器丢 Idempotency-Key / 换端后 config PENDING 不可见」）。PENDING 子项凭 `operationId` 轮询本端点收敛,或以原 `Idempotency-Key` 重投原写端点（幂等返原结果、BFF 不另划转）。跨 scope operationId → 404。
+      description: 查询一次储备金操作的**全部子项**状态（Top Up / Withdraw / auto-replenish 配置）——即使浏览器丢了 Idempotency-Key 或换端,也可凭 operationId 查到各子项进度。PENDING 子项凭 `operationId` 轮询本端点收敛,或以原 `Idempotency-Key` 重投原写端点（幂等返原结果、不另划转）。跨 scope operationId → 404。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operationId
@@ -655,16 +690,16 @@ paths:
             type: string
       responses:
         '200':
-          description: 操作（intent）全部子写状态（含终态 / PENDING）
+          description: 操作全部子项状态（含终态 / PENDING）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/OperationDetail'
               example:
-                operationId: rop_5f31a0
+                operationId: rri_5f31a0
                 opType: FUNDING
                 topUpResult:
-                  operationId: rop_5f31a0
+                  operationId: rri_5f31a0
                   kind: TOP_UP
                   status: SUCCEEDED
                   amount:
@@ -684,14 +719,17 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
   /exports:
     post:
       tags:
         - export
       operationId: createExport
-      summary: 创建导出任务（结算单 / 流水 / 账单；XLSX / PDF；异步）
+      summary: 创建导出任务（结算单 / 流水 XLSX；异步。月度账单 PDF 走同步 getStatementPdf、不经此路径）
       description: |
-        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页（FR-09-AC-01/03）。**导出 scope = 发起会话 merchant scope**(持久化进 export_job.scope_snapshot 作 **scope 上界冻结、只防放宽**;worker 执行复用同一行级授权 chokepoint,**不在执行时重信 filters / resourceId 放宽 scope**;resourceId 跨 scope → 拒绝/404)。导出是绕分页的批量读路径——实时授权**分阶段**:**worker 异步执行 = 发起 operator 的 membership / 读权限当前有效(40-06 在线求值、与活跃会话解耦;operator 登出 / 会话自然过期不拒执行,仅 membership 撤销 / 降权拒)**;**同步下载 = 会话 + membership 双裁决**。即「scope_snapshot 不放宽 ∩ 实时 membership 不越当前权限」取交集——撤权 operator 不能带走数据,又不误伤登出后的正常异步任务。详 design §安全落地。大结果集异步处理、超业务参数上限不静默丢弃而给超限提示或转异步（FR-09-AC-07）;导出请求记审计事件（X-03,FR-09-AC-08）;空结果导出空表头文件或提示无数据。OWNS 导出任务（D-MERCH 本地 export_job）。**幂等**：挂 `Idempotency-Key`、同键重投返**首次创建的 export_job**（不重复建任务、响应丢失可安全重试）；同键异 scope/参数 → 409。
+        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页。导出范围固定为发起时的当前商户,filters 只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。大结果集异步处理、超上限不静默丢弃而给超限提示或转异步;导出请求记审计事件;空结果导出空表头文件或提示无数据。**幂等**：挂 `Idempotency-Key`、同键重投返**首次创建的任务**（不重复建任务、响应丢失可安全重试）；同键异 scope / 参数 → 409。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -725,13 +763,17 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
+          - 208005
   /exports/{exportJobId}:
     get:
       tags:
         - export
       operationId: getExport
       summary: 查询导出任务状态 / 下载
-      description: 查询导出任务状态;READY 时 downloadUrl **指向本 BFF 下载端点**(应用代理流式回源 + 会话鉴权 + merchant scope + **实时授权裁决**:发起 operator 当时仍须对该 merchant 有有效 membership / 读权限,撤权 → 403),**不得**指向对象存储 presigned 直链(纯凭 URL 取数 = 旁路会话);短期 + 不可枚举是纵深、非唯一控制。详 §安全落地。跨 scope exportJobId → 404。
+      description: 查询导出任务状态;READY 时 downloadUrl 指向 download 端点、经会话鉴权 + merchant scope + 发起者对该商户当前有效权限裁决（撤权 → 403）,短期有效。跨 scope exportJobId → 404。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: exportJobId
@@ -757,6 +799,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
+      x-error-codes:
+        '409':
+          - 208001
+  /exports/{exportJobId}/download:
+    get:
+      tags:
+        - export
+      operationId: downloadExport
+      summary: 下载导出文件
+      description: READY 任务的实际文件下载,`getExport` 的 downloadUrl 指向此端点:经会话 + 当前 merchant scope + 发起者对该商户当前有效权限裁决（撤权 → 403）。跨 scope / 不存在 → 404;任务未 READY → 409;下载链接过期 → 410。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: exportJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 导出文件流（XLSX 二进制）
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+      x-error-codes:
+        '409':
+          - 208001
 components:
   securitySchemes:
     cookieAuth:
@@ -764,7 +842,7 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器不见 40-06 token；BFF 映射 cookie → 40-06 access/refresh token。会话裁决商户 scope（merchant 上下文从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（见 ../../_design/api/components.openapi.yaml#/components/parameters/CsrfToken）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     FundPool:
       type: string
@@ -780,7 +858,7 @@ components:
         - MONTHLY
     SettlementStatus:
       type: string
-      description: 结算单商户视角状态投影（10-06 四态;UNCONFIRMED 并入 PROCESSING、不展示具名冻结态）。封闭枚举：上游投影扩值按破坏性变更版本化。
+      description: 结算单商户视角状态（四态;不展示具名冻结态）。封闭枚举：扩值按破坏性变更版本化。
       enum:
         - PENDING
         - PROCESSING
@@ -788,7 +866,7 @@ components:
         - FAILED
     LedgerEntryType:
       type: string
-      description: 账户流水类型（商户视角）。**两组枚举非对称(各有对方没有的一项,均有注脚)**:① `SETTLEMENT_PAYOUT`（结算出款腿）仅在流水、**不是 settlement_line 明细类型**（payout 是批输出非输入明细）;② **退款失败回冲在流水侧归 `REFUND`（带相反正号、与原退款负腿抵消）、流水不单列 REFUND_REVERSAL**——而 settlement_line 侧单列 `REFUND_REVERSAL`（逐笔可追溯需要）,这是同概念两命名空间的有意差异（流水按账本腿、settlement 按可追溯明细）。封闭枚举：上游扩值按破坏性变更版本化。
+      description: 账户流水类型（商户视角）。**与结算明细类型有意不完全一致**:① `SETTLEMENT_PAYOUT`（结算出款）仅出现在流水、不作为结算明细类型;② 退款失败回冲在流水侧归 `REFUND`（带相反正号、与原退款负腿抵消）、流水不单列 REFUND_REVERSAL——而结算明细侧单列 `REFUND_REVERSAL`（逐笔可追溯需要）。封闭枚举：扩值按破坏性变更版本化。
       enum:
         - PAYMENT
         - REFUND
@@ -798,7 +876,14 @@ components:
         - WITHDRAW
         - SETTLEMENT_PAYOUT
     AccountOverview:
+      description: 资金概览。**按 degraded 拆两分支**：正常返全金额；上游账务查询超时 → 降级分支**金额字段省略**、不伪造资金、展示「暂不可用」。
+      oneOf:
+        - $ref: '#/components/schemas/AccountOverviewNormal'
+        - $ref: '#/components/schemas/AccountOverviewDegraded'
+    AccountOverviewNormal:
       type: object
+      additionalProperties: false
+      description: 正常：金额可用（degraded=false）。
       required:
         - accountBalance
         - toSettle
@@ -808,22 +893,21 @@ components:
         - settlementMode
         - preauthHoldIncludedInDisplay
         - degraded
-      description: 资金概览（投影 10-05 v_account_balance_v1）。
       properties:
         accountBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: Account Balance 卡片展示值（canonical 账本值恒 ≥ 0;展示值是否并入预授权挂起额由 preauthHoldIncludedInDisplay 决定,不改 canonical 账本值）。
+          description: Account Balance 卡片展示值（账本值恒 ≥ 0;展示值是否并入预授权挂起额由 preauthHoldIncludedInDisplay 决定,不改账本值）。
         toSettle:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 待结算（D-CORE 按手续费结算模式派生,本域只展示、不二次计算）。
+          description: 待结算（按手续费结算模式派生,本面只展示、不二次计算）。
         refundReserve:
           $ref: '#/components/schemas/Money'
         availableBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 可用额（= Account Balance − 应收商户款,可呈负、纯展示;反欠平台体现为负,口径归 10-05）。
+          description: 可用额（= Account Balance − 应收商户款,可呈负、纯展示;反欠平台体现为负）。
         currency:
           $ref: '#/components/schemas/Currency'
         settlementMode:
@@ -831,10 +915,33 @@ components:
         preauthHoldIncludedInDisplay:
           type: boolean
           readOnly: true
-          description: '**管理后台设置的 per-商户展示配置**（v1 `ClientManager.setMergePreauthBalance`;20-06 **只读消费**、非本域可写）:Account Balance 卡片展示值是否并入平台侧预授权挂起额（默认 true、与现网一致;不并入时不单列挂起额）。不改 canonical 账本值与 To Settle 派生口径。'
+          description: '**管理后台设置的 per-商户展示配置**（本面只读展示、非本面可写）:Account Balance 卡片展示值是否并入平台侧预授权挂起额（默认 true;不并入时不单列挂起额）。不改账本值与 To Settle 派生口径。'
         degraded:
           type: boolean
-          description: 上游账务查询超时降级标志（true → 展示「暂不可用」,不阻塞页面,FR-01-AC-04）。
+          const: false
+          description: 金额可用（非降级）。
+    AccountOverviewDegraded:
+      type: object
+      additionalProperties: false
+      description: 上游账务查询超时降级：**金额字段省略**、展示「暂不可用」（不伪造资金数据）。currency / settlementMode / 展示配置不受上游超时影响，仍返回。
+      required:
+        - currency
+        - settlementMode
+        - preauthHoldIncludedInDisplay
+        - degraded
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        settlementMode:
+          $ref: '#/components/schemas/SettlementMode'
+        preauthHoldIncludedInDisplay:
+          type: boolean
+          readOnly: true
+          description: 管理后台设置的 per-商户展示配置（只读消费）。
+        degraded:
+          type: boolean
+          const: true
+          description: 上游账务查询超时降级；金额字段不可用、不伪造。
     RelatedRef:
       type: object
       description: 关联单据 / 操作记录引用（订单 / 退款 / 结算单 / 储备金操作 / 系统调整）。
@@ -864,7 +971,7 @@ components:
         - type
         - amount
         - balanceAfter
-      description: 账户流水分录（投影 10-05 v_account_statement_v1 商户侧腿;只读、不可变,冲正归 10-05）。
+      description: 账户流水分录（商户侧;只读、不可变——冲正另生成一条新分录、不改历史）。
       properties:
         entryId:
           type: string
@@ -884,7 +991,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/Money'
           readOnly: true
-          description: 对应资金池变动后余额（读 10-05 异步流水投影 balance_after）。
+          description: 对应资金池变动后余额。
         relatedRef:
           $ref: '#/components/schemas/RelatedRef'
         memo:
@@ -900,7 +1007,7 @@ components:
         - settledAmount
         - status
         - settlementDate
-      description: 结算单汇总（投影 10-06 v_settlement_summary_v1）。
+      description: 结算单汇总。
       properties:
         settlementId:
           type: string
@@ -918,7 +1025,7 @@ components:
         settledAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 本期结算金额（本结算单打入银行的净额;D-CORE 按本批结算影响明细 + 手续费结算模式产出,本域只展示）。
+          description: 本期结算金额（本结算单打入银行的净额;按本批结算影响明细 + 手续费结算模式产出,本面只展示）。
         status:
           $ref: '#/components/schemas/SettlementStatus'
           readOnly: true
@@ -932,11 +1039,11 @@ components:
         - amount
         - settlementAmount
         - occurredAt
-      description: 逐笔结算影响明细（投影 10-06 v_settlement_line_v1）。
+      description: 逐笔结算影响明细。
       properties:
         type:
           type: string
-          description: 明细类型（逐值对齐 10-06 settlement_line.source_type;REFUND_REVERSAL = 退款失败回冲、正向明细,符号与 REFUND 相反、不可坍缩进 REFUND）。封闭枚举：上游扩值按破坏性变更版本化。
+          description: 明细类型（REFUND_REVERSAL = 退款失败回冲、正向明细,符号与 REFUND 相反、不可坍缩进 REFUND）。封闭枚举：扩值按破坏性变更版本化。
           enum:
             - PAYMENT
             - REFUND
@@ -958,7 +1065,7 @@ components:
         settlementAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 本笔结算金额（带符号;逐笔合计 = 汇总本期结算金额,FR-04-AC-02）。
+          description: 本笔结算金额（带符号;逐笔合计 = 汇总本期结算金额）。
         occurredAt:
           $ref: '#/components/schemas/Timestamp'
           readOnly: true
@@ -970,7 +1077,7 @@ components:
         - summary
         - lines
         - currency
-      description: 结算单详情 = 汇总 + 逐笔明细 + 当前生效结算账户（只读消费 ME）。
+      description: 结算单详情 = 汇总 + 逐笔明细 + 当前生效结算账户（只读展示）。
       properties:
         summary:
           $ref: '#/components/schemas/SettlementSummary'
@@ -981,7 +1088,7 @@ components:
         settlementAccountLast4:
           type: string
           readOnly: true
-          description: 当前生效结算账户银行后 4 位（只读消费 ME,仅供核对）。
+          description: 当前生效结算账户银行后 4 位（只读展示,仅供核对）。
         currency:
           $ref: '#/components/schemas/Currency'
     StatementSummary:
@@ -993,7 +1100,7 @@ components:
         - txnCount
         - serviceFee
         - status
-      description: 月度账单汇总（投影 10-07 v_statement_v1）。**消费方假设契约——10-07 当前 placeholder、待 v_statement_v1 落定后对齐**（字段 / 生成时点 / 新鲜度可能调整,决策 B）。
+      description: 月度账单汇总。月度账单上游契约待建,字段 / 生成时点 / 新鲜度落定后可能调整。
       properties:
         statementId:
           type: string
@@ -1037,7 +1144,7 @@ components:
           $ref: '#/components/schemas/Money'
         rate:
           type: string
-          description: 费率展示（如 2.65%;口径归 10-07,本域只展示）。
+          description: 费率展示（如 2.65%;本面只展示）。
         fee:
           $ref: '#/components/schemas/Money'
     StatementDetail:
@@ -1051,7 +1158,7 @@ components:
         - grossVolume
         - serviceFee
         - netSettlement
-      description: 月度账单详情（服务费账单;不含税 / 终端 APP 订阅费、不区分收费模式,FR-05-AC-03）。
+      description: 月度账单详情（服务费账单;不含税 / 终端 APP 订阅费、不区分收费模式）。
       properties:
         statementId:
           type: string
@@ -1093,7 +1200,7 @@ components:
         - deliveredTo
         - cooldownSeconds
         - expiresAt
-      description: Owner email OTP 挑战（编排 40-06 资金动作 step-up `POST /step-up/fund-actions`）。challenge 绑定 identity + client + merchant + **发起会话 sid** + **操作摘要 canonical 指纹**（funding 提交须同会话、摘要一致,见 §安全落地）。
+      description: Owner email OTP 挑战。挑战绑定本次操作摘要与发起会话——funding 提交须同会话、摘要一致,否则 → 403。
       properties:
         challengeId:
           type: string
@@ -1105,19 +1212,19 @@ components:
         cooldownSeconds:
           type: integer
           readOnly: true
-          description: 重发冷却秒数（业务参数,X-07）。
+          description: 重发冷却秒数（业务参数）。
         expiresAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
           readOnly: true
-          description: challenge 失效时间（业务参数 X-07,委派 40-06）;过期后 funding 提交即使摘要一致亦 → 410 重挑战（防长期持 challengeId）。
+          description: challenge 失效时间（业务参数）;过期后 funding 提交即使摘要一致亦 → 410 重挑战。
     OtpProof:
       type: object
       required:
         - challengeId
         - code
       additionalProperties: false
-      description: OTP 凭证（提交 funding 时携带;经 40-06 校验）。`additionalProperties:false` 嵌套闭合——顶层 RefundReserveFundingRequest 的 `unevaluatedProperties:false` 不递归进此子对象,须本级独立闭合防夹带。
+      description: OTP 凭证（提交 funding 时携带）。
       properties:
         challengeId:
           type: string
@@ -1125,13 +1232,13 @@ components:
           type: string
           minLength: 4
           maxLength: 12
-          description: Owner 邮箱 OTP（长度业务参数 X-07,此处给宽界）。
+          description: Owner 邮箱 OTP（长度业务参数,此处给宽界）。
     AutoReplenishConfig:
       type: object
       required:
         - enabled
       additionalProperties: false
-      description: auto-replenish 配置（开关 + Account Limit 阈值;Refund Reserve 低于阈值时由 **FINACCT `AutoReplenishService`** 自动从 Account Balance 补足,FINACCT-owned、本地存配置,见 design）。**additionalProperties:false 防夹带未背书字段**;字段存在性纳入 OTP 摘要指纹。**注**:`enabled=true ⇒ accountLimit 必填` 由下方 if/then 守;`accountLimit > 0` 由 PositiveMoney schema 守。
+      description: auto-replenish 配置（开关 + Account Limit 阈值;Refund Reserve 低于阈值时由平台自动从 Account Balance 补足）。配置字段变更纳入 OTP 摘要。`enabled=true ⇒ accountLimit 必填且 > 0`。
       if:
         properties:
           enabled:
@@ -1149,10 +1256,10 @@ components:
         accountLimit:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: Account Limit 阈值（enabled=true 时必填且 > 0〔PositiveMoney + if/then 守〕,FR-07-AC-08;关闭时是否保留供下次开启归 design）。
+          description: Account Limit 阈值（enabled=true 时必填且 > 0）。
     RefundReserveOperationSummary:
       type: object
-      description: 储备金 funding 操作摘要（**topUpAmount / autoReplenish 至少其一**,anyOf 守;空 `{}` 非法）。**OTP challenge 绑定此摘要的 canonical 指纹**（含 Money 的 amount + **currency 双字段**、字段存在性递归;currency 须 == 会话唯一结算币种、失配 403,见 design 摘要绑定不变量）,funding 提交摘要指纹须与 challenge 绑定一致——防 confused-deputy（批 A 放行 B / 改币种 / 夹带 config）。**闭合（拒未知字段、防夹带）由消费方 schema 收口**:funding 请求 + otp-challenge 入口均挂 `unevaluatedProperties:false`;**本摘要自身不闭合**——否则其 `unevaluatedProperties:false` 会让 funding 请求 `allOf` 扩展的 `otp` 成为「未求值」而被拒（schema 不可满足）。须配 contract test 守 anyOf + 指纹 + 闭合。
+      description: 储备金 funding 操作摘要（**topUpAmount / autoReplenish 至少其一**,anyOf 守;空 `{}` 非法）。OTP challenge 绑定此摘要（含金额 + 币种 + 字段存在性;币种须 == 商户结算币种、失配 → 403）,funding 提交摘要须与 challenge 绑定一致——否则 → 403（防串改金额 / 改币种 / 夹带配置）。
       anyOf:
         - required:
             - topUpAmount
@@ -1162,13 +1269,13 @@ components:
         topUpAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: Top Up 金额（来源固定 Account Balance;> 0 由 PositiveMoney schema 守;缺省则本次只改配置）。
+          description: Top Up 金额（来源固定 Account Balance;> 0;缺省则本次只改配置）。
         autoReplenish:
           allOf:
             - $ref: '#/components/schemas/AutoReplenishConfig'
           description: auto-replenish 配置变更（缺省则本次只 Top Up;含 enabled + accountLimit 全字段,纳入 OTP 摘要绑定）。
     RefundReserveFundingRequest:
-      description: funding 请求 = 操作摘要 + OTP 凭证（摘要须与 otp.challengeId 绑定的摘要一致,否则拒绝重挑战）。`unevaluatedProperties:false` 闭合全集 = {topUpAmount, autoReplenish, otp},未知字段拒绝（资金 OTP 摘要字段全集与请求 schema 同源,防 confused-deputy 夹带）。
+      description: funding 请求 = 操作摘要 + OTP 凭证（摘要须与 otp.challengeId 绑定的摘要一致,否则拒绝重挑战）。字段全集 = {topUpAmount, autoReplenish, otp},未知字段拒绝。
       unevaluatedProperties: false
       allOf:
         - $ref: '#/components/schemas/RefundReserveOperationSummary'
@@ -1184,12 +1291,12 @@ components:
         - operationId
         - kind
         - status
-      description: 储备金**商户发起**操作结果（Top Up / Withdraw;资金分录归 10-05〔本结果引用其 fundEventId〕、业务操作记录归 FINACCT `refund_reserve_operation`。auto-replenish **系统执行**结果归 FINACCT `refund_reserve_operation`(kind=auto_replenish)、不在此商户发起 kind,商户经流水 AUTO_REPLENISH + 站内事件可见）。
+      description: 储备金**商户发起**操作结果（Top Up / Withdraw）。auto-replenish 的系统执行结果不在此商户发起 kind,商户经流水 AUTO_REPLENISH + 站内事件可见。
       properties:
         operationId:
           type: string
           readOnly: true
-          description: BFF 操作记录标识（D-MERCH 本地 reserve_operation_intent;关联 10-05 fundEventId）。
+          description: 操作标识（= 顶层 RefundReserveFundingResult / OperationDetail 同一操作 ID,供轮询）。
         kind:
           type: string
           readOnly: true
@@ -1199,7 +1306,7 @@ components:
         status:
           type: string
           readOnly: true
-          description: SUCCEEDED 已落账 / FAILED 已拒绝(不划转) / **PENDING** 已放行但上游结果未达终态(response 丢失 / in-flight;以 10-05 getFundEventResult 回查收敛、凭子写键可重试,不另划转)。
+          description: SUCCEEDED 已落账 / FAILED 已拒绝(不划转) / **PENDING** 已放行但结果未达终态(响应丢失 / 处理中;凭 operationId 轮询收敛,不另划转)。
           enum:
             - SUCCEEDED
             - FAILED
@@ -1210,10 +1317,10 @@ components:
         fundEventId:
           type: string
           readOnly: true
-          description: 10-05 资金事件标识（权威执行结果）。
+          description: 资金事件标识（权威执行结果）。
         resultCode:
           type: string
-          description: 失败结构化结果码（如 LEDGER-ERR-01;骨干07）。
+          description: 失败结构化结果码。
         resultDetail:
           type: string
           description: 结果描述（不拼平台侧账户 / 对手方）。
@@ -1225,12 +1332,12 @@ components:
       required:
         - status
         - enabled
-      description: auto-replenish 配置变更结果（**FINACCT 本地 `refund_reserve_config` upsert**,FINACCT-owned、非 10-05 转发）。配置写幂等(BFF `{intentId}:auto_replenish_config` 键 + 本地 upsert);本地写一般同步,PENDING 罕见。auto-replenish 实际补足执行归 FINACCT `AutoReplenishService`(反应 Reserve-low、发 top-up reserve-movement、记 refund_reserve_operation),不在本配置写。
+      description: auto-replenish 配置变更结果。配置写幂等、一般同步;其自动补足执行由平台在 Refund Reserve 低于阈值时触发,不在本配置写。
       properties:
         status:
           type: string
           readOnly: true
-          description: SAVED 已保存 / FAILED 已拒绝(config = FINACCT 本地 `refund_reserve_config` upsert、一般同步)/ PENDING(仅 funding 编排中间态、罕见)。
+          description: SAVED 已保存 / FAILED 已拒绝 / PENDING(仅 funding 处理中间态、罕见)。
           enum:
             - SAVED
             - FAILED
@@ -1246,8 +1353,14 @@ components:
           type: string
     RefundReserveFundingResult:
       type: object
+      required:
+        - operationId
       description: funding 处理结果（按提交项返回;部分失败时各项独立 status）。
       properties:
+        operationId:
+          type: string
+          readOnly: true
+          description: 操作标识（= 稳定轮询键，供 getReserveOperation 轮询；**config-only PENDING 提交也返回**；顶层与各子结果 operationId 同值 = 同一操作）。
         topUpResult:
           $ref: '#/components/schemas/ReserveOperationResult'
         autoReplenishResult:
@@ -1262,7 +1375,7 @@ components:
         operationId:
           type: string
           readOnly: true
-          description: BFF intent 标识。
+          description: 操作标识。
         opType:
           type: string
           readOnly: true
@@ -1278,7 +1391,7 @@ components:
     RefundReserveWithdrawalRequest:
       type: object
       additionalProperties: false
-      description: 储备金取回（**amount 与 max 恰二选一**,oneOf 守;both / neither 非法）。`additionalProperties:false` 闭合全集 = {amount, max}、拒夹带未知字段——与 funding 同级（碰钱写入口防夹带）。须配 contract test 覆盖 `amount+foo`/`max+foo`（夹带拒绝）+ `amount+max`/`{}`（oneOf 拒绝）。
+      description: 储备金取回（**amount 与 max 恰二选一**,both / neither 非法）。字段全集 = {amount, max}、拒未知字段。
       oneOf:
         - properties:
             amount: {}
@@ -1302,44 +1415,120 @@ components:
         amount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 取回金额（> 0 由 PositiveMoney schema 守;与 max 二选一）。
+          description: 取回金额（> 0;与 max 二选一）。
         max:
           type: boolean
           const: true
-          description: 取回当前全部可取回 Refund Reserve（仅接受 true,不取全部请走 amount;转发 10-05 drainReserve〔已落地〕,10-05 在 reserve per-account CAS 临界区内 resolve 额、原子无 TOCTOU;BFF 不自读余额填）。
+          description: 取回当前全部可取回 Refund Reserve（仅接受 true,不取全部请走 amount;全部金额由服务端按执行时的实际可取额定额,前端不自读余额填）。
     ExportRequest:
+      description: 导出请求（异步、按当前查询条件、范围与查询一致不局限分页）。**按 kind 拆 oneOf**（各类必需字段不同：列表类带 filters、单资源需 resourceId；format 钉 XLSX）。月度账单 PDF 不经此（走同步 getStatementPdf）。
+      oneOf:
+        - $ref: '#/components/schemas/ExportSettlementsRequest'
+        - $ref: '#/components/schemas/ExportSettlementDetailRequest'
+        - $ref: '#/components/schemas/ExportLedgerRequest'
+      discriminator:
+        propertyName: kind
+        mapping:
+          SETTLEMENTS: '#/components/schemas/ExportSettlementsRequest'
+          SETTLEMENT_DETAIL: '#/components/schemas/ExportSettlementDetailRequest'
+          LEDGER: '#/components/schemas/ExportLedgerRequest'
+    ExportSettlementsRequest:
       type: object
+      additionalProperties: false
+      description: 结算单列表导出（XLSX）。
       required:
         - kind
         - format
-      description: 导出请求（按当前查询条件;范围与查询一致、不局限当前分页）。
       properties:
         kind:
           type: string
-          description: 导出对象:结算单列表 / 单结算单详情 / 流水 / 月度账单。
-          enum:
-            - SETTLEMENTS
-            - SETTLEMENT_DETAIL
-            - LEDGER
-            - STATEMENT
+          const: SETTLEMENTS
         format:
           type: string
-          enum:
-            - XLSX
-            - PDF
+          const: XLSX
+        filters:
+          $ref: '#/components/schemas/SettlementExportFilters'
+    ExportSettlementDetailRequest:
+      type: object
+      additionalProperties: false
+      description: 单结算单详情导出（XLSX；必需 resourceId = settlementId）。
+      required:
+        - kind
+        - format
+        - resourceId
+      properties:
+        kind:
+          type: string
+          const: SETTLEMENT_DETAIL
+        format:
+          type: string
+          const: XLSX
         resourceId:
           type: string
-          description: 单资源导出标识（SETTLEMENT_DETAIL = settlementId / STATEMENT = statementId）。
+          description: settlementId。
+    ExportLedgerRequest:
+      type: object
+      additionalProperties: false
+      description: 账户流水导出（XLSX）。
+      required:
+        - kind
+        - format
+      properties:
+        kind:
+          type: string
+          const: LEDGER
+        format:
+          type: string
+          const: XLSX
         filters:
-          type: object
-          description: 列表导出的查询条件镜像（与对应列表端点过滤 / 搜索 / 排序一致;字段随对应列表）。
-          additionalProperties: true
+          $ref: '#/components/schemas/LedgerExportFilters'
+    SettlementExportFilters:
+      type: object
+      additionalProperties: false
+      description: 结算单导出过滤（镜像 listSettlements query params：dateFrom / dateTo / status / keyword / sort）。
+      properties:
+        dateFrom:
+          $ref: '#/components/schemas/Timestamp'
+        dateTo:
+          $ref: '#/components/schemas/Timestamp'
+        status:
+          $ref: '#/components/schemas/SettlementStatus'
+        keyword:
+          type: string
+          maxLength: 128
+        sort:
+          type: string
+          enum:
+            - settlementDate_desc
+            - settlementDate_asc
+            - settledAmount_desc
+            - settledAmount_asc
+          default: settlementDate_desc
+    LedgerExportFilters:
+      type: object
+      additionalProperties: false
+      description: 账户流水导出过滤（镜像 getLedger query params：dateFrom / dateTo / type〔多值〕 / pool / keyword）。
+      properties:
+        dateFrom:
+          $ref: '#/components/schemas/Timestamp'
+        dateTo:
+          $ref: '#/components/schemas/Timestamp'
+        type:
+          type: array
+          items:
+            $ref: '#/components/schemas/LedgerEntryType'
+          description: 类型过滤（可多值，同 getLedger）
+        pool:
+          $ref: '#/components/schemas/FundPool'
+        keyword:
+          type: string
+          maxLength: 128
     ExportJob:
       type: object
       required:
         - exportJobId
         - status
-      description: 导出任务（OWNS:D-MERCH 本地 export_job）。
+      description: 导出任务。
       properties:
         exportJobId:
           type: string
@@ -1364,14 +1553,15 @@ components:
           description: FAILED 原因 / 空结果 / 超限提示。
     Currency:
       type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD(部署时可配置扩展)。
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
       examples:
         - CAD
         - USD
         - HKD
+        - CNY
     Money:
       type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;骨干07 金额口径:字符串防 JSON number 精度丢失)。
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
       required:
         - amount
         - currency
@@ -1379,25 +1569,25 @@ components:
         amount:
           type: string
           pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。骨干07:可重定义面默认最小单位整数字符串;十进制金额须接口契约显式声明。
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。可重定义面默认最小单位整数字符串;十进制金额须接口契约显式声明。
         currency:
           $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
-      description: 统一错误返回(骨干07 错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
       required:
         - code
         - detail
       properties:
         code:
           type: integer
-          description: 结构化整数错误码(骨干07:能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
         detail:
           type: string
-          description: 错误描述(面向调用方;本地化按 locale,X-06)。
+          description: 错误描述(面向调用方;本地化按 locale)。
         links:
           type: object
-          description: 可选:错误说明 / 后续恢复操作链接(骨干07)。
+          description: 可选:错误说明 / 后续恢复操作链接。
           additionalProperties:
             type: string
         traceId:
@@ -1405,7 +1595,7 @@ components:
           description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
         details:
           type: array
-          description: 可选:字段级校验错误(骨干07)。
+          description: 可选:字段级校验错误。
           items:
             type: object
             required:
@@ -1430,13 +1620,13 @@ components:
                   type:
                     - string
                     - 'null'
-                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null；schema 不用 if/then——redocly example 校验不兼容；由 contract-test enforce）。
+                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
     Timestamp:
       type: string
       format: date-time
-      description: 'RFC 3339 date-time。in/out 非对称(骨干07):**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+      description: 'RFC 3339 date-time。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
     PositiveMoney:
-      description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」、不靠 contract test。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），方向由 operation / eventType + posting 规则决定、非符号；区别于 Money（带符号、用于余额 / 分录 / 结算净额 / 回冲等可正可负的账面值）。
+      description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
         - $ref: '#/components/schemas/Money'
         - type: object
@@ -1450,14 +1640,14 @@ components:
       in: header
       required: true
       description: |
-        merchant-current-scoped 请求守卫（stale-tab 一致性，**读写统一**）：页面预期商户 ID（expected merchant）。**仅与会话 current merchant 比对、非 scope selector**—— 会话 current 仍是 merchant scope 唯一权威；一致才执行；**≠ 会话 current → 409 `MerchantBffConflict`**（语义名 `MERCHANT_CONTEXT_CHANGED`，整数 `code` `208001`、SSOT 见 `20-商户后台/api/error-codes.yaml`）——**读不返回错商户数据、写不执行**； **`context.currentMerchantId`**（非 `details` 字段校验数组）回显服务端会话当前商户供前端直接 re-sync。统一挂在各 module **所有 merchant-current-scoped 读 + 写 operation**； 前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户；BroadcastChannel / focus 只作提前发现、改善体验）。 **治理范围仅 cookieAuth 浏览器 BFF 面 + 依赖当前商户的 op**；**不适用** `.internal` serviceAuth 面 / 公开 register·login·callback（`security:[]`）/ 设备面 / 其他不依赖当前商户的接口。**BFF 面内豁免**：listMerchants（re-sync 发现入口、返回 currentMerchantId）、switchCurrentMerchant（设当前 authority changer）、**withdrawOnboardingApplication（path-selector：target 由 path 定、与会话 current 无关）**、全局接口。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行； **不一致 → 409 `MerchantBffConflict`**（`code` `208001`、`MERCHANT_CONTEXT_CHANGED`）——**读不返回错商户数据、写不执行**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：listMerchants（返回 currentMerchantId 的 re-sync 入口）、switchCurrentMerchant（切换当前商户）、withdrawOnboardingApplication（目标由 path 指定、与当前商户无关）、以及不依赖当前商户的接口。
       schema:
         type: string
         minLength: 1
     PageNum:
       name: pageNum
       in: query
-      description: 页码(从 1 计;骨干07 分页)
+      description: 页码(从 1 计;分页)
       schema:
         type: integer
         minimum: 1
@@ -1465,7 +1655,7 @@ components:
     PageSize:
       name: pageSize
       in: query
-      description: 每页记录数(上限可配置;骨干07 分页默认 20)
+      description: 每页记录数(上限可配置;分页默认 20)
       schema:
         type: integer
         minimum: 1
@@ -1484,7 +1674,7 @@ components:
       name: Idempotency-Key
       in: header
       required: false
-      description: 幂等键(写接口;骨干07 三段命中语义)
+      description: 幂等键(写接口;三段命中语义)
       schema:
         type: string
         minLength: 1
@@ -1498,7 +1688,7 @@ components:
             $ref: '#/components/schemas/ErrorEnvelope'
     MerchantBffConflict:
       description: |
-        409 冲突。整数 `code` 结构（`XX·Y·ZZZ`、责任方位 `Y` 4-8）见骨干07；**码 SSOT = `20-商户后台/api/error-codes.yaml`**（本描述仅引用、非登记源）。D-MERCH 业务·资源型 `208xxx`（前端据整数 `code` 区分子因）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**契约不变量：必携 `context.currentMerchantId`**（contract-test enforce；schema 不用 if/then 因 redocly example 校验不兼容）供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208004` 基线漂移（`baselineVersion` / URL 指纹 CAS 失败，需重载最新态）； `208005` 幂等键复用但 payload 不一致。 前端动作：208001 刷新当前商户、208002 提示已存在、208003·208004 重载最新态、208005 排查重复请求。本 409 response BFF 面 + `.internal` 面共用同末段语义（internal 面走域中立 `ErrorEnvelope`）。
+        409 冲突。前端据整数 `code` 区分子因——**常见 `208xxx` 商户后台 BFF 业务·资源型**（下列枚举）；**部分 409 另带身份类业务码**（如 `968xxx`：Login ID 占用 / 改邮箱在途等），**具体码以该 op 的 `x-error-codes` 为准**（另有同域 op 专属 `208xxx`，均不在此枚举）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**必携 `context.currentMerchantId`** 供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208005` 幂等键复用但 payload 不一致。 （`208004` 不适用本 BFF 面、故不在此枚举。） 前端动作：208001 刷新当前商户、208002 提示已存在、208003 重载最新态、208005 排查重复请求。
       content:
         application/json:
           schema:
@@ -1516,20 +1706,25 @@ components:
               value:
                 code: 208002
                 detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
+            idempotencyConflict:
+              summary: 幂等键冲突（code 208005，同 Idempotency-Key 复用但请求内容不一致；业务·资源型无 context）
+              value:
+                code: 208005
+                detail: 该幂等键已用于其他请求内容，请核对原请求；如确需发起新的业务操作，再使用新幂等键
     NotFound:
       description: 404 资源不存在
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
-    TooManyRequests:
-      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
+    BadRequest:
+      description: 400 业务/校验错误
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
-    BadRequest:
-      description: 400 业务/校验错误
+    TooManyRequests:
+      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
       content:
         application/json:
           schema:

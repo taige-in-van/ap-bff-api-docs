@@ -32,7 +32,7 @@
 3. `getOnboardingStatus`（`GET /onboarding/status`，带 `X-Merchant-Context`）→ `routeTo` 决定落到哪个区域：`ONBOARDING_WIZARD` / `REVIEW_STATUS_PAGE` / `REJECTED_PAGE` / `MERCHANT_HOME`。
 4. **`routeTo` 是区域分流的唯一真相源**；**仅 `routeTo = MERCHANT_HOME` 时才采用 `landingPage`**（商户后台内默认页）。入驻 / 审核 / 拒绝区域不看 `landingPage`。
 
-> **`merchantId = null`（无当前商户）分支**：`getCurrentSession.merchantId` 可为 null（撤回当前商户 / 无可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / ONB**。
+> **`merchantId = null`（无当前商户）分支**：`getCurrentSession.merchantId` 可为 null（撤回当前商户 / 无可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / 入驻相关接口**。
 >
 > 邮箱激活与登录在此链路上等价：激活成功即建会话，FE 同样从 `getCurrentSession` 起步。
 
@@ -93,7 +93,7 @@
 
 ## 幂等
 
-- **创建类 / 非天然幂等的写**（如改密〔失效其他会话〕、跨单写者）：带 `Idempotency-Key`（header）去重。
+- **创建类 / 非天然幂等的写**（如改密〔失效其他会话〕、有副作用的写）：带 `Idempotency-Key`（header）去重。
 - **天然幂等的 PUT / DELETE**：可不带。
 - **认证类（登录 / 登出 / MFA / 扫码）与多步 OTP 挑战类（改邮箱 / 找回）**：按流程语义**不带**幂等键（每次都应重新认证 / 校验）。
 - **命中语义**：同键 + 关键 payload（金额 / 场景）一致 → 返回首次结果、不重复副作用；同键 + payload 冲突 → `409`、不新建。
