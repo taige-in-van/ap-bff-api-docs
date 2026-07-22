@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>交易管理 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 交易管理（支付查询 / 退款 / 预授权完成 / 收据导出）—— 调用时序
+
+> 本文是 `05-交易管理.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+>
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对支付核心系统的命令与取数、PIN 校验的内部实现**不画**（后端面，与前端无关）；退款 / 预授权的后续状态流转（审核、通道处理、成功 / 失败）由系统驱动、前端靠刷新读到最新状态。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+>
+> **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
+>
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带 `X-Merchant-Context`**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`(208001)**（读不返回错商户、写不执行，前端刷新到当前商户）；目标资源不在可访问范围 → 404；**读接口后端查询超时 → 504**（整份失败、不返半截数据，前端展示「暂不可用」）；错误体统一 `ErrorEnvelope`（整数 `code` → 前端策略；部分 BFF 冲突响应在其上附加 context，如 208001 回显 `currentMerchantId`）。**仅 ACTIVE 商户可用本模块**（非 ACTIVE → 403，入口本就不该出现）。
+>
+> **稳定 code vs 展示名**：列表 / 详情的 `paymentMethod` / `source` 是**稳定 code**（如 `wechat` / `store_qr`）——筛选传 code、展示名按前端 i18n 映射（`filterOptions[].displayName` 是默认兜底展示名）；详情自带 `paymentMethodDisplayName` / `sourceDisplayName`（深链直开可用）。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
+
+## 接口 ID 对照(图例，点 operationId 跳接口)
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`listPayments`](index.html#tag/payments/operation/listPayments) | `GET /payments` | 支付交易列表（过滤 + 关键词 + 排序 + 分页 + 状态计数 + 筛选选项） |
+| [`getPaymentSummary`](index.html#tag/payments/operation/getPaymentSummary) | `GET /payments/summary` | 页头汇总卡（随筛选、单一结算币种 KPI + To Settle） |
+| [`exportPayments`](index.html#tag/payments/operation/exportPayments) | `GET /payments/export` | 导出交易 Excel（当前筛选全集） |
+| [`getPaymentDetail`](index.html#tag/payments/operation/getPaymentDetail) | `GET /payments/{orderId}` | 交易详情（含关联退款 + 可退摘要 + 技术细节 + FX） |
+| [`getPaymentReceipt`](index.html#tag/payments/operation/getPaymentReceipt) | `GET /payments/{orderId}/receipt` | 支付收据 PDF |
+| [`createRefund`](index.html#tag/payments/operation/createRefund) | `POST /payments/{orderId}/refunds` | 发起退款（全 / 部分 + Refund PIN） |
+| [`releasePreAuth`](index.html#tag/payments/operation/releasePreAuth) | `POST /payments/{orderId}/preauth-completion` | 预授权完成（Release） |
+| [`listRefunds`](index.html#tag/refunds/operation/listRefunds) | `GET /refunds` | 退款列表（商户发起面；过滤 + 回溯原交易） |
+| [`exportRefunds`](index.html#tag/refunds/operation/exportRefunds) | `GET /refunds/export` | 导出退款 Excel（当前筛选全集） |
+| [`getRefundDetail`](index.html#tag/refunds/operation/getRefundDetail) | `GET /refunds/{refundNo}` | 退款详情（含发起人 / 原订单回链） |
+| [`getRefundReceipt`](index.html#tag/refunds/operation/getRefundReceipt) | `GET /refunds/{refundNo}/receipt` | 退款收据 PDF（仅 SUCCESS） |
+| [`voidRefund`](index.html#tag/refunds/operation/voidRefund) | `POST /refunds/{refundNo}/cancellation` | 撤销待审核退款（仅 REVIEWING） |
+
+---
+
+## 读类与单调用：无编排
+
+下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
+
+- **列表页加载**：`listPayments` 与 `getPaymentSummary` **并行调用**（同一组筛选参数——时间窗按商户时区切日、`from`/`to`/`paymentMethod`/`source`/`status`/`keyword` 与列表一致）；列表响应自带 `statusCounts`（状态快捷标签计数）+ `filterOptions`（支付方式 / 来源候选，code + displayName）——**筛选器选项来自这里、不要另行拼**。切筛选 → 两个接口带同参重发。汇总卡失败不阻断列表（独立降级）。
+- **退款列表页**：`listRefunds`（同上；`source` 传**原支付来源** code；筛选选项与支付页同源）。系统自动退款不在此列表（服务端排除）——其事实经原交易详情 `relatedRefunds` 可见。
+- **详情**：`getPaymentDetail`（列表行点击 / 深链直开均可——展示名字段自足）；`getRefundDetail`（列表行「查看」/ **退款成功邮件 CTA 深链直达**）。退款入口显隐的**唯一依据**是后端权威结果、勿按 status 硬编码——**列表行用 `PaymentRow.refundable`、详情用 `refundability.refundable`**；`initiatorType` + `initiatedBy` 按 type 决定直接展示（`merchant_user`）还是本地化（其余 code）。
+- **导出**：`exportPayments` / `exportRefunds`——带与列表**同一组筛选参数** + `Accept-Language`；成功 = xlsx 二进制（`Content-Disposition: attachment` + **`Content-Language` 实际渲染语言**）；**结果集超上限 → 400 `EXPORT_RESULT_SET_TOO_LARGE`(204009)**，提示缩小筛选范围重导（不截断、不异步）。
+- **收据**：`getPaymentReceipt`（仅已收款交易；挂起单 404）/ `getRefundReceipt`（仅 `SUCCESS` 退款）——带 `Accept-Language`；成功 = PDF（`Content-Disposition: inline` 可打印 + `Content-Language`）。
+
+---
+
+## 流程一：发起退款（可退 gate → 金额 / PIN → 受理 → 拒绝分支）
+
+> 入口显隐由 `refundable` 决定；金额上限由 `refundability.remainingRefundable` 预检（仅 UX 提示、权威在后端受理）。PIN 校验与核心受理是 BFF 内部编排、不画。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+
+    B->>A: [getPaymentDetail]
+    A-->>B: 200 PaymentDetail（refundability：refundable + remainingRefundable）
+    alt refundable=false 或 remainingRefundable=0
+        B->>B: 不展示退款入口
+    else 可退
+        B->>B: 退款模态（可退摘要 + 金额 + 备注 + Refund PIN）
+        B->>B: 生成 Idempotency-Key（本次提交固定持有、重试复用）
+        B->>A: [createRefund]（amount + note + refundPin；Idempotency-Key）
+        alt 受理成功
+            A-->>B: 201 { refundNo, refundStatus }（REVIEWING 审核中 / CHANNEL_PROCESSING 处理中）
+            B->>B: 展示受理结果（非终态、勿当最终成功）→ 刷新详情 / 退款列表
+        else 金额格式预检失败
+            A-->>B: 400 code=204007（无 reason）
+            B->>B: 表单纠错（新提交换新 Idempotency-Key）
+        else 业务拒绝
+            A-->>B: 400 code=204008 + reason
+            B->>B: 按 reason 分流文案（insufficient_refundable → 重取剩余额可再退、其余按枚举）
+        else PIN 错误
+            A-->>B: 403 REFUND_PIN_INVALID(206003)
+            B->>B: 提示重输 PIN（重新提交 = 新请求、换新 Idempotency-Key）
+        else PIN 锁定
+            A-->>B: 423 REFUND_PIN_LOCKED(206004)
+            B->>B: 提示稍后重试（防爆破、勿立即重发；解锁后重新提交 = 新请求换新键）
+        else 数据完整性故障
+            A-->>B: 500
+            B->>B: 提示稍后再试 / 联系支持（不引导立即重试、不同键狂重发）
+        else 同键异 payload
+            A-->>B: 409 code=208005
+            B->>B: 排查重复提交（勿改 payload 复用旧键）
+        else 处理中（首执尚未定论）
+            A-->>B: 409 REFUND_REQUEST_IN_PROGRESS(208011)
+            B->>B: 以同键同 payload 重发 [createRefund] 轮询（无独立查询端点）
+        else 超时 / 网关错误
+            A-->>B: 502 / 504
+            B->>B: 以同键同 payload 重发 [createRefund]（幂等安全——同键重放返首次结果、绝不重复扣款）
+        end
+    end
+```
+
+**幂等要点（FE 必守）**：一次退款提交 = 一个 `Idempotency-Key`；**超时（502/504）/ 208011 后重试必须复用同键同 payload**（安全、至多一笔）；**任何被拒后的再提交都是新请求、必须换新键**——PIN 错误 / 参数纠错（204007）/ 业务拒绝（204008，条件变化后再试）/ PIN 解锁后（423）同理，旧 failed 键不可复用改 payload；**500 数据完整性故障不引导立即重试**（提示稍后 / 联系支持）。
+
+**Forgot PIN**：退款模态提供「Forgot PIN」入口 → **跳转商户实体的 PIN 重置流程**（[`requestRefundPinResetOtp`](../me/index.html#tag/refund-pin/operation/requestRefundPinResetOtp) 发 OTP → [`setRefundPin`](../me/index.html#tag/refund-pin/operation/setRefundPin) reset-challenge 分支，流程见 [商户实体调用时序](../me/flows.html)——**跨模块接口、不在本 ReDoc**）；**本模块无自己的重置端点、不在退款流程内嵌重置**。重置完成后回到退款模态重新提交（新请求、新键）。
+
+---
+
+## 流程二：退款后续（未终态展示 → 撤销 → 成功后收据）
+
+> 审核 / 通道处理 / 终态收敛由系统驱动，前端靠刷新读到最新状态；不存在退款状态推送。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+
+    Note over B,A: 受理后——未终态展示与刷新
+    B->>A: [listRefunds] 或 [getRefundDetail]
+    A-->>B: 200（REVIEWING 审核中 / CHANNEL_PROCESSING 处理中）
+    B->>B: 行操作按返回字段显隐——voidable 展示撤销、receiptAvailable 展示收据（勿按 refundStatus 硬编码）
+
+    opt 撤销待审核退款（仅 REVIEWING）
+        B->>A: [voidRefund]（Idempotency-Key）
+        alt 撤销成功
+            A-->>B: 200 { refundNo, refundStatus: CANCELLED }
+            B->>B: 刷新列表 / 原交易详情（该笔占用释放、剩余可发起额回升）
+        else 已进通道 / 终态不可撤
+            A-->>B: 409 REFUND_NOT_CANCELLABLE(208009)
+            B->>B: 重载最新状态（撤销入口随之消失）
+        else 已是 CANCELLED
+            A-->>B: 200 { refundStatus: CANCELLED }（幂等、无副作用）
+        else 同键异 payload
+            A-->>B: 409 code=208005
+            B->>B: 排查重复操作（勿改目标退款后复用旧键——换目标 = 新请求新键）
+        else 超时 / 网关错误
+            A-->>B: 502 / 504
+            B->>B: 同一撤销操作复用原键重发 [voidRefund]（幂等安全）
+        end
+    end
+
+    opt 状态收敛后（刷新读到 SUCCESS）
+        B->>A: [getRefundReceipt]（Accept-Language）
+        A-->>B: 200 PDF（inline + Content-Language）
+    end
+```
+
+---
+
+## 流程三：预授权完成（Release）
+
+> 入口仅 `status = PREAUTH_HOLDING` 的订单出现；完成是商户后台唯一预授权操作。核心内部转移不画。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+
+    B->>B: 交易行 / 详情 status=PREAUTH_HOLDING → 展示「预授权完成」入口 + 确认弹窗
+    B->>B: 生成 Idempotency-Key（本次操作固定持有）
+    B->>A: [releasePreAuth]（Idempotency-Key）
+    alt 完成成功
+        A-->>B: 200 { orderId, status }（paid / partially_refunded / refunded——挂起期已退过则非 paid）
+        B->>B: 按返回 status 更新行 / 详情（订单进入下批清结算）
+    else 非 PREAUTH_HOLDING（已完成 / 状态已变）
+        A-->>B: 409 PREAUTH_NOT_RELEASABLE(208010)
+        B->>B: 重载最新状态（入口随之消失）
+    else 同键异 payload
+        A-->>B: 409 code=208005
+        B->>B: 排查重复提交
+    else 超时 / 网关错误
+        A-->>B: 502 / 504
+        B->>B: 以同键重发 [releasePreAuth]（幂等安全——同键重放返首次结果、不重复入账）
+    end
+```
+
+---
+
+## 收据 / 导出的语言协商（四个二进制端点通用）
+
+不画图——单次调用，要点：
+
+1. 请求带 **`Accept-Language`**（BCP-47，传当前界面 / 用户语言，如 `zh-Hans` / `fr-CA`）；不传则服务端回退会话 locale → 商户默认。
+2. 服务端做 best-match（`fr-CA` → `fr`）后渲染 PDF / xlsx——**文件内文案在服务端定稿**（与 JSON 面的「FE 本地化」分工不同）。
+3. 响应**必带 `Content-Language`**（实际渲染语言，可断言）+ `Content-Disposition`（收据 `inline` 可打印 / 导出 `attachment` 下载）。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>
