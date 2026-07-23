@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>通知 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 通知（通知设置 / 站内信）—— 调用时序
+
+> 本文是 `07-通知.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+>
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对通知基础设施的委派（验证码邮件外发 / 微信绑定会话）**不画**（后端面，与前端无关）；外部参与方（微信）仅在用户真参与异步交互时出现。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+>
+> **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
+>
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；**所有接口均携带 `X-Merchant-Context`（本模块无豁免）**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；目标资源不在可访问范围 → 404；错误体统一 `MerchantBffError`（整数 `code` → 前端策略）。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
+
+## 接口 ID 对照(图例，点 operationId 跳接口)
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`getNotificationSettings`](index.html#tag/notification-settings/operation/getNotificationSettings) | `GET /notification-settings` | 通知设置聚合（开关 + Primary + Extra + 微信接收方） |
+| [`updateNotificationChannel`](index.html#tag/notification-settings/operation/updateNotificationChannel) | `PUT /notification-settings/channels/{channel}` | 邮件 / 微信通道总开关 |
+| [`requestExtraEmailOtp`](index.html#tag/notification-settings/operation/requestExtraEmailOtp) | `POST /notification-settings/email/extra-recipients/otp-challenges` | 添加附加邮箱第 1 步：发验证码 |
+| [`verifyExtraEmailOtp`](index.html#tag/notification-settings/operation/verifyExtraEmailOtp) | `POST /notification-settings/email/extra-recipients/otp-challenges/{challengeId}/verification` | 添加附加邮箱第 2 步：验码生效 |
+| [`removeExtraEmailRecipient`](index.html#tag/notification-settings/operation/removeExtraEmailRecipient) | `DELETE /notification-settings/email/extra-recipients/{recipientId}` | 移除附加邮箱 |
+| [`createWechatBindSession`](index.html#tag/notification-settings/operation/createWechatBindSession) | `POST /notification-settings/wechat/bind-sessions` | 发起微信绑定（出二维码） |
+| [`getWechatBindSession`](index.html#tag/notification-settings/operation/getWechatBindSession) | `GET /notification-settings/wechat/bind-sessions/{sessionId}` | 轮询绑定会话状态 |
+| [`removeWechatNotifyRecipient`](index.html#tag/notification-settings/operation/removeWechatNotifyRecipient) | `DELETE /notification-settings/wechat/recipients/{recipientId}` | 解绑微信接收方 |
+| [`listNotices`](index.html#tag/notices/operation/listNotices) | `GET /notices` | 站内信列表（倒序分页） |
+| [`getNoticeUnreadCount`](index.html#tag/notices/operation/getNoticeUnreadCount) | `GET /notices/unread-count` | 铃铛未读计数（商户级） |
+| [`getNoticeSummary`](index.html#tag/notices/operation/getNoticeSummary) | `GET /notices/summary` | 首页最新通知摘要 |
+| [`getNotice`](index.html#tag/notices/operation/getNotice) | `GET /notices/{noticeId}` | 站内信详情（纯读） |
+| [`markNoticeRead`](index.html#tag/notices/operation/markNoticeRead) | `POST /notices/{noticeId}/read-receipt` | 单条已读回执（幂等） |
+| [`markAllNoticesRead`](index.html#tag/notices/operation/markAllNoticesRead) | `POST /notices/read-receipts` | 全部已读 |
+
+## 流程 1：添加附加接收邮箱（验证码两步）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as 商户后台 SPA
+    participant BFF as BFF
+
+    Note over SPA: 通知设置页邮件区，点 Add Extra，填候选邮箱
+    SPA->>BFF: [requestExtraEmailOtp] 候选邮箱
+    alt 格式非法（400）或与主邮箱 / 已有附加邮箱重复（409 code 208012）
+        BFF-->>SPA: 拒绝，不发码（提示格式错误 / 重复）
+    else 冷却窗口内重复请求（429）
+        BFF-->>SPA: 提示冷却剩余，倒计时后可重发
+    else 验证码外发暂不可用（502 / 504）
+        BFF-->>SPA: 提示稍后重试（不新增附加邮箱）
+    else 受理
+        BFF-->>SPA: 202 challengeId + cooldownSeconds + expiresAt
+        Note over SPA: 进入输码步，展示重发倒计时（验证码邮件异步送达候选邮箱）
+        SPA->>BFF: [verifyExtraEmailOtp] challengeId + code
+        alt 码错但可重试（400，context.attemptsRemaining 剩余次数）
+            BFF-->>SPA: 提示验证失败，可再输
+        else 过期 / 已消费失败 / 被新挑战替代（410）或尝试超限（423）
+            BFF-->>SPA: 挑战作废，需重新发起（回到第 1 步）
+        else 通过（已成功挑战的同码重试 = 重放首次结果）
+            BFF-->>SPA: 201 新附加接收方（经验证）
+            SPA->>BFF: [getNotificationSettings] 刷新列表
+        end
+    end
+```
+
+- 重发验证码 = 冷却结束后再调 [`requestExtraEmailOtp`]（新挑战、同一候选邮箱的旧挑战失效；不同候选邮箱可并行验证）。
+- 验码成功但响应丢失时，以同码重试同一挑战 → 重放首次结果（返回已创建接收方，不会误报 410 过期）。
+- 该验证只授予通知接收资格，不创建 / 修改任何登录账号或安全凭据。
+
+## 流程 2：微信通知接收方扫码绑定
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as 商户后台 SPA
+    participant BFF as BFF
+    participant WX as 微信（用户手机）
+
+    Note over SPA: 通知设置页微信区，点 Bind WeChat
+    SPA->>BFF: [createWechatBindSession]
+    alt 会话创建失败（500 / 502 / 504）
+        BFF-->>SPA: 提示稍后重试
+    else 会话创建
+        BFF-->>SPA: 201 sessionId + 二维码 + expiresAt
+        Note over SPA: 展示二维码，有效期内轮询（轮询节奏由前端统一策略管理，非契约下发）
+        par 用户侧扫码
+            WX->>WX: 扫码关注 / 授权（异步，绑定结果由后端承接）
+        and SPA 轮询
+            loop 会话有效期内
+                SPA->>BFF: [getWechatBindSession] sessionId
+                BFF-->>SPA: pending / completed（携 boundRecipient）/ expired
+            end
+        end
+        alt completed
+            SPA->>BFF: [getNotificationSettings] 刷新绑定列表
+            Note over SPA: 同一微信重复扫码不重复加入（返回既有接收方）
+        else expired（取消 / 超时 / 扫码失败）
+            Note over SPA: 不新增绑定（过期后扫码不生效），可重新发起（回到第 1 步）
+        end
+    end
+```
+
+- 解绑 = [`removeWechatNotifyRecipient`]（不影响微信快捷登录绑定，两者互不同步）。
+
+## 流程 3：站内信（铃铛 → 列表 → 详情自动已读）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as 商户后台 SPA
+    participant BFF as BFF
+
+    Note over SPA: 顶栏常驻（登录后）
+    SPA->>BFF: [getNoticeUnreadCount]
+    BFF-->>SPA: 商户级未读计数（铃铛 Badge）
+    Note over SPA: 点击铃铛进入列表
+    SPA->>BFF: [listNotices] 分页
+    BFF-->>SPA: 倒序分页（含已读 / 未读 + 样式 + unreadCount）
+    Note over SPA: 点击某条进入详情
+    SPA->>BFF: [getNotice] noticeId
+    alt 不存在 / 不属当前商户（404）
+        BFF-->>SPA: 提示返回列表（计数不变）
+    else 详情返回
+        BFF-->>SPA: 标题 + 时间 + 富文本正文
+        SPA->>BFF: [markNoticeRead] noticeId（随详情加载自动发出）
+        BFF-->>SPA: READ + 最新未读计数（已读条重复回执 = 幂等无变化）
+    end
+    opt 全部已读
+        SPA->>BFF: [markAllNoticesRead]
+        BFF-->>SPA: unreadCount = 0
+    end
+```
+
+- 首页摘要区直调 [`getNoticeSummary`]（最新 N 条，条数默认可配置），点击跳列表 / 详情。
+- 已读态商户级共享：任一操作员回执后，其他操作员的计数 / 列表随下次拉取同步下降。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 (20-06) — 前端契约面
-  version: 0.5.7
+  version: 0.5.8
   contact:
     name: 商户后台 BFF
   description: |
@@ -527,10 +527,12 @@ paths:
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
         '429':
-          $ref: '#/components/responses/TooManyRequests'
+          $ref: '#/components/responses/TooManyRequestsWithCooldown'
       x-error-codes:
         '409':
           - 208001
+        '429':
+          - 208013
   /refund-reserve/funding:
     post:
       tags:
@@ -1621,6 +1623,14 @@ components:
                     - string
                     - 'null'
                   description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
+                attemptsRemaining:
+                  type: integer
+                  minimum: 0
+                  description: OTP / 挑战错误但可重试时的剩余尝试次数（错误可重试 400 携带；**整数类型、走 context 结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+                cooldownSeconds:
+                  type: integer
+                  minimum: 0
+                  description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
     Timestamp:
       type: string
       format: date-time
@@ -1634,6 +1644,24 @@ components:
             amount:
               type: string
               pattern: ^[1-9][0-9]*$
+    ResendCooldownError:
+      description: 重发冷却错误体（`TooManyRequestsWithCooldown` 用；OTP 挑战 / 邀请链接等重发场景通用）：在 MerchantBffError 上把 `code` 钉死 208013、`context.cooldownSeconds` 强制必带（整数冷却剩余秒数——覆盖刷新 / 跨标签页，首次成功响应的 `cooldownSeconds` 之外的权威剩余值）。
+      allOf:
+        - $ref: '#/components/schemas/MerchantBffError'
+        - type: object
+          required:
+            - context
+          properties:
+            code:
+              const: 208013
+            context:
+              type: object
+              required:
+                - cooldownSeconds
+              properties:
+                cooldownSeconds:
+                  type: integer
+                  minimum: 0
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context
@@ -1723,12 +1751,18 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
-    TooManyRequests:
-      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
+    TooManyRequestsWithCooldown:
+      description: |
+        429 Resend 冷却中：错误体 = `MerchantBffError`，**剩余冷却秒数走 `context.cooldownSeconds`**（整数、权威值——覆盖刷新 / 跨标签页，不依赖首次成功响应的 `cooldownSeconds`）。整数 `code` 见该 op `x-error-codes`。前端据此从收到响应时刻本地倒计时、冷却结束前禁重发。
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
+            $ref: '#/components/schemas/ResendCooldownError'
+          example:
+            code: 208013
+            detail: 请求过于频繁，请稍后重试
+            context:
+              cooldownSeconds: 42
     Gone:
       description: 410 一次性凭据失效(OTP / 验证链接 过期 / 已使用)
       content:
@@ -1737,6 +1771,12 @@ components:
             $ref: '#/components/schemas/ErrorEnvelope'
     Locked:
       description: 423 登录临时锁定(防爆破)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    TooManyRequests:
+      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
       content:
         application/json:
           schema:
