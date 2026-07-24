@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开发者 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 开发者（API 凭据 / 签名密钥）—— 调用时序
+
+> 本文是 `09-开发者.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+>
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对凭据 / 密钥后端的委派**不画**（后端面，与前端无关）。点击 / 复制 / 粘贴等用户操作属 SPA 内部交互，不单列 actor。
+>
+> **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
+>
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST/PUT)一律带 `X-CSRF-Token`；**所有接口均携带 `X-Merchant-Context`（本模块无豁免）**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；**开发者页仅已激活商户可达**（非 ACTIVE → 403）；错误体统一 `MerchantBffError`（整数 `code` → 前端策略）。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
+
+## 接口 ID 对照(图例，点 operationId 跳接口)
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`getDeveloperOverview`](index.html#tag/credentials/operation/getDeveloperOverview) | `GET /developer/overview` | 开发者页聚合（凭据 + 集成参数 + 签名密钥态 + 平台公钥） |
+| [`revealGatewayCredential`](index.html#tag/credentials/operation/revealGatewayCredential) | `POST /developer/gateway-credential/disclosures` | 授权披露 Gateway Credential 完整值（reveal / copy，受审计） |
+| [`replaceMerchantSigningKey`](index.html#tag/signing-keys/operation/replaceMerchantSigningKey) | `PUT /developer/signing-key` | 登记 / 替换商户签名公钥（触发轮换宽限期） |
+
+## 流程 1：查看 / 复制 API 凭据（默认脱敏 → 授权披露完整值）
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as 商户后台 SPA
+    participant BFF as BFF
+
+    Note over SPA: 进入开发者页（Settings/Developer）
+    SPA->>BFF: [getDeveloperOverview]
+    alt 聚合加载失败（500）
+        BFF-->>SPA: 整体报错、不返回任何部分凭据（前端占位 / 错误态）
+    else 加载成功
+        BFF-->>SPA: Merchant Code 明文 + Gateway Credential 脱敏（末 4 位 / unavailable）+ 集成参数 + 签名密钥态 + 平台公钥
+    end
+    Note over SPA: Merchant Code / 平台公钥 / 已登记公钥 = 非秘密，直接 Copy（无需披露）
+    opt 查看 / 复制 Gateway Credential 完整值
+        SPA->>BFF: [revealGatewayCredential] accessType=reveal｜copy
+        alt credential 未签发 / 已吊销（409 208014）
+            BFF-->>SPA: 无完整值可披露（提示联系平台 / 完成开通）
+        else 凭据服务暂不可用（502 / 504）
+            BFF-->>SPA: 提示稍后重试（不返回部分值）
+        else 审计提交失败（500）
+            BFF-->>SPA: 不披露（先记录访问审计、成功才返明文）
+        else 披露成功（已审计、no-store）
+            BFF-->>SPA: 200 完整 Gateway Credential
+            Note over SPA: 展示完整值 / 写入剪贴板；每次披露均已留审计
+        end
+    end
+```
+
+- 脱敏展示（末 4 位）**不触发**访问审计；仅完整值 reveal / copy 经受审计端点、每次各自留痕。
+- Merchant Code、平台公钥、已登记的商户公钥均为非秘密，直接在聚合内明文返回、无需披露端点。
+
+## 流程 2：登记 / 替换商户签名公钥
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SPA as 商户后台 SPA
+    participant BFF as BFF
+
+    Note over SPA: 签名密钥区，粘贴 RSA2 公钥 PEM（未登记 = 首次登记；已登记 = 替换）
+    SPA->>BFF: [replaceMerchantSigningKey] publicKeyPem + expectedKeyVersion（所见基线：null=未登记 / N=当前版本）
+    alt 空 / 非 PEM / 非 RSA2 可解析（400 204011）
+        BFF-->>SPA: 校验失败，不写入（提示修正 PEM）
+    else 版本漂移（409 208004：已被他人登记 / 替换）
+        BFF-->>SPA: 重载最新公钥态后再试（防旧页 / 多操作员覆盖）
+    else 活跃宽限期内不可再替换（409 208015：上次替换旧钥仍在宽限期）
+        BFF-->>SPA: 提示须待宽限结束再替换（当前公钥 / 宽限期不受影响）
+    else 密钥服务暂不可用（502 / 504）
+        BFF-->>SPA: 提示稍后重试（未写入）
+    else 登记 / 替换成功
+        BFF-->>SPA: 200 registered + keyVersion
+        Note over SPA: 替换进入轮换宽限期——旧钥宽限期内仍可验入站签名、宽限期后仅新钥
+    end
+```
+
+- 登记 = 替换（覆盖当前唯一一把公钥）；**与当前公钥相同的重复提交 = no-op**（不新版本 / 不重启宽限期 / 不重复审计），仅不同公钥触发轮换；**多操作员 / 旧页并发以 `expectedKeyVersion` 版本前置防覆盖**（版本不一致 → 409 208004、重载重试），本写不自动重试；不提供清除 / 解绑。
+- 密钥存储、轮换宽限期与生命周期审计由后端密钥服务负责；本页只发起、不实现宽限期。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>
