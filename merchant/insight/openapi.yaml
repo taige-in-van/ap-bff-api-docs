@@ -1,0 +1,722 @@
+openapi: 3.1.0
+info:
+  title: 商户后台 数据洞察 (20-08 BFF) — 前端契约面
+  version: 0.4.2
+  contact:
+    name: 商户后台 BFF
+  description: |
+    Dashboard 数据洞察前端契约：概览（KPI 卡 Gross / Refund / Net / To Settle + Payment Distribution 支付方式分布， 右上角全局时间窗驱动、默认今日）+ 趋势（Transaction Volume + Orders 双序列，自带本月 / 上月切换、**独立于全局时间窗**）。 数据洞察为**只读呈现**：服务端按所选时间窗返回聚合结果（`Net = Gross − Refund` 由服务端算出、可为负）， **FE 只从各分片金额派生展示百分比、不自行汇总**；To Settle 与账户账务与清结算页同源、口径一致。 金额一律**商户唯一结算币种**（最小币种单位整数字符串）；日期为**商户营业日**（`BusinessDate` —— 在业务事实达成时固化的归属日标签， 按字面值匹配、不按当前时区切桶；改商户时区 / 日切时刻不改变历史各日数值）。 merchant scope 从会话取、不信请求体；全部 op merchant-current-scoped，均挂 MerchantContextGuard（stale-tab 守卫，无豁免）。 **全部端点前置 `Merchant.status = ACTIVE` 门禁**（非 ACTIVE → 403；Dashboard 仅已激活商户可达）。 **区块降级不整页失败**：某区块取数超时 / 失败 → 该区块 `status=unavailable`（HTTP 仍 200 返回），其余区块照常渲染（区块隔离）。 字段类型以本 spec 为准。
+servers:
+  - url: /api/merchant/v1
+    description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话）
+security:
+  - cookieAuth: []
+tags:
+  - name: insight
+    description: Dashboard 数据洞察：概览（KPI + 分布，全局时间窗驱动）+ 趋势（双序列，本月 / 上月独立切换）。
+paths:
+  /insights/overview:
+    get:
+      tags:
+        - insight
+      operationId: getDashboardInsightOverview
+      summary: 读 Dashboard 概览（KPI 卡 + Payment Distribution；全局时间窗驱动）
+      description: |
+        返回当前商户 Dashboard 概览区块，受右上角**全局时间窗**（`from` / `to` **商户营业日**区间、闭区间；均省略 = 今日，相对日期目标由服务端按该商户当前生效配置求出）驱动： **KPI 卡** —— Gross Sales / Refund Amount / Net Sales（= Gross − Refund）按窗聚合（结算币种）+ **To Settle 即时态**（当前待结算派生值、**不随时间窗变化**）； **Payment Distribution** —— 窗内成功收款按支付方式分布（金额 + 归并「其他」；占比由 FE 从金额派生）。 Refund Amount 按退款申请时间入窗、排除系统自动退款。 **区块降级（分组判别）**：**Gross / Refund / Net 为一组、三项整体判别**（同时 `available` 或同时 `unavailable`）； **To Settle** 与 **Payment Distribution** 各自独立判别——某项取数超时 / 失败 → 对应组 / 块 `unavailable`（**非 0**）、其余照常渲染。 「窗内无交易」= **空态**（Gross / Refund / Net = `available` 且金额为 "0"、分布 `available` 且 slices 为空），与 `unavailable` 语义分离。 **`400`**：参数校验（`from` / `to` 未成对 / 格式错 / `to < from`）；**时间窗跨度超上限**（含首尾 > 366 自然日，默认值、可配置） → `204012` `WINDOW_RANGE_TOO_LARGE`（缩小日期范围后重试，不截断、不降级取部分窗）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: from
+          in: query
+          required: false
+          description: 时间窗起始（**商户营业日**，闭区间左端；`from` / `to` 须同时提供或同时省略，省略 = 今日；`to < from` → 400；**起止跨度〔含首尾〕> 366 自然日〔默认值、可配置〕→ 400 `WINDOW_RANGE_TOO_LARGE`**）。按固化的归属日标签**字面值匹配**；前端不做时区换算。
+          schema:
+            $ref: '#/components/schemas/BusinessDate'
+        - name: to
+          in: query
+          required: false
+          description: 时间窗结束（**商户营业日**，闭区间右端；与 `from` 成对）。
+          schema:
+            $ref: '#/components/schemas/BusinessDate'
+      responses:
+        '200':
+          description: Dashboard 概览（KPI + 分布；区块可各自降级）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+              examples:
+                allAvailable:
+                  summary: 全区块可用（含归并「其他」分片）
+                  value:
+                    window:
+                      from: '2026-07-24'
+                      to: '2026-07-24'
+                    currency: CAD
+                    timeZone: America/Toronto
+                    kpi:
+                      grossSales:
+                        status: available
+                        amount:
+                          amount: '1250000'
+                          currency: CAD
+                      refundAmount:
+                        status: available
+                        amount:
+                          amount: '80000'
+                          currency: CAD
+                      netSales:
+                        status: available
+                        amount:
+                          amount: '1170000'
+                          currency: CAD
+                      toSettle:
+                        status: available
+                        amount:
+                          amount: '940000'
+                          currency: CAD
+                    distribution:
+                      status: available
+                      slices:
+                        - paymentMethod:
+                            code: wechat
+                            displayName: WeChat Pay
+                          amount:
+                            amount: '700000'
+                            currency: CAD
+                        - paymentMethod:
+                            code: alipay
+                            displayName: Alipay
+                          amount:
+                            amount: '400000'
+                            currency: CAD
+                        - paymentMethod:
+                            code: _other
+                            displayName: Other
+                          amount:
+                            amount: '150000'
+                            currency: CAD
+                          aggregated: true
+                sourceDegraded:
+                  summary: 交易统计源失败 → Gross/Refund/Net + 分布 unavailable；To Settle 独立源仍可用
+                  value:
+                    window:
+                      from: '2026-07-01'
+                      to: '2026-07-24'
+                    currency: CAD
+                    timeZone: America/Toronto
+                    kpi:
+                      grossSales:
+                        status: unavailable
+                      refundAmount:
+                        status: unavailable
+                      netSales:
+                        status: unavailable
+                      toSettle:
+                        status: available
+                        amount:
+                          amount: '940000'
+                          currency: CAD
+                    distribution:
+                      status: unavailable
+                emptyWindow:
+                  summary: 窗内无交易 → 空态（金额 "0" / 空 slices、非 unavailable）；To Settle 仍为即时值
+                  value:
+                    window:
+                      from: '2026-07-24'
+                      to: '2026-07-24'
+                    currency: CAD
+                    timeZone: America/Toronto
+                    kpi:
+                      grossSales:
+                        status: available
+                        amount:
+                          amount: '0'
+                          currency: CAD
+                      refundAmount:
+                        status: available
+                        amount:
+                          amount: '0'
+                          currency: CAD
+                      netSales:
+                        status: available
+                        amount:
+                          amount: '0'
+                          currency: CAD
+                      toSettle:
+                        status: available
+                        amount:
+                          amount: '940000'
+                          currency: CAD
+                    distribution:
+                      status: available
+                      slices: []
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      x-error-codes:
+        '400':
+          - 204012
+        '409':
+          - 208001
+  /insights/trend:
+    get:
+      tags:
+        - insight
+      operationId: getDashboardInsightTrend
+      summary: 读 Transaction Volume 趋势（Volume + Orders 双序列；本月 / 上月独立切换）
+      description: |
+        返回当前商户交易趋势双序列，按**所选月份**（`month=current|previous`，默认 current；本月 / 上月的目标范围由服务端在查询时按该商户当前生效配置求出）、按**固化的商户营业日标签**逐**日**聚合： **Transaction Volume** = 成功收款交易额（结算币种）、**Orders** = 成功订单 / 交易笔数。 **趋势图时间控件独立**——仅受本端点 `month` 管辖，**不受** `/insights/overview` 全局时间窗影响（两控件不合并）；范围固定本月 / 上月两档。 「所选月份内无交易」= **空态**（`available` 且 `points` 为空，FE 按零基线渲染），与取数失败 `unavailable` 语义分离。 `points` 仅含有数据的日；缺数据日由 FE 补零基线。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: month
+          in: query
+          required: false
+          description: 趋势月份档（本月 / 上月二选一，默认本月）。封闭枚举；范围固定、不接受任意区间、不随全局时间窗变化。
+          schema:
+            type: string
+            enum:
+              - current
+              - previous
+            default: current
+      responses:
+        '200':
+          description: 趋势双序列（可整体降级 unavailable）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardTrend'
+              examples:
+                available:
+                  summary: 有数据（Volume + Orders 双序列）
+                  value:
+                    status: available
+                    month: current
+                    window:
+                      from: '2026-07-01'
+                      to: '2026-07-31'
+                    currency: CAD
+                    timeZone: America/Toronto
+                    points:
+                      - date: '2026-07-01'
+                        volume:
+                          amount: '320000'
+                          currency: CAD
+                        orders: 41
+                      - date: '2026-07-02'
+                        volume:
+                          amount: '285000'
+                          currency: CAD
+                        orders: 37
+                emptyMonth:
+                  summary: 所选月份无交易 → 空态（空 points；FE 按 window 全月补零基线）
+                  value:
+                    status: available
+                    month: previous
+                    window:
+                      from: '2026-06-01'
+                      to: '2026-06-30'
+                    currency: CAD
+                    timeZone: America/Toronto
+                    points: []
+                unavailable:
+                  summary: 取数失败 → 趋势块「暂不可用」
+                  value:
+                    status: unavailable
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/MerchantBffConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+      x-error-codes:
+        '409':
+          - 208001
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-msession
+      description: |
+        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+  schemas:
+    DashboardOverview:
+      type: object
+      additionalProperties: false
+      required:
+        - window
+        - currency
+        - timeZone
+        - kpi
+        - distribution
+      properties:
+        window:
+          description: 实际生效的时间窗（**商户营业日**、闭区间；回显默认「今日」= 服务端按当前生效配置求出的目标营业日，供 FE 对齐）
+          allOf:
+            - $ref: '#/components/schemas/DateWindow'
+        currency:
+          description: 商户唯一结算币种（KPI / 分布金额均以此计；供整块标注 + 空态 / unavailable 时的币种提示）
+          allOf:
+            - $ref: '#/components/schemas/Currency'
+        timeZone:
+          type: string
+          minLength: 1
+          description: 商户 IANA 时区（回显商户上下文；**FE 不得用于日期换算**——`window` / 日期为 `BusinessDate` 固化标签、字面呈现，offset ≠ timezone）
+        kpi:
+          $ref: '#/components/schemas/DashboardKpi'
+        distribution:
+          $ref: '#/components/schemas/DistributionBlock'
+    DateWindow:
+      type: object
+      additionalProperties: false
+      required:
+        - from
+        - to
+      properties:
+        from:
+          description: 起始日（商户营业日、闭区间左端）
+          allOf:
+            - $ref: '#/components/schemas/BusinessDate'
+        to:
+          description: 结束日（商户营业日、闭区间右端）
+          allOf:
+            - $ref: '#/components/schemas/BusinessDate'
+    DashboardKpi:
+      description: |
+        四项 Dashboard KPI。**Gross / Refund / Net 为一组**—— **要么三项同时 available、要么三项同时 unavailable**（`Net = Gross − Refund` 由服务端算出）； **To Settle 独立判别**、可单独降级。组内混合态（如 Gross available 而 Refund unavailable）**不会出现**。
+      oneOf:
+        - $ref: '#/components/schemas/DashboardKpiMoneyAvailable'
+        - $ref: '#/components/schemas/DashboardKpiMoneyUnavailable'
+    DashboardKpiMoneyAvailable:
+      type: object
+      additionalProperties: false
+      description: 该组可用——Gross / Refund / Net 三项均 available（To Settle 独立、可 available 或 unavailable）。
+      required:
+        - grossSales
+        - refundAmount
+        - netSales
+        - toSettle
+      properties:
+        grossSales:
+          description: Gross Sales（窗内成功收款合计、结算币种）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoneyAvailable'
+        refundAmount:
+          description: Refund Amount（窗内退款合计；入窗 = 退款申请营业日、排除系统自动退款）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoneyAvailable'
+        netSales:
+          description: Net Sales（= Gross Sales − Refund Amount，服务端算出；可为负，用 Money）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoneyAvailable'
+        toSettle:
+          description: To Settle（当前待结算即时态派生值、**不随时间窗变化**；与账户账务与清结算页同源、口径一致；**独立判别、可单独降级**）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoney'
+    DashboardKpiMoneyUnavailable:
+      type: object
+      additionalProperties: false
+      description: 该组降级——Gross / Refund / Net 三项均 unavailable（取数失败；To Settle 独立、仍可 available）。
+      required:
+        - grossSales
+        - refundAmount
+        - netSales
+        - toSettle
+      properties:
+        grossSales:
+          description: Gross Sales（取数失败 → 暂不可用）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoneyUnavailable'
+        refundAmount:
+          description: Refund Amount（取数失败 → 暂不可用）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoneyUnavailable'
+        netSales:
+          description: Net Sales（Gross / Refund 不可用 → 无法算出、暂不可用）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoneyUnavailable'
+        toSettle:
+          description: To Settle（**独立判别**——上面三项降级时本项仍可 available）
+          allOf:
+            - $ref: '#/components/schemas/MetricMoney'
+    MetricMoney:
+      description: |
+        单项 KPI 金额（结算币种）——按 `status` 判别：**available 必携 amount、unavailable 无 amount** （封闭枚举；新增取值属破坏性、走并行版本）。**空态（窗内无数据）= available 且 amount 为 "0"、非 unavailable**； `unavailable` 仅表该项取数失败（对应 KPI 卡「暂不可用」而非 0）。
+      oneOf:
+        - $ref: '#/components/schemas/MetricMoneyAvailable'
+        - $ref: '#/components/schemas/MetricMoneyUnavailable'
+      discriminator:
+        propertyName: status
+        mapping:
+          available: '#/components/schemas/MetricMoneyAvailable'
+          unavailable: '#/components/schemas/MetricMoneyUnavailable'
+    MetricMoneyAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - amount
+      properties:
+        status:
+          type: string
+          const: available
+        amount:
+          description: 金额（最小币种单位整数字符串 + 结算币种；空态为 "0"）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+    MetricMoneyUnavailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: unavailable
+          description: 取数失败 / 超时（KPI 卡「暂不可用」、不以 0 冒充）
+    DistributionBlock:
+      description: |
+        Payment Distribution 分布块——按 `status` 判别：**available 携 slices（可空 = 空态）、unavailable 无 slices**。 「窗内无交易」= available + 空 slices（非 unavailable）；`unavailable` 仅表该块取数失败。
+      oneOf:
+        - $ref: '#/components/schemas/DistributionAvailable'
+        - $ref: '#/components/schemas/DistributionUnavailable'
+      discriminator:
+        propertyName: status
+        mapping:
+          available: '#/components/schemas/DistributionAvailable'
+          unavailable: '#/components/schemas/DistributionUnavailable'
+    DistributionAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - slices
+      properties:
+        status:
+          type: string
+          const: available
+        slices:
+          type: array
+          description: |
+            各支付方式收款金额分片（占比由 FE 从金额派生、和为 100%）；空数组 = 空态（窗内无交易）。归并「其他」为单独一片（`aggregated=true`）。 **响应恒等式（契约保证，FE 无需运行时校验或纠偏）**：`Σ slices[].amount.amount = kpi.grossSales.amount.amount`（两者均 `available` 时；**同一结算币种**）—— 分布与 Gross 同按交易的**资金归属营业日**入窗，故窗口内合计必然相等；**至多一个** `aggregated=true` 分片。
+          items:
+            $ref: '#/components/schemas/DistributionSlice'
+          contains:
+            $ref: '#/components/schemas/DistributionSliceAggregated'
+          minContains: 0
+          maxContains: 1
+    DistributionUnavailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: unavailable
+          description: 取数失败 / 超时（分布块「暂不可用」）
+    DistributionSlice:
+      description: |
+        单个支付方式分片。**聚合哨兵与 `aggregated` 互锁**：聚合片必为 `paymentMethod.code = _other` + `aggregated = true`； 普通片 `code ≠ _other` 且 `aggregated` 省略或 `false`。**一次响应至多一个聚合片**（数组级约束、服务端保证，见 `slices` 描述）。
+      oneOf:
+        - $ref: '#/components/schemas/DistributionSliceMethod'
+        - $ref: '#/components/schemas/DistributionSliceAggregated'
+    DistributionSliceMethod:
+      type: object
+      additionalProperties: false
+      description: 具体支付方式分片（非聚合）。
+      required:
+        - paymentMethod
+        - amount
+      properties:
+        paymentMethod:
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethodRef'
+            - type: object
+              properties:
+                code:
+                  not:
+                    const: _other
+        amount:
+          description: 该支付方式窗内成功收款金额（结算币种）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        aggregated:
+          type: boolean
+          const: false
+          default: false
+          description: 非聚合片（省略等价 `false`）。
+    DistributionSliceAggregated:
+      type: object
+      additionalProperties: false
+      description: 归并「其他」聚合片——占比低于归并阈值（默认值、可配置）的支付方式合并；每次响应至多一片。
+      required:
+        - paymentMethod
+        - amount
+        - aggregated
+      properties:
+        paymentMethod:
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethodRef'
+            - type: object
+              properties:
+                code:
+                  const: _other
+        amount:
+          description: 归并入「其他」的收款金额合计（结算币种）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        aggregated:
+          type: boolean
+          const: true
+          description: 恒 `true`（聚合片标识；与 `code = _other` 互锁）。
+    PaymentMethodRef:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - displayName
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: 支付方式稳定标识（服务端动态配置，**FE 不得 hardcode 枚举**；归并「其他」= 聚合哨兵 `_other`）。
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 默认展示名（**非本地化**、不随 locale 变；FE 按 `code` 本地化、此值作 unknown-safe fallback；归并聚合片的默认展示名 = "Other"）。
+    DashboardTrend:
+      description: |
+        趋势响应——按 `status` 判别：**available 携双序列、unavailable 无**。「所选月份无交易」= available + 空 `points`（空态、零基线）， 与取数失败 `unavailable` 分离。趋势独立于全局时间窗（仅 `month` 管辖）。
+      oneOf:
+        - $ref: '#/components/schemas/TrendAvailable'
+        - $ref: '#/components/schemas/TrendUnavailable'
+      discriminator:
+        propertyName: status
+        mapping:
+          available: '#/components/schemas/TrendAvailable'
+          unavailable: '#/components/schemas/TrendUnavailable'
+    TrendAvailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - month
+        - window
+        - currency
+        - timeZone
+        - points
+      properties:
+        status:
+          type: string
+          const: available
+        month:
+          type: string
+          enum:
+            - current
+            - previous
+          description: 生效月份档（回显请求值）
+        window:
+          description: |
+            服务端解析后的该档**实际营业日范围**（闭区间；按该商户当前生效的时区 + 日切时刻求出）。 **FE 据此在范围内补零基线**——`points` 稀疏、空月时更是零信息，**FE 不得自行按浏览器时区推算年月**。
+          allOf:
+            - $ref: '#/components/schemas/DateWindow'
+        currency:
+          description: 结算币种（Volume 金额计价）
+          allOf:
+            - $ref: '#/components/schemas/Currency'
+        timeZone:
+          type: string
+          minLength: 1
+          description: 商户 IANA 时区（回显商户上下文；**FE 不得用于日期换算**——`points[].date` 为 `BusinessDate` 固化标签、字面呈现）
+        points:
+          type: array
+          description: |
+            按日双序列点（**仅有数据的日**、稀疏；空数组 = 空态）。**契约约束**：`date` 唯一、按日期**升序**、 且全部落在 `window` 闭区间内；缺数据日由 FE 在 `window` 范围内补零基线。
+          items:
+            $ref: '#/components/schemas/TrendPoint'
+    TrendUnavailable:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: unavailable
+          description: 取数失败 / 超时（趋势块「暂不可用」）
+    TrendPoint:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - volume
+        - orders
+      properties:
+        date:
+          description: 商户营业日（在业务事实达成时固化的归属日标签、字面值）
+          allOf:
+            - $ref: '#/components/schemas/BusinessDate'
+        volume:
+          description: 当日成功收款交易额（Transaction Volume、结算币种）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        orders:
+          type: integer
+          minimum: 0
+          description: 当日成功订单 / 交易笔数（Orders）
+    BusinessDate:
+      type: string
+      format: date
+      description: '**归属日标签**(无偏移日历日期,`YYYY-MM-DD`)。在**业务事实达成时刻**按当时生效配置 **一次算定并固化**、此后不可变。三个切日主体各一: **商户营业日**(商户 IANA 时区 + 日切时刻)、**系统运营日**(运营方时区、无日切时刻,= 清算日)、 **通道日**(通道声明的可空外部标签,平台不推算不兜底)。 **消费方硬约束**:① **不带时区、前端不得做任何时区换算**(禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天); ② 日期范围过滤**按字面值匹配**、**不做时区换算**; ③ **不得按当前配置重算历史归属**(改商户时区 / 日切时刻不改变已固化标签)。 相对日期预设(今日 / 本月 / 上月)由服务端在查询观察点按当前生效配置求出目标日、再按字面值匹配。'
+      examples:
+        - '2026-05-19'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。可重定义面默认最小单位整数字符串;十进制金额须接口契约显式声明。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    ErrorEnvelope:
+      type: object
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      required:
+        - code
+        - detail
+      properties:
+        code:
+          type: integer
+          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+        detail:
+          type: string
+          description: 错误描述(面向调用方;本地化按 locale)。
+        links:
+          type: object
+          description: 可选:错误说明 / 后续恢复操作链接。
+          additionalProperties:
+            type: string
+        traceId:
+          type: string
+          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
+        details:
+          type: array
+          description: 可选:字段级校验错误。
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+    MerchantBffError:
+      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
+      allOf:
+        - $ref: '#/components/schemas/ErrorEnvelope'
+        - type: object
+          properties:
+            context:
+              type: object
+              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
+              properties:
+                currentMerchantId:
+                  type:
+                    - string
+                    - 'null'
+                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
+                attemptsRemaining:
+                  type: integer
+                  minimum: 0
+                  description: OTP / 挑战错误但可重试时的剩余尝试次数（错误可重试 400 携带；**整数类型、走 context 结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+                cooldownSeconds:
+                  type: integer
+                  minimum: 0
+                  description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+  parameters:
+    MerchantContextGuard:
+      name: X-Merchant-Context
+      in: header
+      required: true
+      description: |
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行； **不一致 → 409 `MerchantBffConflict`**（`code` `208001`、`MERCHANT_CONTEXT_CHANGED`）——**读不返回错商户数据、写不执行**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：listMerchants（返回 currentMerchantId 的 re-sync 入口）、switchCurrentMerchant（切换当前商户）、withdrawOnboardingApplication（目标由 path 指定、与当前商户无关）、以及不依赖当前商户的接口。
+      schema:
+        type: string
+        minLength: 1
+  responses:
+    BadRequest:
+      description: 400 业务/校验错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Unauthorized:
+      description: 401 未认证 / 凭证无效或已撤销
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Forbidden:
+      description: 403 无权限(fail-secure,默认拒绝)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    MerchantBffConflict:
+      description: |
+        409 冲突。前端据整数 `code` 区分子因——**常见 `208xxx` 商户后台 BFF 业务·资源型**（下列枚举）；**部分 409 另带身份类业务码**（如 `968xxx`：Login ID 占用 / 改邮箱在途等），**具体码以该 op 的 `x-error-codes` 为准**（另有同域 op 专属 `208xxx`，均不在此枚举）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**必携 `context.currentMerchantId`** 供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208005` 幂等键复用但 payload 不一致。 （`208004` 乐观锁基线漂移为 op 专属〔如签名公钥 `expectedKeyVersion` 版本校验〕，见该 op `x-error-codes`、不在此通用枚举。） 前端动作：208001 刷新当前商户、208002 提示已存在、208003 重载最新态、208005 排查重复请求。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MerchantBffError'
+          examples:
+            staleTab:
+              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
+              value:
+                code: 208001
+                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
+                context:
+                  currentMerchantId: '1000024'
+            businessConflict:
+              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
+              value:
+                code: 208002
+                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
+            idempotencyConflict:
+              summary: 幂等键冲突（code 208005，同 Idempotency-Key 复用但请求内容不一致；业务·资源型无 context）
+              value:
+                code: 208005
+                detail: 该幂等键已用于其他请求内容，请核对原请求；如确需发起新的业务操作，再使用新幂等键
+    InternalServerError:
+      description: 500 服务端内部错误(可重试)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

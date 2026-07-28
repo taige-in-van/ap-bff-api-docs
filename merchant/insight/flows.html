@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>数据洞察 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="./">← 本模块 API 文档</a> · <a href="../../">全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 数据洞察（Dashboard KPI / 趋势 / 分布）—— 调用时序
+
+> 本文是 `08-数据洞察.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**前端怎么用**（何时调、参数怎么给、响应怎么渲染、分支怎么走）。
+> **本模块两个接口都是单次读调用、彼此独立、无客户端编排**（没有「先调谁后调谁」的多步流程），故**无时序图**——直接看下方接口表与调用规则。
+>
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部委派**不画**（后端面，与前端无关）。
+>
+> **接口 ID = `operationId`**：下方每个接口标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**；表中 operationId 是**可点深链**，直达 ReDoc 接口详情。
+>
+> **通用约定**（两个接口都成立）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；**GET 为安全方法、不带 CSRF**；**两个接口均携带页面当前 merchantId（`X-Merchant-Context`）**——与会话当前商户不一致 → 409 `MERCHANT_CONTEXT_CHANGED`（读不返回错商户数据），FE 统一处理；**Dashboard 仅已激活商户可达**（未激活 → 403）；金额一律**最小币种单位整数字符串 + 币种**（如 `{ amount: "150000", currency: CAD }`）；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
+>
+> **数据洞察为只读呈现**：金额一律**商户唯一结算币种**；日期为**商户营业日**（后端在事实达成时固化的日期标签，`YYYY-MM-DD`）——**前端按字面呈现、不做任何时区换算**（禁塞进 `Date` 后按浏览器时区渲染），改商户时区 / 日切时刻**不改变历史各日数值**。
+>
+> **分块降级铁律**：某块取数失败 / 超时 → 该块 `status=unavailable`（HTTP 仍 **200**）、其余块照常渲染；**「窗内无交易」= 空态**（`available` + 金额 `"0"` / 空 `slices` / 空 `points`），与 `unavailable` **语义分离**——**空态展示 0、失败展示「暂不可用」，不互相冒充**。
+>
+> ⚠️ **design / review 阶段**契约 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
+
+## 接口 ID 对照（点 operationId 跳接口）
+
+| operationId | method + path | 用途 |
+|---|---|---|
+| [`getDashboardInsightOverview`](index.html#tag/insight/operation/getDashboardInsightOverview) | `GET /insights/overview` | Dashboard 概览：KPI 卡（Gross / Refund / Net / To Settle）+ Payment Distribution；受右上角全局时间窗驱动 |
+| [`getDashboardInsightTrend`](index.html#tag/insight/operation/getDashboardInsightTrend) | `GET /insights/trend` | Transaction Volume 趋势（Volume + Orders 双序列）；本月 / 上月独立切换、不受全局时间窗影响 |
+
+## 概览：`getDashboardInsightOverview`
+
+**何时调**：进入 Dashboard；用户改选右上角时间窗；切换当前商户（用新 `X-Merchant-Context` 重新拉取）。
+
+**参数**：`from` / `to`（**商户营业日**、闭区间）——**必须同时给或同时省略**（省略 = 今日，由后端按该商户当前配置解析）；**起止跨度含首尾有上限（默认最长 366 天、部署可配置）**。
+
+**响应渲染**（字段名即 OpenAPI 字段）：
+
+| 块 | 字段 | 渲染 |
+|---|---|---|
+| 时间窗回显 | `window.from` / `window.to` | 实际生效范围（省略参数时即后端解析出的「今日」），用于对齐筛选控件 |
+| 币种 / 时区 | `currency` / `timeZone` | 金额按 `currency` 展示；`timeZone` 仅作商户上下文标注，**不得用于日期换算** |
+| KPI 三项组 | `kpi.grossSales` / `kpi.refundAmount` / `kpi.netSales` | **三项同进同出**：要么都 `available`（各带 `amount`）、要么都 `unavailable` |
+| KPI 独立项 | `kpi.toSettle` | **独立**：可与上面三项状态不同；反映当前待结算，**不随时间窗变化**，与账户账务与清结算页口径一致 |
+| 分布 | `distribution.slices[]`（`paymentMethod.code` / `paymentMethod.displayName` / `amount` / `aggregated`）| **独立**块；占比由前端从各分片 `amount` 派生（合计 100%）；`aggregated=true` 的分片是归并「其他」（`code` 为 `_other`，**至多一片**）；`slices: []` = 空态 |
+
+- 每块按各自 `status` 渲染：`available` 展示值（含 `"0"` 空态）、`unavailable` 展示「暂不可用」（**不以 0 冒充**）。
+- **恒等式**（契约保证、非前端职责）：各分片 `amount.amount` 合计 = 同一响应的 `kpi.grossSales.amount.amount`（两者均 `available` 时、同币种）——前端直接渲染即可，无需运行时校验或纠偏。
+
+**错误分支**：
+
+| 情况 | 响应 | 前端动作 |
+|---|---|---|
+| `from` / `to` 只给一个、日期格式非法、`to` 早于 `from` | `400` | 修正筛选输入后重试 |
+| 起止跨度超过上限（默认 366 天、可配置） | `400`（`204012`）| 提示缩小日期范围（**不会截断、也不会只返回部分范围**）|
+| 页面商户 ≠ 会话当前商户 | `409`（`MERCHANT_CONTEXT_CHANGED`）| 刷新到当前商户后重取 |
+| 无权访问（含商户未激活 / 无该功能权限，**响应不区分**）| `403` | 按通用 403 处理；**不据此推断跳转目的地**——区域分流以启动 / 分流契约（`routeTo`）为准 |
+
+## 趋势：`getDashboardInsightTrend`
+
+**何时调**：进入 Dashboard；用户在趋势区块切换「本月 / 上月」。**与右上角全局时间窗无关**——改时间窗**不重取**本接口。
+
+**参数**：`month=current | previous`（默认 `current`；固定两档、不接受任意区间）。
+
+**响应渲染**：
+
+- `window.from` / `window.to`：后端按该商户当前配置解析出的**该月实际营业日起止**——**前端补零基线以它为准，不要自行按浏览器时区推算年月**。
+- `points[]`：`date` / `volume` / `orders`——**稀疏**（仅有数据的日）、`date` 唯一且升序、全部落在 `window` 内；**缺数据日由前端在 `window` 范围内补零基线**。
+- `points: []` + `status: available` = 该月无交易（空态、按零基线渲染）；`status: unavailable` = 取数失败（趋势块「暂不可用」，**不阻塞概览**）。
+- 切「上月」= 仅重调本接口 `month=previous` 重绘，**不触发概览刷新**。
+
+**错误分支**：非法 `month`（非 `current` / `previous`）→ 通用 `400`（**无额外业务码**）；`409` / `403` 同概览。
+
+## 跨接口约定
+
+- **两个时间控件互不影响**：右上角全局时间窗只控概览；趋势区块的「本月 / 上月」只控趋势，两者不合并。
+- **切商户**：以新 `X-Merchant-Context` 重新拉取两个接口，按目标商户结算币种呈现；相对预设（今日 / 本月 / 上月）由后端按**目标商户**当前配置解析。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'});
+</script>
+</body></html>
