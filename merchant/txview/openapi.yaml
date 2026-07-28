@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 交易管理 (20-05 BFF) — 前端契约面
-  version: 0.4.1
+  version: 0.4.4
   contact:
     name: 商户后台 BFF
   description: |
@@ -849,17 +849,15 @@ components:
       in: query
       required: false
       schema:
-        type: string
-        format: date
-      description: 起始日（**商户 IANA 时区**解析为本地日、服务端转 UTC 半开区间 `[start, end)` 查询——DST / 跨午夜安全；省略 = 今日）。列表 / 汇总 / 导出共享同一查询契约。
+        $ref: '#/components/schemas/BusinessDate'
+      description: 起始**商户营业日**（含；省略 = 今日）。**按每笔已固化的归属日标签字面值匹配**， **不做时区换算**。 **匹配哪个标签按列表语义由服务端固定、前端不选**：**支付列表 → 发生营业日** （列表含 `FAILED` / `EXPIRED` / `CLOSED`，这些没有资金归属日）； **退款列表 → 申请营业日**（未生效退款没有生效日）。 省略时的「今日」由服务端在本次查询观察点按该商户**当前生效**的 Time Zone + 日切时刻求出目标营业日， 再按字面值匹配——**不用浏览器日 / UTC 日，也不重算历史事实的归属**。 列表 / 汇总 / 导出共享同一查询契约。
     ToDate:
       name: to
       in: query
       required: false
       schema:
-        type: string
-        format: date
-      description: 截止日（商户 IANA 时区、含当日；切日语义同 `from`）。
+        $ref: '#/components/schemas/BusinessDate'
+      description: 截止**商户营业日**（含当日）。口径同 `from`——按固化标签字面值匹配、零时区换算。
     PaymentMethodFilter:
       name: paymentMethod
       in: query
@@ -1650,6 +1648,12 @@ components:
             - partially_refunded
             - refunded
           description: 完成后订单**商户状态**（后端派生、**非固定 `paid`**；**成功响应值域收窄** `paid` / `partially_refunded` / `refunded`，不含 `failed` / `PREAUTH_HOLDING`——非成功走非 200）：无挂起期退 = `paid`；挂起期已直退过 = `partially_refunded` / `refunded`（退款度派生）。FE 可据此更新或重读交易。
+    BusinessDate:
+      type: string
+      format: date
+      description: '**归属日标签**(无偏移日历日期,`YYYY-MM-DD`)。在**业务事实达成时刻**按当时生效配置 **一次算定并固化**、此后不可变。三个切日主体各一: **商户营业日**(商户 IANA 时区 + 日切时刻)、**系统运营日**(运营方时区、无日切时刻,= 清算日)、 **通道日**(通道声明的可空外部标签,平台不推算不兜底)。 **消费方硬约束**:① **不带时区、前端不得做任何时区换算**(禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天); ② 日期范围过滤**按字面值匹配**、**不做时区换算**; ③ **不得按当前配置重算历史归属**(改商户时区 / 日切时刻不改变已固化标签)。 相对日期预设(今日 / 本月 / 上月)由服务端在查询观察点按当前生效配置求出目标日、再按字面值匹配。'
+      examples:
+        - '2026-05-19'
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -1674,7 +1678,7 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: 'RFC 3339 date-time。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。

@@ -43,7 +43,7 @@
 
 下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
 
-- **列表页加载**：`listPayments` 与 `getPaymentSummary` **并行调用**（同一组筛选参数——时间窗按商户时区切日、`from`/`to`/`paymentMethod`/`source`/`status`/`keyword` 与列表一致）；列表响应自带 `statusCounts`（状态快捷标签计数）+ `filterOptions`（支付方式 / 来源候选，code + displayName）——**筛选器选项来自这里、不要另行拼**。切筛选 → 两个接口带同参重发。汇总卡失败不阻断列表（独立降级）。
+- **列表页加载**：`listPayments` 与 `getPaymentSummary` **并行调用**（同一组筛选参数——`from`/`to` 是**商户营业日**、按固化标签字面值匹配（前端**不做时区换算**、直接传 `YYYY-MM-DD`），连同 `paymentMethod`/`source`/`status`/`keyword` 与列表一致）；列表响应自带 `statusCounts`（状态快捷标签计数）+ `filterOptions`（支付方式 / 来源候选，code + displayName）——**筛选器选项来自这里、不要另行拼**。切筛选 → 两个接口带同参重发。汇总卡失败不阻断列表（独立降级）。
 - **退款列表页**：`listRefunds`（同上；`source` 传**原支付来源** code；筛选选项与支付页同源）。系统自动退款不在此列表（服务端排除）——其事实经原交易详情 `relatedRefunds` 可见。
 - **详情**：`getPaymentDetail`（列表行点击 / 深链直开均可——展示名字段自足）；`getRefundDetail`（列表行「查看」/ **退款成功邮件 CTA 深链直达**）。退款入口显隐的**唯一依据**是后端权威结果、勿按 status 硬编码——**列表行用 `PaymentRow.refundable`、详情用 `refundability.refundable`**；`initiatorType` + `initiatedBy` 按 type 决定直接展示（`merchant_user`）还是本地化（其余 code）。
 - **导出**：`exportPayments` / `exportRefunds`——带与列表**同一组筛选参数** + `Accept-Language`；成功 = xlsx 二进制（`Content-Disposition: attachment` + **`Content-Language` 实际渲染语言**）；**结果集超上限 → 400 `EXPORT_RESULT_SET_TOO_LARGE`(204009)**，提示缩小筛选范围重导（不截断、不异步）。

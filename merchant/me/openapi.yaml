@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户实体 (20-03 BFF) — 前端契约面
-  version: 0.4.16
+  version: 0.5.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -130,7 +130,7 @@ paths:
       operationId: updateBusinessInformation
       summary: 编辑 Business Information（7 可编辑字段直接生效；Locked 字段 enforce 403）
       description: |
-        编辑 ACTIVE 商户 Business Information section 的 7 项可编辑字段（Address / City / Province / Postal Code / Country / Time Zone / Business Phone）， 保存直接生效（无审核）+ 记录审计事件。**任何 7 项 Locked 字段 （Legal Business Name / Trade Name (DBA) / Ownership Type / Registration Number / Referred By / Industry Category / MCC） 出现在请求体即服务端拒绝（403），不持久化、不依赖前端隐藏**。 当前商户非 ACTIVE → 409、不持久化。幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。
+        编辑 ACTIVE 商户 Business Information section 的 7 项可编辑字段（Address / City / Province / Postal Code / Country / Time Zone / Business Phone）， 保存直接生效（无审核）+ 记录审计事件。**任何 7 项 Locked 字段 （Legal Business Name / Trade Name (DBA) / Ownership Type / Registration Number / Referred By / Industry Category / MCC） 出现在请求体即服务端拒绝（403），不持久化、不依赖前端隐藏**。 当前商户非 ACTIVE → 409、不持久化。幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。 **`timeZone` 变更须过封口预检**： 按**拟生效的最终完整组合**（本次 Time Zone + 该商户当前日切时刻）试算 `D_new`， 若它是该商户的**已封口归属日** → `409 208016` 拒绝、**整个请求不持久化**（含同请求内其他 6 个可编辑字段）； **无法取得权威封口状态时同码 fail-closed**（不得跳过预检放行）。 未变更 `timeZone` 的请求不触发预检。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -163,6 +163,36 @@ paths:
         '409':
           - 208001
           - 208003
+          - 208016
+  /account/profile/business-information/options:
+    get:
+      tags:
+        - profile
+      operationId: getBusinessInformationOptions
+      summary: Business Information 可选值域（表单候选集）
+      description: |
+        下发 Business Information section 中**取值域由后端动态配置**的字段候选集，供前端渲染选项。 当前仅 `timeZone`（IANA tz 白名单，与商户 country 联动）——**契约不写死候选集**， 运营 / 部署可调整；该 section 后续若有其他动态值域，同址扩展。 只读、无副作用；不含任何商户可编辑值本身（当前值取 `getAccountProfile`）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 当前商户可选的 Business Information 值域
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BusinessInformationOptions'
+              example:
+                timeZoneOptions:
+                  - America/Vancouver
+                  - America/Edmonton
+                  - America/Winnipeg
+                  - America/Toronto
+                  - America/Halifax
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+      x-error-codes: {}
   /account/profile/logo:
     post:
       tags:
@@ -1416,16 +1446,27 @@ components:
         - shopify
         - allvalue
       description: 电商平台 provider（不互斥）
+    BusinessInformationOptions:
+      type: object
+      additionalProperties: false
+      required:
+        - timeZoneOptions
+      description: |
+        Business Information section 的**动态值域**。示例值仅为当前实例的一种可能取值， **不构成契约承诺**——实际候选集由后端配置决定（与商户 country 联动）。
+      properties:
+        timeZoneOptions:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/TimeZone'
+          description: 当前商户可选的 IANA 时区白名单（顺序即建议展示顺序）。
     TimeZone:
       type: string
-      enum:
-        - America/Vancouver
-        - America/Edmonton
-        - America/Winnipeg
-        - America/Toronto
-        - America/Halifax
+      minLength: 1
       description: |
-        时区取 IANA tz database 标识（5 选项：America/Vancouver / America/Edmonton / America/Winnipeg / America/Toronto / America/Halifax， 对应北美 PT / MT / CT / ET / AT）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。被 06 / 08 跨日 / 切月消费。
+        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。 **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**—— 候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。 按家规 A5「enum 演进」：本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe** （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。 作**商户营业日**归属日标签的时区基准；供交易 / 账务 / 数据洞察等查询确定商户营业日口径——**相对日期目标（今日 / 本月等）由服务端计算、前端不自行换算**， **不用于重算已固化的历史归属**。
+      examples:
+        - America/Toronto
     LockedField:
       type: object
       additionalProperties: false
@@ -2405,7 +2446,7 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: 'RFC 3339 date-time。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
     ResendCooldownError:
       description: 重发冷却错误体（`TooManyRequestsWithCooldown` 用；OTP 挑战 / 邀请链接等重发场景通用）：在 MerchantBffError 上把 `code` 钉死 208013、`context.cooldownSeconds` 强制必带（整数冷却剩余秒数——覆盖刷新 / 跨标签页，首次成功响应的 `cooldownSeconds` 之外的权威剩余值）。
       allOf:

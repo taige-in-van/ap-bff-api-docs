@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 (20-04 BFF) — 前端契约面
-  version: 0.1.3
+  version: 0.2.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -265,17 +265,15 @@ paths:
         - name: dateFrom
           in: query
           required: false
-          description: 创建日期范围起
+          description: 创建日期范围起（**查询日历日期、非归属日标签**）。服务端在查询观察点按当前商户 IANA 时区，将本日 `00:00` 解释为 `createdAt` 瞬时范围起点；日切时刻不参与、不要求持久化创建营业日。
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - name: dateTo
           in: query
           required: false
-          description: 创建日期范围止
+          description: 创建日期范围止（含当日；按当前商户 IANA 时区取次日 `00:00` 为 `createdAt` 瞬时范围排他上界，其他口径同 `dateFrom`）。
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - name: amountMin
           in: query
           required: false
@@ -1289,17 +1287,15 @@ paths:
         - name: dateFrom
           in: query
           required: false
-          description: 创建日期范围起
+          description: 创建日期范围起（**查询日历日期、非归属日标签**）。服务端在查询观察点按当前商户 IANA 时区，将本日 `00:00` 解释为 `createdAt` 瞬时范围起点；日切时刻不参与、不要求持久化创建营业日。
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - name: dateTo
           in: query
           required: false
-          description: 创建日期范围止
+          description: 创建日期范围止（含当日；按当前商户 IANA 时区取次日 `00:00` 为 `createdAt` 瞬时范围排他上界，其他口径同 `dateFrom`）。
           schema:
-            type: string
-            format: date
+            $ref: '#/components/schemas/CalendarDate'
         - name: sort
           in: query
           required: false
@@ -2066,11 +2062,10 @@ components:
             - no_due_date
             - custom
         date:
-          type:
-            - string
-            - 'null'
-          format: date
-          description: kind=custom 必填、须 ≥ 次日
+          oneOf:
+            - $ref: '#/components/schemas/CalendarDate'
+            - type: 'null'
+          description: '`kind=custom` 必填。**产品日历日期**（非归属日标签）——按**保存请求时**当前商户 IANA 时区对应的**自然日** 校验须 ≥ 次日（**日切时刻不参与**「今天 / 次日」判定）。创建后即冻结「所选日 + 当时商户时区身份 + 下一自然日 00:00 的绝对截止瞬时」，此后商户改 Time Zone / 日切时刻**既有 Invoice 期限不漂移**。'
     InvoiceCreateRequest:
       type: object
       required:
@@ -2101,10 +2096,10 @@ components:
         status:
           $ref: '#/components/schemas/InvoiceStatus'
         dueDate:
-          type:
-            - string
-            - 'null'
-          format: date
+          oneOf:
+            - $ref: '#/components/schemas/CalendarDate'
+            - type: 'null'
+          description: 到期日（**产品日历日期**；`null` = 无期限）。所选日整日有效，**不使用日切时刻**；期限的绝对边界在创建时冻结。
         createdAt:
           $ref: '#/components/schemas/Timestamp'
     InvoiceDetail:
@@ -2254,9 +2249,9 @@ components:
             - discount
             - bonus_card
         campaignEndDate:
-          type: string
-          format: date
-          description: 须 ≥ 今天
+          allOf:
+            - $ref: '#/components/schemas/CalendarDate'
+          description: 活动截止日（**产品日历日期**）。按**保存请求时**当前商户 IANA 时区对应的**自然日**校验须 ≥ 今天 （**日切时刻不参与**「今天」判定）。所选日整日可售；创建时冻结当时时区身份与下一自然日 00:00 的 绝对截止瞬时，改时区**不使既有 Campaign 停售时点漂移**；显式改日期时沿用原冻结时区重算。
         limitPerOrder:
           type:
             - integer
@@ -2333,8 +2328,9 @@ components:
         - tiers
       properties:
         eventDate:
-          type: string
-          format: date
+          allOf:
+            - $ref: '#/components/schemas/CalendarDate'
+          description: 活动日期（**描述性产品日历日期**）。按字面值展示、**前端不得做任何时区换算**； **不派生截止瞬时、不使用日切时刻、不作销售 gate**。
         venue:
           type: string
           minLength: 1
@@ -3095,6 +3091,12 @@ components:
                   type: integer
                   minimum: 0
                   description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+    CalendarDate:
+      type: string
+      format: date
+      description: '**非归属日的日历日期**(无偏移日历日期,`YYYY-MM-DD`)。与 `BusinessDate` 同为无时区日期、 但**不是归属日标签、不适用其固化与不追溯规则**。两种用法: ① **产品语义日期** —— Invoice Due Date / 礼卡 Campaign End Date / 票务 Event Date 等**被持久化的产品数据**; ② **查询期日期区间** —— 对**时间戳列**做日期范围过滤的查询入参(如按 `createdAt` 筛创建日期范围); 被筛的时间戳**没有固化日标签**,故只能在查询观察点解释成瞬时区间,**不得**因此臆造 / 持久化一个「创建营业日」。 两种用法**其时区解释、瞬时边界与冻结口径均须显式声明** —— 产品语义日期由各产品域声明,查询期区间由**端点契约**声明 (如 Due Date 由服务端在创建时冻结「所选日 + 当时商户 IANA 时区身份 + 下一自然日 00:00 的绝对截止瞬时」, 此后商户改时区不使既有期限漂移;Event Date 则为纯描述性、不派生瞬时; 查询期区间则按**该端点声明的当前主体时区**〔商户面 = 当前商户 IANA 时区、平台面 = 运营方时区〕 解释为半开区间 `[from 00:00, to+1 00:00)`、日切时刻不参与)。 **客户端**一律按字面值收发、**不得改写日期字面值或做时区换算**(禁塞 `Date` 后按浏览器时区渲染); 瞬时边界的解析是**服务端**按上述声明口径完成的,不是客户端的职责。'
+      examples:
+        - '2026-08-01'
     Money:
       type: object
       description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
@@ -3111,7 +3113,7 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: 'RFC 3339 date-time。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:

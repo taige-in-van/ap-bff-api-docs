@@ -25,8 +25,8 @@
 | operationId | method + path | 用途 |
 |---|---|---|
 | [`getAccountOverview`](index.html#tag/account-overview/operation/getAccountOverview) | `GET /account/overview` | 资金概览(Account Balance / To Settle / Refund Reserve 三项余额) |
-| [`listAccountLedger`](index.html#tag/account-ledger/operation/listAccountLedger) | `GET /account/ledger` | 账户流水(过滤 + 搜索 + 分页，只读分录) |
-| [`listSettlements`](index.html#tag/settlement/operation/listSettlements) | `GET /settlements` | 结算单列表(周期 / 状态过滤 + 搜索 + 排序 + 分页) |
+| [`listAccountLedger`](index.html#tag/account-ledger/operation/listAccountLedger) | `GET /account/ledger` | 账户流水(过滤 + 搜索 + 分页，只读分录)。**日期区间按每行的商户营业日**筛；**倒序稳定分页按 `postedAt`**（与账本折叠序同源，保证 `balanceAfter` 顺序正确），`occurredAt` 仅展示 |
+| [`listSettlements`](index.html#tag/settlement/operation/listSettlements) | `GET /settlements` | 结算单列表(周期 / 状态过滤 + 搜索 + 排序 + 分页)。**日期区间按结算单的清算日**筛，不按明细的商户营业日 |
 | [`getSettlementDetail`](index.html#tag/settlement/operation/getSettlementDetail) | `GET /settlements/{settlementId}` | 结算单详情(批次汇总 + 逐笔结算影响明细) |
 | [`listStatements`](index.html#tag/statement/operation/listStatements) | `GET /statements` | 月度账单列表(按年份过滤) |
 | [`getStatementDetail`](index.html#tag/statement/operation/getStatementDetail) | `GET /statements/{statementId}` | 月度账单详情(服务明细分行 + Net Settlement) |

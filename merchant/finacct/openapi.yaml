@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 (20-06) — 前端契约面
-  version: 0.5.8
+  version: 0.6.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -73,19 +73,19 @@ paths:
       operationId: listAccountLedger
       summary: 账户流水查询（过滤 + 搜索 + 分页，只读）
       description: |
-        账户流水（商户 scope）：按时间倒序分页;每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。默认时间窗避免空窗（业务参数可配）。
+        账户流水（商户 scope）：按 `postedAt` 倒序稳定分页（与账本折叠序同源，保证 `balanceAfter` 展示顺序正确；**不按 `occurredAt` 排**）;每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。默认时间窗避免空窗（业务参数可配）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: dateFrom
           in: query
           schema:
-            $ref: '#/components/schemas/Timestamp'
-          description: 起始时间（含;缺省取默认窗）
+            $ref: '#/components/schemas/BusinessDate'
+          description: 起始**商户营业日**（含;缺省取默认窗）。按每行固化的 `merchantBusinessDay` **字面值**过滤,**不做时区换算**——瞬时点与营业日在日切时刻附近必然分属两天。
         - name: dateTo
           in: query
           schema:
-            $ref: '#/components/schemas/Timestamp'
-          description: 结束时间（含）
+            $ref: '#/components/schemas/BusinessDate'
+          description: 截止**商户营业日**（含）。口径同 `dateFrom`。
         - name: type
           in: query
           description: 类型过滤（可多值）
@@ -129,7 +129,9 @@ paths:
                 total: 132
                 data:
                   - entryId: led_2026051914300001
+                    merchantBusinessDay: '2026-05-19'
                     occurredAt: '2026-05-19T14:30:00Z'
+                    postedAt: '2026-05-19T14:30:02Z'
                     pool: ACCOUNT_BALANCE
                     type: PAYMENT
                     amount:
@@ -143,7 +145,9 @@ paths:
                       id: ord_88231
                       label: '#88231'
                   - entryId: led_2026051815200002
+                    merchantBusinessDay: '2026-05-18'
                     occurredAt: '2026-05-18T15:20:00Z'
+                    postedAt: '2026-05-18T15:20:03Z'
                     pool: ACCOUNT_BALANCE
                     type: REFUND
                     amount:
@@ -176,11 +180,13 @@ paths:
         - name: dateFrom
           in: query
           schema:
-            $ref: '#/components/schemas/Timestamp'
+            $ref: '#/components/schemas/BusinessDate'
+          description: 起始**清算日**（含）。按结算单的 `settlementDate`（= 系统运营日 / 本单出款日）字面值过滤,**不按明细的商户营业日**——一个结算批次通常归集多个商户营业日的明细,按明细日筛会让同一单在多个区间重复命中。
         - name: dateTo
           in: query
           schema:
-            $ref: '#/components/schemas/Timestamp'
+            $ref: '#/components/schemas/BusinessDate'
+          description: 截止**清算日**（含）。口径同 `dateFrom`。
         - name: status
           in: query
           schema:
@@ -228,8 +234,8 @@ paths:
                 data:
                   - settlementId: stl_20260519
                     period:
-                      from: '2026-05-18T00:00:00Z'
-                      to: '2026-05-18T23:59:59Z'
+                      from: '2026-05-18'
+                      to: '2026-05-18'
                     netSales:
                       amount: '452000'
                       currency: CAD
@@ -240,7 +246,7 @@ paths:
                       amount: '438885'
                       currency: CAD
                     status: SETTLED
-                    settlementDate: '2026-05-19T08:00:00Z'
+                    settlementDate: '2026-05-19'
         '403':
           $ref: '#/components/responses/Forbidden'
         '409':
@@ -274,8 +280,8 @@ paths:
                 summary:
                   settlementId: stl_20260519
                   period:
-                    from: '2026-05-18T00:00:00Z'
-                    to: '2026-05-18T23:59:59Z'
+                    from: '2026-05-18'
+                    to: '2026-05-18'
                   netSales:
                     amount: '452000'
                     currency: CAD
@@ -286,7 +292,7 @@ paths:
                     amount: '438885'
                     currency: CAD
                   status: SETTLED
-                  settlementDate: '2026-05-19T08:00:00Z'
+                  settlementDate: '2026-05-19'
                 lines:
                   - type: PAYMENT
                     relatedRef:
@@ -302,6 +308,8 @@ paths:
                     settlementAmount:
                       amount: '9710'
                       currency: CAD
+                    merchantBusinessDay: '2026-05-18'
+                    channelDay: '2026-05-18'
                     occurredAt: '2026-05-18T11:02:00Z'
                   - type: REFUND_REVERSAL
                     relatedRef:
@@ -314,6 +322,8 @@ paths:
                     settlementAmount:
                       amount: '2500'
                       currency: CAD
+                    merchantBusinessDay: '2026-05-18'
+                    channelDay: null
                     occurredAt: '2026-05-18T15:20:00Z'
                 settlementAccountLast4: '6789'
                 currency: CAD
@@ -746,8 +756,8 @@ paths:
               kind: LEDGER
               format: XLSX
               filters:
-                dateFrom: '2026-05-01T00:00:00Z'
-                dateTo: '2026-05-19T23:59:59Z'
+                dateFrom: '2026-05-01'
+                dateTo: '2026-05-19'
                 pool: ACCOUNT_BALANCE
       responses:
         '202':
@@ -969,6 +979,8 @@ components:
       required:
         - entryId
         - occurredAt
+        - postedAt
+        - merchantBusinessDay
         - pool
         - type
         - amount
@@ -978,9 +990,21 @@ components:
         entryId:
           type: string
           readOnly: true
-        occurredAt:
-          $ref: '#/components/schemas/Timestamp'
+        merchantBusinessDay:
+          allOf:
+            - $ref: '#/components/schemas/BusinessDate'
           readOnly: true
+          description: 本笔的**商户营业日**（上游固化标签直投）。**日期范围过滤按本字段**。
+        occurredAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 业务发生**瞬时点**（**仅展示**；**不作日期归属依据、也不作排序依据**——迟到入账时按业务发生时刻排序会让 `balanceAfter` 的展示顺序错位）。
+        postedAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 账本**入账瞬时点**。**倒序稳定分页的排序轴**（`postedAt` + tiebreak，与账本折叠序同源）——保证 `balanceAfter` 的展示顺序与 running-balance 生成序一致。
         pool:
           $ref: '#/components/schemas/FundPool'
         type:
@@ -1032,8 +1056,10 @@ components:
           $ref: '#/components/schemas/SettlementStatus'
           readOnly: true
         settlementDate:
-          $ref: '#/components/schemas/Timestamp'
+          allOf:
+            - $ref: '#/components/schemas/BusinessDate'
           readOnly: true
+          description: '**清算日 = 系统运营日**（本结算单打入银行的出款日）。**与明细行的 `merchantBusinessDay` 不是同一维度**——一个批次通常归集多个商户营业日的明细,UI 不得合并或互相替代。'
     SettlementLine:
       type: object
       required:
@@ -1041,6 +1067,7 @@ components:
         - amount
         - settlementAmount
         - occurredAt
+        - merchantBusinessDay
       description: 逐笔结算影响明细。
       properties:
         type:
@@ -1068,9 +1095,22 @@ components:
           allOf:
             - $ref: '#/components/schemas/Money'
           description: 本笔结算金额（带符号;逐笔合计 = 汇总本期结算金额）。
-        occurredAt:
-          $ref: '#/components/schemas/Timestamp'
+        merchantBusinessDay:
+          allOf:
+            - $ref: '#/components/schemas/BusinessDate'
           readOnly: true
+          description: 本笔自身的**资金归属营业日**（在业务事实达成时固化）。与汇总的 `settlementDate`（清算日）是两个维度。
+        channelDay:
+          oneOf:
+            - $ref: '#/components/schemas/BusinessDate'
+            - type: 'null'
+          readOnly: true
+          description: '**通道声明的通道日**。通道未声明、或非通道类明细（Top Up / Withdraw / 系统账务）→ `null`;**平台不推算、不用平台时间兜底**。'
+        occurredAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 本笔的业务发生**瞬时点**（展示用;**不作日期归属依据** —— 归属看 `merchantBusinessDay`）。
         memo:
           type: string
     SettlementDetail:
@@ -1189,12 +1229,12 @@ components:
       required:
         - from
         - to
-      description: 清算周期区间。
+      description: 清算周期区间（**按商户营业日**的日期闭区间;周期起点 = 交易固化的商户营业日）。
       properties:
         from:
-          $ref: '#/components/schemas/Timestamp'
+          $ref: '#/components/schemas/BusinessDate'
         to:
-          $ref: '#/components/schemas/Timestamp'
+          $ref: '#/components/schemas/BusinessDate'
     OtpChallenge:
       type: object
       required:
@@ -1487,12 +1527,12 @@ components:
     SettlementExportFilters:
       type: object
       additionalProperties: false
-      description: 结算单导出过滤（镜像 listSettlements query params：dateFrom / dateTo / status / keyword / sort）。
+      description: 结算单导出过滤（镜像 listSettlements query params：dateFrom / dateTo / status / keyword / sort;日期轴 = **清算日**）。
       properties:
         dateFrom:
-          $ref: '#/components/schemas/Timestamp'
+          $ref: '#/components/schemas/BusinessDate'
         dateTo:
-          $ref: '#/components/schemas/Timestamp'
+          $ref: '#/components/schemas/BusinessDate'
         status:
           $ref: '#/components/schemas/SettlementStatus'
         keyword:
@@ -1512,9 +1552,9 @@ components:
       description: 账户流水导出过滤（镜像 getLedger query params：dateFrom / dateTo / type〔多值〕 / pool / keyword）。
       properties:
         dateFrom:
-          $ref: '#/components/schemas/Timestamp'
+          $ref: '#/components/schemas/BusinessDate'
         dateTo:
-          $ref: '#/components/schemas/Timestamp'
+          $ref: '#/components/schemas/BusinessDate'
         type:
           type: array
           items:
@@ -1631,10 +1671,16 @@ components:
                   type: integer
                   minimum: 0
                   description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+    BusinessDate:
+      type: string
+      format: date
+      description: '**归属日标签**(无偏移日历日期,`YYYY-MM-DD`)。在**业务事实达成时刻**按当时生效配置 **一次算定并固化**、此后不可变。三个切日主体各一: **商户营业日**(商户 IANA 时区 + 日切时刻)、**系统运营日**(运营方时区、无日切时刻,= 清算日)、 **通道日**(通道声明的可空外部标签,平台不推算不兜底)。 **消费方硬约束**:① **不带时区、前端不得做任何时区换算**(禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天); ② 日期范围过滤**按字面值匹配**、**不做时区换算**; ③ **不得按当前配置重算历史归属**(改商户时区 / 日切时刻不改变已固化标签)。 相对日期预设(今日 / 本月 / 上月)由服务端在查询观察点按当前生效配置求出目标日、再按字面值匹配。'
+      examples:
+        - '2026-05-19'
     Timestamp:
       type: string
       format: date-time
-      description: 'RFC 3339 date-time。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示/清算切日按商户 IANA 时区(单独字段,offset ≠ timezone)。'
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
