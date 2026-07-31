@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 开发者 (20-09 BFF) — 前端契约面
-  version: 0.1.1
+  version: 0.2.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -243,6 +243,11 @@ components:
           oneOf:
             - $ref: '#/components/schemas/PlatformPublicKey'
             - type: 'null'
+        platformPublicKeyGrace:
+          description: 平台密钥轮换宽限期内的旧版本公钥（含 keyVersion；商户据响应 / Webhook `Signature` 头 `keyVersion` 选对应公钥验签）。无活跃宽限期 → 省略或 null。
+          oneOf:
+            - $ref: '#/components/schemas/PlatformPublicKey'
+            - type: 'null'
     GatewayCredentialMasked:
       description: |
         Gateway Credential 脱敏态（默认展示；完整值走 revealGatewayCredential）。按 status 判别机器约束： **available 必携 masked、unavailable 无 masked**（封闭枚举；新增取值属破坏性、走并行版本）。
@@ -344,7 +349,7 @@ components:
         keyVersion:
           type: integer
           minimum: 1
-          description: 当前 平台公钥版本
+          description: 该平台公钥的版本号（商户据响应 / Webhook `Signature` 头 `keyVersion` 选用对应公钥）
         publicKeyPem:
           type: string
           minLength: 1

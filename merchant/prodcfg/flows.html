@@ -10,7 +10,7 @@
 
 > 本文是 `04-收单配置.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对支付核心系统的命令与取数**不画**（后端面，与前端无关）；跨部署核心态变化（账单被支付 / 设备扫码激活）由系统驱动、前端靠刷新读到。外部参与方（收款设备等）仅在用户可见 / 真参与异步交互时出现；点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对支付核心系统的命令与取数**不画**（后端面，与前端无关）；核心态变化（账单被支付 / 设备扫码激活）由系统驱动、前端靠刷新读到。外部参与方（收款设备等）仅在用户可见 / 真参与异步交互时出现；点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
@@ -42,9 +42,8 @@
 | [`setPaymentLinkStatus`](index.html#tag/payment-links/operation/setPaymentLinkStatus) | `PUT /products/payment-links/{linkId}/status` | 启停（ACTIVE↔DISABLED） |
 | [`deletePaymentLink`](index.html#tag/payment-links/operation/deletePaymentLink) | `DELETE /products/payment-links/{linkId}` | 删除（软删 DELETED） |
 | [`savePaymentLinkPolicies`](index.html#tag/payment-links/operation/savePaymentLinkPolicies) | `PUT /products/payment-links/{linkId}/policies` | 保存 Policies（三语 + 商户级默认） |
-| [`uploadGiftcardStock`](index.html#tag/payment-links/operation/uploadGiftcardStock) | `POST /products/payment-links/{linkId}/giftcard-stock` | 卡密上传 / 补货（同步返逐条结果） |
 | [`uploadPaymentLinkBanner`](index.html#tag/payment-links/operation/uploadPaymentLinkBanner) | `POST /products/payment-links/{linkId}/banner` | 上传 Banner（multipart → bannerRef） |
-| [`getPaymentLinkRedemptions`](index.html#tag/payment-links/operation/getPaymentLinkRedemptions) | `GET /products/payment-links/{linkId}/redemptions` | Redemptions 只读（发卡 / 核销记录） |
+| [`getPaymentLinkRedemptions`](index.html#tag/payment-links/operation/getPaymentLinkRedemptions) | `GET /products/payment-links/{linkId}/redemptions` | Redemptions 只读**核销**记录（product / ticket / giftcard-Voucher；**giftcard-Inventory 恒空、tab 置灰**，其发卡记录在订单详情） |
 | [`listDevices`](index.html#tag/devices/operation/listDevices) | `GET /devices` | 设备列表（不含 RELEASED） |
 | [`bindDevice`](index.html#tag/devices/operation/bindDevice) | `POST /devices` | 绑定新设备 |
 | [`getDevice`](index.html#tag/devices/operation/getDevice) | `GET /devices/{deviceId}` | 设备详情 |
@@ -154,7 +153,7 @@ sequenceDiagram
 
 ## 流程三：支付链接类型化创建向导
 
-> 先取候选（驱动 currency × method 联动）→ 创建链接（成功返回 linkId + 链接详情）→ **详情阶段**（已有 linkId）按需上传 Banner / 装载卡密 / 编辑 Policies。
+> 先取候选（驱动 currency × method 联动）→ 创建链接（成功返回 linkId + 链接详情）→ **详情阶段**（已有 linkId）按需上传 Banner / 编辑 Policies。
 
 ```mermaid
 sequenceDiagram
@@ -191,11 +190,8 @@ sequenceDiagram
         A-->>B: 200 PaymentLinkDetail
     end
 
-    opt giftcard 装载本地卡密池
-        B->>A: [uploadGiftcardStock]（Idempotency-Key；cardSecrets）
-        Note over A: 同步入池（敏感明文全链路禁记录、响应不回显卡密）
-        A-->>B: 200 GiftcardStockUploadResult（逐条 accepted / rejected + errors）
-    end
+    %% giftcard 卡密装载本期无 BFF 入口：运营整理后交技术按面值导入，面值档 stock 只读呈现
+    %% （商户自助上传 / 补货 / 导入校验 / 低库存告警整块归二期）
 
     opt 编辑 Policies（三语）
         B->>A: [savePaymentLinkPolicies]

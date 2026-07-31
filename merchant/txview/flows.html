@@ -31,6 +31,9 @@
 | [`getPaymentReceipt`](index.html#tag/payments/operation/getPaymentReceipt) | `GET /payments/{orderId}/receipt` | 支付收据 PDF |
 | [`createRefund`](index.html#tag/payments/operation/createRefund) | `POST /payments/{orderId}/refunds` | 发起退款（全 / 部分 + Refund PIN） |
 | [`releasePreAuth`](index.html#tag/payments/operation/releasePreAuth) | `POST /payments/{orderId}/preauth-completion` | 预授权完成（Release） |
+| [`resendGiftCardCredential`](index.html#tag/payments/operation/resendGiftCardCredential) | `POST /payments/{orderId}/gift-card/credential-redelivery` | 重发礼卡凭证邮件（可改收件邮箱；凭证有效且无退款冻结时才可用） |
+| [`voidGiftCardVoucher`](index.html#tag/payments/operation/voidGiftCardVoucher) | `POST /payments/{orderId}/gift-card/voucher-invalidation` | 作废礼卡兑换券（仅 Voucher Mode、已付款、未核销且无未终态退款） |
+| [`disposeGiftCardOrderRisk`](index.html#tag/payments/operation/disposeGiftCardOrderRisk) | `POST /payments/{orderId}/gift-card/risk-disposition` | 礼卡订单风控人工处置（升为高风险 / 加入礼卡客户风险名单 / 放行 / 移出） |
 | [`listRefunds`](index.html#tag/refunds/operation/listRefunds) | `GET /refunds` | 退款列表（商户发起面；过滤 + 回溯原交易） |
 | [`exportRefunds`](index.html#tag/refunds/operation/exportRefunds) | `GET /refunds/export` | 导出退款 Excel（当前筛选全集） |
 | [`getRefundDetail`](index.html#tag/refunds/operation/getRefundDetail) | `GET /refunds/{refundNo}` | 退款详情（含发起人 / 原订单回链） |

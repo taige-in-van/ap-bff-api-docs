@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 (20-04 BFF) — 前端契约面
-  version: 0.2.2
+  version: 0.4.0
   contact:
     name: 商户后台 BFF
   description: |
-    收单配置前端契约：Store QR 展示 / 下载、收款页设置（PaymentPageSettings + TipConfiguration）、 账单码（Invoice，列表 / 详情 / 创建 / 作废 / 已支付隐藏）、支付链接（PaymentLink 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕、创建 / 编辑 / 启停 / 删除 / 卡密池 / Redemptions 只读）、 设备（列表 / 详情 + 绑定/解绑/启停/Regenerate）、设备日志、商户级订单配置（Order Expiry / Customer Service Fee）、POS 小票内容。 字段类型以本 spec 为准。 merchant scope 从会话取、不信请求体；merchant-current-scoped 读写挂 MerchantContextGuard（stale-tab 守卫）。
+    收单配置前端契约：Store QR 展示 / 下载、收款页设置（PaymentPageSettings + TipConfiguration）、 账单码（Invoice，列表 / 详情 / 创建 / 作废 / 已支付隐藏）、支付链接（PaymentLink 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕、创建 / 编辑 / 启停 / 删除 / giftcard 库存只读 / Redemptions 只读）、 设备（列表 / 详情 + 绑定/解绑/启停/Regenerate）、设备日志、商户级订单配置（Order Expiry / Customer Service Fee）、POS 小票内容。 字段类型以本 spec 为准。 merchant scope 从会话取、不信请求体；merchant-current-scoped 读写挂 MerchantContextGuard（stale-tab 守卫）。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -19,7 +19,7 @@ tags:
   - name: invoices
     description: 账单码：列表 / 详情 / 创建 / 作废 / 已支付隐藏。
   - name: payment-links
-    description: 支付链接（gift/product/ticket 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕；giftcard 卡池；Redemptions 只读）。
+    description: 支付链接（gift/product/ticket 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕；giftcard 库存只读；Redemptions 只读）。
   - name: devices
     description: 设备：列表 / 详情 + 绑定/解绑/启停/Regenerate。
   - name: device-logs
@@ -646,7 +646,7 @@ paths:
       operationId: createPaymentLink
       summary: 创建支付链接（gift/product/ticket）
       description: |
-        创建支付链接（type 判别 gift/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL 与 QR（整串）；含 Policies / Buyer Info（继承商户级默认快照）。 **currency × methods 组合校验**：校验所选方式均支持该标价币种；未开通 online / 方式不适用或不支持该币种 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE (208007)`；空方式 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。 **内容币种一致**：所有内容价格（denomination / product price / ticket tier price）及 bonus 币种须 = 顶层 `currency`，不一致 → `400 CONTENT_CURRENCY_MISMATCH (204006)`（schema 不强约、服务端校验）。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
+        创建支付链接（type 判别 gift/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL 与 QR（整串）；含 Policies / Buyer Info（继承商户级默认快照）。 **currency × methods 组合校验**：校验所选方式均支持该标价币种；未开通 online / 方式不适用或不支持该币种 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE (208007)`；空方式 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。 **内容币种一致**：所有内容价格（denomination / product price / ticket tier price）及 bonus 币种须 = 顶层 `currency`，不一致 → `400 CONTENT_CURRENCY_MISMATCH (204006)`（schema 不强约、服务端校验）。 **礼卡内容规则**（type=gift）：核销规则仅兑换券模式适用 / 赠卡条款为自定义时赠卡备注必填 / 活动截止日不得早于今天 —— 任一不满足拒绝保存 → `400 GIFTCARD_CONTENT_INVALID (204013)`（逐字段明细走响应体字段错误）。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -671,13 +671,26 @@ paths:
                     - Name
                     - Email
                   giftcard:
-                    eventType: discount
+                    giftCardName: lululemon $25 CAD Gift Card
+                    brandName: lululemon
+                    campaignName: 2026 Christmas Promotion
+                    promotionType: discount
+                    fulfillmentMode: inventory
+                    emailLanguage: en
                     campaignEndDate: '2026-12-31'
+                    maxPurchaseQuantity: 2
+                    purchaseLimitCycle: biweekly
+                    orderRiskReview: true
                     denominations:
                       - amount:
                           amount: '2500'
                           currency: CAD
-                        bonus: null
+                        price:
+                          amount: '2500'
+                          currency: CAD
+                        discountAmount:
+                          amount: '250'
+                          currency: CAD
       responses:
         '201':
           description: 已创建（返回详情）
@@ -707,12 +720,24 @@ paths:
                     policies: {}
                     paymentUrl: https://cashier.example.com/pl/pl_1000024_3001
                     giftcard:
-                      eventType: discount
+                      giftCardName: lululemon $25 CAD Gift Card
+                      brandName: lululemon
+                      campaignName: 2026 Christmas Promotion
+                      promotionType: discount
+                      fulfillmentMode: inventory
+                      emailLanguage: en
                       campaignEndDate: '2026-12-31'
                       denominations:
                         - amount:
                             amount: '2500'
                             currency: CAD
+                          price:
+                            amount: '2500'
+                            currency: CAD
+                          discountAmount:
+                            amount: '250'
+                            currency: CAD
+                          stock: null
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -729,6 +754,7 @@ paths:
         '400':
           - 204005
           - 204006
+          - 204013
         '409':
           - 208001
           - 208005
@@ -833,7 +859,7 @@ paths:
       operationId: updatePaymentLink
       summary: 分段编辑支付链接配置
       description: |
-        编辑配置段（Name / Currency / 类型内容 / Payment methods / Buyer Information / Banner / giftcard meta）。 已产生订单后**影响已售解释的字段冻结**（拒改，`409 STATE_PRECONDITION_MISMATCH`）；方式收窄 + **currency × methods 组合校验同 createPaymentLink**——**单改 Currency 校验已有 Methods、单改 Methods 校验现 Currency**（任一不兼容 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE 208007`）；内容币种须 = 顶层 currency（不一致 → `400 CONTENT_CURRENCY_MISMATCH 204006`）。天然幂等 PATCH（同 payload 重放一致）。
+        编辑配置段（Name / Currency / 类型内容 / Payment methods / Buyer Information / Banner / giftcard meta）。 已产生订单后**影响已售解释的字段冻结**（拒改，`409 STATE_PRECONDITION_MISMATCH`）；方式收窄 + **currency × methods 组合校验同 createPaymentLink**——**单改 Currency 校验已有 Methods、单改 Methods 校验现 Currency**（任一不兼容 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE 208007`）；内容币种须 = 顶层 currency（不一致 → `400 CONTENT_CURRENCY_MISMATCH 204006`）。 **礼卡内容规则同 createPaymentLink**（→ `400 GIFTCARD_CONTENT_INVALID 204013`）；**履约模式创建后不可变更**——请求携带与已存实例不同的 `fulfillmentMode` → `409 GIFTCARD_FULFILLMENT_MODE_IMMUTABLE (208017)`（该字段本就不应可编辑，前端不提供入口）。天然幂等 PATCH（同 payload 重放一致）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -856,7 +882,12 @@ paths:
                   type: giftcard
                   name: 节日礼卡（升级）
                   giftcard:
-                    eventType: discount
+                    giftCardName: lululemon Gift Card
+                    brandName: lululemon
+                    campaignName: 2026 Christmas Promotion
+                    promotionType: discount
+                    fulfillmentMode: inventory
+                    emailLanguage: en
                     campaignEndDate: '2026-12-31'
                     denominations:
                       - amount:
@@ -890,10 +921,12 @@ paths:
         '400':
           - 204005
           - 204006
+          - 204013
         '409':
           - 208001
           - 208003
           - 208007
+          - 208017
     delete:
       tags:
         - payment-links
@@ -1039,80 +1072,6 @@ paths:
       x-error-codes:
         '409':
           - 208001
-  /products/payment-links/{linkId}/giftcard-stock:
-    post:
-      tags:
-        - payment-links
-      operationId: uploadGiftcardStock
-      summary: giftcard 本地卡密池上传 / 补货
-      description: |
-        向指定面值档上传 / 补货本地卡密。**同步返回逐条受理 / 拒绝结果**（单批上限见 schema `maxItems`）。 `cardSecrets[]` 为敏感明文——**全链路禁日志 / trace / body capture、响应不回显卡密、审计仅记批次元数据**。可售量 / 发卡记录见 getPaymentLinkRedemptions。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
-      parameters:
-        - $ref: '#/components/parameters/MerchantContextGuard'
-        - $ref: '#/components/parameters/CsrfToken'
-        - $ref: '#/components/parameters/IdempotencyKey'
-        - name: linkId
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 1
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/GiftcardStockUploadRequest'
-            examples:
-              basic:
-                summary: 向 CAD 25 面值档上传 3 张卡密
-                value:
-                  denomination:
-                    amount: '2500'
-                    currency: CAD
-                  cardSecrets:
-                    - CARD-A|PIN-A
-                    - CARD-B|PIN-B
-                    - CARD-C|PIN-C
-      responses:
-        '200':
-          description: 已入池（同步返回逐条受理 / 拒绝结果）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/GiftcardStockUploadResult'
-              examples:
-                partial:
-                  summary: 3 条入 2 拒 1（重复）
-                  value:
-                    denomination:
-                      amount: '2500'
-                      currency: CAD
-                    accepted: 2
-                    rejected: 1
-                    errors:
-                      - index: 2
-                        reason: duplicate
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
-      x-error-codes:
-        '409':
-          - 208001
-          - 208005
   /products/payment-links/{linkId}/banner:
     post:
       tags:
@@ -1174,9 +1133,9 @@ paths:
       tags:
         - payment-links
       operationId: getPaymentLinkRedemptions
-      summary: Redemptions 只读呈现（发卡 / 核销记录）
+      summary: Redemptions 只读呈现（核销记录）
       description: |
-        按 link scope 展示只读记录（分页 / 搜索 / 过滤）：giftcard = 发卡 / 投递记录（掩码卡号 / 投递时间 / 收件方 / 发放态）； product/ticket = 核销记录（核销码 / 时间 / 操作人 / 状态）。只读呈现、不在此创建 / 发起核销。
+        按 link scope 展示只读**核销**记录（分页 / 搜索 / 过滤）：product / ticket = 到店自提 / 入场核销； **giftcard 仅 Voucher Mode** = 门店核销记录（券号 / 门店 / 终端 / 操作人 / 核销时间 / 状态）。 ⚠️ **giftcard Inventory Mode 无平台核销**——本 tab 置灰不可点击、`total` 恒 0； 其发卡 / 投递情况在**订单详情**呈现（交易管理的 `getPaymentDetail` 的 `giftCard` 段），不走本端点。 核销为整单一次性，**不含已用金额 / 剩余余额**（非储值）。只读呈现、不在此创建 / 发起核销。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/PageNum'
@@ -1190,13 +1149,13 @@ paths:
         - name: q
           in: query
           required: false
-          description: 按核销码 / 掩码卡号 / 收件方搜索
+          description: 按核销码 / 券号 / 门店 / 操作人搜索
           schema:
             type: string
         - name: status
           in: query
           required: false
-          description: 按发放态 / 核销态过滤（值域随 type，如 ISSUED / SUSPENDED / CANCELED）
+          description: 按核销态过滤
           schema:
             type: string
       responses:
@@ -2226,37 +2185,134 @@ components:
             - type: 'null'
     GiftcardDenomination:
       type: object
+      description: 面值档。`amount` = 主卡面值（Card Value）；`price` = 对外标价，**不等同支付金额**—— `promotionType=discount` 时支付额 = price − discountAmount，`=bonus_card` 时支付额 = price 且另获赠卡。 库存字段按履约模式二选一：Inventory Mode 用只读 `stock`，Voucher Mode 用可配 `salesLimit`。
       required:
         - amount
       properties:
         amount:
           $ref: '#/components/schemas/PositiveMoney'
-        bonus:
-          description: bonus 赠送面值（可空 = 无 bonus）
+        price:
+          description: 对外标价（留空 = 按面值标价）
+          anyOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+            - type: 'null'
+        discountAmount:
+          description: 折扣额（仅 `promotionType=discount`；其余为 null）
           anyOf:
             - $ref: '#/components/schemas/Money'
             - type: 'null'
+        bonusCardAmount:
+          description: 赠卡金额（仅 `promotionType=bonus_card`；其余为 null）
+          anyOf:
+            - $ref: '#/components/schemas/Money'
+            - type: 'null'
+        bonusTerms:
+          description: 赠卡条款（`promotionType=bonus_card` 时必填）：same_as_main = 范围/有效期同主卡；custom = 独立规则，须填 bonusNotes
+          oneOf:
+            - type: string
+              enum:
+                - same_as_main
+                - custom
+            - type: 'null'
+        bonusNotes:
+          type:
+            - string
+            - 'null'
+          description: 赠卡备注（`bonusTerms=custom` 时**必填**，说明使用范围 / 有效期 / 限制；缺失拒绝保存）
+        stock:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          readOnly: true
+          description: 该面值档已导入卡量（**仅 Inventory Mode、只读**）。本期卡密由运营整理后交技术按面值导入， **商户后台不提供上传 / 补货入口**（自助库存管理归二期）；`null` = 尚未导入。
+        salesLimit:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          description: 该面值档销售数量上限（**仅 Voucher Mode**；达上限即该档售罄）
     GiftcardContent:
       type: object
+      description: 礼卡销售内容。**`fulfillmentMode` 是唯一表达库存与核销业务模式的字段**： Inventory Mode 发预先导入的真品牌卡、无平台核销；Voucher Mode 发系统生成兑换券、门店核销 + 可 Void。 创建后**不可变更**；`redemptionRule` 仅 Voucher Mode 可提交。
       required:
-        - eventType
+        - giftCardName
+        - brandName
+        - campaignName
+        - promotionType
+        - fulfillmentMode
+        - emailLanguage
         - campaignEndDate
         - denominations
       properties:
-        eventType:
+        giftCardName:
+          type: string
+          minLength: 1
+          description: 用户可见礼卡商品名（邮件标题 / 礼卡展示 / 订单详情）
+        brandName:
+          type: string
+          minLength: 1
+          description: 礼卡所属品牌名
+        brandLogoRef:
+          type:
+            - string
+            - 'null'
+          description: 品牌 Logo 引用（方形预览）
+        campaignName:
+          type: string
+          minLength: 1
+          description: 后台活动名，供运营 / 财务 / 排查用，**不面向持卡人**。与 brandName / giftCardName 分开维护、互不替代
+        promotionType:
           type: string
           enum:
             - discount
             - bonus_card
-        campaignEndDate:
-          allOf:
-            - $ref: '#/components/schemas/CalendarDate'
-          description: 活动截止日（**产品日历日期**）。按**保存请求时**当前商户 IANA 时区对应的**自然日**校验须 ≥ 今天 （**日切时刻不参与**「今天」判定）。所选日整日可售；创建时冻结当时时区身份与下一自然日 00:00 的 绝对截止瞬时，改时区**不使既有 Campaign 停售时点漂移**；显式改日期时沿用原冻结时区重算。
-        limitPerOrder:
+          description: 促销类型（原 `eventType`）
+        fulfillmentMode:
+          type: string
+          enum:
+            - inventory
+            - voucher
+          description: 履约模式；**创建后不可变更**，改则拒绝
+        redemptionRule:
+          description: 核销规则——**仅 Voucher Mode 可提交**，Inventory Mode 提交则拒绝保存。 本期取值集合仅 `one_time`（现网只支持一次核销），提交其他值拒绝；字段在契约中保留以便将来放开。
+          oneOf:
+            - type: string
+              enum:
+                - one_time
+            - type: 'null'
+        emailLanguage:
+          type: string
+          enum:
+            - en
+            - zh
+            - fr
+          description: 凭证邮件模板语言；**只影响邮件**，与活动页 Policies 多语言相互独立
+        maxPurchaseQuantity:
           type:
             - integer
             - 'null'
           minimum: 1
+          description: '**单个可识别用户**在限制范围内可购张数——**唯一的数量限制口径、无独立每单上限**。默认值按部署配置'
+        purchaseLimitCycle:
+          description: 限购周期；开启时按滚动周期计数，关闭（null）时按活动存续期整体计数
+          oneOf:
+            - type: string
+              enum:
+                - daily
+                - weekly
+                - biweekly
+                - monthly
+            - type: 'null'
+        orderRiskReview:
+          type:
+            - boolean
+            - 'null'
+          description: 订单风控审核开关。**仅管收款后的发放闸**——建单前的准入风控不由本字段控制。这是唯一的活动级风控配置项：人工复核 / 升为高风险 / 加入礼卡客户风险名单**不是**活动级配置
+        campaignEndDate:
+          allOf:
+            - $ref: '#/components/schemas/CalendarDate'
+          description: 活动截止日（**产品日历日期**）。按**保存请求时**当前商户 IANA 时区对应的**自然日**校验须 ≥ 今天 （**日切时刻不参与**「今天」判定）。所选日整日可售；创建时冻结当时时区身份与下一自然日 00:00 的 绝对截止瞬时，改时区**不使既有 Campaign 停售时点漂移**；显式改日期时沿用原冻结时区重算。
         slogan:
           type:
             - string
@@ -2345,7 +2401,7 @@ components:
             $ref: '#/components/schemas/TicketTier'
     PoliciesAndSupport:
       type: object
-      description: 收款页 Policies & Support（三语；商户级默认继承）。
+      description: 收款页 Policies & Support（**五项** × 三语；商户级默认继承、跨类 II 三产品共享一份）。
       properties:
         faq:
           $ref: '#/components/schemas/LocalizedText'
@@ -2353,8 +2409,14 @@ components:
           $ref: '#/components/schemas/LocalizedText'
         privacyPolicy:
           $ref: '#/components/schemas/LocalizedText'
+        termsOfUse:
+          allOf:
+            - $ref: '#/components/schemas/LocalizedText'
+          description: 使用说明：活动页展示的重要使用说明 / 使用范围 / 适用限制与关键条款提示（区别于下方的正式条款全文）
         terms:
-          $ref: '#/components/schemas/LocalizedText'
+          allOf:
+            - $ref: '#/components/schemas/LocalizedText'
+          description: Terms & Conditions 正式条款全文
     LocalizedText:
       type: object
       description: 三语文本（EN / 中 / FR）。
@@ -2704,58 +2766,9 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PaymentLinkListItem'
-    GiftcardStockUploadRequest:
-      type: object
-      required:
-        - denomination
-        - cardSecrets
-      properties:
-        denomination:
-          $ref: '#/components/schemas/PositiveMoney'
-        cardSecrets:
-          type: array
-          minItems: 1
-          maxItems: 1000
-          description: 卡密条目（敏感明文、全链路禁记录；单批上限，示例 1000、部署可配）
-          items:
-            type: string
-            minLength: 1
-    GiftcardStockUploadResult:
-      type: object
-      description: 本地卡密池上传结果（同步返回、按条目返受理 / 拒绝计数）。
-      required:
-        - denomination
-        - accepted
-        - rejected
-      properties:
-        denomination:
-          $ref: '#/components/schemas/Money'
-        accepted:
-          type: integer
-          minimum: 0
-          description: 成功入池条数
-        rejected:
-          type: integer
-          minimum: 0
-          description: 被拒条数（重复 / 格式错等）
-        errors:
-          type: array
-          description: 逐条拒绝原因（不回显卡密明文，仅索引 + 原因码）
-          items:
-            type: object
-            required:
-              - index
-              - reason
-            properties:
-              index:
-                type: integer
-                minimum: 0
-                description: 请求 cardSecrets 数组下标
-              reason:
-                type: string
-                description: 拒绝原因码（如 duplicate / invalid_format）
     RedemptionListPage:
       type: object
+      description: '核销记录分页。**giftcard Inventory Mode 恒返 `total: 0` + 空 `data`**（无平台核销、tab 置灰）， 其发卡 / 投递情况在订单详情呈现、不在本资源。'
       required:
         - total
         - data
@@ -2766,49 +2779,10 @@ components:
         data:
           type: array
           items:
-            oneOf:
-              - $ref: '#/components/schemas/GiftcardIssuanceRecord'
-              - $ref: '#/components/schemas/VoucherRedemptionRecord'
-            discriminator:
-              propertyName: recordKind
-              mapping:
-                issuance: '#/components/schemas/GiftcardIssuanceRecord'
-                redemption: '#/components/schemas/VoucherRedemptionRecord'
-    GiftcardIssuanceRecord:
-      type: object
-      description: giftcard 发卡 / 投递记录（只读）。
-      required:
-        - recordKind
-        - maskedCardNo
-        - issuanceStatus
-      properties:
-        recordKind:
-          type: string
-          enum:
-            - issuance
-        maskedCardNo:
-          type: string
-          readOnly: true
-        deliveredAt:
-          readOnly: true
-          anyOf:
-            - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
-        recipient:
-          type:
-            - string
-            - 'null'
-          readOnly: true
-        issuanceStatus:
-          type: string
-          enum:
-            - ISSUED
-            - SUSPENDED
-            - CANCELED
-          readOnly: true
+            $ref: '#/components/schemas/VoucherRedemptionRecord'
     VoucherRedemptionRecord:
       type: object
-      description: product / ticket 核销记录（只读）。
+      description: 核销记录（只读）。适用于 product / ticket，以及 **giftcard 的 Voucher Mode** （Inventory Mode 无平台核销，本 tab 置灰、记录数恒 0）。 核销为**整单一次性**——**不含已用金额 / 剩余余额字段**（非储值）。
       required:
         - recordKind
         - code
@@ -2821,11 +2795,24 @@ components:
         code:
           type: string
           readOnly: true
+          description: 核销码 / 兑换券号
         redeemedAt:
           readOnly: true
           anyOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
+        store:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: 核销门店（giftcard Voucher Mode）
+        terminal:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: 核销终端（giftcard Voucher Mode）
         operator:
           type:
             - string
