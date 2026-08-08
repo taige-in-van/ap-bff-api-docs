@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 (20-06) — 前端契约面
-  version: 0.6.2
+  version: 0.7.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -343,7 +343,7 @@ paths:
       operationId: listStatements
       summary: 月度账单列表（按年份过滤）
       description: |
-        月度服务费账单（商户 scope）——按年份过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如可用）。无数据返回空态。
+        月度服务费账单（商户 scope）——按**手续费服务期间年**过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如可用）。 **默认排序 = 服务期间月倒序**（最近月在前）。无数据返回空态。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: year
@@ -352,7 +352,7 @@ paths:
             type: integer
             minimum: 2000
             maximum: 2100
-          description: 年份过滤（缺省取最近有数据年;有界防异常输入）
+          description: 按**手续费服务期间年**过滤（即 `period` 的年份，非账单出具年;缺省取最近有数据年;有界防异常输入）
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -550,17 +550,11 @@ paths:
       operationId: submitRefundReserveFunding
       summary: 储备金充值 + auto-replenish 配置（单次 Owner email OTP；二者至少其一）
       description: |
-        合并入口：Top Up 与 auto-replenish 配置可单独或同次提交,共用一次 OTP。 提交须携带发起时拿到的 OTP challengeId + 验证码,且**提交摘要须与该 challenge 绑定的摘要一致、同会话提交**,否则 → 403（防串改金额 / 夹带配置）;失败时 **Top Up 与配置两者都不生效**。OTP 错误尝试上限锁定 → 423、冷却中 / 限流 → 429。 Top Up 从 Account Balance 划入 Refund Reserve（守 Account Balance 足额,不足 → 拒）;auto-replenish 保存配置（其自动补足执行由平台在 Refund Reserve 低于阈值时触发,不在本次写内）。 **幂等**：挂 `Idempotency-Key`、同键重投返**首次结果**、**不重复划转**;**同键异摘要 → 409**（同键异 payload,不推进）。**响应项 ⟺ 提交项**、可部分成功——各子项独立 status,未达终态时 PENDING、凭 operationId 轮询收敛。金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0。
+        合并入口：Top Up 与 auto-replenish 配置可单独或同次提交,共用一次 OTP。 提交须携带发起时拿到的 OTP challengeId + 验证码,且**提交摘要须与该 challenge 绑定的摘要一致、同会话提交**,否则 → 403（防串改金额 / 夹带配置）;失败时 **Top Up 与配置两者都不生效**。OTP 错误尝试上限锁定 → 423、冷却中 / 限流 → 429。 Top Up 从 Account Balance 划入 Refund Reserve（守 Account Balance 足额,不足 → 拒）;auto-replenish 保存配置（其自动补足执行由平台在 Refund Reserve 低于阈值时触发,不在本次写内）。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次结果**、**不会重复划转**——网络重试请复用同一个键;改了金额或配置（同键异摘要）就必须换新键,沿用旧键改内容 → `409`·208005、且不推进。 **响应项 ⟺ 提交项**、可部分成功——各子项独立 status,未达终态时 PENDING、凭 operationId 轮询收敛。金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
-        - name: Idempotency-Key
-          in: header
-          required: true
-          description: '**端点级必填**（资金写资损红线;缺失 → 400 不可推进）。同键重投返首次结果、不重复划转;重试请复用同一键。'
-          schema:
-            type: string
-            minLength: 1
-            pattern: \S
+        - $ref: '#/components/parameters/IdempotencyKey'
+          description: 幂等键，**必带**（缺失 → `400`，请求不会推进）。同键重投返首次结果、**不会重复划转**;网络重试请复用同一个键。
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
@@ -629,17 +623,11 @@ paths:
       operationId: submitRefundReserveWithdrawal
       summary: 储备金取回 Account Balance（无 OTP）
       description: |
-        把 Refund Reserve 取回到 Account Balance（守 Refund Reserve 足额）。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP。 应收抵扣在平台账本内部完成、本面不可见不编排。`max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 走 amount。金额 ≤ 0 / 执行时 Refund Reserve 不足 → 拒绝、不划转。资金路径幂等（同 `Idempotency-Key` 重投、不重复划转）；同 `Idempotency-Key` 异 amount/max（同键异 payload）→ 409（208005,与 funding / createExport 冲突码同口径）。
+        把 Refund Reserve 取回到 Account Balance（守 Refund Reserve 足额）。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP。 应收抵扣在平台账本内部完成、本面不可见不编排。`max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 走 amount。金额 ≤ 0 / 执行时 Refund Reserve 不足 → 拒绝、不划转。**幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次结果**、**不会重复划转**——网络重试请复用同一个键;改了 amount / max 就必须换新键,沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
-        - name: Idempotency-Key
-          in: header
-          required: true
-          description: '**端点级必填**（资金写资损红线;缺失 → 400 不可推进）。同键重投返首次结果、不重复划转;重试请复用同一键。'
-          schema:
-            type: string
-            minLength: 1
-            pattern: \S
+        - $ref: '#/components/parameters/IdempotencyKey'
+          description: 幂等键，**必带**（缺失 → `400`，请求不会推进）。同键重投返首次结果、**不会重复划转**;网络重试请复用同一个键。
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
@@ -741,7 +729,7 @@ paths:
       operationId: createExport
       summary: 创建导出任务（结算单 / 流水 XLSX；异步。月度账单 PDF 走同步 getStatementPdf、不经此路径）
       description: |
-        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页。导出范围固定为发起时的当前商户,filters 只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。大结果集异步处理、超上限不静默丢弃而给超限提示或转异步;导出请求记审计事件;空结果导出空表头文件或提示无数据。**幂等**：挂 `Idempotency-Key`、同键重投返**首次创建的任务**（不重复建任务、响应丢失可安全重试）；同键异 scope / 参数 → 409。
+        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页。导出范围固定为发起时的当前商户,filters 只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。大结果集异步处理、超上限不静默丢弃而给超限提示或转异步;导出请求记审计事件;空结果导出空表头文件或提示无数据。**幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次创建的任务**、不重复建任务——网络重试请复用同一个键;改了筛选条件 / 范围就必须换新键,沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1142,14 +1130,14 @@ components:
         - txnCount
         - serviceFee
         - status
-      description: 月度账单汇总。月度账单上游契约待建,字段 / 生成时点 / 新鲜度落定后可能调整。
+      description: 商户面月度服务费账单汇总。新鲜度 = 上游月度出具批完成即可见。
       properties:
         statementId:
           type: string
           readOnly: true
         period:
           type: string
-          description: 账单期间（月,YYYY-MM）。
+          description: 手续费服务期间月（YYYY-MM）——该账单归集的是哪个月的交易手续费，从原交易固化的商户营业日派生。**不是账单的出具周期月**；商户面一律按服务期间月呈现与过滤。
         netSettlement:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1747,8 +1735,8 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      required: false
-      description: 幂等键(写接口;三段命中语义)
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
       schema:
         type: string
         minLength: 1

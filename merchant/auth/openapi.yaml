@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 BFF) — 前端契约面
-  version: 0.4.26
+  version: 0.5.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -34,7 +34,7 @@ paths:
       operationId: registerOwner
       summary: Owner 自助注册（创建 PENDING_VERIFICATION 账号 + 发验证邮件）
       description: |
-        提交注册：校验邮箱唯一（已占用 → 409）、创建 PENDING_VERIFICATION 账号，并发起 Verify Email 邮件的异步发送（邮件投递失败不阻塞注册、账号仍建成）。 幂等：同 Idempotency-Key 重放返回同一受理结果。
+        提交注册：校验邮箱唯一（已占用 → 409）、创建 PENDING_VERIFICATION 账号，并发起 Verify Email 邮件的异步发送（邮件投递失败不阻塞注册、账号仍建成）。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回同一受理结果、不会重复注册——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       security: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -586,7 +586,7 @@ paths:
         - account-security
       operationId: changeOwnPassword
       summary: 登录态改密（Owner + 员工统一用旧密码；其他会话失效、当前保留）
-      description: '**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**;旧密码错 → 401,不计入登录锁定;忘记旧密码 → 前端「Forgot your password?」走自助重置。Idempotency-Key 重放:同键同 payload → 一致重放 204;同键异 payload → 409。'
+      description: '**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**;旧密码错 → 401,不计入登录锁定;忘记旧密码 → 前端「Forgot your password?」走自助重置。幂等：必带 `Idempotency-Key`;同键 + 同请求体重发 → 一致返 `204`(网络重试请复用同一个键);改了请求体就必须换新键,沿用旧键改内容 → `409`·208005。'
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1120,7 +1120,7 @@ paths:
       operationId: verifyPasswordResetFactor
       summary: 自助重置 — 因子验证（邮箱 OTP / TOTP → resetToken）
       description: |
-        因子验证（**该步强制挂 Idempotency-Key**：重放同键返回同一 resetToken——杜绝网络重试因 OTP 已消费而假失败）。challengeId 不泄露账号存在性；因子错误 / 过期 → `410`、锁定 → `423`、限流 → `429`（共享错误模型）。`400` = 入参校验失败（如缺字段）。验证成功才签发单次 resetToken,供 confirmation 步骤设置新密码。
+        因子验证（**该步强制挂 Idempotency-Key**：重放同键返回同一 resetToken——杜绝网络重试因 OTP 已消费而假失败）。challengeId 不泄露账号存在性；因子错误 / 过期 → `410`、锁定 → `423`、限流 → `429`（共享错误模型）。`400` = 入参校验失败（如缺字段）。验证成功才签发单次 resetToken,供 confirmation 步骤设置新密码。 **幂等**：必带 `Idempotency-Key`。因子只能被消费一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**同一个 resetToken**（不会因「因子已用过」而假失败）；换新键重发会按已消费处理 → `410`。同键但请求体不同 → `409`·208005。
       security: []
       parameters:
         - name: challengeId
@@ -1155,13 +1155,18 @@ paths:
                 resetToken: rst_8f3c1a9e6b2d4f7a0c5e
         '400':
           $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+          description: 同 `Idempotency-Key` 复用于不同 payload `208005`
         '410':
           $ref: '#/components/responses/Gone'
         '423':
           $ref: '#/components/responses/Locked'
         '429':
           $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+      x-error-codes:
+        '409':
+          - 208005
   /password-resets/{challengeId}/confirmation:
     post:
       tags:
@@ -1304,7 +1309,7 @@ paths:
       operationId: createTeamMember
       summary: Owner 新建员工（邮箱→INVITED 发邀请 / 用户名→Owner 设密 ACTIVE）
       description: |
-        按登录 ID 格式分两支:**含 @（邮箱格式)** → 不填密码,建 `INVITED` 成员 + 发邀请链接邮件(员工经邀请自设密激活)、设密时才可登录;**不含 @（用户名格式)** → Owner 填临时密码,直接建 `ACTIVE` 成员。 幂等重试安全（同 Idempotency-Key）。不可选 Owner 角色。
+        按登录 ID 格式分两支:**含 @（邮箱格式)** → 不填密码,建 `INVITED` 成员 + 发邀请链接邮件(员工经邀请自设密激活)、设密时才可登录;**不含 @（用户名格式)** → Owner 填临时密码,直接建 `ACTIVE` 成员。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不会重复建号——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。不可选 Owner 角色。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1360,7 +1365,7 @@ paths:
       operationId: updateTeamMember
       summary: 编辑员工（Nick Name / Role / 用户名直接改 / 填 newPassword 重置 / ACTIVE 邮箱改走确认链接）
       description: |
-        一次原子更新成员字段（Role + 用户名 loginId〔不含 @〕+ newPassword + Nick Name）:**要么全成功、要么全失败**（无部分成功、无字段级结果体）。副作用逐字段:`newPassword`→失效该员工全会话 / `loginId`(用户名)→登录域内唯一、直接生效 / `Role`→重算该商户权限。**启停走独立端点**（setMemberEnablement、非本端点）。同步字段生效后若显示名(Nick Name)仍在后台补齐 → `202`(处理中、status=PROCESSING),**同 `Idempotency-Key` 重试返当前结果、完成后收敛 `204`**——不返回整体失败。 **ACTIVE 邮箱格式员工改登录邮箱**:Owner 无需额外自证,但**不直接生效**——校验新邮箱格式/唯一(含 pending 占用)后向**新邮箱发确认链接**,确认前旧邮箱仍有效、pending 新邮箱不可登录/不可 Forgot;员工经 `/team/login-email-confirmations` 确认后切换。`INVITED` 员工改邮箱 → 重发邀请。 Owner row：仅 Nick Name 可改、Role 不可改、不经此重置 Owner 密码(改密走 changeOwnPassword、改邮箱走 owner-contact primary-email)。改 loginId/Role 不失效会话；填 newPassword → 该员工全会话失效。
+        一次提交更新成员字段（Role + 用户名 loginId〔不含 @〕+ newPassword + Nick Name）。**同步字段（Role / loginId / newPassword）原子生效**:要么全成功、要么全失败（无部分成功、无字段级结果体）;**Nick Name 可能后台补齐**（见下 `202`），不阻塞同步字段生效。副作用逐字段:`newPassword`→失效该员工全会话 / `loginId`(用户名)→登录域内唯一、直接生效 / `Role`→重算该商户权限。**启停走独立端点**（setMemberEnablement、非本端点）。同步字段生效后若显示名(Nick Name)仍在后台补齐 → `202`(处理中、status=PROCESSING),**同 `Idempotency-Key` 重试返当前结果、完成后收敛 `204`**——不返回整体失败。 **ACTIVE 邮箱格式员工改登录邮箱**:Owner 无需额外自证,但**不直接生效**——校验新邮箱格式/唯一(含 pending 占用)后向**新邮箱发确认链接**,确认前旧邮箱仍有效、pending 新邮箱不可登录/不可 Forgot;员工经 `/team/login-email-confirmations` 确认后切换。`INVITED` 员工改邮箱 → 重发邀请。 Owner row：仅 Nick Name 可改、Role 不可改、不经此重置 Owner 密码(改密走 changeOwnPassword、改邮箱走 owner-contact primary-email)。改 loginId/Role 不失效会话；填 newPassword → 该员工全会话失效。 **幂等**：必带 `Idempotency-Key`；**同键 + 同请求体重发不会重复施加任何副作用**（不重复失效会话、不重复改权限）， 但**返回的是当前进度而非首次快照**——显示名仍在后台补齐时返 `202` + `status=PROCESSING`，补齐后同一个键再发即返 `204`。 **轮询方式就是拿同一个键重发本请求**（本域不另设查询端点）。同键但请求体不同（改了字段值）→ `409`·208005，此时应换新键提交。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -2104,8 +2109,8 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      required: false
-      description: 幂等键(写接口;三段命中语义)
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
       schema:
         type: string
         minLength: 1

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 (20-04 BFF) — 前端契约面
-  version: 0.4.0
+  version: 0.5.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -19,7 +19,7 @@ tags:
   - name: invoices
     description: 账单码：列表 / 详情 / 创建 / 作废 / 已支付隐藏。
   - name: payment-links
-    description: 支付链接（gift/product/ticket 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕；giftcard 库存只读；Redemptions 只读）。
+    description: 支付链接（giftcard/product/ticket 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕；giftcard 库存只读；Redemptions 只读）。
   - name: devices
     description: 设备：列表 / 详情 + 绑定/解绑/启停/Regenerate。
   - name: device-logs
@@ -36,7 +36,7 @@ paths:
       operationId: listStoreQrVariants
       summary: 读店铺码展示变体（主 QR + 可用变体）
       description: |
-        返回当前商户店铺码可展示变体集（默认主结算币种 Standard 码 + 其余按已开通币种 / QR type / 通道条件显隐； UnionPay QRC 变体需 UPI 通道启用）。 未开通 In-Store Payment Service → 空集。
+        返回当前商户店铺码可展示变体集（默认主结算币种 Standard 码 + 其余按已开通币种 / QR type / 通道条件显隐； UnionPay QRC 变体需 UPI 通道启用）。 展示变体随商户可受理方式集变化。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -451,7 +451,7 @@ paths:
         - invoices
       operationId: getInvoiceCreateConfig
       summary: 读账单创建候选配置
-      description: 创建账单向导所需候选：可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准、前端不 hardcode）。**最终受理〔含金额 / 汇率 / 最小额〕在下单时完成**（创建向导无金额）。无可标价币种 → 空集、前端引导开通。
+      description: 创建账单向导所需候选：可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准、前端不 hardcode）。**最终受理〔含金额 / 汇率 / 最小额〕在下单时完成**（创建向导无金额）。无可标价币种 → 空集（非 error）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -644,9 +644,9 @@ paths:
       tags:
         - payment-links
       operationId: createPaymentLink
-      summary: 创建支付链接（gift/product/ticket）
+      summary: 创建支付链接（giftcard/product/ticket）
       description: |
-        创建支付链接（type 判别 gift/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL 与 QR（整串）；含 Policies / Buyer Info（继承商户级默认快照）。 **currency × methods 组合校验**：校验所选方式均支持该标价币种；未开通 online / 方式不适用或不支持该币种 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE (208007)`；空方式 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。 **内容币种一致**：所有内容价格（denomination / product price / ticket tier price）及 bonus 币种须 = 顶层 `currency`，不一致 → `400 CONTENT_CURRENCY_MISMATCH (204006)`（schema 不强约、服务端校验）。 **礼卡内容规则**（type=gift）：核销规则仅兑换券模式适用 / 赠卡条款为自定义时赠卡备注必填 / 活动截止日不得早于今天 —— 任一不满足拒绝保存 → `400 GIFTCARD_CONTENT_INVALID (204013)`（逐字段明细走响应体字段错误）。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
+        创建支付链接（type 判别 giftcard/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL 与 QR（整串）；含 Policies / Buyer Info（继承商户级默认快照）。 **currency × methods 组合校验**：校验所选方式均支持该标价币种；方式不在该产品候选集内或不支持该币种 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE (208007)`；空方式 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。 **内容币种一致**：所有内容价格（denomination / product price / ticket tier price）及 bonus 币种须 = 顶层 `currency`，不一致 → `400 CONTENT_CURRENCY_MISMATCH (204006)`（schema 不强约、服务端校验）。 **礼卡内容规则**（type=giftcard）：核销规则仅兑换券模式适用 / 赠卡条款为自定义时赠卡备注必填 / 活动截止日不得早于今天 —— 任一不满足拒绝保存 → `400 GIFTCARD_CONTENT_INVALID (204013)`（逐字段明细走响应体字段错误）。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -766,9 +766,15 @@ paths:
       operationId: getPaymentLinkCreateConfig
       summary: 读支付链接创建候选配置
       description: |
-        创建 / 编辑向导所需候选：online 候选支付方式（该商户当前可用集、后端返回；无 online 方式 → **空集**、前端展示开通引导）+ 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理〔含金额/汇率〕在下单时完成）+ Buyer / Recipient Information 候选项池与默认勾选集。 FE 据此渲染创建向导、提交的 methodIds / currency 须 ⊆ 本候选。
+        创建 / 编辑向导所需候选：候选支付方式（该商户对该链接类型的当前可受理集、后端返回，**含线上与线下方式**）+ 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理〔含金额/汇率〕在下单时完成）+ Buyer / Recipient Information 候选项池与默认勾选集。 FE 据此渲染创建向导、提交的 methodIds / currency 须 ⊆ 本候选。 **候选按链接类型给**：礼卡 / 商品码 / 票务的可用方式可不同，故 `type` 必填、须先选类型再取候选（编辑场景传该链接自身的类型）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: type
+          in: query
+          required: true
+          description: 链接类型；候选方式与可选标价币种按该类型给
+          schema:
+            $ref: '#/components/schemas/PaymentLinkType'
       responses:
         '200':
           description: 支付链接创建候选配置
@@ -1077,7 +1083,7 @@ paths:
       tags:
         - payment-links
       operationId: uploadPaymentLinkBanner
-      summary: 上传 Banner（gift/ticket 收银台展示）
+      summary: 上传 Banner（giftcard/ticket 收银台展示）
       description: 上传 Banner 图片（sniff + 白名单 + 大小上限部署可配）→ 返回引用供 updatePaymentLink。**幂等豁免**：仅返回 blob 引用、无持久副作用，故不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -1828,7 +1834,7 @@ components:
         availableCurrencies:
           type: array
           uniqueItems: true
-          description: 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理在下单时完成；无可标价则空集、FE 引导开通）
+          description: 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理在下单时完成；无可标价则空集，非 error）
           items:
             $ref: '#/components/schemas/Currency'
     PaymentLinkCreateConfig:
@@ -1843,12 +1849,12 @@ components:
         availableCurrencies:
           type: array
           uniqueItems: true
-          description: 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理在下单时完成；无可标价则空集、FE 引导开通）
+          description: 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理在下单时完成；无可标价则空集，非 error）
           items:
             $ref: '#/components/schemas/Currency'
         availableMethods:
           type: array
-          description: online 候选支付方式（该商户当前可受理集；**每方式带 `pricingCurrencies` 供 currency × method 联动筛选**；未开通 online → 空集、FE 展示开通引导）
+          description: 候选支付方式（该商户对该链接类型的当前可受理集，**含线上与线下方式**；**每方式带 `pricingCurrencies` 供 currency × method 联动筛选**）
           items:
             $ref: '#/components/schemas/PaymentMethodCandidate'
         buyerInfoCandidates:
@@ -3149,8 +3155,8 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      required: false
-      description: 幂等键(写接口;三段命中语义)
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
       schema:
         type: string
         minLength: 1

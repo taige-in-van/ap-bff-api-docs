@@ -61,8 +61,8 @@
 - **Business Information 编辑**：[`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) 可提交 7 个可编辑字段（`address` / `city` / `province` / `postalCode` / `country` / `timeZone` / `businessPhone`），直接生效（204）。任一 Locked 字段出现在请求体即 **403、不持久化**（服务端 enforce，不依赖前端隐藏）；字段非法 400；当前商户非 ACTIVE 时 409、不持久化。
 - **Contact Information（联系人 + Primary Email）**：Profile 页 Contact section 展示走 [`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) 聚合的 contact 区块；**改联系人**调 `updateOwnerContact`、**改 Primary Email**调 `initiateOwnerPrimaryEmailChange` 起严格两步验证（均为 `owner-contact` 端点，详见注册登录与认证 flows「Owner 联系人 / Primary Email」）。
 - **Logo**：[`uploadLogo`](index.html#tag/profile/operation/uploadLogo)（multipart，返回 `logoUrl`）/ [`removeLogo`](index.html#tag/profile/operation/removeLogo)（204，回退默认首字母标识），均即时生效。
-- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / `pendingUrlChange`）+ `integrations`（terminal `activeProvider` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回。当前商户非 ACTIVE 时 409、不返回页面数据；上游支付方式配置源不可用时 502、fail-closed，不返回部分配置。
-- **PaymentMethod 启停**：[`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) 在已 ACTIVE 的 mode 内**覆盖式**提交 `enabledMethodIds`，立即生效（204）；method 不属该 mode / 不存在 400；mode 未开通或未 ACTIVE 409；上游支付方式配置源不可用时 502、不保存。
+- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / `pendingUrlChange`）+ `integrations`（terminal `activeProvider` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回。当前商户非 ACTIVE 时 409、不返回页面数据；支付方式配置源读不到内容时 500、不返回不完整配置。
+- **PaymentMethod 启停**：[`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) 在已 ACTIVE 的 mode 内**覆盖式**提交 `enabledMethodIds`，立即生效（204）；method 不属该 mode / 不存在 400；mode 未开通或未 ACTIVE 409；支付方式配置源读不到内容时 500、不保存。
 - **Terminal 连接 / 停用**：[`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration)（Moneris / Clover 互斥，`provider` 判别多态请求体，即时生效，返回掩码 `credentialSummary` + 当前 `activeProvider` + `threedsEnabled`；凭据校验失败 400）/ [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration)（清 `activeProvider`、凭据保留以便再连，204）。
 - **切换当前商户**：[`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) 把当前商户切到目标商户（204）；目标商户不在当前账号可访问范围 → 404、REJECTED / 无权切 → 403。切换成功后，后续页面均使用新的当前商户。
 - **撤回未激活商户在途入驻**：[`withdrawOnboardingApplication`](index.html#tag/merchants/operation/withdrawOnboardingApplication) 把在途 Application 迁 `WITHDRAWN`（该商户从切换列表隐藏）→ **200 `{contextChanged, currentMerchantId}`**；ACTIVE / REJECTED（及无上级关联关系的商户）不可撤回 → 409。若撤回的是当前选中商户，服务端切换到可访问的上级商户、无则 `currentMerchantId=null`（前端按 `contextChanged` 刷新、null 时重选商户）；撤回非当前商户则 `contextChanged=false`、会话不变。
@@ -142,7 +142,7 @@ sequenceDiagram
         B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= online, onlineServiceType= Website, websiteUrl }
     end
     A-->>B: 201 { enrollmentId, mode, status= PENDING_REVIEW }（待审核；审核结果异步生效，前端经 getServicePage 读最新状态）
-    Note over B,A: 同 mode 已 PENDING_REVIEW 或已 ACTIVE 409（禁重复提交）<br/>凭证缺失 / 格式非法 400（不创建）<br/>上游支付方式配置源不可用 502（不创建）<br/>审核结果异步生效，前端靠 getServicePage 的 mode status 收敛
+    Note over B,A: 同 mode 已 PENDING_REVIEW 或已 ACTIVE 409（禁重复提交）<br/>凭证缺失 / 格式非法 400（不创建）<br/>支付方式配置源读不到内容 500（不创建）<br/>审核结果异步生效，前端靠 getServicePage 的 mode status 收敛
 ```
 
 - **审核分流**：申请创建后主状态 `PENDING_REVIEW`；前端靠 [`getServicePage`](index.html#tag/service-page/operation/getServicePage) 各 mode 的 `status` 反映审核进展，无前端轮询。
@@ -160,7 +160,7 @@ sequenceDiagram
     participant A as 商户后台 BFF
     B->>A: [connectEcommerceIntegration] POST /integrations/ecommerce { provider, websiteUrl, paymentMethodConfig }
     A-->>B: 201 { integrationId, provider, status= PENDING_REVIEW }（待审核；审核结果异步生效，前端经 getServicePage 读最新状态）
-    Note over B,A: 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode<br/>同平台审核中重复提交 409<br/>URL / 配置校验失败 400<br/>上游支付方式配置源不可用 502（不创建）
+    Note over B,A: 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode<br/>同平台审核中重复提交 409<br/>URL / 配置校验失败 400<br/>支付方式配置源读不到内容 500（不创建）
     opt 集成 ACTIVE 后管理
         alt 仅改 paymentMethodConfig（URL 未变）
             B->>A: [manageEcommerceIntegration] PUT /integrations/ecommerce/{integrationId} { paymentMethodConfig }
@@ -169,7 +169,7 @@ sequenceDiagram
             B->>A: [manageEcommerceIntegration] PUT /integrations/ecommerce/{integrationId} { websiteUrl }
             A-->>B: 200 { status= ACTIVE, pendingUrlChange= true }（受理待审核变更、原配置继续生效）
         end
-        Note over B,A: 已有待审核 URL 变更时再改 URL 409<br/>校验失败 400；方式配置依赖的配置源不可用 502（不保存）<br/>不提供 Ecommerce 自助断开入口（走客服）
+        Note over B,A: 已有待审核 URL 变更时再改 URL 409<br/>校验失败 400；方式配置依赖的配置源读不到内容 500（不保存）<br/>不提供 Ecommerce 自助断开入口（走客服）
     end
 ```
 

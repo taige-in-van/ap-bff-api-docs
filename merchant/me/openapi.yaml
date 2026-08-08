@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户实体 (20-03 BFF) — 前端契约面
-  version: 0.5.2
+  version: 0.6.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -237,6 +237,8 @@ paths:
           $ref: '#/components/responses/MerchantBffConflict'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '502':
+          $ref: '#/components/responses/BadGateway'
       x-error-codes:
         '409':
           - 208001
@@ -340,6 +342,8 @@ paths:
           $ref: '#/components/responses/MerchantBffConflict'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '502':
+          $ref: '#/components/responses/BadGateway'
       x-error-codes:
         '409':
           - 208001
@@ -474,7 +478,7 @@ paths:
       operationId: createSettlementChangeRequest
       summary: 创建结算变更请求（前置全通过 → PENDING_REVIEW；旧值生效；409 若已有 PENDING_REVIEW；403 若意图不符）
       description: |
-        前置步骤（bank-related: Void cheque + OTP / 非 bank: OTP）全通过后创建 `SettlementChangeRequest{PENDING_REVIEW}`（含本次变更 + bank-related 时 voidChequeRef）+ 发送结算变更审核中通知 + 旧值仍生效（结算字段不立即变更）。 资损红线：同 Merchant 至多 1 个 PENDING_REVIEW → 已存在则 409（不创建新请求）; **提交 changes ≠ otpToken 绑定的变更内容 → 403**（意图不符，OTP 防串改）; 直接提交绕过前置（缺有效 otpToken / bank 缺 voidChequeRef）→ 400。审核 approve/reject 结果异步更新（不在本 BFF）。 幂等：otpToken 单次消费不可重取首次结果 → 故挂 `Idempotency-Key`：retry 同键返回**首次创建的请求**（响应丢失可安全重试，不重复建请求 / 不要求重走 OTP）。
+        前置步骤（bank-related: Void cheque + OTP / 非 bank: OTP）全通过后创建 `SettlementChangeRequest{PENDING_REVIEW}`（含本次变更 + bank-related 时 voidChequeRef）+ 发送结算变更审核中通知 + 旧值仍生效（结算字段不立即变更）。 资损红线：同 Merchant 至多 1 个 PENDING_REVIEW → 已存在则 409（不创建新请求）; **提交 changes ≠ otpToken 绑定的变更内容 → 403**（意图不符，OTP 防串改）; 直接提交绕过前置（缺有效 otpToken / bank 缺 voidChequeRef）→ 400。审核 approve/reject 结果异步更新（不在本 BFF）。 幂等：必带 `Idempotency-Key`。验证码只能用一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**首次创建的那条变更请求**（不重复建、也不要求重走验证）；改了请求内容就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -533,7 +537,7 @@ paths:
       operationId: setRefundPin
       summary: 设置 Refund PIN（oneOf 授权：旧 PIN 改 / Forgot PIN reset-challenge OTP）
       description: |
-        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。 ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。 ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 走通用 `BadRequest`（不承诺结构化剩余次数——区别于纯 OTP verify 端点的 `OtpRetryableBadRequest`）。OTP 一次性消费。 幂等：非天然幂等（授权凭据单次消费、校验后即失效）→ 挂 `Idempotency-Key`、retry 同键返首次结果（204）。
+        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。 ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。 ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 走通用 `BadRequest`（不承诺结构化剩余次数——区别于纯 OTP verify 端点的 `OtpRetryableBadRequest`）。OTP 一次性消费。 幂等：必带 `Idempotency-Key`。授权凭据校验一次即失效，**网络重试务必复用同一个键**——同键 + 同请求体重发返首次结果（`204`），不会因「凭据已用过」而假失败；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -614,6 +618,7 @@ paths:
       x-error-codes:
         '409':
           - 208001
+          - 208005
   /account/refund-pin/reset-challenges:
     post:
       tags:
@@ -701,7 +706,7 @@ paths:
       operationId: addMerchant
       summary: 添加关联商户（branch / new_legal_entity；创建 INCOMPLETE + 交入驻流程；2 层上限）
       description: |
-        **原子创建关联商户**：一次创建一个 `INCOMPLETE` 关联商户（branch / new_legal_entity）+ 对应的入驻申请草稿（`DRAFT`），返回 merchantId。 **仅创建、不切会话**：前端拿到 merchantId 后**显式调 switchCurrentMerchant 切上下文**（幂等），再 GET /onboarding/application **加载**已建 DRAFT 续走向导。 字段预填及 5 步规则由入驻向导接口返回。 2 层上限：当前商户已是二级关联商户 → 409（不创建）;Country × Currency 组合非法 → 400。 幂等：创建类、挂 Idempotency-Key（无自然业务单号，防重复点击重复建商户）。
+        **原子创建关联商户**：一次创建一个 `INCOMPLETE` 关联商户（branch / new_legal_entity）+ 对应的入驻申请草稿（`DRAFT`），返回 merchantId。 **仅创建、不切会话**：前端拿到 merchantId 后**显式调 switchCurrentMerchant 切上下文**（幂等），再 GET /onboarding/application **加载**已建 DRAFT 续走向导。 字段预填及 5 步规则由入驻向导接口返回。 2 层上限：当前商户已是二级关联商户 → 409（不创建）;Country × Currency 组合非法 → 400。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复建商户**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -755,6 +760,7 @@ paths:
         '409':
           - 208001
           - 208003
+          - 208005
   /merchants/{merchantId}/application:
     delete:
       tags:
@@ -846,7 +852,7 @@ paths:
       operationId: getServicePage
       summary: 浏览 Service Page（AcceptanceMode/PaymentMethod 2 层 + Integrations 摘要；凭据掩码）
       description: |
-        聚合当前 ACTIVE 商户的 Service Capabilities（AcceptanceMode 分组 + 各 mode 开通/审核状态 + 已启用 PaymentMethod + online 当前生效 URL） + Integrations 摘要（Terminal: Moneris/Clover 互斥 active;Ecommerce: Shopify/Allvalue 连接状态）。 敏感凭据（terminal/integration token / secret / private key）仅返回掩码摘要，明文不返回。 当前 Merchant 非 ACTIVE → 409、不返回 Service Page（前端按 Merchant 状态分流）。 必要配置源不可用 → 502，不返回不完整配置。
+        聚合当前 ACTIVE 商户的 Service Capabilities（AcceptanceMode 分组 + 各 mode 开通/审核状态 + 已启用 PaymentMethod + online 当前生效 URL） + Integrations 摘要（Terminal: Moneris/Clover 互斥 active;Ecommerce: Shopify/Allvalue 连接状态）。 敏感凭据（terminal/integration token / secret / private key）仅返回掩码摘要，明文不返回。 当前 Merchant 非 ACTIVE → 409、不返回 Service Page（前端按 Merchant 状态分流）。 支付方式配置源读不到内容时**不返回不完整配置**，按服务端错误处理（`500`）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -890,8 +896,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '500':
+          description: 支付方式配置源读不到内容 —— 不返回不完整配置（fail-closed）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
       x-error-codes:
         '409':
           - 208001
@@ -942,8 +952,12 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '500':
+          description: 支付方式配置源读不到内容 —— **不保存**（fail-closed，不按残缺配置校验方式集）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
       x-error-codes:
         '409':
           - 208001
@@ -955,7 +969,7 @@ paths:
       operationId: connectAcceptanceMode
       summary: 申请新增 AcceptanceMode（Connect；in_store storePhoto / online type+url → PENDING_REVIEW）
       description: |
-        自助申请未开通的 AcceptanceMode，附凭证（in_store: store photo fileId;online: 线上服务类型 + Website 类型 URL）， 校验通过创建 `AcceptanceEnrollment{PENDING_REVIEW}` + 触发审核（审核结果异步生效，前端后续经 getServicePage 读取最新状态）。 同 mode 已有 PENDING_REVIEW 或已 ACTIVE → 409（禁重复提交）;凭证缺失 / 格式非法 → 400（不创建）。 幂等：创建类、挂 Idempotency-Key（防重复点击重复建 enrollment）。
+        自助申请未开通的 AcceptanceMode，附凭证（in_store: store photo fileId;online: 线上服务类型 + Website 类型 URL）， 校验通过创建 `AcceptanceEnrollment{PENDING_REVIEW}` + 触发审核（审核结果异步生效，前端后续经 getServicePage 读取最新状态）。 同 mode 已有 PENDING_REVIEW 或已 ACTIVE → 409（禁重复提交）;凭证缺失 / 格式非法 → 400（不创建）。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复开通**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -1011,12 +1025,17 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '500':
+          description: 支付方式配置源读不到内容 —— **不创建**开通申请（fail-closed）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
       x-error-codes:
         '409':
           - 208001
           - 208002
+          - 208005
   /service-page/acceptance-modes/{mode}/website-url:
     put:
       tags:
@@ -1024,7 +1043,7 @@ paths:
       operationId: changeAcceptanceModeWebsiteUrl
       summary: online AcceptanceMode 改 website URL（触发重审；原 URL 继续生效）
       description: |
-        ACTIVE online AcceptanceMode 改 website URL → 创建**独立 URL 变更请求**（PENDING_REVIEW），主状态仍 ACTIVE、原 URL 继续生效; 审核通过后新 URL 生效、拒绝则归档（审核结果异步生效，不在本 BFF）。 已有待审核 URL 变更 → 409（不允许再次提交）;mode 非 online ACTIVE → 409。 幂等：**非天然幂等**——重放会撞已存在的待审核 URL 变更（409）;故挂 `Idempotency-Key`、retry 同键返**首次** changeRequestId。
+        ACTIVE online AcceptanceMode 改 website URL → 创建**独立 URL 变更请求**（PENDING_REVIEW），主状态仍 ACTIVE、原 URL 继续生效; 审核通过后新 URL 生效、拒绝则归档（审核结果异步生效，不在本 BFF）。 已有待审核 URL 变更 → 409（不允许再次提交）;mode 非 online ACTIVE → 409。 幂等：必带 `Idempotency-Key`。直接重发会撞「已有待审核 URL 变更」→ `409`·208002，所以**网络重试务必复用同一个键**——同键 + 同请求体重发返**首次**的 changeRequestId；想改成另一个 URL 就必须换新键，沿用旧键改 URL → `409`·208005。
       parameters:
         - name: mode
           in: path
@@ -1096,6 +1115,7 @@ paths:
           - 208001
           - 208002
           - 208003
+          - 208005
   /service-page/acceptance-modes/store-photo:
     post:
       tags:
@@ -1148,6 +1168,8 @@ paths:
           $ref: '#/components/responses/MerchantBffConflict'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '502':
+          $ref: '#/components/responses/BadGateway'
       x-error-codes:
         '409':
           - 208001
@@ -1234,7 +1256,7 @@ paths:
       operationId: connectEcommerceIntegration
       summary: 连接 EcommerceIntegration（Shopify / Allvalue review-gated；不互斥 → PENDING_REVIEW）
       description: |
-        连接电商平台（Shopify / Allvalue），提交 website URL + 关联 PaymentMethod 配置，创建 `EcommerceIntegration{PENDING_REVIEW}`（不互斥，可各自 ACTIVE）+ 记录审计事件; 审核结果异步生效（不在本 BFF）。同平台审核中重复提交 → 409;URL / 配置校验失败 → 400。 Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。 幂等：创建类、挂 Idempotency-Key（防重复点击重复建 integration）。
+        连接电商平台（Shopify / Allvalue），提交 website URL + 关联 PaymentMethod 配置，创建 `EcommerceIntegration{PENDING_REVIEW}`（不互斥，可各自 ACTIVE）+ 记录审计事件; 审核结果异步生效（不在本 BFF）。同平台审核中重复提交 → 409;URL / 配置校验失败 → 400。 Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复接入**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -1284,12 +1306,17 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '500':
+          description: 支付方式配置源读不到内容 —— **不创建**连接（fail-closed）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
       x-error-codes:
         '409':
           - 208001
           - 208002
+          - 208005
   /integrations/ecommerce/{integrationId}:
     put:
       tags:
@@ -1297,7 +1324,7 @@ paths:
       operationId: manageEcommerceIntegration
       summary: 管理 EcommerceIntegration（改 URL 触发重审 / 仅改方式配置不重审）
       description: |
-        管理 ACTIVE EcommerceIntegration：**仅改 PaymentMethod 配置（URL 未变）→ 保存生效、status 仍 ACTIVE、不重审**; **改 URL → 创建待审核变更、原 URL/原配置继续生效、status 仍 ACTIVE**（审核结果异步生效）。 已有待审核 URL 变更时再改 URL → 409（不允许再次提交）;校验失败 → 400。不提供 Ecommerce 自助断开入口（走客服 / 运营）。 幂等：改方式配置天然幂等;**改 URL 非天然幂等**（重放撞 pending → 409）→ 挂 `Idempotency-Key`、retry 同键返**首次**结果。
+        管理 ACTIVE EcommerceIntegration：**仅改 PaymentMethod 配置（URL 未变）→ 保存生效、status 仍 ACTIVE、不重审**; **改 URL → 创建待审核变更、原 URL/原配置继续生效、status 仍 ACTIVE**（审核结果异步生效）。 已有待审核 URL 变更时再改 URL → 409（不允许再次提交）;校验失败 → 400。不提供 Ecommerce 自助断开入口（走客服 / 运营）。 幂等：必带 `Idempotency-Key`。只改支付方式配置时重发无副作用；**改 URL 时直接重发会撞「已有待审核 URL 变更」→ `409`·208002**，所以网络重试务必复用同一个键——同键 + 同请求体重发返**首次**结果；想换成另一份配置 / 另一个 URL 就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - name: integrationId
           in: path
@@ -1347,12 +1374,17 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        '500':
+          description: 支付方式配置源读不到内容 —— **不保存**（fail-closed）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
       x-error-codes:
         '409':
           - 208001
           - 208002
+          - 208005
   /account/documents:
     get:
       tags:
@@ -1464,7 +1496,7 @@ components:
       type: string
       minLength: 1
       description: |
-        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。 **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**—— 候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。 按家规 A5「enum 演进」：本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe** （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。 作**商户营业日**归属日标签的时区基准；供交易 / 账务 / 数据洞察等查询确定商户营业日口径——**相对日期目标（今日 / 本月等）由服务端计算、前端不自行换算**， **不用于重算已固化的历史归属**。
+        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。 **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**—— 候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。 本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe** （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。 作**商户营业日**归属日标签的时区基准；供交易 / 账务 / 数据洞察等查询确定商户营业日口径——**相对日期目标（今日 / 本月等）由服务端计算、前端不自行换算**， **不用于重算已固化的历史归属**。
       examples:
         - America/Toronto
     LockedField:
@@ -2505,8 +2537,8 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      required: false
-      description: 幂等键(写接口;三段命中语义)
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
       schema:
         type: string
         minLength: 1
@@ -2567,6 +2599,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
+    BadGateway:
+      description: 502 上游通道错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
     TooManyRequestsWithCooldown:
       description: |
         429 Resend 冷却中：错误体 = `MerchantBffError`，**剩余冷却秒数走 `context.cooldownSeconds`**（整数、权威值——覆盖刷新 / 跨标签页，不依赖首次成功响应的 `cooldownSeconds`）。整数 `code` 见该 op `x-error-codes`。前端据此从收到响应时刻本地倒计时、冷却结束前禁重发。
@@ -2599,12 +2637,6 @@ components:
             $ref: '#/components/schemas/ErrorEnvelope'
     Locked:
       description: 423 登录临时锁定(防爆破)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    BadGateway:
-      description: 502 上游通道错误
       content:
         application/json:
           schema:
