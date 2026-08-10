@@ -8,9 +8,9 @@
 <script type="text/plain" id="src">
 # 交易管理（支付查询 / 退款 / 预授权完成 / 收据导出）—— 调用时序
 
-> 本文是 `05-交易管理.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+> 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对支付核心系统的命令与取数、PIN 校验的内部实现**不画**（后端面，与前端无关）；退款 / 预授权的后续状态流转（审核、通道处理、成功 / 失败）由系统驱动、前端靠刷新读到最新状态。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部委派**不画**（后端面，与前端无关）；退款 / 预授权的后续状态流转（审核、通道处理、成功 / 失败）由系统驱动、前端靠刷新读到最新状态。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
@@ -46,7 +46,7 @@
 
 下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
 
-- **列表页加载**：`listPayments` 与 `getPaymentSummary` **并行调用**（同一组筛选参数——`from`/`to` 是**商户营业日**、按固化标签字面值匹配（前端**不做时区换算**、直接传 `YYYY-MM-DD`），连同 `paymentMethod`/`source`/`status`/`keyword` 与列表一致）——**汇总与列表同轴**：两者同按发生营业日入窗，但**汇总卡只统计成功交易**（`transactions` / Gross / Net 同口径，Refund 仅计处理中 + 成功），所以「列表 100 行、汇总卡 80 笔」是正常的——列表含 `failed`，按状态筛成功即可核对；列表响应自带 `statusCounts`（状态快捷标签计数）+ `filterOptions`（支付方式 / 来源候选，code + displayName）——**筛选器选项来自这里、不要另行拼**。切筛选 → 两个接口带同参重发。汇总卡失败不阻断列表（独立降级）。
+- **列表页加载**：`listPayments` 与 `getPaymentSummary` **并行调用**（同一组筛选参数——`from`/`to` 是**商户营业日**、按固化标签字面值匹配（前端**不做时区换算**、直接传 `YYYY-MM-DD`），连同 `paymentMethod`/`source`/`status`/`keyword` 与列表一致）——**只有 Gross Sales / `transactions` 与列表同轴**（同按交易的发生营业日入窗——同一批交易进这两个数、可判定某行是否计入汇总），且**只统计成功交易**，所以「列表 100 行、汇总卡 80 笔」是正常的——列表含 `failed`，按状态筛成功后**笔数**即与列表行数一致；**金额别靠加总列表行核对**——行金额是该笔**标价币种**（同一商户可同时有不同标价币种的收款码），Gross Sales 是**结算币种**合计；**`Refund Amount` / `Net Sales` 两张卡是另一个量**——分别为筛选退款额（按退款**申请营业日**、仅计处理中 + 成功的当前状态投影）与筛选净收款额（= Gross − 筛选退款额、**混轴派生**），**不与列表逐行核对、也不要用 `transactions` 对其取平均**；列表响应自带 `statusCounts`（状态快捷标签计数）+ `filterOptions`（支付方式 / 来源候选，code + displayName）——**筛选器选项来自这里、不要另行拼**。切筛选 → 两个接口带同参重发。汇总卡失败不阻断列表（独立降级）。
 - **退款列表页**：`listRefunds`（同上；`source` 传**原支付来源** code；筛选选项与支付页同源）。系统自动退款不在此列表（服务端排除）——其事实经原交易详情 `relatedRefunds` 可见。
 - **详情**：`getPaymentDetail`（列表行点击 / 深链直开均可——展示名字段自足）；`getRefundDetail`（列表行「查看」/ **退款成功邮件 CTA 深链直达**）。退款入口显隐的**唯一依据**是后端权威结果、勿按 status 硬编码——**列表行用 `PaymentRow.refundable`、详情用 `refundability.refundable`**；`initiatorType` + `initiatedBy` 按 type 决定直接展示（`merchant_user`）还是本地化（其余 code）。
 - **导出**：`exportPayments` / `exportRefunds`——带与列表**同一组筛选参数** + `Accept-Language`；成功 = xlsx 二进制（`Content-Disposition: attachment` + **`Content-Language` 实际渲染语言**）；**结果集超上限 → 400 `EXPORT_RESULT_SET_TOO_LARGE`(204009)**，提示缩小筛选范围重导（不截断、不异步）。

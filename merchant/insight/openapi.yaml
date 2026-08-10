@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 数据洞察 (20-08 BFF) — 前端契约面
-  version: 0.4.2
+  version: 0.5.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -22,7 +22,7 @@ paths:
       operationId: getDashboardInsightOverview
       summary: 读 Dashboard 概览（KPI 卡 + Payment Distribution；全局时间窗驱动）
       description: |
-        返回当前商户 Dashboard 概览区块，受右上角**全局时间窗**（`from` / `to` **商户营业日**区间、闭区间；均省略 = 今日，相对日期目标由服务端按该商户当前生效配置求出）驱动： **KPI 卡** —— Gross Sales / Refund Amount / Net Sales（= Gross − Refund）按窗聚合（结算币种）+ **To Settle 即时态**（当前待结算派生值、**不随时间窗变化**）； **Payment Distribution** —— 窗内成功收款按支付方式分布（金额 + 归并「其他」；占比由 FE 从金额派生）。 Refund Amount 按退款申请时间入窗、排除系统自动退款。 **区块降级（分组判别）**：**Gross / Refund / Net 为一组、三项整体判别**（同时 `available` 或同时 `unavailable`）； **To Settle** 与 **Payment Distribution** 各自独立判别——某项取数超时 / 失败 → 对应组 / 块 `unavailable`（**非 0**）、其余照常渲染。 「窗内无交易」= **空态**（Gross / Refund / Net = `available` 且金额为 "0"、分布 `available` 且 slices 为空），与 `unavailable` 语义分离。 **`400`**：参数校验（`from` / `to` 未成对 / 格式错 / `to < from`）；**时间窗跨度超上限**（含首尾 > 366 自然日，默认值、可配置） → `204012` `WINDOW_RANGE_TOO_LARGE`（缩小日期范围后重试，不截断、不降级取部分窗）。
+        返回当前商户 Dashboard 概览区块，受右上角**全局时间窗**（`from` / `to` **商户营业日**区间、闭区间；均省略 = 今日，相对日期目标由服务端按该商户当前生效配置求出）驱动： **KPI 卡** —— Gross Sales / Refund Amount / Net Sales（= Gross − Refund）按窗聚合（结算币种）+ **To Settle 即时态**（当前待结算派生值、**不随时间窗变化**）； **Payment Distribution** —— 窗内成功收款按支付方式分布（金额 + 归并「其他」；占比由 FE 从金额派生）。 三项 KPI 金额均为**服务端返回的结算币种金额**；**`Refund Amount` / `Net Sales` 可能为负**——**不表示口径错误**， FE 按有符号金额**原样渲染、不得截为 0**；`Net Sales` 直接用服务端返回值、**FE 不自行相减**。 需逐笔核对的场景走交易 / 退款明细列表，但交易管理页的同名字段属**不同查询投影**、与本页**不可跨页复用或互推**。 **区块降级（分组判别）**：**Gross / Refund / Net 为一组、三项整体判别**（同时 `available` 或同时 `unavailable`）； **To Settle** 与 **Payment Distribution** 各自独立判别——某项取数超时 / 失败 → 对应组 / 块 `unavailable`（**非 0**）、其余照常渲染。 「窗内无交易」= **空态**（Gross / Refund / Net = `available` 且金额为 "0"、分布 `available` 且 slices 为空），与 `unavailable` 语义分离。 **`400`**：参数校验（`from` / `to` 未成对 / 格式错 / `to < from`）；**时间窗跨度超上限**（含首尾 > 366 自然日，默认值、可配置） → `204012` `WINDOW_RANGE_TOO_LARGE`（缩小日期范围后重试，不截断、不降级取部分窗）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: from
@@ -172,7 +172,7 @@ paths:
       operationId: getDashboardInsightTrend
       summary: 读 Transaction Volume 趋势（Volume + Orders 双序列；本月 / 上月独立切换）
       description: |
-        返回当前商户交易趋势双序列，按**所选月份**（`month=current|previous`，默认 current；本月 / 上月的目标范围由服务端在查询时按该商户当前生效配置求出）、按**固化的商户营业日标签**逐**日**聚合： **Transaction Volume** = 成功收款交易额（结算币种）、**Orders** = 成功订单 / 交易笔数。 **趋势图时间控件独立**——仅受本端点 `month` 管辖，**不受** `/insights/overview` 全局时间窗影响（两控件不合并）；范围固定本月 / 上月两档。 「所选月份内无交易」= **空态**（`available` 且 `points` 为空，FE 按零基线渲染），与取数失败 `unavailable` 语义分离。 `points` 仅含有数据的日；缺数据日由 FE 补零基线。
+        返回当前商户交易趋势双序列，按**所选月份**（`month=current|previous`，默认 current；本月 / 上月的目标范围由服务端在查询时按该商户当前生效配置求出）、按**交易的资金归属营业日**（支付生效成功时固化的标签）逐**日**聚合： **Transaction Volume** = 成功收款交易额（结算币种）、**Orders** = 成功订单 / 交易笔数。 两序列同轴（均为收款类指标），**不含退款**——退款有自己的入窗轴、只出现在概览的 Refund Amount。 **趋势图时间控件独立**——仅受本端点 `month` 管辖，**不受** `/insights/overview` 全局时间窗影响（两控件不合并）；范围固定本月 / 上月两档。 「所选月份内无交易」= **空态**（`available` 且 `points` 为空，FE 按零基线渲染），与取数失败 `unavailable` 语义分离。 `points` 仅含有数据的日；缺数据日由 FE 补零基线。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: month
@@ -309,15 +309,15 @@ components:
         - toSettle
       properties:
         grossSales:
-          description: Gross Sales（窗内成功收款合计、结算币种）
+          description: Gross Sales（窗内成功收款合计、结算币种；入窗 = 交易的资金归属营业日〔支付生效成功时固化〕）
           allOf:
             - $ref: '#/components/schemas/MetricMoneyAvailable'
         refundAmount:
-          description: Refund Amount（窗内退款合计；入窗 = 退款申请营业日、排除系统自动退款）
+          description: Refund Amount（窗内退款合计；**排除系统自动退款**）——服务端返回的有符号金额、**可能为负**。
           allOf:
             - $ref: '#/components/schemas/MetricMoneyAvailable'
         netSales:
-          description: Net Sales（= Gross Sales − Refund Amount，服务端算出；可为负，用 Money）
+          description: Net Sales（= Gross Sales − Refund Amount，**服务端算出**、FE 不自行相减）——服务端返回的有符号金额、**可能为负**。
           allOf:
             - $ref: '#/components/schemas/MetricMoneyAvailable'
         toSettle:
