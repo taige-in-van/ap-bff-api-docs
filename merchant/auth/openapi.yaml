@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 (20-01 BFF) — 前端契约面
-  version: 0.5.1
+  version: 0.6.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -339,18 +339,20 @@ paths:
                 type: object
                 required:
                   - qrTicket
+                  - qrContent
                   - expiresAt
                 properties:
                   qrTicket:
                     type: string
+                    description: |
+                      本次扫码登录的**短时**票据（**可重复轮询、非单次消费**），仅用于轮询本次结果；二维码过期后重新发起会得到新票据。 与 `qrContent` **分离**（同一次挑战派生的两样东西，各司其职）、不可互推——不要用其一推导或替代另一个。
                   qrContent:
-                    type: string
-                    description: 二维码内容 / 图片 URL（前端渲染）
+                    $ref: '#/components/schemas/WechatQrContent'
                   expiresAt:
-                    $ref: '#/components/schemas/Timestamp'
+                    $ref: '#/components/schemas/WechatQrExpiresAt'
               example:
-                qrTicket: wxq_3f8a1c0d92
-                qrContent: https://login.example.com/wxqr/wxq_3f8a1c0d92.png
+                qrTicket: wxq_3f8a1c0d92b47e5f1a
+                qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-06-22T14:10:00Z'
         '429':
           $ref: '#/components/responses/TooManyRequests'
@@ -362,7 +364,7 @@ paths:
       operationId: pollWechatLogin
       summary: WeChat 扫码登录 — 轮询（确认成功则签发 BFF 会话）
       description: |
-        被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。 ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED，与「未扫」WAITING 反枚举一致。
+        被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。 ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。 非法 / 过期票据归一为 EXPIRED，与「未扫」WAITING 反枚举一致（轮询恒 200 的通用口径见 `status` 字段说明）。 **本入口的 EXPIRED 是真终态**——登录结果须交付给发起它的这个页面才算数，二维码过期即本次什么都没发生，重新发起即可。 （对比：通知接收方绑定入口的 `QR_EXPIRED` **不是**终态。）
       security: []
       parameters:
         - name: qrTicket
@@ -381,7 +383,8 @@ paths:
                   - status
                 properties:
                   status:
-                    type: string
+                    allOf:
+                      - $ref: '#/components/schemas/WechatPollStatus'
                     enum:
                       - WAITING
                       - EXPIRED
@@ -389,7 +392,7 @@ paths:
                       - REJECTED
                       - CANCELLED
                     readOnly: true
-                    description: 服务端裁决的轮询态（可扩展枚举；消费方按 unknown-safe 处理：遇未知值视同 WAITING 继续轮询、不崩）
+                    description: 扫码登录裁决态。`ESTABLISHED` = 已登录（cookie 已下发）；`EXPIRED` / `REJECTED` / `CANCELLED` 均为**终态**，需重新发起。未知值按 WAITING 继续轮询。
                   reason:
                     type: string
                     readOnly: true
@@ -1525,17 +1528,20 @@ paths:
                 type: object
                 required:
                   - qrTicket
+                  - qrContent
                   - expiresAt
                 properties:
                   qrTicket:
                     type: string
+                    description: |
+                      本次绑定的**短时**票据（**可重复轮询、非单次消费**），仅用于轮询本次结果；二维码过期后重新发起会得到新票据。 与 `qrContent` **分离**（同一次挑战派生的两样东西，各司其职）、不可互推——不要用其一推导或替代另一个。
                   qrContent:
-                    type: string
+                    $ref: '#/components/schemas/WechatQrContent'
                   expiresAt:
-                    $ref: '#/components/schemas/Timestamp'
+                    $ref: '#/components/schemas/WechatQrExpiresAt'
               example:
-                qrTicket: wxb_2a7f9c1e04
-                qrContent: https://login.example.com/wxbind/wxb_2a7f9c1e04.png
+                qrTicket: wxb_2a7f9c1e04d63b8a52
+                qrContent: Qm7Yt4sV9eN3hJ0aZx5Wgu
                 expiresAt: '2026-06-22T14:10:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -1580,7 +1586,7 @@ paths:
       operationId: pollMemberWechatBinding
       summary: WeChat 绑定 — 结果轮询（闭环结果腿；对称 pollWechatLogin）
       description: |
-        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。 **轮询契约：非法 / 过期 / 未知票据亦返回 200 + status（不用 4xx 表达票据态）——有意为之**，避免票据存在性枚举；非法 / 过期票据归一为 EXPIRED。
+        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。 非法 / 过期票据归一为 EXPIRED（轮询恒 200 的通用口径见 `status` 字段说明）。 **本入口的 EXPIRED 是真终态**——被绑定本人在微信内确认的那一刻绑定就已写入，确认过就会直接读到 BOUND，不存在「已确认但仍显示过期」。 （对比：通知接收方绑定入口的 `QR_EXPIRED` **不是**终态。）
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -1604,7 +1610,8 @@ paths:
                   - status
                 properties:
                   status:
-                    type: string
+                    allOf:
+                      - $ref: '#/components/schemas/WechatPollStatus'
                     enum:
                       - PENDING
                       - BOUND
@@ -1612,7 +1619,7 @@ paths:
                       - CANCELLED
                       - EXPIRED
                     readOnly: true
-                    description: 服务端裁决的绑定轮询态（可扩展枚举；消费方按 unknown-safe 处理：遇未知值视同 PENDING 继续轮询、不崩）
+                    description: 成员登录绑定裁决态。`BOUND` = 绑定已生效；`FAILED` / `CANCELLED` / `EXPIRED` 均为**终态**，需重新发起。未知值按 PENDING 继续轮询。
                   reason:
                     type: string
                     enum:
@@ -1639,6 +1646,10 @@ components:
       description: |
         商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
+    WechatPollStatus:
+      type: string
+      description: |
+        两个扫码轮询（扫码登录 / 成员登录绑定）的状态口径。两者取值不同、含义不同，**不要互相复用判断逻辑**； 具体取值与终态说明见各自 `enum` 描述。 **消费方按 unknown-safe 处理**：遇到未列出的取值一律视同"仍在进行中"并继续轮询，不报错、不中断。 **状态查询恒返回 `200` + 状态**——票据不存在 / 非法 / 已过期一律归一为过期态、不用 `4xx` 表达； 前端轮询循环因此**只需按状态分支、不必为「票据本身有问题」另开一路**。 `4xx` 表示调用方自身问题（未登录 / 无权限 / 请求过频 / 商户上下文已变），按基础约定的通用策略处理。 **两个入口的访问控制各不相同**（一个是无鉴权公开面、一个要有效会话 + 商户上下文）， 以各 op 的 `security` 与参数为准——本 schema 只统一「票据态怎么表达」，不表达「谁能查」。
     RegistrationRequest:
       type: object
       description: 注册字段（各字段校验见 schema）
@@ -2060,10 +2071,19 @@ components:
                 type: string
               issue:
                 type: string
+    WechatQrContent:
+      type: string
+      description: |
+        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 三处扫码入口（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用同一形状与渲染方式。
     Timestamp:
       type: string
       format: date-time
       description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
+    WechatQrExpiresAt:
+      allOf:
+        - $ref: '#/components/schemas/Timestamp'
+      description: |
+        二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
     MerchantBffError:
       description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
       allOf:

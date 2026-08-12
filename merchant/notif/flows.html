@@ -10,7 +10,7 @@
 
 > 本文是 `07-通知.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对通知基础设施的委派（验证码邮件外发 / 微信绑定会话）**不画**（后端面，与前端无关）；外部参与方（微信）仅在用户真参与异步交互时出现。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对上游能力的委派（验证码邮件外发 / 微信扫码挑战）**不画**（后端面，与前端无关）；外部参与方（微信）仅在用户真参与异步交互时出现。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
@@ -86,21 +86,21 @@ sequenceDiagram
     alt 会话创建失败（500 / 502 / 504）
         BFF-->>SPA: 提示稍后重试
     else 会话创建
-        BFF-->>SPA: 201 sessionId + 二维码 + expiresAt
-        Note over SPA: 展示二维码，有效期内轮询（轮询节奏由前端统一策略管理，非契约下发）
+        BFF-->>SPA: 201 sessionId + qrContent + expiresAt（前端自行渲染二维码）
+        Note over SPA: 展示二维码并轮询（轮询节奏与何时停止均由前端统一策略管理，非契约下发）<br/>二维码到期后 sessionId 仍可继续轮询：已确认但尚未落地的绑定会转 COMPLETED
         par 用户侧扫码
-            WX->>WX: 扫码关注 / 授权（异步，绑定结果由后端承接）
+            WX->>WX: 扫码关注 / 授权 → 在微信内显式确认（异步；扫码本身不构成绑定，确认那一刻绑定即成立）
         and SPA 轮询
-            loop 会话有效期内
+            loop 轮询至 COMPLETED（收到 QR_EXPIRED 不必立即停，见下）
                 SPA->>BFF: [getWechatBindSession] sessionId
-                BFF-->>SPA: pending / completed（携 boundRecipient）/ expired
+                BFF-->>SPA: PENDING / COMPLETED（携 boundRecipient）/ QR_EXPIRED
             end
         end
-        alt completed
+        alt COMPLETED
             SPA->>BFF: [getNotificationSettings] 刷新绑定列表
             Note over SPA: 同一微信重复扫码不重复加入（返回既有接收方）
-        else expired（取消 / 超时 / 扫码失败）
-            Note over SPA: 不新增绑定（过期后扫码不生效），可重新发起（回到第 1 步）
+        else QR_EXPIRED
+            Note over SPA: QR_EXPIRED 有两种情形<br/>① 未完成确认（取消 / 二维码超时 / 扫码失败）：确实不新增绑定，可重新发起（回到第 1 步）<br/>② 已在微信内确认、结果尚未落地：该绑定不会作废，继续 / 稍后轮询会转 COMPLETED<br/>故 QR_EXPIRED 不是终态、也不是失败证据：勿据它清理本地状态或阻止后续 COMPLETED<br/>何时停止轮询由前端自定；停止不影响绑定成立——已确认的绑定会在有界时延内出现在设置页接收方列表<br/>故停止后提示「稍后刷新设置页查看」，仅确知未完成确认时才提示「请重新扫码」<br/>若用户已重新发起，同一微信身份会去重合并、不产生两个接收方
         end
     end
 ```

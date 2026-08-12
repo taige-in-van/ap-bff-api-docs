@@ -89,7 +89,7 @@ sequenceDiagram
     participant A as 商户后台 BFF
     participant W as 微信 App
     B->>A: [initiateWechatLogin] POST /sessions/wechat
-    A-->>B: 200 { qrTicket, qrContent, expiresAt }
+    A-->>B: 200 { qrTicket, qrContent, expiresAt }（前端自行渲染二维码）
     B->>B: 渲染二维码
     par 用户侧
         W->>W: 扫码 → 微信内授权
@@ -121,7 +121,7 @@ sequenceDiagram
     participant A as 商户后台 BFF
     participant W as 成员微信
     B->>A: [initiateMemberWechatBinding] POST /team/members/{operatorId}/wechat-binding
-    A-->>B: 200 { qrTicket, qrContent, expiresAt }
+    A-->>B: 200 { qrTicket, qrContent, expiresAt }（前端自行渲染二维码）
     B->>B: 渲染二维码(交被绑定成员扫)
     par 成员侧
         W->>W: 扫码 → 微信内授权 → 显式确认绑定(异设备：成员手机)

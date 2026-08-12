@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 通知 (20-07 BFF) — 前端契约面
-  version: 0.1.1
+  version: 0.4.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -24,7 +24,7 @@ paths:
       operationId: getNotificationSettings
       summary: 读通知设置（通道开关 + Email 接收方 + WeChat 接收方）
       description: |
-        返回当前商户通知设置聚合：Email / WeChat 通道总开关、只读 Primary（= Owner Primary Email，生命周期归注册登录与认证域、 变更随之即时反映）、已验证 Extra 邮箱列表、WeChat 通知接收方列表（昵称 + 绑定时间，平等、无 Primary/Extra 之分）。 站内信无商户开关（不出现在本聚合）。 **生效设置**：商户从未配置过通道开关时**仍返回 200**，两开关取商户已配置值、未配置则取当前部署默认值 （未配置商户实时取当前部署默认、而非某时刻冻结值）；接收方列表独立于开关设置、照常返回已有 Extra / WeChat。
+        返回当前商户通知设置聚合：Email / WeChat 通道总开关、只读 Primary（= Owner Primary Email，生命周期归注册登录与认证域、 变更随之即时反映）、已验证 Extra 邮箱列表、WeChat 通知接收方列表（昵称 + 绑定时间，平等、无 Primary/Extra 之分）。 站内信无商户开关（不出现在本聚合）。 **生效设置**：商户从未配置过通道开关时**仍返回 200**，两开关取商户已配置值、**未配置则一律为开启** （默认开为固定业务规则，不随部署配置变化）；接收方列表独立于开关设置、照常返回已有 Extra / WeChat。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -65,7 +65,7 @@ paths:
       operationId: updateNotificationChannel
       summary: 切换 Email / WeChat 通道总开关（关闭仅停投递、配置保留）
       description: |
-        设置指定通道总开关。关闭后该通道不投递，接收方配置保留。 天然幂等（重复置同值 no-op）。站内信无商户开关、不在 channel 枚举内。 **首次配置**：从未配置过开关的商户首次切换直接成功——未配置的通道视为当前部署默认；**未被本次修改的通道不受影响**（另一通道保持其生效值）；两通道各自独立、互不覆盖。加 Extra / 绑 WeChat 不影响开关设置（接收方独立）。
+        设置指定通道总开关。关闭后该通道不投递，接收方配置保留。 天然幂等（重复置同值 no-op）。站内信无商户开关、不在 channel 枚举内。 **首次配置**：从未配置过开关的商户首次切换直接成功——未配置的通道视为开启（固定默认）；**未被本次修改的通道不受影响**（另一通道保持其生效值）；两通道各自独立、互不覆盖。加 Extra / 绑 WeChat 不影响开关设置（接收方独立）。
       parameters:
         - name: channel
           in: path
@@ -276,7 +276,7 @@ paths:
       operationId: createWechatBindSession
       summary: 发起 WeChat 通知接收方绑定（创建绑定会话、返回二维码）
       description: |
-        创建 WeChat 绑定会话并返回二维码：**会话创建为 PENDING（expiresAt 与二维码 TTL 同源）后才返回 201**； 创建失败 → 500、不返回二维码。 SPA 展示二维码并在会话 TTL 内轮询 getWechatBindSession。用户扫码关注 / 授权后，绑定结果由后端承接、 经轮询可见（同一微信身份跨会话去重合并）。 取消 / 二维码超时 / 扫码失败 → 会话到期即失效，不新增绑定、可重新发起；**无物理 CANCELLED 态——用户取消 / 关页仅停前端轮询、不改服务器会话**，会话仍 PENDING 且未过 expiresAt 时扫码照常生效。 按多步挑战流程语义不挂幂等键（可安全重发的挑战资源：重复创建各自独立会话、受 TTL 约束自然过期）。 微信侧不可用 → 502/504（无降级伪成功）。会话 TTL 为部署可配业务参数。 与微信快捷登录绑定解耦。
+        创建 WeChat 绑定会话并返回二维码：**会话创建为 PENDING（expiresAt 与二维码 TTL 同源）后才返回 201**； 创建失败 → 500、不返回二维码。 SPA 展示二维码并轮询 getWechatBindSession（`QR_EXPIRED` 既不是终态、也不是失败证据，见该接口说明）。用户扫码授权**并在微信内显式确认**后绑定即告成立 （**扫码本身不构成绑定**——确认前一律呈现 `PENDING`），经轮询可见（同一微信身份跨会话去重合并）； **关页 / 停止轮询不会使已确认的绑定失效**。 取消 / 二维码超时 / 扫码失败 → 该二维码不能再扫、不新增绑定、可重新发起；**无物理 CANCELLED 态——用户取消 / 关页仅停前端轮询、不改服务器会话**，**用户已确认的绑定照常生效**。 **`expiresAt` 是二维码的有效期，不是本次轮询的截止时间**：到期只表示这张二维码不能再扫，`sessionId` 在此之后**仍可继续轮询**（不是一次性查询票），已确认但尚未落地的绑定经由它转 `COMPLETED`。 按多步挑战流程语义不挂幂等键（可安全重发的挑战资源：重复创建各自独立会话，各自的二维码自然到期）。 微信侧不可用 → 502/504（无降级伪成功）。二维码有效期为部署可配业务参数（与上游挑战 TTL 同源）。 与微信快捷登录绑定解耦。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -289,8 +289,8 @@ paths:
                 $ref: '#/components/schemas/WechatBindSession'
               example:
                 sessionId: wbs_7c4e1a
-                status: pending
-                qrCodeUrl: https://mp.example/qr/abcdef
+                status: PENDING
+                qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-07-22T10:10:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -314,7 +314,7 @@ paths:
       operationId: getWechatBindSession
       summary: 轮询 WeChat 绑定会话状态
       description: |
-        轮询绑定会话：pending（待扫码）/ completed（绑定完成，必携接收方）/ expired（可重新发起）。**expired 纯时间派生**（`PENDING 且 now > expiresAt`）、非服务端物理状态；用户取消 / 关页只是前端停轮询、不改会话。 轮询不受微信侧可用性影响；expired 由 expiresAt 判定 （纯读不迁移状态）；completed 表示后端已承接绑定完成。会话过期后晚到的扫码不产生绑定 （不新增绑定）；同一微信身份重复扫码不产生新接收方（去重合并）。 会话状态单调不回退。跨商户 / 不存在 → 404。
+        轮询绑定会话：`PENDING`（未扫 / 已扫未确认 / 已确认但结果尚未落地——**三者对前端表现一致**）/ `COMPLETED`（绑定完成，必携接收方）/ `QR_EXPIRED`（二维码不能再扫）。 **`QR_EXPIRED` 纯时间派生**（`PENDING 且 now > expiresAt`）、非服务端物理状态；用户取消 / 关页只是前端停轮询、不改会话。 **已在微信内完成的确认不会因关页 / 停止轮询而丢失**——重新打开页面或稍后轮询仍可见 `COMPLETED`； 上游短暂不可用时轮询可能维持 `PENDING`，前端按 `PENDING` 处理、不必视为失败。 **`QR_EXPIRED` 不是终态**：用户若已在微信内确认、只是结果尚未落地，会话可能先呈现 `QR_EXPIRED`、随后转 `COMPLETED` （**已确认的绑定不会因二维码过期而作废**）。由此给消费方三条保证： **① `QR_EXPIRED` 不是失败证据**——不得据它清理本地状态、也不得据它阻止后续 `COMPLETED`； **② 只要用户已完成确认，继续轮询即会转 `COMPLETED`**； **③ 何时停止轮询由前端自行决定，停止不影响绑定成立**——已确认的绑定会在**有界时延内**（上界为部署可配业务参数） 出现在通知设置页的 WeChat 接收方列表（`getNotificationSettings`）。故停止轮询后的正确处置是**提示稍后刷新设置页查看**， 而不是提示「绑定失败」；仅在确知用户未完成确认（取消 / 未扫）时才提示「请重新扫码」。 除此之外状态不回退；`COMPLETED` 是终态。 同一微信身份重复扫码不产生新接收方（去重合并）。**会话取不到 / 跨商户一律 404**（归一，不泄露会话是否存在——同本面其余读接口的反枚举口径）； 404 表达的是「你取不到这个会话」、**不是会话态、也不代表绑定未成立**——前端应停止本次轮询并按上条 ③ 处置。
       parameters:
         - name: sessionId
           in: path
@@ -336,23 +336,23 @@ paths:
                   summary: 待扫码
                   value:
                     sessionId: wbs_7c4e1a
-                    status: pending
+                    status: PENDING
                     expiresAt: '2026-07-22T10:10:00Z'
                 completed:
                   summary: 绑定完成（携接收方）
                   value:
                     sessionId: wbs_7c4e1a
-                    status: completed
+                    status: COMPLETED
                     expiresAt: '2026-07-22T10:10:00Z'
                     boundRecipient:
                       recipientId: wnb_3d8e2f
                       nickname: 老板娘
                       boundAt: '2026-07-22T10:03:20Z'
-                expired:
-                  summary: 会话过期（now > expiresAt 派生；不新增绑定，可重新发起）
+                qrExpired:
+                  summary: 二维码过期（now > expiresAt 派生；非终态——仍可能转 COMPLETED）
                   value:
                     sessionId: wbs_7c4e1a
-                    status: expired
+                    status: QR_EXPIRED
                     expiresAt: '2026-07-22T10:10:00Z'
         '401':
           $ref: '#/components/responses/Unauthorized'
@@ -523,7 +523,7 @@ paths:
       operationId: getNotice
       summary: 站内信详情（纯读，无副作用）
       description: |
-        返回站内信详情（标题 + 时间 + 富文本正文；正文为来源已净化内容，前端渲染另走受限白名单）。 **纯读无副作用**（可安全重试 / 预取）；「打开详情自动已读」由 SPA 随详情加载调 markNoticeRead 完成（页面行为编排）。 跨商户 / 不存在 → 404、不改变任何未读计数（反枚举）。
+        返回站内信详情（标题 + 时间 + 富文本正文；正文由通知引擎渲染并服务端净化后交付，前端渲染另走受限白名单）。 **纯读无副作用**（可安全重试 / 预取）；「打开详情自动已读」由 SPA 随详情加载调 markNoticeRead 完成（页面行为编排）。 跨商户 / 不存在 → 404、不改变任何未读计数（反枚举）。
       parameters:
         - name: noticeId
           in: path
@@ -711,7 +711,8 @@ components:
           description: WeChat 通知接收方（绑定）id
         nickname:
           type: string
-          description: 微信昵称（绑定时刻快照）
+          minLength: 1
+          description: 微信昵称（绑定时刻快照）；恒非空
         boundAt:
           $ref: '#/components/schemas/Timestamp'
     ExtraEmailOtpChallenge:
@@ -744,37 +745,36 @@ components:
       required:
         - sessionId
         - status
-        - qrCodeUrl
+        - qrContent
         - expiresAt
       properties:
         sessionId:
           type: string
-          description: 绑定会话 id
+          description: |
+            绑定会话 id：轮询本次绑定进度用；**二维码到期后仍然可用**（不是一次性查询票）。 二维码过期后该会话**仍然留存**——用户已在微信内确认但尚未落地时，绑定会经由本会话完成，因此它不是「用完即弃的查询票」； 跨商户 / 不存在一律 404。
         status:
           type: string
-          const: pending
-          description: 创建即 pending（待扫码）
-        qrCodeUrl:
-          type: string
-          format: uri
-          description: 绑定二维码（后端生成；SPA 直接渲染）
+          const: PENDING
+          description: 创建即 PENDING（待扫码）
+        qrContent:
+          $ref: '#/components/schemas/WechatQrContent'
         expiresAt:
           allOf:
-            - $ref: '#/components/schemas/Timestamp'
-          description: 会话 TTL 截止（超时须重新发起）
+            - $ref: '#/components/schemas/WechatQrExpiresAt'
+          description: 二维码有效期截止（到点即不能再扫；**不是会话的生命周期**——会话仍留存，已确认的绑定不因此作废）
     WechatBindSessionStatus:
       description: |
-        绑定会话状态（按 status 三态分支；封闭枚举——新增状态属破坏性变更、走并行版本）： pending 待扫码（无接收方）/ completed 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、 不重复加入）/ expired **到期派生**（`PENDING 且 now > expiresAt`，非服务端物理状态；用户取消 / 关页只停前端轮询、不改会话）（无接收方，可重新发起）。
+        绑定会话状态。本 schema 是**封闭判别联合**（`oneOf` + `status` discriminator）——三态穷举， 由此换得一条 schema 级保证：**`COMPLETED` 必携 `boundRecipient`**（前端不必对「完成但没有接收方」做防御）。 按 status 三态分支： `PENDING` 待扫码（无接收方）/ `COMPLETED` 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、 不重复加入）/ `QR_EXPIRED` **到期派生**（`PENDING 且 now > expiresAt`，非服务端物理状态；用户取消 / 关页只停前端轮询、不改会话）（无接收方）。
       oneOf:
         - $ref: '#/components/schemas/WechatBindSessionPending'
         - $ref: '#/components/schemas/WechatBindSessionCompleted'
-        - $ref: '#/components/schemas/WechatBindSessionExpired'
+        - $ref: '#/components/schemas/WechatBindSessionQrExpired'
       discriminator:
         propertyName: status
         mapping:
-          pending: '#/components/schemas/WechatBindSessionPending'
-          completed: '#/components/schemas/WechatBindSessionCompleted'
-          expired: '#/components/schemas/WechatBindSessionExpired'
+          PENDING: '#/components/schemas/WechatBindSessionPending'
+          COMPLETED: '#/components/schemas/WechatBindSessionCompleted'
+          QR_EXPIRED: '#/components/schemas/WechatBindSessionQrExpired'
     WechatBindSessionPending:
       type: object
       additionalProperties: false
@@ -787,10 +787,10 @@ components:
           type: string
         status:
           type: string
-          const: pending
+          const: PENDING
         expiresAt:
           allOf:
-            - $ref: '#/components/schemas/Timestamp'
+            - $ref: '#/components/schemas/WechatQrExpiresAt'
     WechatBindSessionCompleted:
       type: object
       additionalProperties: false
@@ -804,15 +804,17 @@ components:
           type: string
         status:
           type: string
-          const: completed
+          const: COMPLETED
         expiresAt:
           allOf:
-            - $ref: '#/components/schemas/Timestamp'
+            - $ref: '#/components/schemas/WechatQrExpiresAt'
         boundRecipient:
           $ref: '#/components/schemas/WechatNotifyRecipient'
-    WechatBindSessionExpired:
+    WechatBindSessionQrExpired:
       type: object
       additionalProperties: false
+      description: |
+        **不是终态、也不是失败证据**：二维码已不能再扫，但用户若已在微信内完成确认、只是绑定尚未在本侧落地， 本状态仍可能随后转为 `COMPLETED`——**不得据本状态清理本地状态或阻止后续 `COMPLETED`**。 何时停止轮询由前端自行决定；停止不影响绑定成立（已确认的绑定会在有界时延内出现在通知设置页的接收方列表）。
       required:
         - sessionId
         - status
@@ -822,10 +824,10 @@ components:
           type: string
         status:
           type: string
-          const: expired
+          const: QR_EXPIRED
         expiresAt:
           allOf:
-            - $ref: '#/components/schemas/Timestamp'
+            - $ref: '#/components/schemas/WechatQrExpiresAt'
     NoticeStyle:
       type: string
       enum:
@@ -907,7 +909,7 @@ components:
           description: 通知时间
         body:
           type: string
-          description: 富文本正文（来源已净化；前端渲染另走受限白名单）
+          description: 富文本正文（通知引擎渲染并服务端净化后交付；前端渲染另走受限白名单）
         readAt:
           description: 首次转 READ 时间（未读为 null）
           oneOf:
@@ -1038,6 +1040,15 @@ components:
                 attemptsRemaining:
                   type: integer
                   minimum: 0
+    WechatQrContent:
+      type: string
+      description: |
+        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 三处扫码入口（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用同一形状与渲染方式。
+    WechatQrExpiresAt:
+      allOf:
+        - $ref: '#/components/schemas/Timestamp'
+      description: |
+        二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context
