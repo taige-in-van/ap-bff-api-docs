@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: 商户后台 注册登录与认证 (20-01 BFF) — 前端契约面
-  version: 0.6.1
+  title: 商户后台 注册登录与认证 — 前端契约面
+  version: 0.22.0
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台 React SPA 消费的注册 / 登录 / 会话 / 账户安全 / 团队成员 契约。 浏览器持 httpOnly 会话 cookie（登录后 set-cookie），字段类型与校验规则以本 spec 各字段为准。 幂等/CSRF 口径:① **创建类**(注册/建成员)与**非天然幂等 / 有副作用的写**(如改密〔失效会话〕、改成员)挂 Idempotency-Key;**真正天然幂等的纯 PUT/DELETE 可不挂**;**认证类(登录/登出/MFA/扫码)与多步 OTP 挑战类(改邮箱/找回)按流程语义不挂幂等键**(每次都应重新认证/校验);**例外**:找回流程的 `factor-verification` 步骤挂 Idempotency-Key(该步幂等、重放同键返回同一 resetToken,杜绝网络重试因 OTP 已消费假失败)。 ② cookieAuth 的非安全方法(POST/PUT/DELETE)一律挂 X-CSRF-Token(double-submit,fail-closed);公开端点(security:[])无会话故无 CSRF。
+    商户后台 React SPA 消费的注册 / 登录 / 会话 / 账户安全 / 团队成员 契约。 浏览器持 httpOnly 会话 cookie（登录后 set-cookie），字段类型与校验规则以本 spec 各字段为准。 幂等/CSRF 口径:① **创建类**(注册/建成员)与**非天然幂等 / 有副作用的写**(如改密〔失效会话〕、改成员)挂 Idempotency-Key;**真正天然幂等的纯 PUT/DELETE 可不挂**;**认证类(登录/登出/MFA/扫码)与多步 OTP 挑战类(改邮箱/找回)按流程语义不挂幂等键**(每次都应重新认证/校验);**例外**:找回流程的 `factor-verification` 步骤挂 Idempotency-Key(该步幂等、重放同键返回同一 resetToken,杜绝网络重试因 OTP 已消费假失败)。 ② cookieAuth 的非安全方法一律挂 X-CSRF-Token(double-submit,fail-closed);公开端点(security:[])无会话故无 CSRF。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
@@ -21,7 +21,7 @@ tags:
   - name: my-profile
     description: 个人账号自助（全员）：昵称、改**自己**登录邮箱（身份校验 → 新邮箱 OTP；Owner 改自己同步商户主邮箱）。
   - name: owner-contact
-    description: Owner business profile 写面：联系人 First/Last/Title/Phone（GET=Profile 读权限 / PUT=编辑权限默认 Owner）+ Primary Email 严格两步（该 Owner 因子 + 新邮箱 OTP）。ME /account/profile 只聚合读展示。
+    description: Owner business profile 写面：联系人 First/Last/Title/Phone（GET=Profile 读权限 / PUT=编辑权限默认 Owner）+ Primary Email 严格两步（该 Owner 因子 + 新邮箱 OTP）。商户实体契约的 Profile 页只聚合读展示、无修改入口。
   - name: password-reset
     description: 忘记密码自助重置：按已绑因子（TOTP / 邮箱 OTP）校验后重置，恒态反枚举，重置不绕过 MFA。
   - name: team
@@ -34,7 +34,7 @@ paths:
       operationId: registerOwner
       summary: Owner 自助注册（创建 PENDING_VERIFICATION 账号 + 发验证邮件）
       description: |
-        提交注册：校验邮箱唯一（已占用 → 409）、创建 PENDING_VERIFICATION 账号，并发起 Verify Email 邮件的异步发送（邮件投递失败不阻塞注册、账号仍建成）。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回同一受理结果、不会重复注册——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        提交注册：创建 PENDING_VERIFICATION 账号，并发起 Verify Email 邮件的异步发送（邮件投递失败不阻塞注册、账号仍建成）。 **邮箱已被占用分两种、结果完全不同**： **① 该邮箱已有一个尚未验证的账号** → **`200`**（不是错误）+ 与 `201` 同一个响应体：**不新建账号**， 前端**回到「等待 Email 验证」页**、用响应里的 `maskedEmail` 与 `resendCooldownSeconds` 渲染提示与 Resend 按钮（别提示「换个邮箱」——那正是用户自己的邮箱）。 **② 该邮箱已是一个可登录账号**（已验证 / 已激活）→ `409`·968001，此时才提示换邮箱或去登录。 用 HTTP 状态区分即可，`200` / `201` 对前端是同一段渲染逻辑（要区分「新建了还是本来就有」看 `201` vs `200`）。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回同一受理结果、不会重复注册——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       security: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -53,6 +53,16 @@ paths:
               phone: '6045550123'
               businessTitle: Manager
       responses:
+        '200':
+          description: 该邮箱已有一个**尚未验证**的账号——未新建账号；前端回「等待 Email 验证」页 + Resend
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegistrationAccepted'
+              example:
+                status: PENDING_VERIFICATION
+                maskedEmail: j***@example.com
+                resendCooldownSeconds: 60
         '201':
           description: 已受理；账号 PENDING_VERIFICATION，验证邮件发送已发起（投递失败不阻塞注册）
           content:
@@ -63,14 +73,11 @@ paths:
                 status: PENDING_VERIFICATION
                 maskedEmail: j***@example.com
                 resendCooldownSeconds: 60
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208005
-          - 968001
+        - 208005
+        - 968001
   /registrations/verification:
     post:
       tags:
@@ -104,18 +111,11 @@ paths:
               example:
                 status: ACTIVE
                 sessionEstablished: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '410':
-          description: token 已使用 / 无效 / 过期——**均不换会话**；FE 按 `ErrorEnvelope.code`（整数）分流：`206002` = `AUTH_REGISTRATION_ALREADY_ACTIVATED`（已激活 → 跳登录、密码登录）/ `206001` = `AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED`（无效过期 → 重发或重注册）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '410':
-          - 206001
-          - 206002
+        - 206001
+        - 206002
   /registrations/verification-email:
     post:
       tags:
@@ -154,11 +154,9 @@ paths:
                     description: 重发验证邮件的账号级冷却秒数（默认 60、部署可配）；FE 据此从收到响应时刻本地倒计时。反枚举：恒返同一默认值、不泄露账号存在性
               example:
                 resendCooldownSeconds: 60
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /invitations/password:
     post:
       tags:
@@ -166,7 +164,7 @@ paths:
       operationId: acceptInvitationSetPassword
       summary: 邮箱邀请员工设密激活（确认页主动提交;INVITED→ACTIVE,邮箱即验证为安全凭据）
       description: |
-        员工点邀请链接 → 确认页设密提交：校验邀请 token + 密码规则通过 → 账号 `INVITED→ACTIVE`（邮箱同时验证为安全凭据）→ 204，前端跳登录页。 幂等：失败 / 响应丢失时 token 未消费,可用同 token 重试；token 已消费（激活已完成）后重试 → `410`（前端跳登录、非卡死）。
+        员工点邀请链接 → 确认页设密提交：校验邀请 token + 密码规则通过 → 账号 `INVITED→ACTIVE`（邮箱同时验证为安全凭据）→ 204，前端跳登录页。 幂等：失败 / 响应丢失时 token 未消费,可用同 token 重试。 **两种 410 分开处置**：token 已消费、该员工已激活 → `206010`，**跳登录页用密码登录**（非卡死）； token 无效 / 已过期 / 无对应待激活员工 → `206009`，**提示联系 Owner 重发邀请**。
       security: []
       requestBody:
         required: true
@@ -196,11 +194,11 @@ paths:
       responses:
         '204':
           description: 已激活;账号 ACTIVE,前端跳登录页
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '410':
-          $ref: '#/components/responses/Gone'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206009
+        - 206010
   /team/login-email-confirmations:
     post:
       tags:
@@ -226,11 +224,10 @@ paths:
       responses:
         '204':
           description: 登录邮箱已切换为新邮箱
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '410':
-          $ref: '#/components/responses/Gone'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 966002
   /sessions:
     post:
       tags:
@@ -238,7 +235,7 @@ paths:
       operationId: login
       summary: 密码登录（邮箱或用户名 + 密码；MFA 联动；签发 BFF 会话）
       description: |
-        邮箱 / 用户名 + 密码认证（clientId 由服务端注入、前端不传）。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。 PENDING_VERIFICATION（自助注册待验）/ INVITED（邮箱员工待设密,前端提示「请用邀请邮件设密激活」）→ 未激活不签发会话;锁定 423;商户 suspended / 账号禁用 403。
+        邮箱 / 用户名 + 密码认证（clientId 由服务端注入、前端不传）。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。 **`200` 只有这两支**;**凭据正确但不签发会话的三种情形一律是 `403` + 各自的码**，三条文案都不同、按码分流： 邮箱未验证（自助注册待验）→ `208029`（跳「等待 Email 验证」页 + Resend 入口;`context.maskedEmail` **只用于页面展示**, 调 `resendVerificationEmail` 要的明文邮箱**用本次登录表单里的 `loginId`**——走到这一支说明它就是该账号的注册邮箱）; 账号被禁用 → `208027`;商户被停用 → `208028`。账号锁定 → `423`·`966001`。 ⚠️ **受邀待设密的员工不在这几支里**——该账号还没有密码，任何专属提示都等于用任意密码就能探出它的状态,故**与凭据错同一外观**走 `400`·`206012`; 他手上的邀请邮件本身就是恢复路径（另可请 Owner Resend）。 **凭据错**（密码错 / 账号不存在，**两者同一码不区分、防枚举**）→ `400`·`206012`：留在登录表单提示「登录凭据错误」、**不要据此推断账号是否存在**; 失败计数与节流由后端控制、**不回前端**（没有剩余次数可显示）——你只按响应处理：被锁定 → `423`·`966001`（等冷却）;被限流 → `429`。
       security: []
       requestBody:
         required: true
@@ -252,7 +249,7 @@ paths:
               rememberMe: false
       responses:
         '200':
-          description: 登录结果（ESTABLISHED 时已 set-cookie；MFA_REQUIRED / PENDING_VERIFICATION 为中间态）
+          description: 登录已推进：`ESTABLISHED` 已 set-cookie;`MFA_REQUIRED` 待二次校验（未建会话）
           content:
             application/json:
               schema:
@@ -267,26 +264,21 @@ paths:
                   value:
                     status: MFA_REQUIRED
                     mfaChallenge: chl_9f2a4c7e1b
-                pendingVerification:
-                  summary: 失败（账号待验证，无 active membership 不签发）
-                  value:
-                    status: PENDING_VERIFICATION
-                    maskedEmail: j***@example.com
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206012
+        - 208027
+        - 208028
+        - 208029
+        - 966001
   /sessions/mfa:
     post:
       tags:
         - session
       operationId: completeMfaChallenge
       summary: 登录二次校验（提交 TOTP，通过则签发 BFF 会话）
+      description: 登录第二步：提交 TOTP，通过则签发会话。**失败按 `code` 分流**—— TOTP 错 → `400`·`206012`（**留在 TOTP 输入框重输**、**不跳回登录第一步**、不要清空已填状态; 失败计数与节流由后端执行、**不回前端**，故**没有剩余次数可显示**——别做计数 UI）; 账号因连续登录失败被锁 → `423`·`966001`（等冷却，文案按该码取）; 挑战句柄**过期 / 已消费 / 无效** → `410`·`966002`（回登录第一步重新认证，重输 TOTP 无用）。 **签发资格在本步重新裁决、不沿用第一步的结论**——账号 / 商户可能在你输 TOTP 这段时间里被停： 账号被禁用 → `403`·`208027`;商户被停用 → `403`·`208028`（与第一步同码同处置）。 故 TOTP 正确 ≠ 一定建会话;拿到 `403` 就按码提示、回登录页，别当成「验证码错」重输。
       security: []
       requestBody:
         required: true
@@ -302,7 +294,7 @@ paths:
                   type: string
                   description: login 返回的短时挑战句柄（绑定待认证 identity）
                 code:
-                  type: string
+                  $ref: '#/components/schemas/OtpCode'
             example:
               mfaChallenge: chl_9f2a4c7e1b
               code: '123456'
@@ -312,16 +304,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LoginResult'
+                $ref: '#/components/schemas/EstablishedSession'
               example:
                 status: ESTABLISHED
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206012
+        - 208027
+        - 208028
+        - 966001
+        - 966002
   /sessions/wechat:
     post:
       tags:
@@ -354,9 +347,9 @@ paths:
                 qrTicket: wxq_3f8a1c0d92b47e5f1a
                 qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-06-22T14:10:00Z'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /sessions/wechat/{qrTicket}:
     get:
       tags:
@@ -396,12 +389,15 @@ paths:
                   reason:
                     type: string
                     readOnly: true
-                    description: REJECTED 时的业务原因（账号已禁用 / 商户状态异常）
+                    enum:
+                      - ACCOUNT_DISABLED
+                      - MERCHANT_SUSPENDED
+                    description: '`REJECTED` 时的业务原因。**取值本身即 i18n key**——前端按它取本地化文案（与密码登录的 `208027` / `208028` 是同一对业务条件、同两句文案）。 本处是 `200` 轮询体、不是失败响应,故用枚举不用错误码。**后续增补取值不视为破坏性变更**——请留兜底分支,遇未识别值展示通用「无法登录，请联系客服」。'
               example:
                 status: WAITING
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /sessions/current:
     get:
       tags:
@@ -422,7 +418,7 @@ paths:
                 isOwner: true
                 merchantId: '1000023'
                 roles:
-                  - OWNER
+                  - role_owner
                 landingPage: /dashboard
                 menus:
                   - resourceId: dashboard
@@ -438,9 +434,9 @@ paths:
                         type: menu
                         label: Users
                         path: /settings/users
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
     delete:
       tags:
         - session
@@ -451,9 +447,9 @@ paths:
       responses:
         '204':
           description: 已登出（cookie 已清除）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /me/security:
     get:
       tags:
@@ -487,16 +483,16 @@ paths:
               example:
                 securityLevel: Strong
                 mfaStatus: ENABLED
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /me/security/mfa:
     post:
       tags:
         - account-security
       operationId: enrollMfa
       summary: 启用 MFA — 发起（输当前密码 → 返回 provisioning，待 activation）
-      description: 输当前密码换取 TOTP provisioning（otpauth URI），待 activation 激活；当前密码错 → 401（不计入登录锁定）。
+      description: 输当前密码换取 TOTP provisioning（otpauth URI），待 activation 激活；**当前密码错 → `403`·`206011`**——会话仍有效，留在当前弹窗提示重输、**不要跳登录页**（不计入登录锁定）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -525,15 +521,17 @@ paths:
                     type: string
               example:
                 otpauthUri: otpauth://totp/MerchantPortal:jane@example.com?secret=JBSWY3DPEHPK3PXP&issuer=MerchantPortal
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206011
   /me/security/mfa/activation:
     post:
       tags:
         - account-security
       operationId: activateMfa
       summary: 启用 MFA — 确认（输 TOTP 激活，状态 → ENABLED）
+      description: 用 `enrollMfa` 拿到的 provisioning 扫码后，输一次 TOTP 完成激活。 **TOTP 错 → `403`·`206011`**（会话仍有效，留在当前弹窗重输、**不要跳登录页**；不计入登录锁定）; **enrollment 已失效**（`MFA_PENDING` 超时未确认 / 已被取消）→ `410`·`966002`——重输无用， 须**回第一步重新 `enrollMfa`** 取新的 provisioning 再扫码。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -546,22 +544,24 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  $ref: '#/components/schemas/OtpCode'
             example:
               code: '123456'
       responses:
         '204':
           description: 已激活（MFA_PENDING → ENABLED）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206011
+        - 966002
   /me/security/mfa/deactivation:
     post:
       tags:
         - account-security
       operationId: disableMfa
       summary: 禁用 MFA（输 TOTP 验证，状态 → DISABLED）
-      description: 输 TOTP 校验后禁用 MFA（关 MFA = 降级，须 step-up 校验当前 TOTP）；TOTP 错保持 ENABLED、不计入登录锁定。
+      description: 输 TOTP 校验后禁用 MFA（关 MFA = 降级，须 step-up 校验当前 TOTP）；**TOTP 错 → `403`·`206011`**，保持 ENABLED、留在弹窗重输、**不要跳登录页**（不计入登录锁定）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -574,22 +574,23 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  $ref: '#/components/schemas/OtpCode'
             example:
               code: '123456'
       responses:
         '204':
           description: 已禁用（ENABLED → DISABLED）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206011
   /me/security/password:
     put:
       tags:
         - account-security
       operationId: changeOwnPassword
       summary: 登录态改密（Owner + 员工统一用旧密码；其他会话失效、当前保留）
-      description: '**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**;旧密码错 → 401,不计入登录锁定;忘记旧密码 → 前端「Forgot your password?」走自助重置。幂等：必带 `Idempotency-Key`;同键 + 同请求体重发 → 一致返 `204`(网络重试请复用同一个键);改了请求体就必须换新键,沿用旧键改内容 → `409`·208005。'
+      description: '**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**;**旧密码错 → `403`·`206011`**——会话仍有效,留在当前弹窗提示重输、**不要跳登录页**(不计入登录锁定);忘记旧密码 → 前端「Forgot your password?」走自助重置。幂等：必带 `Idempotency-Key`;同键 + 同请求体重发 → 一致返 `204`(网络重试请复用同一个键);改了请求体就必须换新键,沿用旧键改内容 → `409`·208005。'
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -620,15 +621,11 @@ paths:
       responses:
         '204':
           description: 改密成功（其他会话已失效，当前会话保留）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208005
+        - 206011
+        - 208005
   /me/login-email/change-requests:
     post:
       tags:
@@ -660,17 +657,16 @@ paths:
               example:
                 challengeId: chg_6b1d3f8a90
                 identityVerification: MFA_TOTP
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /me/login-email/change-requests/{challengeId}/identity-verification:
     post:
       tags:
         - my-profile
       operationId: verifyLoginEmailChangeIdentity
       summary: 改登录邮箱 — 第 1 步身份校验（MFA TOTP 或旧邮箱 OTP）
+      description: '**失败按 `code` 分流，且因子不同码不同**：走 **TOTP** 时验错 → `403`·`206011`（**本步不为 TOTP 计次**,没有剩余次数可显示;会话仍有效，留在弹窗重输、**不跳登录页**）; 走**旧邮箱 OTP** 时输错但**尚有尝试次数** → `400`·`204010`（同样留在弹窗重输;剩余次数见 `context.attemptsRemaining`）,**错到超限** → `423`·`966003`（该挑战已作废，回第一步重新发起改邮箱）; 该挑战**过期 / 已消费** → `410`·`206006`（重输无用，回第一步重新发起改邮箱）; **不是发起该挑战的那个会话 / 发起者** → `403`·`206005`（须重走一次挑战，不是重输因子）。'
       parameters:
         - name: challengeId
           in: path
@@ -689,23 +685,28 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  $ref: '#/components/schemas/OtpCode'
             example:
               code: '123456'
       responses:
         '204':
           description: 身份已校验，可提交新邮箱
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '410':
-          $ref: '#/components/responses/Gone'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 204010
+        - 206005
+        - 206006
+        - 206011
+        - 966003
   /me/login-email/change-requests/{challengeId}/new-address:
     post:
       tags:
         - my-profile
       operationId: submitNewLoginEmail
       summary: 改登录邮箱 — 第 2 步提交新邮箱（校验格式/唯一/不同 + 发新邮箱 OTP）
+      description: |
+        改登录邮箱三步里的第 2 步：提交新邮箱 → 校验格式 / 全平台唯一 / 与当前不同 → 向**新邮箱**发 OTP。 **两个 409 分开处置**：`968001` = **这个新邮箱被别人占了**，提示换一个、焦点留在邮箱输入框； `968010` = **你自己已有一笔改邮箱在途**，换任何新邮箱都会被拒，须先完成那笔（去新邮箱点确认）或等它自然过期——首期没有主动取消入口，所以这里不要引导用户改输入。
       parameters:
         - name: challengeId
           in: path
@@ -731,23 +732,20 @@ paths:
       responses:
         '202':
           description: 新邮箱 OTP 已发（新邮箱含 pending 占用登录域唯一性）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/Conflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 968001
-          - 968010
+        - 206005
+        - 206006
+        - 968001
+        - 968010
   /me/login-email/change-requests/{challengeId}/confirmation:
     post:
       tags:
         - my-profile
       operationId: confirmLoginEmailChange
       summary: 改登录邮箱 — 确认（新邮箱 OTP → 替换登录邮箱 + 旧邮箱安全通知）
-      description: 凭 change-request 的新邮箱 OTP 完成替换（一次性 OTP、非幂等——重试 OTP 已消费返 410 由前端处理）。更新不影响会话。Owner 变更同步商户主联系邮箱、旧邮箱通知无 Reset password CTA;员工仅个人安全通知。
+      description: 凭 change-request 的新邮箱 OTP 完成替换（一次性 OTP、非幂等）。更新不影响会话。Owner 变更同步商户主联系邮箱、旧邮箱通知无 Reset password CTA;员工仅个人安全通知。 **失败按 `code` 分流**：新邮箱 OTP 是服务端签发的一次性验证码,**计次**——输错但尚有次数 → `400`·`204010`（留在弹窗重输,剩余次数见 `context.attemptsRemaining`）; **错到超限** → `423`·`966003`（该挑战作废,回第一步重新发起改邮箱）;该 OTP / change-request **过期或已消费** → `410`·`206006`（重输无用,同样回第一步）; **不是发起该变更的那个会话 / 发起者** → `403`·`206005`（须重走一次流程）。
       parameters:
         - name: challengeId
           in: path
@@ -766,18 +764,21 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  allOf:
+                    - $ref: '#/components/schemas/OtpCode'
                   description: 新邮箱 OTP
             example:
               code: '654321'
       responses:
         '204':
           description: 登录邮箱已更新（旧邮箱已收安全通知）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '410':
-          $ref: '#/components/responses/Gone'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 204010
+        - 206005
+        - 206006
+        - 966003
   /me:
     get:
       tags:
@@ -810,21 +811,24 @@ paths:
                     type: array
                     items:
                       type: string
+                    description: 自身持有的角色标识（`roleId`，同 `TeamMember.roleId` 取值域）
               example:
                 operatorId: op_7a1c9
                 displayName: Jane Merchant
                 loginId: jane@example.com
                 loginIdEditable: true
                 roles:
-                  - OWNER
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
-    patch:
+                  - role_owner
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
+  /me/nickname:
+    put:
       tags:
         - my-profile
       operationId: updateMyNickname
-      summary: 改自己 Nick Name（部分更新;直接生效;不改 MFA/WeChat/密码/不影响会话）
+      summary: 改自己 Nick Name（整体置为提交值;直接生效;不改 MFA/WeChat/密码/不影响会话）
+      description: 把自己的 Nick Name 置为提交值（`getMyProfile.displayName` 随之更新）。天然幂等 PUT，不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -833,21 +837,21 @@ paths:
           application/json:
             schema:
               type: object
+              additionalProperties: false
               required:
                 - nickName
               properties:
                 nickName:
                   type: string
+                  minLength: 1
             example:
               nickName: Jane M.
       responses:
         '204':
           description: 已保存
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /owner-contact:
     get:
       tags:
@@ -870,15 +874,10 @@ paths:
                 businessTitle: Manager
                 phone: '6045550123'
                 primaryEmail: jane@example.com
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
     put:
       tags:
         - owner-contact
@@ -902,17 +901,10 @@ paths:
       responses:
         '204':
           description: 已保存（Owner 名下所有商户同步展示新值）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /owner-contact/primary-email/change-requests:
     post:
       tags:
@@ -920,7 +912,7 @@ paths:
       operationId: initiateOwnerPrimaryEmailChange
       summary: 改 Owner Primary Email — 发起（严格两步验证；返回身份校验方式）
       description: |
-        Contact email 编辑（= Owner Primary Email = 登录邮箱，三合一同一字段）。写 = 联系人编辑权限、默认 Owner。 凭据强度靠**该 Owner 身份因子**（MFA→TOTP / 无 MFA→旧邮箱 OTP）+ 新邮箱 OTP。 **后续每步须来自同一商户 / 同一会话 / 同一发起者、且针对同一 Owner**（切商户 / 换会话 / 异发起者 → 拒 409）。 具备权限的授权者亦可代该 Owner 完成（校验目标 Owner 因子 + 替换其登录邮箱）。
+        Contact email 编辑（= Owner Primary Email = 登录邮箱，三合一同一字段）。写 = 联系人编辑权限、默认 Owner。 凭据强度靠**该 Owner 身份因子**（MFA→TOTP / 无 MFA→旧邮箱 OTP）+ 新邮箱 OTP。 **后续每步须来自同一商户 / 同一会话 / 同一发起者、且针对同一 Owner**——切商户 → `409`·`208001`（stale-tab 守卫）;**换会话 / 异发起者 → `403`·`206005`**（须重走一次挑战，不是重输因子）。 具备权限的授权者亦可代该 Owner 完成（校验目标 Owner 因子 + 替换其登录邮箱）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -945,22 +937,17 @@ paths:
               example:
                 challengeId: pec_6b1d3f8a90
                 identityVerification: MFA_TOTP
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /owner-contact/primary-email/change-requests/{challengeId}/identity-verification:
     post:
       tags:
         - owner-contact
       operationId: verifyOwnerPrimaryEmailChangeIdentity
       summary: 改 Primary Email — 身份校验（该 Owner 的 MFA TOTP 或旧邮箱 OTP）
-      description: 先校验请求来自同一商户 / 同一会话 / 同一发起者，再验该 Owner 因子。
+      description: 先校验请求来自同一商户 / 同一会话 / 同一发起者，再验该 Owner 因子。**失败按 `code` 分流**： **因子不同码不同**：TOTP 验错 → `403`·`206011`（无剩余次数可显示;会话仍有效，留在弹窗重输、**不跳登录页**）;旧邮箱 OTP 输错但**尚有尝试次数** → `400`·`204010`（剩余次数见 `context.attemptsRemaining`）,**错到超限** → `423`·`966003`（挑战作废,回第一步重新发起）;挑战过期 / 已消费 → `410`·`206006`（回第一步重新发起）; 换会话 / 异发起者 → `403`·`206005`（重走一次挑战）;切商户 → `409`·`208001`。
       parameters:
         - name: challengeId
           in: path
@@ -980,28 +967,31 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  allOf:
+                    - $ref: '#/components/schemas/OtpCode'
                   description: 该 Owner 的 TOTP 或旧邮箱 OTP
             example:
               code: '123456'
       responses:
         '204':
           description: 身份已校验，可提交新邮箱
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '410':
-          $ref: '#/components/responses/Gone'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 204010
+        - 206005
+        - 206006
+        - 206011
+        - 208001
+        - 966003
   /owner-contact/primary-email/change-requests/{challengeId}/new-address:
     post:
       tags:
         - owner-contact
       operationId: submitOwnerNewPrimaryEmail
       summary: 改 Primary Email — 提交新邮箱（校验格式 / 全平台唯一 / 不同 + 发新邮箱 OTP）
+      description: |
+        改 Owner Primary Email 流程里的提交新邮箱步：校验格式 / 全平台唯一 / 与当前不同 → 向**新邮箱**发 OTP。 **三个错误分开处置**：`968001` = **新邮箱被别人占了**，换一个； `968010` = **该 Owner 已有一笔改邮箱在途**，换任何邮箱都拒，须先完成或等其过期（无取消入口）； `208001` = 页面预期商户 ≠ 会话当前商户，按公约统一 re-sync 后重发。
       parameters:
         - name: challengeId
           in: path
@@ -1028,24 +1018,21 @@ paths:
       responses:
         '202':
           description: 新邮箱 OTP 已发（pending 占**全平台**登录域唯一性）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 968001
-          - 968010
+        - 206005
+        - 206006
+        - 208001
+        - 968001
+        - 968010
   /owner-contact/primary-email/change-requests/{challengeId}/confirmation:
     post:
       tags:
         - owner-contact
       operationId: confirmOwnerPrimaryEmailChange
       summary: 改 Primary Email — 确认（新邮箱 OTP → 替换 Primary Email + 旧邮箱变更通知）
-      description: 凭 change-request 新邮箱 OTP 完成替换（一次性 OTP、非幂等）。Primary Email = 登录邮箱 = Contact email 三合一同步更新；旧邮箱收 Registration Email Changed 通知（无 Reset password CTA、非本人救济经 Contact us）。不影响会话。
+      description: 凭 change-request 新邮箱 OTP 完成替换（一次性 OTP、非幂等）。Primary Email = 登录邮箱 = Contact email 三合一同步更新；旧邮箱收 Registration Email Changed 通知（无 Reset password CTA、非本人救济经 Contact us）。不影响会话。 **失败按 `code` 分流**：新邮箱 OTP 是服务端签发的一次性验证码,**计次**——输错但尚有次数 → `400`·`204010`（留在弹窗重输,剩余次数见 `context.attemptsRemaining`）; **错到超限** → `423`·`966003`（该挑战作废,回第一步重新发起）;该 OTP / change-request **过期或已消费** → `410`·`206006`（重输无用,同样回第一步）; **不是发起该变更的那个会话 / 发起者** → `403`·`206005`;**切了商户上下文** → `409`·`208001`。
       parameters:
         - name: challengeId
           in: path
@@ -1065,22 +1052,22 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  allOf:
+                    - $ref: '#/components/schemas/OtpCode'
                   description: 新邮箱 OTP
             example:
               code: '654321'
       responses:
         '204':
           description: Primary Email 已更新（旧邮箱已收变更通知）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '410':
-          $ref: '#/components/responses/Gone'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 204010
+        - 206005
+        - 206006
+        - 208001
+        - 966003
   /password-resets:
     post:
       tags:
@@ -1113,9 +1100,9 @@ paths:
               example:
                 challengeId: pwr_4e1a8c9b2d
                 resendCooldownSeconds: 60
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /password-resets/{challengeId}/factor-verification:
     post:
       tags:
@@ -1156,20 +1143,12 @@ paths:
                 $ref: '#/components/schemas/PasswordResetFactorVerified'
               example:
                 resetToken: rst_8f3c1a9e6b2d4f7a0c5e
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '409':
-          $ref: '#/components/responses/Conflict'
-          description: 同 `Idempotency-Key` 复用于不同 payload `208005`
-        '410':
-          $ref: '#/components/responses/Gone'
-        '423':
-          $ref: '#/components/responses/Locked'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208005
+        - 208005
+        - 966001
+        - 966002
   /password-resets/{challengeId}/confirmation:
     post:
       tags:
@@ -1208,13 +1187,96 @@ paths:
       responses:
         '204':
           description: 重置成功（该用户全平台会话已失效;MFA 绑定不变;前端回登录页）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 966002
+  /team/assignable-roles:
+    get:
+      tags:
+        - team
+      operationId: listAssignableRoles
+      summary: 读可分配角色候选集（管理后台预定义）
+      description: |
+        可分配角色候选集（管理后台预定义、**随部署而异**；**非前端 hardcode**）。驱动新建 / 编辑成员的 Role 选择项与成员列表的角色筛选项。 **`roleId` 是稳定标识**——写成员（`roleId` 字段）、按角色筛选（`roleId` 入参）一律传它； `name` 只供展示，管理后台改名后同一 `roleId` 的展示名随之变化，已保存的成员数据与筛选条件不受影响。 **不含当前商户 Owner 所持的角色**（Owner 唯一、不可分配也不可改）——该角色由服务端据本商户 Owner 身份排除，不靠前端按名字或标识猜； 成员列表里 Owner 行的角色名由 `TeamMember.roleName` 直接给出，不需要回本集合查。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 可分配角色候选集
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - roles
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - roleId
+                        - name
+                      properties:
+                        roleId:
+                          type: string
+                          description: 稳定标识（提交与筛选用）
+                        name:
+                          type: string
+                          description: 展示名（可被管理后台改写）
+              example:
+                roles:
+                  - roleId: role_manager
+                    name: Manager
+                  - roleId: role_staff
+                    name: Operator
+                  - roleId: role_finance
+                    name: Finance
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
+  /team/members/counts:
+    get:
+      tags:
+        - team
+      operationId: getTeamMemberCounts
+      summary: 成员列表角色快捷筛选的各项与计数
+      description: |
+        成员列表顶部角色快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listTeamMembers` 的 `roleId`；本端点**不接受 `roleId`**，其余筛选（按显示名 / 邮箱搜索）与列表一致。 项集覆盖该商户可分配的角色**以及 Owner**（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行）， 某角色当期无成员时**仍返回该项、`count` 为 `0`**。`label` 是角色名，随管理后台维护的角色配置走。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: 按显示名 / 邮箱
+      responses:
+        '200':
+          description: 各项与计数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickFilterCounts'
+              example:
+                items:
+                  - value: role_owner
+                    label: Owner
+                    count: 1
+                  - value: role_admin
+                    label: Admin
+                    count: 2
+                  - value: role_finance
+                    label: Finance
+                    count: 0
+                  - value: role_staff
+                    label: Operator
+                    count: 5
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
   /team/members:
     get:
       tags:
@@ -1230,10 +1292,11 @@ paths:
           schema:
             type: string
           description: 按显示名 / 邮箱
-        - name: role
+        - name: roleId
           in: query
           schema:
             type: string
+          description: 按角色筛选；取值 = `listAssignableRoles` 的 `roleId`（Owner 行的 `roleId` 不在该候选集内，可从成员列表自身取）
         - name: sort
           in: query
           schema:
@@ -1270,9 +1333,9 @@ paths:
                   - operatorId: op_7a1c9
                     displayName: Jane Merchant
                     loginId: jane@example.com
-                    role: Owner
+                    roleId: role_owner
+                    roleName: Owner
                     status: ACTIVE
-                    pendingLoginEmail: null
                     isOwner: true
                     wechatBound: true
                     lastLoginAt: '2026-06-22T14:05:00Z'
@@ -1280,9 +1343,9 @@ paths:
                   - operatorId: op_3b8f2
                     displayName: Sam Clerk
                     loginId: sam@example.com
-                    role: Operator
+                    roleId: role_staff
+                    roleName: Operator
                     status: ACTIVE
-                    pendingLoginEmail: null
                     isOwner: false
                     wechatBound: false
                     lastLoginAt: '2026-06-20T11:30:00Z'
@@ -1290,22 +1353,16 @@ paths:
                   - operatorId: op_5d4e1
                     displayName: Pat Pending
                     loginId: pat@example.com
-                    role: Operator
+                    roleId: role_staff
+                    roleName: Operator
                     status: INVITED
-                    pendingLoginEmail: null
                     isOwner: false
                     wechatBound: false
-                    lastLoginAt: null
                     createdAt: '2026-06-21T08:15:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
     post:
       tags:
         - team
@@ -1326,7 +1383,7 @@ paths:
             example:
               loginId: sam@example.com
               nickName: Sam Clerk
-              role: Operator
+              roleId: role_staff
       responses:
         '201':
           description: 已创建（邮箱格式 = INVITED 待设密;用户名格式 = ACTIVE）
@@ -1348,19 +1405,12 @@ paths:
               example:
                 operatorId: op_3b8f2
                 status: INVITED
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 968001
+        - 208001
+        - 208005
+        - 968001
   /team/members/{operatorId}:
     put:
       tags:
@@ -1386,7 +1436,7 @@ paths:
               $ref: '#/components/schemas/UpdateTeamMemberRequest'
             example:
               nickName: Sam Clerk
-              role: Operator
+              roleId: role_staff
       responses:
         '202':
           description: 受理为处理中——同步字段已原子生效,显示名(Nick Name)后台补齐;同 `Idempotency-Key` 重试返当前结果、完成后收敛 204
@@ -1396,25 +1446,18 @@ paths:
                 $ref: '#/components/schemas/UpdateTeamMemberProcessing'
         '204':
           description: 已更新（同步字段全部生效；ACTIVE 邮箱改邮箱为受理:确认链接已发新邮箱,待员工确认）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 968001
-          - 968010
+        - 208001
+        - 208005
+        - 968001
+        - 968010
     delete:
       tags:
         - team
       operationId: deleteTeamMember
-      summary: 删除员工（软删 status→DELETED + 全会话失效；Owner 不可删 → 403；INVITED/ACTIVE/DISABLED 均经此删成员本体）
+      summary: 删除员工（软删——删后不在成员列表呈现 + 全会话失效；Owner 不可删 → 403；INVITED/ACTIVE/DISABLED 均经此删成员本体）
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -1426,21 +1469,18 @@ paths:
       responses:
         '204':
           description: 已软删
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /team/members/{operatorId}/invitation:
     post:
       tags:
         - team
       operationId: resendInvitation
       summary: 对 INVITED 员工 Resend 邀请链接（冷却默认 60s 可配;旧链接失效）
+      description: |
+        对 `INVITED` 员工重发邀请链接——**每次重发都让旧链接立即失效**，员工手上的旧邮件点开会拿到 `206009`。 **冷却**：账号级重发冷却窗口内再点 → `429`·208013，`context.cooldownSeconds` 给剩余秒数（**权威值**，覆盖刷新与跨标签页，据此本地倒计时禁用按钮，不要 hardcode 60）。 `208001` = 页面预期商户 ≠ 会话当前商户，按公约 re-sync 后重发。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -1451,20 +1491,25 @@ paths:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '202':
-          description: 已重发（冷却后;新链接生效旧失效）;员工保持 INVITED
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '429':
-          $ref: '#/components/responses/TooManyRequestsWithCooldown'
+          description: 已重发（新链接生效、旧链接失效）;员工保持 INVITED
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - resendCooldownSeconds
+                properties:
+                  resendCooldownSeconds:
+                    type: integer
+                    minimum: 0
+                    description: 下次可 Resend 前的冷却秒数（业务参数、部署可配）——**据此禁用按钮并本地倒计时，不要 hardcode 60**（同 `registerOwner` / `resendVerificationEmail` / `requestPasswordReset` 的口径）
+              example:
+                resendCooldownSeconds: 60
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-        '429':
-          - 208013
+        - 208001
+        - 208013
   /team/members/{operatorId}/enablement:
     put:
       tags:
@@ -1495,22 +1540,17 @@ paths:
       responses:
         '204':
           description: 已切换（ACTIVE ↔ DISABLED）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /team/members/{operatorId}/wechat-binding:
     post:
       tags:
         - team
       operationId: initiateMemberWechatBinding
       summary: Owner 给成员（含自己）绑 WeChat — 发起（返回二维码，被绑定本人扫码）
-      description: 为该成员发起 WeChat 登录绑定（返回二维码，被绑定本人扫码确认）。已绑定 → 409『请先解绑』；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，发起方轮询只返回粗粒度 FAILED。
+      description: 为该成员发起 WeChat 登录绑定（返回二维码，被绑定本人扫码确认）。**该成员已绑定 → `409`·968003**：提示「请先解绑当前 WeChat」再重新发起——刷新看到的还是已绑定，这不是「状态变了」。占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，发起方轮询只返回粗粒度 FAILED。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -1543,16 +1583,11 @@ paths:
                 qrTicket: wxb_2a7f9c1e04d63b8a52
                 qrContent: Qm7Yt4sV9eN3hJ0aZx5Wgu
                 expiresAt: '2026-06-22T14:10:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208003
+        - 208001
+        - 968003
     delete:
       tags:
         - team
@@ -1570,15 +1605,10 @@ paths:
       responses:
         '204':
           description: 已解绑
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /team/members/{operatorId}/wechat-binding/{qrTicket}:
     get:
       tags:
@@ -1628,15 +1658,10 @@ paths:
                     description: FAILED 时的业务原因；占用冲突不向 Owner/BFF 暴露具体原因。
               example:
                 status: PENDING
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
 components:
   securitySchemes:
     cookieAuth:
@@ -1644,7 +1669,7 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     WechatPollStatus:
       type: string
@@ -1676,7 +1701,7 @@ components:
           type: string
         phone:
           type: string
-          description: 默认区号 +1 / 10 位；白名单与长度规则部署可配
+          description: 区号 / 号码位数的白名单与长度规则部署可配；**`+1` / 10 位只是空白表单的初始值**，已有值时回显其自身取值
         businessTitle:
           type: string
           description: Business Owner / Manager / Employee / Other（Other 可自定义）；仅信息收集
@@ -1737,19 +1762,15 @@ components:
           default: false
           description: 勾选 → 会话不受关浏览器 / idle / absolute 自然过期影响（仍受系统侧失效）
     LoginResult:
-      description: 登录结果多态;按 status 判别(discriminator)。ESTABLISHED 时已 set-cookie;PENDING_VERIFICATION/INVITED 不签发(无 active membership)
+      description: 登录结果多态;按 `status` 判别（discriminator）。**只有两支**：`ESTABLISHED` 已 set-cookie 建会话;`MFA_REQUIRED` 已签发一次性挑战、去二次校验。 凭据正确但不签发会话的三种情形（邮箱未验证 / 账号禁用 / 商户停用）走 `403` + 各自的码，**不在本体内**。
       oneOf:
         - $ref: '#/components/schemas/EstablishedSession'
         - $ref: '#/components/schemas/MfaRequiredChallenge'
-        - $ref: '#/components/schemas/PendingVerificationNotice'
-        - $ref: '#/components/schemas/InvitationPendingNotice'
       discriminator:
         propertyName: status
         mapping:
           ESTABLISHED: '#/components/schemas/EstablishedSession'
           MFA_REQUIRED: '#/components/schemas/MfaRequiredChallenge'
-          PENDING_VERIFICATION: '#/components/schemas/PendingVerificationNotice'
-          INVITED: '#/components/schemas/InvitationPendingNotice'
     EstablishedSession:
       type: object
       required:
@@ -1772,31 +1793,6 @@ components:
         mfaChallenge:
           type: string
           description: 提交到 /sessions/mfa
-    PendingVerificationNotice:
-      type: object
-      required:
-        - status
-        - maskedEmail
-      properties:
-        status:
-          type: string
-          enum:
-            - PENDING_VERIFICATION
-        maskedEmail:
-          type: string
-          description: 供「等待验证」页展示
-    InvitationPendingNotice:
-      type: object
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          enum:
-            - INVITED
-        message:
-          type: string
-          description: 邮箱邀请员工待设密,前端提示「请用邀请邮件设密激活」
     PasswordResetChallenge:
       type: object
       required:
@@ -1822,8 +1818,6 @@ components:
       description: 会话上下文：身份摘要 + 可见菜单树 + 落地页 + 展示字段
       required:
         - operatorId
-        - merchantId
-        - landingPage
         - menus
       properties:
         operatorId:
@@ -1836,22 +1830,19 @@ components:
           type: boolean
           readOnly: true
         merchantId:
-          type:
-            - string
-            - 'null'
+          type: string
           readOnly: true
-          description: 当前商户内部 id；**可为 null = 无当前商户**（撤回 / 无可访问商户，FE 走 listMerchants 选择或进入无可用商户态）；非 null 时据此初始化 X-Merchant-Context（见启动链路）
+          description: 当前商户内部 id；**无当前商户时不返回本键**（撤回 / 无可访问商户，FE 走 listMerchants 选择或进入无可用商户态）；有本键时据此初始化 X-Merchant-Context（见启动链路）
         roles:
           type: array
           readOnly: true
+          description: 当前登录者自身持有的角色标识（`roleId`，与 `TeamMember.roleId` 同一取值域）。前端一般不直接渲染它——菜单可见性看 `menus`、身份判定看 `isOwner`。
           items:
             type: string
         landingPage:
-          type:
-            - string
-            - 'null'
+          type: string
           readOnly: true
-          description: 角色主项决定的默认落地页（未配置默认 Dashboard；无当前商户时为 null）；**仅 routeTo=MERCHANT_HOME 时采用**——入驻 / 审核 / 拒绝区域由 getOnboardingStatus.routeTo 决定
+          description: 角色主项决定的默认落地页（未配置默认 Dashboard）；**无当前商户时不返回本键**；**仅 routeTo=MERCHANT_HOME 时采用**——入驻 / 审核 / 拒绝区域由 getOnboardingStatus.routeTo 决定
         menus:
           type: array
           readOnly: true
@@ -1895,28 +1886,32 @@ components:
           type: string
         phone:
           type: string
-          description: 默认区号 +1 / 10 位；白名单与长度规则部署可配
+          description: 区号 / 号码位数的白名单与长度规则部署可配；**`+1` / 10 位只是空白表单的初始值**，已有值时回显其自身取值
         primaryEmail:
           type: string
           format: email
           description: 当前 Primary Email（= Owner 登录邮箱 = Contact email；只读展示，编辑面读此 authoritative 值；变更走 /owner-contact/primary-email/change-requests/*）
     UpdateOwnerContactRequest:
       type: object
-      description: Owner 联系人 PUT 请求体（仅联系人字段；Primary Email 改走 change-requests、本请求体**结构上不接受**）
+      description: Owner 联系人 PUT 请求体（仅联系人字段；Primary Email 改走 change-requests、本请求体**结构上不接受**）。First / Last Name 提交时须非空、**不可清空**；Business Title / Phone 为可选项、可清空。
       additionalProperties: false
-      required:
-        - firstName
-        - lastName
+      minProperties: 1
       properties:
         firstName:
           type: string
+          minLength: 1
         lastName:
           type: string
+          minLength: 1
         businessTitle:
-          type: string
+          type:
+            - string
+            - 'null'
         phone:
-          type: string
-          description: 默认区号 +1 / 10 位；白名单与长度规则部署可配
+          type:
+            - string
+            - 'null'
+          description: 区号 / 号码位数的白名单与长度规则部署可配；**`+1` / 10 位只是空白表单的初始值**，已有值时回显其自身取值
     TeamMember:
       type: object
       description: 团队成员列表行
@@ -1924,6 +1919,8 @@ components:
         - operatorId
         - displayName
         - loginId
+        - roleId
+        - roleName
         - status
         - isOwner
       properties:
@@ -1936,9 +1933,13 @@ components:
         loginId:
           type: string
           description: 登录 ID / 邮箱
-        role:
+        roleId:
           type: string
-          description: 角色
+          description: 角色稳定标识（编辑该成员时回传此值；按角色筛选也用它）
+        roleName:
+          type: string
+          readOnly: true
+          description: 角色展示名（服务端已解析，直接渲染即可；Owner 行同样给出，不需回 `listAssignableRoles` 查）
         status:
           type: string
           enum:
@@ -1948,22 +1949,19 @@ components:
           readOnly: true
           description: 账号态:INVITED(邮箱邀请待设密,附 Resend);ACTIVE / DISABLED;removed 不呈现
         pendingLoginEmail:
-          oneOf:
-            - type: string
-              format: email
-            - type: 'null'
-          description: ACTIVE 邮箱员工被 Owner 改邮箱、待新邮箱确认时的 pending 新邮箱（确认前旧邮箱仍有效）;无则 null
+          type: string
+          format: email
+          description: ACTIVE 邮箱员工被 Owner 改邮箱、待新邮箱确认时的 pending 新邮箱（确认前旧邮箱仍有效）;**无待确认邮箱则不返回本键**
         isOwner:
           type: boolean
         wechatBound:
           type: boolean
           description: 该成员的商户后台 WeChat 登录是否已绑定；不代表其平台级 WeChat 账号是否存在
         lastLoginAt:
-          oneOf:
+          allOf:
             - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
           readOnly: true
-          description: 最近登录；从未登录为 null，前端显示「从未登录」
+          description: 最近登录；**从未登录则不返回本键**，前端显示「从未登录」
         createdAt:
           $ref: '#/components/schemas/Timestamp'
           readOnly: true
@@ -1976,7 +1974,7 @@ components:
           required:
             - loginId
             - nickName
-            - role
+            - roleId
           properties:
             loginId:
               type: string
@@ -1984,9 +1982,9 @@ components:
               description: 邮箱格式登录 ID（含 @）；发邀请链接，由员工自设密码
             nickName:
               type: string
-            role:
+            roleId:
               type: string
-              description: 管理后台预定义可分配角色（不可选 Owner）
+              description: 管理后台预定义可分配角色的 `roleId`（取自 listAssignableRoles；不可选 Owner）
         - title: CreateUsernameMember
           type: object
           additionalProperties: false
@@ -1994,7 +1992,7 @@ components:
             - loginId
             - nickName
             - password
-            - role
+            - roleId
           properties:
             loginId:
               type: string
@@ -2006,9 +2004,9 @@ components:
               type: string
               format: password
               description: Owner 设置的初始密码（新版 5 规则）
-            role:
+            roleId:
               type: string
-              description: 管理后台预定义可分配角色（不可选 Owner）
+              description: 管理后台预定义可分配角色的 `roleId`（取自 listAssignableRoles；不可选 Owner）
     UpdateTeamMemberRequest:
       type: object
       description: 编辑员工;一次原子更新 Role / 用户名 loginId / password / Nick Name(见 updateTeamMember 描述)。loginId 改用户名直接生效;改 ACTIVE 邮箱员工登录邮箱 → 新邮箱确认链接流程(独立、不经本端点)。Password 留空保持、填值即重置
@@ -2020,8 +2018,9 @@ components:
           description: 改登录 ID;用户名直接生效,ACTIVE 邮箱员工改邮箱走确认链接
         nickName:
           type: string
-        role:
+        roleId:
           type: string
+          description: 改角色;取自 listAssignableRoles 的 `roleId`（不可选 Owner）
         newPassword:
           type: string
           format: password
@@ -2037,9 +2036,12 @@ components:
           enum:
             - PROCESSING
           description: 处理中——展示字段最终一致后收敛为成功（同 Idempotency-Key 重试查进度）
+    DiagnosticDetail:
+      type: string
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
     ErrorEnvelope:
       type: object
-      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
       required:
         - code
         - detail
@@ -2048,8 +2050,9 @@ components:
           type: integer
           description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
         detail:
-          type: string
-          description: 错误描述(面向调用方;本地化按 locale)。
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
         links:
           type: object
           description: 可选:错误说明 / 后续恢复操作链接。
@@ -2071,6 +2074,33 @@ components:
                 type: string
               issue:
                 type: string
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
+          properties:
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            currentMerchantId:
+              type: string
+              description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            maskedEmail:
+              type: string
+              description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+    OtpCode:
+      type: string
+      pattern: ^[0-9]{6}$
+      description: |
+        **一次性验证码**:恒为 **6 位纯数字**,长度固定、不随部署变化 —— 客户端可据此做输入框长度限制与"填满即可提交"的交互。
+
+        **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
+
+        本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
     WechatQrContent:
       type: string
       description: |
@@ -2078,53 +2108,52 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
     WechatQrExpiresAt:
       allOf:
         - $ref: '#/components/schemas/Timestamp'
       description: |
         二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
-    MerchantBffError:
-      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
-      allOf:
-        - $ref: '#/components/schemas/ErrorEnvelope'
-        - type: object
-          properties:
-            context:
-              type: object
-              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
-              properties:
-                currentMerchantId:
-                  type:
-                    - string
-                    - 'null'
-                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
-                attemptsRemaining:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战错误但可重试时的剩余尝试次数（错误可重试 400 携带；**整数类型、走 context 结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-    ResendCooldownError:
-      description: 重发冷却错误体（`TooManyRequestsWithCooldown` 用；OTP 挑战 / 邀请链接等重发场景通用）：在 MerchantBffError 上把 `code` 钉死 208013、`context.cooldownSeconds` 强制必带（整数冷却剩余秒数——覆盖刷新 / 跨标签页，首次成功响应的 `cooldownSeconds` 之外的权威剩余值）。
-      allOf:
-        - $ref: '#/components/schemas/MerchantBffError'
-        - type: object
-          required:
-            - context
-          properties:
-            code:
-              const: 208013
-            context:
-              type: object
-              required:
-                - cooldownSeconds
-              properties:
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
+    QuickFilterItem:
+      type: object
+      additionalProperties: false
+      required:
+        - value
+        - label
+        - count
+      properties:
+        value:
+          type: string
+          description: 该项对应的筛选值 —— **对客户端不透明**:选中本项就把它**原样**回传给对应列表端点的那个筛选参数, 不要解析、拼接或据其分支。
+          examples:
+            - PAID
+        label:
+          type: string
+          description: 后端给的默认展示名。**客户端有自己的多语言资源时按 `value` 取用、本字段作兜底**; 没有资源(取值由配置或数据决定,如角色名、年份)时直接展示本字段。
+          examples:
+            - Paid
+        count:
+          type: integer
+          minimum: 0
+          description: 该项当前的命中数(口径见 `QuickFilterCounts` 说明)。
+    QuickFilterCounts:
+      type: object
+      additionalProperties: false
+      description: |
+        **列表页顶部快捷筛选的各项与计数**。快捷筛选就是该列表的一个筛选维度,没有特殊机制:选中某项 = 给列表带上该维度的筛选参数(值 = 该项 `value`),**选 All = 不带这个参数**。
+
+        **照着 `items` 渲染即可** —— 项集、顺序、展示名、数字全部由服务端给出,客户端不枚举取值、不 hardcode 项集;某项当期为 `0` 时**仍会返回**(那一格不该因为没数据就消失)。
+
+        **`All` 不在 `items` 里,由客户端自己补一项**,数字 = 其余各项之和 —— 服务端保证 `items` 覆盖该列表在不带本维度筛选时的全部命中(每行恰好落进一项),故这个和恒等于此时列表的 `total`。
+
+        **本端点不接受被计维度自身的参数**;其余筛选条件与对应列表端点一致、传什么算什么。因此:点某项后列表 `total` = 该项 `count`;点 All 后列表 `total` = 各项 `count` 之和。
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuickFilterItem'
   parameters:
     IdempotencyKey:
       name: Idempotency-Key
@@ -2139,7 +2168,7 @@ components:
       name: X-CSRF-Token
       in: header
       required: true
-      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
       schema:
         type: string
         minLength: 1
@@ -2149,7 +2178,7 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行； **不一致 → 409 `MerchantBffConflict`**（`code` `208001`、`MERCHANT_CONTEXT_CHANGED`）——**读不返回错商户数据、写不执行**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：listMerchants（返回 currentMerchantId 的 re-sync 入口）、switchCurrentMerchant（切换当前商户）、withdrawOnboardingApplication（目标由 path 指定、与当前商户无关）、以及不依赖当前商户的接口。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -2164,89 +2193,17 @@ components:
     PageSize:
       name: pageSize
       in: query
-      description: 每页记录数(上限可配置;分页默认 20)
+      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
       schema:
         type: integer
         minimum: 1
         maximum: 200
         default: 20
   responses:
-    BadRequest:
-      description: 400 业务/校验错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Conflict:
-      description: 409 冲突(幂等键冲突 / 状态冲突 / 标识已占用)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    TooManyRequests:
-      description: 429 限流 / 冷却中 / 请求过频(临时锁定走 423 Locked)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Gone:
-      description: 410 一次性凭据失效(OTP / 验证链接 过期 / 已使用)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Unauthorized:
-      description: 401 未认证 / 凭证无效或已撤销
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Forbidden:
-      description: 403 无权限(fail-secure,默认拒绝)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Locked:
-      description: 423 登录临时锁定(防爆破)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    MerchantBffConflict:
+    MerchantBffDefaultError:
       description: |
-        409 冲突。前端据整数 `code` 区分子因——**常见 `208xxx` 商户后台 BFF 业务·资源型**（下列枚举）；**部分 409 另带身份类业务码**（如 `968xxx`：Login ID 占用 / 改邮箱在途等），**具体码以该 op 的 `x-error-codes` 为准**（另有同域 op 专属 `208xxx`，均不在此枚举）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**必携 `context.currentMerchantId`** 供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208005` 幂等键复用但 payload 不一致。 （`208004` 乐观锁基线漂移为 op 专属〔如签名公钥 `expectedKeyVersion` 版本校验〕，见该 op `x-error-codes`、不在此通用枚举。） 前端动作：208001 刷新当前商户、208002 提示已存在、208003 重载最新态、208005 排查重复请求。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/MerchantBffError'
-          examples:
-            staleTab:
-              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
-              value:
-                code: 208001
-                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
-                context:
-                  currentMerchantId: '1000024'
-            businessConflict:
-              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
-              value:
-                code: 208002
-                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
-            idempotencyConflict:
-              summary: 幂等键冲突（code 208005，同 Idempotency-Key 复用但请求内容不一致；业务·资源型无 context）
-              value:
-                code: 208005
-                detail: 该幂等键已用于其他请求内容，请核对原请求；如确需发起新的业务操作，再使用新幂等键
-    TooManyRequestsWithCooldown:
-      description: |
-        429 Resend 冷却中：错误体 = `MerchantBffError`，**剩余冷却秒数走 `context.cooldownSeconds`**（整数、权威值——覆盖刷新 / 跨标签页，不依赖首次成功响应的 `cooldownSeconds`）。整数 `code` 见该 op `x-error-codes`。前端据此从收到响应时刻本地倒计时、冷却结束前禁重发。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ResendCooldownError'
-          example:
-            code: 208013
-            detail: 请求过于频繁，请稍后重试
-            context:
-              cooldownSeconds: 42
+            $ref: '#/components/schemas/ErrorEnvelope'

@@ -14,9 +14,9 @@
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**，直达 ReDoc 接口详情；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带页面当前 merchantId（`X-Merchant-Context`）**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；目标商户不在可访问范围 → 404；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 字段级 details / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法一律带 `X-CSRF-Token`；**所有当前商户相关读写携带页面当前 merchantId（`X-Merchant-Context`）**——守卫语义与 409 分流见 API 基础约定「merchant scope + stale-tab 守卫」；目标商户不在可访问范围 → 404；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 字段级 details / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
 >
-> ⚠️ **碰钱红线**：Refund PIN 是**资金动作凭据**——写入后**绝不回显**（任何响应里都没有 PIN 字段），改 PIN 需当前 PIN、Forgot 走 Owner email 一次性 OTP；结算银行账户（account_number）read **仅末 4 位掩码**、集成凭据（token / secret / private key）read **仅掩码摘要**，明文不返回、不二次回显；结算银行字段变更**必先上传 Void cheque + Owner email OTP 校验**才能创建审核请求，**旧值持续生效至审核通过**；创建类 + 非天然幂等写（Add Merchant / Connect AcceptanceMode / Connect Ecommerce / 创建结算变更请求 / **改 Refund PIN** / Forgot PIN 重置 / **改 URL 触发重审**）带 `Idempotency-Key`，**重试用同键返回首次结果**（改 PIN〔currentPin 已消费〕/ 改 URL〔撞 pending → 409〕非天然幂等，绝不重复建实体）；OTP 错误分类：错误可重试 → 400（含剩余次数）/ 尝试超限锁定 → 423 / 过期·已用 → 410 / Resend 冷却 → 429，前端**不放大重试**、按错误码引导。
+> ⚠️ **碰钱红线**：Refund PIN 是**资金动作凭据**——写入后**绝不回显**（任何响应里都没有 PIN 字段），改 PIN 需当前 PIN、Forgot 走 Owner email 一次性 OTP；结算银行账户（account_number）read **仅末 4 位掩码**、集成凭据（token / secret / private key）read **仅掩码摘要**，明文不返回、不二次回显；结算银行字段变更**必先上传 Void cheque + Owner email OTP 校验**才能创建审核请求，**旧值持续生效至审核通过**；创建类 + 非天然幂等写（Add Merchant / Connect AcceptanceMode / Connect Ecommerce / 创建结算变更请求 / **改 Refund PIN** / Forgot PIN 重置 / **改 URL 触发重审**）带 `Idempotency-Key`，**重试用同键返回首次结果**（改 PIN〔currentPin 已消费〕/ 改 URL〔撞 pending → 409〕非天然幂等，绝不重复建实体）；OTP 错误分类：错误可重试 → 400 / 尝试超限锁定 → 423 / 过期·已用 → 410 / Resend 冷却 → 429，前端**不放大重试**、按错误码引导；**「剩余次数」只有登记了 `204010` 的 op 才有**（本域仅 `verifySettlementOtp`），其余端点不要做计数 UI。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
 
@@ -25,11 +25,14 @@
 | operationId | method + path | 用途 |
 |---|---|---|
 | [`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | Profile 概览（Header card + 4 section；account_number 掩码 + Locked 标识 + 资金只读） |
+| [`getBusinessInformationOptions`](index.html#tag/profile/operation/getBusinessInformationOptions) | `GET /account/profile/business-information/options` | Business Information 动态值域（当前仅 `timeZone` 白名单） |
 | [`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) | `PUT /account/profile/business-information` | 编辑 7 可编辑字段（直接生效；Locked 字段出现即 403） |
-| [`uploadLogo`](index.html#tag/profile/operation/uploadLogo) | `POST /account/profile/logo` | 上传 / 更换 Logo（multipart；即时生效） |
+| [`getSettlementOptions`](index.html#tag/settlement/operation/getSettlementOptions) | `GET /account/profile/settlement/options` | Settlement 动态值域（结算周期候选档位 `{code, displayName}`） |
+| [`createLogoUploadTarget`](index.html#tag/profile/operation/createLogoUploadTarget) | `POST /account/profile/files/upload-targets` | 取得 Logo 直传目标（文件由浏览器直传对象存储、不经本面） |
+| [`applyLogo`](index.html#tag/profile/operation/applyLogo) | `POST /account/profile/logo` | 使已直传的 Logo 生效（即时生效） |
 | [`removeLogo`](index.html#tag/profile/operation/removeLogo) | `DELETE /account/profile/logo` | 移除 Logo（回退默认首字母标识） |
 | [`getSettlement`](index.html#tag/settlement/operation/getSettlement) | `GET /account/settlement` | 当前结算字段（account_number 掩码 + `pendingReview` 标识） |
-| [`uploadSettlementVoidCheque`](index.html#tag/settlement/operation/uploadSettlementVoidCheque) | `POST /account/settlement/void-cheque` | 上传 Void cheque（银行字段变更第 1 步前置；返回 `fileRef`） |
+| [`createSettlementVoidChequeUploadTarget`](index.html#tag/settlement/operation/createSettlementVoidChequeUploadTarget) | `POST /account/settlement/files/upload-targets` | 取得 Void cheque 直传目标（银行字段变更第 1 步前置；返回的 `fileId` 即后续 `voidChequeRef`） |
 | [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) | `POST /account/settlement/change-requests/otp-challenges` | 发结算变更 OTP 到 Owner email（返回 `challengeId` + 脱敏邮箱） |
 | [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) | `POST /account/settlement/change-requests/otp-challenges/{challengeId}/verification` | 校验 OTP，通过签发单次 `otpToken` |
 | [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) | `POST /account/settlement/change-requests` | 创建结算变更请求（→ PENDING_REVIEW；旧值生效） |
@@ -41,7 +44,7 @@
 | [`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) | `PUT /merchants/current` | 切换当前商户上下文（更新会话；直接生效） |
 | [`getServicePage`](index.html#tag/service-page/operation/getServicePage) | `GET /service-page` | 浏览 Service Page（AcceptanceMode/PaymentMethod 2 层 + Integrations 摘要） |
 | [`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) | `PUT /service-page/acceptance-modes/{mode}/payment-methods` | 启停 mode 内 PaymentMethod（覆盖式；即时生效） |
-| [`uploadStorePhoto`](index.html#tag/service-page/operation/uploadStorePhoto) | `POST /service-page/acceptance-modes/store-photo` | 上传店铺照（in_store Connect 凭证；返回 storePhotoFileId） |
+| [`createStorePhotoUploadTarget`](index.html#tag/service-page/operation/createStorePhotoUploadTarget) | `POST /service-page/files/upload-targets` | 取得店铺照直传目标（in_store Connect 凭证；返回的 `fileId` 即 `storePhotoFileId`） |
 | [`connectAcceptanceMode`](index.html#tag/service-page/operation/connectAcceptanceMode) | `POST /service-page/acceptance-modes` | 申请新增 AcceptanceMode（Connect → PENDING_REVIEW） |
 | [`changeAcceptanceModeWebsiteUrl`](index.html#tag/service-page/operation/changeAcceptanceModeWebsiteUrl) | `PUT /service-page/acceptance-modes/{mode}/website-url` | online mode 改 website URL（触发重审；原 URL 继续生效） |
 | [`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration) | `PUT /integrations/terminal` | 连接 / 切换 Terminal（Moneris / Clover 互斥；即时生效） |
@@ -56,32 +59,68 @@
 
 下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
 
-- **Profile 浏览**：[`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) 一次聚合 Header card + 4 section；Locked 字段附 `locked: true`、account_number 走 `accountNumberMasked`（`•••• 5678`）、资金字段（`funds.accountBalance` / `funds.refundReserved`）只读展示。当前商户非 ACTIVE 时返回 409 状态前置不符、不返回 Profile（前端按 Merchant 状态分流到入驻向导 / 审核状态页）。
+- **Profile 浏览**：[`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) 一次聚合 Header card + 4 section；Locked 字段附 `locked: true`、account_number 走 `accountNumberMasked`（`•••• 5678`）、资金字段（`funds.accountBalance` / `funds.refundReserved`）只读展示。
 - **结算字段查看**：[`getSettlement`](index.html#tag/settlement/operation/getSettlement) 返回当前生效结算（`accountNumberMasked` + `pendingReview`）；`pendingReview: true` 时前端隐藏 Edit 入口、展示审核中提示。
-- **Business Information 编辑**：[`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) 可提交 7 个可编辑字段（`address` / `city` / `province` / `postalCode` / `country` / `timeZone` / `businessPhone`），直接生效（204）。任一 Locked 字段出现在请求体即 **403、不持久化**（服务端 enforce，不依赖前端隐藏）；字段非法 400；当前商户非 ACTIVE 时 409、不持久化。
+- **Business Information 编辑（进编辑态先取选项）**：`timeZone` 的候选集**不在契约里写死**——渲染下拉前先调 [`getBusinessInformationOptions`](index.html#tag/profile/operation/getBusinessInformationOptions)（`GET /account/profile/business-information/options`）取当前 country 下可选的 IANA 时区，**别把它当自由文本框、也别 hardcode 时区表**。然后 [`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) 可提交 7 个可编辑字段（`address` / `city` / `province` / `postalCode` / `country` / `timeZone` / `businessPhone`），直接生效（204）。任一 Locked 字段出现在请求体即 **403、不持久化**（服务端 enforce，不依赖前端隐藏）；字段非法 400。
+- **Settlement 编辑（进编辑态先取选项）**：`settlementSchedule` 的候选集**同样不在契约里写死**——渲染下拉前先调 [`getSettlementOptions`](index.html#tag/settlement/operation/getSettlementOptions)（`GET /account/profile/settlement/options`）取当前可选档位（`{code, displayName}` 成对，**顺序即展示顺序**）；提交传 `code`、**不要传展示名**。⚠️ **初始选中 = 该商户当前的 `settlementSchedule`**（取自 `getAccountProfile`），**不是数组第一项**——否则会把商户现值静默改掉。取值不在提交时点的候选集内 → `400`·`204017`，重取候选集让用户重选、**不要回落到第一项**。
 - **Contact Information（联系人 + Primary Email）**：Profile 页 Contact section 展示走 [`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) 聚合的 contact 区块；**改联系人**调 `updateOwnerContact`、**改 Primary Email**调 `initiateOwnerPrimaryEmailChange` 起严格两步验证（均为 `owner-contact` 端点，详见注册登录与认证 flows「Owner 联系人 / Primary Email」）。
-- **Logo**：[`uploadLogo`](index.html#tag/profile/operation/uploadLogo)（multipart，返回 `logoUrl`）/ [`removeLogo`](index.html#tag/profile/operation/removeLogo)（204，回退默认首字母标识），均即时生效。
-- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / `pendingUrlChange`）+ `integrations`（terminal `activeProvider` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回。当前商户非 ACTIVE 时 409、不返回页面数据；支付方式配置源读不到内容时 500、不返回不完整配置。
+- **Logo 移除**：[`removeLogo`](index.html#tag/profile/operation/removeLogo)（204，回退默认首字母标识，即时生效）。**换 Logo 是三步流程，见下方「更换 Profile Logo」**。
+- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / `pendingUrlChange`）+ `integrations`（terminal `activeProvider` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回；支付方式配置源读不到内容时 500、不返回不完整配置。
 - **PaymentMethod 启停**：[`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) 在已 ACTIVE 的 mode 内**覆盖式**提交 `enabledMethodIds`，立即生效（204）；method 不属该 mode / 不存在 400；mode 未开通或未 ACTIVE 409；支付方式配置源读不到内容时 500、不保存。
-- **Terminal 连接 / 停用**：[`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration)（Moneris / Clover 互斥，`provider` 判别多态请求体，即时生效，返回掩码 `credentialSummary` + 当前 `activeProvider` + `threedsEnabled`；凭据校验失败 400）/ [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration)（清 `activeProvider`、凭据保留以便再连，204）。
+- **Terminal 连接 / 停用**：[`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration)（Moneris / Clover 互斥，`provider` 判别多态请求体，即时生效，返回掩码 `credentialSummary` + 当前 `activeProvider` + `threedsEnabled`；凭据校验失败 400。**`threedsEnabled` 必传**——本端点是全量覆盖，漏传会把已开启的 3DS 关掉；表单初始值分两支：**更新当前生效 provider 的凭据** → 取读面的 `terminal.threedsEnabled`；**切换 / 停用后重连**（目标 ≠ 当前生效者）→ 取 `retained` 里同 provider 那项——`retained` 只含非生效 provider，更新在用凭据时别去那里找）/ [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration)（清 `activeProvider`、凭据保留以便再连，204）。
 - **切换当前商户**：[`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) 把当前商户切到目标商户（204）；目标商户不在当前账号可访问范围 → 404、REJECTED / 无权切 → 403。切换成功后，后续页面均使用新的当前商户。
-- **撤回未激活商户在途入驻**：[`withdrawOnboardingApplication`](index.html#tag/merchants/operation/withdrawOnboardingApplication) 把在途 Application 迁 `WITHDRAWN`（该商户从切换列表隐藏）→ **200 `{contextChanged, currentMerchantId}`**；ACTIVE / REJECTED（及无上级关联关系的商户）不可撤回 → 409。若撤回的是当前选中商户，服务端切换到可访问的上级商户、无则 `currentMerchantId=null`（前端按 `contextChanged` 刷新、null 时重选商户）；撤回非当前商户则 `contextChanged=false`、会话不变。
+- **撤回未激活商户在途入驻**：[`withdrawOnboardingApplication`](index.html#tag/merchants/operation/withdrawOnboardingApplication) 把在途 Application 迁 `WITHDRAWN`（该商户从切换列表隐藏）→ **200 `{contextChanged, currentMerchantId}`**；ACTIVE / REJECTED（及无上级关联关系的商户）不可撤回 → 409。若撤回的是当前选中商户，服务端切换到可访问的上级商户、无可切换者则**不返回 `currentMerchantId` 键**（前端按 `contextChanged` 刷新、该键缺失时重选商户）；撤回非当前商户则 `contextChanged=false`、会话不变。
 - **Documents 只读**：[`getDocuments`](index.html#tag/documents/operation/getDocuments) 返回 `required`（5 必传，未上传项 `present: false` 缺失占位）+ `optional`（2 可选，仅已上传时返回）；无自助上传 / 替换 / 删除入口（续期走客服）。
 
 ---
 
-## 结算字段变更（事前审批；银行字段 4 调 / 非银行字段 3 调）
+## 更换 Profile Logo（3 调；直传后再生效）
 
-结算字段变更**必经事前审批**：成功提交只创建审核请求（PENDING_REVIEW），**旧值持续生效至审核通过**；同一商户至多 1 个 PENDING_REVIEW（已存在再创建 → 409）。银行账户字段（`bankName` / `transitNumber` / `institutionNumber` / `accountNumber`）变更走 4 步——[`uploadSettlementVoidCheque`](index.html#tag/settlement/operation/uploadSettlementVoidCheque) 拿 `fileRef` → [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) 发 Owner email OTP → [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) 换 `otpToken` → [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) 提交；非银行字段（仅 `storeId` / `settlementSchedule`）跳过 Void cheque，3 步（发 OTP → 验 OTP → 提交）。
+换 Logo 三步：[`createLogoUploadTarget`](index.html#tag/profile/operation/createLogoUploadTarget) 取目标 → 浏览器直传对象存储 → [`applyLogo`](index.html#tag/profile/operation/applyLogo) 使其生效。**字节不经 BFF**；直传成功不等于生效，未经 `applyLogo` 的 `fileId` 不会替换当前 Logo。
 
 ```mermaid
 sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
+    participant S as 对象存储
+
+    B->>A: [createLogoUploadTarget] POST /account/profile/files/upload-targets { purpose= merchant_logo, fileName, contentType, fileSize }
+    alt 声明的类型 / 大小不合规
+        A-->>B: 400·FILE_DECLARATION_REJECTED(204015)（不签发目标；换个合规文件再申请）
+    else 通过
+        A-->>B: 201 FileUploadTarget{ fileId, action, fields, expiresAt }（非幂等：每次新 fileId）
+        B->>S: 按 fields 提交文件到 action（直传对象存储、不经 BFF；POST multipart，文件字段名 file、放最后）
+        S-->>B: 2xx 收下 / 4xx 拒收（存储端自有格式、非本平台错误体）；跨源被挡或网络中断则前端**读不到响应 = 没确认**
+        B->>A: [applyLogo] POST /account/profile/logo { fileId }
+        alt 文件确定未就位
+            A-->>B: 400·FILE_NOT_IN_PLACE(204014)（当前 Logo 不变）
+        else 暂时判不出
+            A-->>B: 502 / 504（不必重传，原样重试本请求）
+        else 就位
+            A-->>B: 200（替换当前 Logo，返回 logoUrl；即时生效）
+        end
+    end
+    Note over B,A: 204014 是终态——须重新取目标（得**新 fileId**）、重新直传、再调 applyLogo；**不要向原目标补传**（目标一次性，提交失败即作废）<br/>applyLogo 对同一 fileId 天然幂等，不挂 Idempotency-Key
+```
+
+---
+
+## 结算字段变更（事前审批；银行字段 4 调 / 非银行字段 3 调）
+
+结算字段变更**必经事前审批**：成功提交只创建审核请求（PENDING_REVIEW），**旧值持续生效至审核通过**；同一商户至多 1 个 PENDING_REVIEW（已存在再创建 → 409）。银行账户字段（`bankName` / `transitNumber` / `institutionNumber` / `accountNumber`）变更走 4 步——[`createSettlementVoidChequeUploadTarget`](index.html#tag/settlement/operation/createSettlementVoidChequeUploadTarget) 拿直传目标、浏览器直传后得 `voidChequeRef` → [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) 发 Owner email OTP → [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) 换 `otpToken` → [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) 提交；非银行字段（仅 `storeId` / `settlementSchedule`）跳过 Void cheque，3 步（发 OTP → 验 OTP → 提交）。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant S as 对象存储
     participant EO as Owner 邮箱
     alt 银行账户字段变更（4 调）
-        B->>A: [uploadSettlementVoidCheque] POST /account/settlement/void-cheque（image/pdf）
-        A-->>B: 200 { fileRef }（作账户身份证明，供创建请求引用）
+        B->>A: [createSettlementVoidChequeUploadTarget] POST /account/settlement/files/upload-targets（purpose= settlement_void_cheque + 声明 fileName / contentType / fileSize）
+        A-->>B: 201 FileUploadTarget{ fileId, action, fields, expiresAt }
+        B->>S: 按 fields 提交文件到 action（**直传对象存储、不经 BFF**；POST multipart，文件字段名 file、放最后）
+        S-->>B: 2xx 收下 / 4xx 拒收（存储端自有格式、非本平台错误体）；跨源被挡或网络中断则前端**读不到响应 = 没确认**
+        Note over B: fileId 即后续 createSettlementChangeRequest 的 voidChequeRef
     else 仅 storeId / settlementSchedule（3 调，跳过 Void cheque）
         B->>B: 直接进入 OTP 前置
     end
@@ -93,10 +132,10 @@ sequenceDiagram
     B->>A: [createSettlementChangeRequest] POST .../change-requests { otpToken, voidChequeRef?, changes }（Idempotency-Key）
     A->>EO: 异步发送结算变更审核中通知邮件
     A-->>B: 201 { changeRequestId, status= PENDING_REVIEW }（旧值仍生效，Edit 入口隐藏）
-    Note over B,A: OTP 错→400+剩余次数 / 锁定→423 / 过期·已用→410（不签发 otpToken）<br/>Resend 冷却中 429<br/>已有 PENDING_REVIEW → 409；changes 摘要≠otpToken 绑定 → 403（意图不符）<br/>缺有效 otpToken / 银行变更缺 voidChequeRef 400<br/>Void cheque 格式 / 超限 400（不进 OTP 步）
+    Note over B,A: OTP 错→400+剩余次数 / 锁定→423 / 过期·已用→410（不签发 otpToken）<br/>Resend 冷却中 429<br/>已有 PENDING_REVIEW → 409；changes 摘要≠otpToken 绑定 → 403（意图不符）<br/>缺有效 otpToken / 银行变更缺 voidChequeRef 400<br/>取直传目标时：声明的类型 / 大小不合规 400（不签发目标、不进 OTP 步）；实际超限由对象存储在提交时拒收<br/>**提交时 voidChequeRef 确定未就位 → 400·FILE_NOT_IN_PLACE**（终态、不可原样重试）：otpToken 未消费但**只授权原 ref**——须**取新目标重新直传**得新 fileId（不得向原目标补传），故**必须重走 request/verify OTP** 拿新 token + 新 Idempotency-Key<br/>**判不出是否就位 → 502 / 504**：不必重传，原键原样重试
 ```
 
-- **银行字段才需 Void cheque**：`createSettlementChangeRequest` 的 `voidChequeRef` 仅银行账户字段变更必带（引用 `uploadSettlementVoidCheque` 返回的 `fileRef`）；`changes` 只含本次改动字段，其中 `accountNumber` 明文输入、read 视图永远掩码。
+- **银行字段才需 Void cheque**：`createSettlementChangeRequest` 的 `voidChequeRef` 仅银行账户字段变更必带（即 `createSettlementVoidChequeUploadTarget` 返回的 `fileId`；文件未就位则拒绝创建）；`changes` 只含本次改动字段，其中 `accountNumber` 明文输入、read 视图永远掩码。
 - **旧值生效语义**：提交成功后结算字段**不立即变**——审核通过才落新值、拒绝则旧值保留并归档。审核结果异步更新（不在本契约面）；前端靠 [`getSettlement`](index.html#tag/settlement/operation/getSettlement) 的 `pendingReview` 在审核期隐 Edit 入口。
 - **OTP 一次性 + 冷却 + 错误分类**：每次 `requestSettlementOtp` 发新 OTP（旧 OTP 失效）；冷却中重发 429；OTP 错误分类——错可重试 400（含剩余次数）/ 尝试超限锁定 423 / 过期·已用 410，前端按错误码引导、不放大重试。
 
@@ -117,32 +156,41 @@ sequenceDiagram
     B->>A: [setRefundPin] PUT /account/refund-pin { challengeId, code, newPin, confirmPin }
     A->>EO: PIN-changed 安全通知
     A-->>B: 204（旧 PIN 失效、新 PIN 生效；响应不含任何 PIN）
-    Note over B,A: OTP 错→400+剩余次数 / 锁定→423 / 过期·已用→410（不改 PIN）<br/>Resend 冷却中 429<br/>newPin 格式非法 / newPin≠confirmPin 400<br/>PIN 任何响应都不回显（写入即不可读）
+    Note over B,A: OTP 错→400（本端点不承诺结构化剩余次数）/ 锁定→423 / 过期·已用→410（不改 PIN）<br/>Resend 冷却中 429<br/>newPin 格式非法 / newPin≠confirmPin 400<br/>PIN 任何响应都不回显（写入即不可读）
 ```
 
 - **PIN 永不回显**：`newPin` / `confirmPin` 是 write-only 输入，重置成功只回 204；任何读接口 / 任何响应里都没有 PIN 字段。
-- **OTP 一次性**：OTP 单次消费，过期 / 已用 / 不匹配 410、不重置；冷却中重发 429。
+- **OTP 一次性**：OTP 单次消费，**过期 / 已用 → 410**（回第一步重新发起、重输无用）；**验证码不匹配不是 410**——按该 op 的 `x-error-codes` 分流（可重试则 400、超限锁定则 423）；冷却中重发 429。
 - **与登录态改 PIN 互斥收敛**：登录态 [`setRefundPin`](index.html#tag/refund-pin/operation/setRefundPin)（currentPin 授权）成功后，任何未完成的 Forgot PIN 重置挑战失效。
 
 ---
 
 ## 申请新增 AcceptanceMode（Connect；in_store 传店铺照 / online 选类型 + URL）
 
-未开通的 AcceptanceMode 走自助申请 → 审核：[`connectAcceptanceMode`](index.html#tag/service-page/operation/connectAcceptanceMode) 附凭证创建 `PENDING_REVIEW` 申请，**审核通过才 ACTIVE**（审核结果异步更新，不在本契约面）。in_store 须先经 [`uploadStorePhoto`](index.html#tag/service-page/operation/uploadStorePhoto) 上传店铺照拿 `storePhotoFileId`，online 提交 `onlineServiceType` + （Website 类型时）`websiteUrl`。
+未开通的 AcceptanceMode 走自助申请 → 审核：[`connectAcceptanceMode`](index.html#tag/service-page/operation/connectAcceptanceMode) 附凭证创建 `PENDING_REVIEW` 申请，**审核通过才 ACTIVE**（审核结果异步更新，不在本契约面）。in_store 须先经 [`createStorePhotoUploadTarget`](index.html#tag/service-page/operation/createStorePhotoUploadTarget) 拿直传目标、浏览器直传店铺照后得 `storePhotoFileId`，online 提交 `onlineServiceType` + （Website 类型时）`websiteUrl`。
 
 ```mermaid
 sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
+    participant S as 对象存储
     alt mode= in_store（店铺照凭证）
-        B->>A: [uploadStorePhoto] POST /service-page/acceptance-modes/store-photo（PNG/JPEG）
-        A-->>B: 200 { storePhotoFileId }
-        B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= in_store, storePhotoFileId }
+        B->>A: [createStorePhotoUploadTarget] POST /service-page/files/upload-targets（purpose= store_photo + 声明 fileName / contentType / fileSize）
+        A-->>B: 201 FileUploadTarget{ fileId, action, fields, expiresAt }
+        B->>S: 按 fields 提交文件到 action（**直传对象存储、不经 BFF**；POST multipart，文件字段名 file、放最后）
+        S-->>B: 2xx 收下 / 4xx 拒收（存储端自有格式、非本平台错误体）；跨源被挡或网络中断则前端**读不到响应 = 没确认**
+        B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= in_store, storePhotoFileId= 上一步的 fileId }（Idempotency-Key）
+        alt 文件确定未就位
+            A-->>B: 400·FILE_NOT_IN_PLACE(204014)（不创建）
+            B->>B: 重取目标（得**新 fileId**）→ 重新直传 → **换新 Idempotency-Key** 重提
+        else 暂时判不出
+            A-->>B: 502 / 504（不必重传，用**原键原样重试**）
+        end
     else mode= online（线上服务类型 + Website URL）
-        B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= online, onlineServiceType= Website, websiteUrl }
+        B->>A: [connectAcceptanceMode] POST /service-page/acceptance-modes { mode= online, onlineServiceType= Website, websiteUrl }（Idempotency-Key）
     end
     A-->>B: 201 { enrollmentId, mode, status= PENDING_REVIEW }（待审核；审核结果异步生效，前端经 getServicePage 读最新状态）
-    Note over B,A: 同 mode 已 PENDING_REVIEW 或已 ACTIVE 409（禁重复提交）<br/>凭证缺失 / 格式非法 400（不创建）<br/>支付方式配置源读不到内容 500（不创建）<br/>审核结果异步生效，前端靠 getServicePage 的 mode status 收敛
+    Note over B,A: 同 mode 已 PENDING_REVIEW 或已 ACTIVE 409（禁重复提交）<br/>凭证缺失 / 格式非法 400（不创建）<br/>支付方式配置源读不到内容 500（不创建）<br/>⚠️ 换了 storePhotoFileId 就是换了请求体，**必须同时换新 Idempotency-Key**（沿用旧键提交新内容 → 409·208005）<br/>审核结果异步生效，前端靠 getServicePage 的 mode status 收敛
 ```
 
 - **审核分流**：申请创建后主状态 `PENDING_REVIEW`；前端靠 [`getServicePage`](index.html#tag/service-page/operation/getServicePage) 各 mode 的 `status` 反映审核进展，无前端轮询。
@@ -209,7 +257,7 @@ sequenceDiagram
 ---
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

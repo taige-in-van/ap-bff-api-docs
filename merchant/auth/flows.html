@@ -14,7 +14,7 @@
 >
 > **接口 ID = `operationId`**:下方每个发往 BFF 的调用都标 `[operationId]`,即 OpenAPI 原生 `operationId`——全局唯一,也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**,直达 ReDoc 接口详情;时序图**内**的 `[operationId]` 受 Mermaid 限制不可点,点同名链接即可。
 >
-> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录/激活成功 BFF 下发 httpOnly opaque 会话 cookie(`__Host-msession`),服务端持后端 token;**使用 cookieAuth 的非安全方法(POST/PUT/DELETE)带 `X-CSRF-Token`**(注册 / 登录 / 找回 / 邮箱激活等 `security:[]` 公开端点不带);**team 等当前商户相关读写携带页面当前 merchantId(`X-Merchant-Context`)**(与会话当前商户不一致 → 409 `MERCHANT_CONTEXT_CHANGED`,FE 统一处理);错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 启动链路与守卫 详见 [API 基础约定](../../conventions.html))。
+> **通用约定**(每条流程都成立,不在图里重复):浏览器**不持 token**——登录/激活成功 BFF 下发 httpOnly opaque 会话 cookie(`__Host-msession`),服务端持后端 token;**使用 cookieAuth 的非安全方法带 `X-CSRF-Token`**(注册 / 登录 / 找回 / 邮箱激活等 `security:[]` 公开端点不带);**team 等当前商户相关读写携带页面当前 merchantId(`X-Merchant-Context`)**(守卫语义与 409 分流见 API 基础约定「merchant scope + stale-tab 守卫」);错误体统一 `ErrorEnvelope`(结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 启动链路与守卫 详见 [API 基础约定](../../conventions.html))。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整,可据此并行开发,勿当冻结契约。
 
@@ -22,7 +22,7 @@
 
 | operationId | method + path | 用途 |
 |---|---|---|
-| [`login`](index.html#tag/session/operation/login) | `POST /sessions` | 密码登录(返回 ESTABLISHED / MFA_REQUIRED / PENDING) |
+| [`login`](index.html#tag/session/operation/login) | `POST /sessions` | 密码登录(200 返回 ESTABLISHED / MFA_REQUIRED；不签发会话的情形走 403 + 码) |
 | [`completeMfaChallenge`](index.html#tag/session/operation/completeMfaChallenge) | `POST /sessions/mfa` | 登录二次校验(提交 TOTP) |
 | [`initiateWechatLogin`](index.html#tag/session/operation/initiateWechatLogin) | `POST /sessions/wechat` | 扫码登录发起(拿二维码票据) |
 | [`pollWechatLogin`](index.html#tag/session/operation/pollWechatLogin) | `GET /sessions/wechat/{qrTicket}` | 扫码登录轮询 |
@@ -38,6 +38,8 @@
 | [`registerOwner`](index.html#tag/registration/operation/registerOwner) | `POST /registrations` | 自助注册 |
 | [`verifyRegistrationEmail`](index.html#tag/registration/operation/verifyRegistrationEmail) | `POST /registrations/verification` | 邮箱激活 |
 | [`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail) | `POST /registrations/verification-email` | 重发验证邮件 |
+| [`getTeamMemberCounts`](index.html#tag/team/operation/getTeamMemberCounts) | `GET /team/members/counts` | 成员列表角色 chip 的各项与计数(不收 roleId；取法见公共约定「列表页顶部的快捷筛选」) |
+| [`createTeamMember`](index.html#tag/team/operation/createTeamMember) | `POST /team/members` | 新建员工(邮箱格式 → 发邀请链接、账号 `INVITED`；用户名格式 → Owner 直接设临时密码、账号即 `ACTIVE`) |
 | [`acceptInvitationSetPassword`](index.html#tag/team/operation/acceptInvitationSetPassword) | `POST /invitations/password` | 邮箱邀请员工设密激活 |
 | [`requestPasswordReset`](index.html#tag/password-reset/operation/requestPasswordReset) | `POST /password-resets` | 找回密码发起(恒 202 反枚举) |
 | [`verifyPasswordResetFactor`](index.html#tag/password-reset/operation/verifyPasswordResetFactor) | `POST /password-resets/{challengeId}/factor-verification` | 因子验证(邮箱 OTP/TOTP → resetToken) |
@@ -55,7 +57,7 @@
 
 ## 密码登录(含 MFA 二次校验分支)
 
-[`login`](index.html#tag/session/operation/login) 一次返回三种走向;只有 `ESTABLISHED` 才下发会话 cookie。已启 MFA 时**不在首调建会话**,需再走 [`completeMfaChallenge`](index.html#tag/session/operation/completeMfaChallenge)。
+[`login`](index.html#tag/session/operation/login) 的 `200` **只有两种走向**;只有 `ESTABLISHED` 才下发会话 cookie。已启 MFA 时**不在首调建会话**,需再走 [`completeMfaChallenge`](index.html#tag/session/operation/completeMfaChallenge)。**凭据正确但不签发会话的三种情形**（邮箱未验证 / 账号禁用 / 商户停用）**都是 `403` + 各自的码**,不在 `200` 体内——见图下 Note。
 
 ```mermaid
 sequenceDiagram
@@ -68,10 +70,11 @@ sequenceDiagram
         A-->>B: 200 { status= MFA_REQUIRED, mfaChallenge }(不建会话)
         B->>A: [completeMfaChallenge] POST /sessions/mfa { mfaChallenge, code }
         A-->>B: 200 { status= ESTABLISHED } + Set-Cookie(__Host-msession)
-    else 待验证 / 待设密
-        A-->>B: 200 { status= PENDING_VERIFICATION | INVITED }(中间态，引导去验证 / 设密激活)
     end
-    Note over B,A: 凭据错 401<br/>账号锁定 423<br/>商户 suspended 或账号禁用 403<br/>限流 429<br/>防爆破锁定计数在后端
+    Note over B,A: 凭据错（密码 / TOTP 均是）400·206012 —— 留在当前输入框重输，不跳登录页、TOTP 步不跳回第一步<br/>账号锁定 423·966001（等冷却）<br/>MFA 挑战句柄过期 410·966002（回第一步重认证）<br/>限流 429<br/>失败计数与节流在后端、不回前端（无剩余次数可显示）
+    Note over B,A: 签发资格在 completeMfaChallenge 重新裁决、不沿用第一步结论<br/>（输 TOTP 期间账号 / 商户被停 → 该步返 403·208027 / 208028，TOTP 正确也不建会话）
+    Note over B,A: 凭据正确但不签发会话 —— 一律 403，按 code 分三支：<br/>邮箱未验证 208029（跳「等待 Email 验证」页 + Resend 入口，被遮蔽邮箱见 context.maskedEmail）<br/>账号被禁用 208027（文案「账号已禁用，请联系 Owner 或客服」）<br/>商户被停用 208028（文案「商户状态异常，请联系客服」）
+    Note over B,A: 受邀待设密的员工不在上面 —— 该账号还没有密码，专属提示等于可探测账号状态<br/>故与凭据错同一外观走 400·206012；恢复路径是邀请邮件本身 + Owner Resend
 ```
 
 - 登录成功后,后续受保护请求靠会话 cookie;前端拿不到也不需要 token。
@@ -164,7 +167,7 @@ sequenceDiagram
     B->>A: [confirmLoginEmailChange] POST .../change-requests/{challengeId}/confirmation { code }
     A->>EO: 旧邮箱安全通知
     A-->>B: 204(登录邮箱已更新；不影响当前会话)
-    Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410<br/>身份校验失败 401<br/>Owner 同步商户主联系邮箱，员工仅个人
+    Note over B,A: 用户名格式账号发起即 403<br/>新邮箱占用 409<br/>challenge 过期 410·206006<br/>身份校验步走 TOTP 时错 403·206011(无剩余次数可显示，留在弹窗重输)<br/>凡邮箱 OTP 步(身份校验走旧邮箱 OTP、以及确认步的新邮箱 OTP)输错仍可试 400·204010(剩余次数见 context.attemptsRemaining)<br/>邮箱 OTP 错到超限 423·966003(挑战作废，回第一步)<br/>换会话 / 异发起者 403·206005(须重走一次挑战)<br/>Owner 同步商户主联系邮箱，员工仅个人
 ```
 
 ---
@@ -197,7 +200,7 @@ sequenceDiagram
     B->>A: [confirmOwnerPrimaryEmailChange] POST .../{challengeId}/confirmation { code }
     A->>EO: Registration Email Changed 通知(无 Reset password CTA)
     A-->>B: 204(Primary Email 已更新；三合一同步、不影响会话)
-    Note over B,A: 无编辑权限 403<br/>新邮箱占用 409<br/>challenge 过期 410 / 切商户 409<br/>身份校验失败 401<br/>四步全程随发起时商户上下文
+    Note over B,A: 无编辑权限 403<br/>新邮箱占用 409<br/>challenge 过期 410·206006 / 切商户 409·208001<br/>身份校验步走 TOTP 时错 403·206011(无剩余次数可显示，留在弹窗重输)<br/>凡邮箱 OTP 步(身份校验走旧邮箱 OTP、以及确认步的新邮箱 OTP)输错仍可试 400·204010(剩余次数见 context.attemptsRemaining)<br/>邮箱 OTP 错到超限 423·966003(挑战作废，回第一步)<br/>换会话 / 异发起者 403·206005(须重走一次挑战)<br/>四步全程随发起时商户上下文
 ```
 
 - **切商户 / 换会话即失效**:改邮箱四步全程绑发起时的商户上下文与会话,中途切商户或换会话则后续步骤拒(需重新发起)。
@@ -301,7 +304,7 @@ sequenceDiagram
     T-->>B: 显示 6 位 TOTP
     B->>A: [activateMfa] POST /me/security/mfa/activation { code }
     A-->>B: 204(MFA_PENDING → ENABLED)
-    Note over B,A: 当前密码错 401(不计锁定计数)<br/>TOTP 错 401，前端可重输
+    Note over B,A: 当前密码错 403·206011(会话仍有效，留在弹窗重输、不跳登录；不计锁定计数)<br/>TOTP 错 403·206011，前端可重输<br/>enrollment 已失效(超时未确认) 410·966002，回第一步重新 enroll
 ```
 
 ---
@@ -349,7 +352,7 @@ sequenceDiagram
 - **用户名格式**新建员工不走邀请：Owner 直接设临时密码 → 即 `ACTIVE`（见 `createTeamMember` 描述）。
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

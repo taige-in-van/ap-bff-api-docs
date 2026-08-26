@@ -1,14 +1,14 @@
 openapi: 3.1.0
 info:
-  title: 商户后台 商户实体 (20-03 BFF) — 前端契约面
-  version: 0.6.1
+  title: 商户后台 商户实体 — 前端契约面
+  version: 0.23.2
   contact:
     name: 商户后台 BFF
   description: |
     商户后台 React SPA 消费的商户主体资料 / 结算 / Refund PIN / 多商户 / Service Page / 集成 契约。 覆盖 Merchant 主体资料 + BusinessProfile + Refund PIN 凭据 + 结算事前审批 + Service Page 2 层模型（AcceptanceMode / PaymentMethod）。 字段类型以本 spec 为准。 幂等/CSRF 口径:① **创建类 + 非天然幂等写**（Add Merchant / Connect AcceptanceMode / Connect Ecommerce / 创建结算变更请求 / 改 Refund PIN / Forgot PIN 重置 / 改 URL 触发重审）挂 Idempotency-Key——无自然业务单号，或重放不自洽（当前 PIN 已消费、撞待审核请求 → 409），retry 用同键返**首次结果**;
       **天然幂等的纯 PUT/DELETE**（改 Business Information / 切当前商户 / 启停 PaymentMethod / Terminal 连接·停用 / Logo）可不挂幂等键;
       **OTP 多步挑战**按流程语义每次重新校验。
-    ② 非安全方法（POST/PUT/PATCH/DELETE）一律挂 X-CSRF-Token（double-submit，fail-closed）。 ③ **当前商户上下文守卫（读写统一）**：会话当前商户 = 数据可见范围**唯一权威**、不信请求体（`switchCurrentMerchant` 切换更新会话）；目标商户不在可访问集 → 404 反枚举。**所有当前商户相关读 + 写**携带页面预期 `X-Merchant-Context`（`MerchantContextGuard` header param；expected 商户 ID，**仅与会话当前商户比对、非选择器**）——一致才执行；**≠ 会话当前商户 → 409 `MerchantBffConflict`**（语义名 `MERCHANT_CONTEXT_CHANGED`、整数 code；读不返回错商户、写不执行；`context.currentMerchantId` 回显）。前端统一 interceptor 发送 + 处理 409（提示 + 刷新当前商户）。**豁免** listMerchants / switchCurrentMerchant / withdrawOnboardingApplication（按 path 选目标、target≠current）/ 全局接口。 ④ **Idempotency-Key 语义**：retry 用同一 key 返回**首次结果**（retry-safe），区别于 OTP token 的一次性消费（消费后不可重取首次结果）。 ⑤ **OTP 错误分类**（OTP verify 端点 verifySettlementOtp；共享 `OtpRetryableBadRequest`）：错误但可重试 → 400 `204010`（剩余尝试数走 **`context.attemptsRemaining`** 整数类型，`details` 只做请求字段校验红框、不承载剩余次数）;尝试超限锁定 → 423;过期 / 已消费 → 410;Resend 冷却 → 429。
+    ② 非安全方法一律挂 X-CSRF-Token（double-submit，fail-closed）。 ③ **当前商户上下文守卫（读写统一）**：会话当前商户 = 数据可见范围**唯一权威**、不信请求体（`switchCurrentMerchant` 切换更新会话）；目标商户不在可访问集 → 404 反枚举。**所有当前商户相关读 + 写**携带页面预期 `X-Merchant-Context`（`MerchantContextGuard` header param；expected 商户 ID，**仅与会话当前商户比对、非选择器**）——一致才执行；**≠ 会话当前商户 → `409`**（读不返回错商户、写不执行）：会话**有**当前商户、只是与 expected 不同 → `208001`（`MERCHANT_CONTEXT_CHANGED`，`context.currentMerchantId` 回显）；会话**没有**当前商户 → `208022`（`MERCHANT_NOT_ACCESSIBLE`，无可回显者、前端重跑启动链路）。前端统一 interceptor 发送 + 处理 409（提示 + 刷新当前商户）。**豁免** listMerchants / switchCurrentMerchant / withdrawOnboardingApplication（按 path 选目标、target≠current）/ 全局接口。 ④ **Idempotency-Key 语义**：retry 用同一 key 返回**首次结果**（retry-safe），区别于 OTP token 的一次性消费（消费后不可重取首次结果）。 ⑤ **OTP 错误分类**（OTP verify 端点 verifySettlementOtp）：错误但可重试 → 400 `204010`（剩余尝试数走 **`context.attemptsRemaining`** 整数类型——该码必带，见错误码表 `requiredContextFields`；`details` 只做请求字段校验红框、不承载剩余次数）;尝试超限锁定 → 423;过期 / 已消费 → 410;Resend 冷却 → 429。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
@@ -37,7 +37,7 @@ paths:
       operationId: getAccountProfile
       summary: 查看 Profile 概览（Header card + 4 section；聚合 BusinessProfile + Merchant + Contact + 资金）
       description: |
-        聚合当前选中 ACTIVE 商户的 Profile 概览：Header card（Logo / Trade Name (DBA) / Legal Business Name / Industry • MCC / Merchant ID） + 4 section（Business Information / Settlement / Contact Information / Documents 摘要）。Locked 字段附 `locked: true` 标识; account_number 掩码仅末 4 位（`•••• 5678`）;资金字段（Account Balance / Refund Reserved）为只读展示（能力归 06）; Contact Information 为只读聚合展示、编辑走 owner-contact 端点。当前商户非 ACTIVE → 409、不返回 Profile（前端按 Merchant 状态分流到入驻向导 / 审核状态页）； 404 仅表示资源不存在 / 不可见，不承载商户状态前置失败。
+        聚合当前选中 ACTIVE 商户的 Profile 概览：Header card（Logo / Trade Name (DBA) / Legal Business Name / Industry • MCC / Merchant ID） + 4 section（Business Information / Settlement / Contact Information / Documents 摘要）。Locked 字段附 `locked: true` 标识; account_number 掩码仅末 4 位（`•••• 5678`）;资金字段（Account Balance / Refund Reserved）为只读展示（无修改入口）; Contact Information 为只读聚合展示、编辑走 owner-contact 端点。 404 仅表示资源不存在 / 不可见，不承载商户状态前置失败。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -55,7 +55,7 @@ paths:
                   logoUrl: https://cdn.example.com/logo/m10023.png
                   tradeName: Jane's Coffee
                   legalBusinessName: Jane Coffee Inc.
-                  industryCategory: Food & Beverage
+                  industryCategoryDisplayName: Food & Beverage
                   mcc: '5812'
                 businessInformation:
                   legalBusinessName:
@@ -92,7 +92,7 @@ paths:
                   transitNumber: '12345'
                   institutionNumber: '003'
                   accountNumberMasked: •••• 5678
-                  settlementSchedule: T+2 Business Days
+                  settlementSchedule: t2
                   storeId: STORE-01
                   pendingReview: false
                 contactInformation:
@@ -111,18 +111,11 @@ paths:
                 documentsSummary:
                   total: 5
                   missing: 0
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208003
+        - 208001
+        - 208003
   /account/profile/business-information:
     put:
       tags:
@@ -130,7 +123,7 @@ paths:
       operationId: updateBusinessInformation
       summary: 编辑 Business Information（7 可编辑字段直接生效；Locked 字段 enforce 403）
       description: |
-        编辑 ACTIVE 商户 Business Information section 的 7 项可编辑字段（Address / City / Province / Postal Code / Country / Time Zone / Business Phone）， 保存直接生效（无审核）+ 记录审计事件。**任何 7 项 Locked 字段 （Legal Business Name / Trade Name (DBA) / Ownership Type / Registration Number / Referred By / Industry Category / MCC） 出现在请求体即服务端拒绝（403），不持久化、不依赖前端隐藏**。 当前商户非 ACTIVE → 409、不持久化。幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。 **`timeZone` 变更须过封口预检**： 按**拟生效的最终完整组合**（本次 Time Zone + 该商户当前日切时刻）试算 `D_new`， 若它是该商户的**已封口归属日** → `409 208016` 拒绝、**整个请求不持久化**（含同请求内其他 6 个可编辑字段）； **无法取得权威封口状态时同码 fail-closed**（不得跳过预检放行）。 未变更 `timeZone` 的请求不触发预检。
+        编辑 ACTIVE 商户 Business Information section 的 7 项可编辑字段（Address / City / Province / Postal Code / Country / Time Zone / Business Phone）， 保存直接生效（无审核）。**任何 7 项 Locked 字段 （Legal Business Name / Trade Name (DBA) / Ownership Type / Registration Number / Referred By / Industry Category / MCC） 出现在请求体即服务端拒绝（403），不持久化、不依赖前端隐藏**。 幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。 **改 `timeZone` 可能被拒**：与已出账的历史数据冲突时 → `409 208016`， 且**整个请求不持久化**（含同请求内其他 6 个可编辑字段，需整体重提）； 系统暂时判不出时也返同一个码，按「当前不能改、稍后再试」处理。 未改 `timeZone` 的请求不会触发这条。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -151,19 +144,12 @@ paths:
       responses:
         '204':
           description: 已保存（新值直接生效）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208003
-          - 208016
+        - 208001
+        - 208003
+        - 208016
   /account/profile/business-information/options:
     get:
       tags:
@@ -188,81 +174,143 @@ paths:
                   - America/Winnipeg
                   - America/Toronto
                   - America/Halifax
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-      x-error-codes: {}
-  /account/profile/logo:
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
+  /account/profile/settlement/options:
+    get:
+      tags:
+        - settlement
+      operationId: getSettlementOptions
+      summary: Settlement section 可选值域（表单候选集）
+      description: |
+        下发 Settlement section 中**取值域由后端动态配置**的字段候选集，供前端渲染选项。 当前仅 `settlementCycleOptions`——**契约不写死候选集**，运营 / 部署可调整； 该 section 后续若有其他动态值域，同址扩展。 只读、无副作用；不含任何商户当前值（当前值取 `getAccountProfile`）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 当前商户可选的 Settlement 值域
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SettlementOptions'
+              example:
+                settlementCycleOptions:
+                  - code: t2
+                    displayName: T+2 Business Days
+                  - code: t3
+                    displayName: T+3 Business Days
+                  - code: weekly
+                    displayName: Weekly
+                  - code: monthly
+                    displayName: Monthly
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
+  /account/profile/files/upload-targets:
     post:
       tags:
         - profile
-      operationId: uploadLogo
-      summary: 上传 / 更换 Logo（multipart；即时生效，无审核）
+      operationId: createLogoUploadTarget
+      summary: 取得 Logo 直传目标（浏览器据此直传，文件不经本接口）
       description: |
-        上传或更换 BusinessProfile Logo（PNG / JPEG，默认 ≤ 512KB 可配置；按文件实际内容判定、拒 SVG）；即时生效 + 记录审计事件。 幂等：纯写资源覆盖、天然幂等，不挂 Idempotency-Key。
+        更换 Logo 分两步。**第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标； **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**； 提交成功后调 POST /account/profile/logo 使其生效。 允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——**换一个合规的文件**再申请，同一文件重试无用。 **非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/FileUploadTargetRequest'
+                - type: object
+                  properties:
+                    purpose:
+                      allOf:
+                        - $ref: '#/components/schemas/MerchantFilePurpose'
+                      enum:
+                        - merchant_logo
+                    contentType:
+                      enum:
+                        - image/png
+                        - image/jpeg
+            example:
+              purpose: merchant_logo
+              fileName: storefront-logo.png
+              contentType: image/png
+              fileSize: 204800
+      responses:
+        '201':
+          description: 已签发直传目标；浏览器据此提交文件
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileUploadTarget'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 204015
+        - 208001
+  /account/profile/logo:
+    post:
+      tags:
+        - profile
+      operationId: applyLogo
+      summary: 使已直传的 Logo 生效（即时生效，无审核）
+      description: |
+        浏览器把 Logo 直传到目标（见 /account/profile/files/upload-targets）成功后调本接口使其生效： 校验文件已就位后替换当前 Logo。 文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，当前 Logo 不变。 **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新 `fileId`**）并重新直传，再以新引用调用——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。 幂等：同一 `fileId` 重复调用为覆盖同一结果、天然幂等，不挂 Idempotency-Key。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
             schema:
               type: object
               additionalProperties: false
               required:
-                - file
+                - fileId
               properties:
-                file:
+                fileId:
                   type: string
-                  format: binary
-                  description: Logo 图片（PNG / JPEG，默认 ≤ 512KB 可配置）
+                  description: 签发直传目标时返回的文件引用
+            example:
+              fileId: 2b6e0a94c73f41d5891ae4f0c62d7b18
       responses:
         '200':
-          description: 已上传（返回新 Logo 引用）
+          description: 已生效（返回新 Logo 引用）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogoRef'
               example:
                 logoUrl: https://cdn.example.com/logo/m10023.png
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 204014
+        - 208001
     delete:
       tags:
         - profile
       operationId: removeLogo
       summary: 移除 Logo（回退默认首字母标识；即时生效）
-      description: 移除 BusinessProfile Logo，Profile 回退展示默认首字母标识 + 记录审计事件。幂等：DELETE 天然幂等（已无 Logo 时仍 204）。
+      description: 移除 BusinessProfile Logo，Profile 回退展示默认首字母标识。幂等：DELETE 天然幂等（已无 Logo 时仍 204）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
           description: 已移除（回退默认首字母标识）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /account/settlement:
     get:
       tags:
@@ -286,67 +334,60 @@ paths:
                 transitNumber: '12345'
                 institutionNumber: '003'
                 accountNumberMasked: •••• 5678
-                settlementSchedule: T+2 Business Days
+                settlementSchedule: t2
                 storeId: STORE-01
                 pendingReview: false
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-  /account/settlement/void-cheque:
+        - 208001
+  /account/settlement/files/upload-targets:
     post:
       tags:
         - settlement
-      operationId: uploadSettlementVoidCheque
-      summary: 上传 Void cheque（bank-related 变更第 1 步前置；返回 FileRef）
+      operationId: createSettlementVoidChequeUploadTarget
+      summary: 取得 Void cheque 直传目标（bank-related 变更第 1 步前置）
       description: |
-        bank-related 结算字段变更的 Step 1 前置：上传 Void cheque 作银行账户身份证明（PNG / JPEG / PDF，默认 ≤ 2MB 可配置；按文件实际内容判定）。 返回 `voidChequeRef` 供后续创建变更请求引用；上传失败 / 格式不支持 → 400（不进入 Step 2 OTP）。 幂等：每次上传返回独立 ref，按流程语义不挂幂等键。
+        bank-related 结算字段变更的 Step 1 前置。**第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标； **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。 允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**（不进入 Step 2 OTP）——**换一个合规的文件**再申请，同一文件重试无用。 返回的 `fileId` 即后续创建变更请求所用的 `voidChequeRef`——**无需再调其他接口**，该文件在创建变更请求时才正式归属该请求。 幂等：每次调用返回独立 fileId，按流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: Void cheque（PNG / JPEG / PDF，默认 ≤ 2MB 可配置）
+              allOf:
+                - $ref: '#/components/schemas/FileUploadTargetRequest'
+                - type: object
+                  properties:
+                    purpose:
+                      allOf:
+                        - $ref: '#/components/schemas/MerchantFilePurpose'
+                      enum:
+                        - settlement_void_cheque
+                    contentType:
+                      enum:
+                        - image/png
+                        - image/jpeg
+                        - application/pdf
+            example:
+              purpose: settlement_void_cheque
+              fileName: void-cheque.pdf
+              contentType: application/pdf
+              fileSize: 1048576
       responses:
-        '200':
-          description: 已上传（返回 voidChequeRef）
+        '201':
+          description: 已签发直传目标；其 fileId 即后续引用的 voidChequeRef
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/FileRef'
-              example:
-                fileRef: vc_3f9a2c7e1b
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+                $ref: '#/components/schemas/FileUploadTarget'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 204015
+        - 208001
   /account/settlement/change-requests/otp-challenges:
     post:
       tags:
@@ -354,7 +395,7 @@ paths:
       operationId: requestSettlementOtp
       summary: 发送结算变更 OTP 到 Owner email（bank 第 2 步 / 非 bank 唯一前置；绑定变更意图）
       description: |
-        发送 Owner email OTP（= AUTH Primary Email）作结算变更身份验证， **并把本次变更内容（changes）+ voidChequeRef 绑定到该 OTP 挑战**—— verifySettlementOtp 签发的 otpToken 锚定这次变更意图，createSettlementChangeRequest 提交的 changes 须与之一致（防"用普通变更 OTP 授权银行账户变更"）。 bank-related 变更为 Step 2（Void cheque 之后）、非 bank-related 变更为唯一前置。Resend 冷却中 → 429。 按多步挑战流程语义不挂幂等键（每次发新 OTP，旧 OTP 失效并重新绑定）。
+        发送 OTP 到 Owner 的登录邮箱作结算变更身份验证， **并把本次变更内容（changes）+ voidChequeRef 绑定到该 OTP 挑战**—— verifySettlementOtp 签发的 otpToken 锚定这次变更意图，createSettlementChangeRequest 提交的 changes 须与之一致（防"用普通变更 OTP 授权银行账户变更"）。 bank-related 变更为 Step 2（Void cheque 之后）、非 bank-related 变更为唯一前置。Resend 冷却中 → 429。 按多步挑战流程语义不挂幂等键（每次发新 OTP，旧 OTP 失效并重新绑定）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -380,7 +421,7 @@ paths:
                 transitNumber: '54321'
                 institutionNumber: '004'
                 accountNumber: '12345678'
-              voidChequeRef: vc_3f9a2c7e1b
+              voidChequeRef: 7d41b9c05e2a48f3ab6c1d802f5e9a37
       responses:
         '202':
           description: OTP 已发送（展示脱敏 Owner email）
@@ -393,21 +434,12 @@ paths:
                 deliveredTo: o***@e***.com
                 cooldownSeconds: 60
                 expiresAt: '2026-06-22T15:05:00Z'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '429':
-          $ref: '#/components/responses/TooManyRequestsWithCooldown'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-        '429':
-          - 208013
+        - 204017
+        - 208001
+        - 208013
   /account/settlement/change-requests/otp-challenges/{challengeId}/verification:
     post:
       tags:
@@ -436,7 +468,8 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
+                  allOf:
+                    - $ref: '#/components/schemas/OtpCode'
                   description: Owner email OTP code
             example:
               code: '493028'
@@ -456,21 +489,13 @@ paths:
                     description: 单次 token，提交到 POST /account/settlement/change-requests
               example:
                 otpToken: otk_9b3f7a21c8
-        '400':
-          $ref: '#/components/responses/OtpRetryableBadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '423':
-          $ref: '#/components/responses/Locked'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '400':
-          - 204010
-        '409':
-          - 208001
+        - 204010
+        - 206006
+        - 206007
+        - 208001
   /account/settlement/change-requests:
     post:
       tags:
@@ -478,7 +503,7 @@ paths:
       operationId: createSettlementChangeRequest
       summary: 创建结算变更请求（前置全通过 → PENDING_REVIEW；旧值生效；409 若已有 PENDING_REVIEW；403 若意图不符）
       description: |
-        前置步骤（bank-related: Void cheque + OTP / 非 bank: OTP）全通过后创建 `SettlementChangeRequest{PENDING_REVIEW}`（含本次变更 + bank-related 时 voidChequeRef）+ 发送结算变更审核中通知 + 旧值仍生效（结算字段不立即变更）。 资损红线：同 Merchant 至多 1 个 PENDING_REVIEW → 已存在则 409（不创建新请求）; **提交 changes ≠ otpToken 绑定的变更内容 → 403**（意图不符，OTP 防串改）; 直接提交绕过前置（缺有效 otpToken / bank 缺 voidChequeRef）→ 400。审核 approve/reject 结果异步更新（不在本 BFF）。 幂等：必带 `Idempotency-Key`。验证码只能用一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**首次创建的那条变更请求**（不重复建、也不要求重走验证）；改了请求内容就必须换新键，沿用旧键改内容 → `409`·208005。
+        前置步骤（bank-related: Void cheque + OTP / 非 bank: OTP）全通过后创建 `SettlementChangeRequest{PENDING_REVIEW}`（含本次变更 + bank-related 时 voidChequeRef）+ 发送结算变更审核中通知 + 旧值仍生效（结算字段不立即变更）。 资损红线：同 Merchant 至多 1 个 PENDING_REVIEW → 已存在则 409（不创建新请求）; **提交 changes ≠ otpToken 绑定的变更内容 → 403**（意图不符，OTP 防串改）; 直接提交绕过前置（缺有效 otpToken / bank 缺 voidChequeRef）→ 400； **`voidChequeRef` 指向的文件确定未就位**（直传未完成 / 被存储端拒收）→ `400`·204014，本次不创建、`otpToken` **未被消费**。 **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新 `fileId`**）并重新直传——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 因 `otpToken` 只授权它绑定的那个 `voidChequeRef`、对新 ref 无效，故**必须重走 request/verify OTP** 拿新 token，再用**新 token + 新 `Idempotency-Key`** 提交（OTP 绑定变更意图的必然结果，不设绕过路径）。 文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，请求内容未变，用**原键原样重试**。 审核 approve/reject 结果异步更新（不在本 BFF）。 幂等：必带 `Idempotency-Key`。验证码只能用一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**首次创建的那条变更请求**（不重复建、也不要求重走验证）；改了请求内容就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -494,7 +519,7 @@ paths:
                 summary: bank-related 变更（含 voidChequeRef）
                 value:
                   otpToken: otk_9b3f7a21c8
-                  voidChequeRef: vc_3f9a2c7e1b
+                  voidChequeRef: 7d41b9c05e2a48f3ab6c1d802f5e9a37
                   changes:
                     bankName: TD
                     transitNumber: '54321'
@@ -506,7 +531,7 @@ paths:
                   otpToken: otk_9b3f7a21c8
                   changes:
                     storeId: STORE-02
-                    settlementSchedule: T+1 Business Days
+                    settlementSchedule: t3
       responses:
         '201':
           description: 已创建 PENDING_REVIEW（旧值仍生效，Edit 入口隐藏）
@@ -517,19 +542,15 @@ paths:
               example:
                 changeRequestId: scr_7a1c9
                 status: PENDING_REVIEW
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208002
-          - 208005
+        - 204014
+        - 204017
+        - 206005
+        - 208001
+        - 208002
+        - 208005
   /account/refund-pin:
     put:
       tags:
@@ -537,7 +558,7 @@ paths:
       operationId: setRefundPin
       summary: 设置 Refund PIN（oneOf 授权：旧 PIN 改 / Forgot PIN reset-challenge OTP）
       description: |
-        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。 ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。 ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 走通用 `BadRequest`（不承诺结构化剩余次数——区别于纯 OTP verify 端点的 `OtpRetryableBadRequest`）。OTP 一次性消费。 幂等：必带 `Idempotency-Key`。授权凭据校验一次即失效，**网络重试务必复用同一个键**——同键 + 同请求体重发返首次结果（`204`），不会因「凭据已用过」而假失败；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。 ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。 ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 是通用校验失败、**不声明 `204010`**（即不承诺结构化剩余次数——区别于纯 OTP verify 端点）。OTP 一次性消费。 幂等：必带 `Idempotency-Key`。授权凭据校验一次即失效，**网络重试务必复用同一个键**——同键 + 同请求体重发返首次结果（`204`），不会因「凭据已用过」而假失败；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -557,14 +578,17 @@ paths:
                     - confirmPin
                   properties:
                     currentPin:
-                      type: string
+                      allOf:
+                        - $ref: '#/components/schemas/RefundPin'
                       description: 当前 Refund PIN（须匹配）
                     newPin:
-                      type: string
-                      description: 新 PIN（默认 6 位 0-9 可配；不可与 current 相同）
+                      allOf:
+                        - $ref: '#/components/schemas/RefundPin'
+                      description: 新 PIN；不可与 `currentPin` 相同
                     confirmPin:
-                      type: string
-                      description: 须与 newPin 一致
+                      allOf:
+                        - $ref: '#/components/schemas/RefundPin'
+                      description: 须与 `newPin` 一致
                 - title: ResetByChallenge
                   type: object
                   additionalProperties: false
@@ -578,14 +602,17 @@ paths:
                       type: string
                       description: reset-challenge 实例 id
                     code:
-                      type: string
+                      allOf:
+                        - $ref: '#/components/schemas/OtpCode'
                       description: Owner email 重置 OTP
                     newPin:
-                      type: string
-                      description: 新 PIN（默认 6 位 0-9 可配）
+                      allOf:
+                        - $ref: '#/components/schemas/RefundPin'
+                      description: 新 PIN
                     confirmPin:
-                      type: string
-                      description: 须与 newPin 一致
+                      allOf:
+                        - $ref: '#/components/schemas/RefundPin'
+                      description: 须与 `newPin` 一致
             examples:
               change:
                 summary: 旧 PIN 授权改
@@ -603,22 +630,13 @@ paths:
       responses:
         '204':
           description: 已设置（旧 PIN 失效；currentPin 授权改成功后未完成 reset challenge 失效）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '423':
-          $ref: '#/components/responses/Locked'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
+        - 206006
+        - 206007
+        - 208001
+        - 208005
   /account/refund-pin/reset-challenges:
     post:
       tags:
@@ -626,7 +644,7 @@ paths:
       operationId: requestRefundPinResetOtp
       summary: Forgot PIN — 发送重置 OTP 到 Owner email（展示脱敏邮箱 + 启动冷却）
       description: |
-        生成 OTP（默认 6 位）发到 Owner email（= AUTH Primary Email；复用通知模块 verification 模板）+ 启动 Resend 冷却（默认 60s 可配）+ 返回脱敏邮箱。 Resend 冷却中 → 429（不发新 OTP）。Forgot PIN 不需 current PIN。按多步挑战流程语义不挂幂等键（每次发新 OTP，旧 OTP 失效）。
+        生成 OTP（6 位数字）发到 Owner 的登录邮箱 + 启动 Resend 冷却（默认 60s 可配）+ 返回脱敏邮箱。 Resend 冷却中 → 429（不发新 OTP）。Forgot PIN 不需 current PIN。按多步挑战流程语义不挂幂等键（每次发新 OTP，旧 OTP 失效）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -642,19 +660,11 @@ paths:
                 deliveredTo: o***@e***.com
                 cooldownSeconds: 60
                 expiresAt: '2026-06-24T09:30:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '429':
-          $ref: '#/components/responses/TooManyRequestsWithCooldown'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-        '429':
-          - 208013
+        - 208001
+        - 208013
   /merchants:
     get:
       tags:
@@ -672,14 +682,11 @@ paths:
                 type: object
                 additionalProperties: false
                 required:
-                  - currentMerchantId
                   - data
                 properties:
                   currentMerchantId:
-                    type:
-                      - string
-                      - 'null'
-                    description: 会话当前商户；**null = 无当前商户**（如撤回当前商户后无可访问 parent，前端须重选）。每次解析时服务端校验该商户仍 ∈ 可访问集且非 WITHDRAWN，无效则视为 null
+                    type: string
+                    description: 会话当前商户；**无当前商户则不返回本键**（如撤回当前商户后无可访问 parent，前端须重选）。每次解析时服务端校验该商户仍 ∈ 可访问集且非 WITHDRAWN，无效则同样不返回
                   data:
                     type: array
                     items:
@@ -691,22 +698,21 @@ paths:
                     merchantCode: C3BM68
                     tradeName: Jane's Coffee
                     status: ACTIVE
-                    relationType: null
                   - merchantId: '1000024'
                     merchantCode: C3BM72
                     tradeName: Jane's Coffee Downtown
                     status: INCOMPLETE
                     relationType: branch
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
     post:
       tags:
         - merchants
       operationId: addMerchant
       summary: 添加关联商户（branch / new_legal_entity；创建 INCOMPLETE + 交入驻流程；2 层上限）
       description: |
-        **原子创建关联商户**：一次创建一个 `INCOMPLETE` 关联商户（branch / new_legal_entity）+ 对应的入驻申请草稿（`DRAFT`），返回 merchantId。 **仅创建、不切会话**：前端拿到 merchantId 后**显式调 switchCurrentMerchant 切上下文**（幂等），再 GET /onboarding/application **加载**已建 DRAFT 续走向导。 字段预填及 5 步规则由入驻向导接口返回。 2 层上限：当前商户已是二级关联商户 → 409（不创建）;Country × Currency 组合非法 → 400。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复建商户**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        **原子创建关联商户**：一次创建一个 `INCOMPLETE` 关联商户（branch / new_legal_entity）+ 对应的入驻申请草稿（`DRAFT`），返回 merchantId。 **仅创建、不切会话**：前端拿到 merchantId 后**显式调 switchCurrentMerchant 切上下文**（幂等），再 GET /onboarding/application **加载**已建 DRAFT 续走向导。 字段预填及 5 步规则由入驻向导接口返回。 2 层上限：当前商户已是二级关联商户 → `409`·208023（不创建；层级是结构事实、刷新不变，应提示「已达最大层级」而非引导重试）;Country × Currency 组合非法 → 400。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复建商户**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -748,19 +754,12 @@ paths:
                 merchantId: '1000042'
                 merchantCode: C3BM90
                 status: INCOMPLETE
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208003
-          - 208005
+        - 208001
+        - 208005
+        - 208023
   /merchants/{merchantId}/application:
     delete:
       tags:
@@ -768,7 +767,7 @@ paths:
       operationId: withdrawOnboardingApplication
       summary: 撤回未激活商户的在途入驻申请（INCOMPLETE / PENDING_REVIEW；409 若 ACTIVE / REJECTED）
       description: |
-        撤回该关联商户**在途的入驻申请**：在途申请（`DRAFT`/`UNDER_REVIEW`/`MORE_INFO_REQUIRED`）迁终态 `WITHDRAWN` + 冻结草稿数据。被撤回的是入驻申请、不是商户；撤回后该商户不再于 switcher 展示。 **会话闭环（200 body）**：若撤回的是**当前选中商户** → 服务端优先切**可访问的上级商户**、否则 `currentMerchantId=null`（前端重选）；响应回 `{contextChanged, currentMerchantId}` 让该副作用可观测。会话绝不保留指向 WITHDRAWN 商户的有效 current；若会话更新失败由 `listMerchants` / 上下文守卫兜底。 资损红线：ACTIVE / REJECTED 不可撤回 → 409;**无上级关联关系的商户不可撤回 → 409（仅关联子商户可撤回）**;目标不在可访问集 → 404 反枚举;在可访问集内但 RBAC 拒 → 403。 幂等：DELETE 天然幂等——已 `WITHDRAWN` 授权重放 = 成功 no-op（返当前会话上下文），不挂 Idempotency-Key。
+        撤回该关联商户**在途的入驻申请**：在途申请（`DRAFT`/`UNDER_REVIEW`/`MORE_INFO_REQUIRED`）迁终态 `WITHDRAWN` + 冻结草稿数据。被撤回的是入驻申请、不是商户；撤回后该商户不再于 switcher 展示。 **会话闭环（200 body）**：若撤回的是**当前选中商户** → 服务端优先切**可访问的上级商户**、否则**不返回 `currentMerchantId` 键**（前端重选）；响应回 `contextChanged` + 可能的 `currentMerchantId` 让该副作用可观测。会话绝不保留指向 WITHDRAWN 商户的有效 current；若会话更新失败由 `listMerchants` / 上下文守卫兜底。 资损红线：ACTIVE / REJECTED 不可撤回 → `409`·208003（状态前置，重拉最新态）;**无上级关联关系的商户不可撤回 → `409`·208024**（仅关联子商户可撤回；结构事实、刷新不变，正确 UI 下不该出现该入口）;目标不在可访问集 → 404 反枚举;在可访问集内但 RBAC 拒 → 403。 幂等：DELETE 天然幂等——已 `WITHDRAWN` 授权重放 = 成功 no-op（返当前会话上下文），不挂 Idempotency-Key。
       parameters:
         - name: merchantId
           in: path
@@ -786,30 +785,21 @@ paths:
                 additionalProperties: false
                 required:
                   - contextChanged
-                  - currentMerchantId
                 properties:
                   contextChanged:
                     type: boolean
                     description: 本次撤回是否改变了会话当前商户（撤回的是当前商户时为 true）
                   currentMerchantId:
-                    type:
-                      - string
-                      - 'null'
-                    description: 更新后会话当前商户：撤回当前商户→可访问的上级商户或 null（无可用则前端重选）；撤回非当前商户→不变
+                    type: string
+                    description: 更新后会话当前商户：撤回当前商户 → 可访问的上级商户，**无可用则不返回本键**（前端重选）；撤回非当前商户 → 不变
               example:
                 contextChanged: true
                 currentMerchantId: '1000001'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208003
+        - 208003
+        - 208024
   /merchants/current:
     put:
       tags:
@@ -838,13 +828,9 @@ paths:
       responses:
         '204':
           description: 已切换（会话 merchant context 更新）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-      x-error-codes: {}
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
   /service-page:
     get:
       tags:
@@ -852,7 +838,7 @@ paths:
       operationId: getServicePage
       summary: 浏览 Service Page（AcceptanceMode/PaymentMethod 2 层 + Integrations 摘要；凭据掩码）
       description: |
-        聚合当前 ACTIVE 商户的 Service Capabilities（AcceptanceMode 分组 + 各 mode 开通/审核状态 + 已启用 PaymentMethod + online 当前生效 URL） + Integrations 摘要（Terminal: Moneris/Clover 互斥 active;Ecommerce: Shopify/Allvalue 连接状态）。 敏感凭据（terminal/integration token / secret / private key）仅返回掩码摘要，明文不返回。 当前 Merchant 非 ACTIVE → 409、不返回 Service Page（前端按 Merchant 状态分流）。 支付方式配置源读不到内容时**不返回不完整配置**，按服务端错误处理（`500`）。
+        聚合当前 ACTIVE 商户的 Service Capabilities（AcceptanceMode 分组 + 各 mode 开通/审核状态 + **该 mode 的支付方式候选全集（含未启用项、带展示名与图标）** + online 当前生效 URL） + Integrations 摘要（Terminal: Moneris/Clover 互斥 active;Ecommerce: Shopify/Allvalue 连接状态）。 敏感凭据（terminal/integration token / secret / private key）仅返回掩码摘要，明文不返回。 支付方式配置源读不到内容时**不返回不完整配置**，按服务端错误处理（`500`）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -869,43 +855,55 @@ paths:
                     pendingUrlChange: false
                     paymentMethods:
                       - methodId: instore-wechat
+                        displayName: WeChat Pay
+                        iconUrl: https://assets.example.com/pm/wechat.svg
                         enabled: true
                       - methodId: instore-alipay
+                        displayName: Alipay
+                        iconUrl: https://assets.example.com/pm/alipay.svg
                         enabled: true
+                      - methodId: instore-unionpay
+                        displayName: UnionPay
+                        enabled: false
                   - mode: online
                     status: ACTIVE
                     websiteUrl: https://shop.example.com
                     pendingUrlChange: false
                     paymentMethods:
                       - methodId: online-wechat
+                        displayName: WeChat Pay
+                        iconUrl: https://assets.example.com/pm/wechat.svg
                         enabled: true
+                      - methodId: online-alipay
+                        displayName: Alipay
+                        enabled: true
+                      - methodId: online-card
+                        displayName: Credit Card
+                        enabled: false
                 integrations:
                   terminal:
+                    connected: true
                     activeProvider: moneris
-                    threedsEnabled: false
+                    threedsEnabled: true
                     credentialSummary: Store ID ••• 4321
+                    retained:
+                      - provider: clover
+                        threedsEnabled: false
+                        credentialSummary: Public Token ••• 9f2a
                   ecommerce:
                     - integrationId: ec_1
                       provider: shopify
                       status: ACTIVE
                       websiteUrl: https://shop.example.com
                       pendingUrlChange: false
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '500':
-          description: 支付方式配置源读不到内容 —— 不返回不完整配置（fail-closed）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                      paymentMethodConfig:
+                        - online-wechat
+                        - online-alipay
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208003
+        - 208001
+        - 208003
   /service-page/acceptance-modes/{mode}/payment-methods:
     put:
       tags:
@@ -913,7 +911,7 @@ paths:
       operationId: updateAcceptanceModePaymentMethods
       summary: 启停 AcceptanceMode 内 PaymentMethod（覆盖式；mode 须 ACTIVE）
       description: |
-        在已 ACTIVE 的 AcceptanceMode 内覆盖式设置启用的 PaymentMethod 集合，保存立即生效 + 记录审计事件。 校验：mode 须 ACTIVE、所选 method 须全部属于该 mode 当前可用的 PaymentMethod 列表。 method 不属于该 mode / 不存在或不可用 → 400;mode 未开通或未 ACTIVE → 409（不改配置）。 幂等：纯 PUT 覆盖式、天然幂等，不挂 Idempotency-Key。
+        在已 ACTIVE 的 AcceptanceMode 内覆盖式设置启用的 PaymentMethod 集合，保存立即生效。 校验：mode 须 ACTIVE、所选 method 须全部取自 `getServicePage` 返回的该 mode `paymentMethods[].methodId`。 method 不属于该 mode / 不存在或不可用 → 400;mode 未开通或未 ACTIVE → 409（不改配置）。 幂等：纯 PUT 覆盖式、天然幂等，不挂 Idempotency-Key。 支付方式配置源读不到内容时**不保存** → `500`（fail-closed，不按残缺配置校验方式集）。
       parameters:
         - name: mode
           in: path
@@ -934,7 +932,7 @@ paths:
               properties:
                 enabledMethodIds:
                   type: array
-                  description: 本 mode 启用的 PaymentMethod id 集合（覆盖式；须全部属于该 mode 当前可用的 PaymentMethod 列表）
+                  description: 本 mode 启用的 PaymentMethod id 集合（覆盖式；须全部取自 `getServicePage` 返回的该 mode `paymentMethods[].methodId`）
                   items:
                     type: string
             example:
@@ -944,24 +942,11 @@ paths:
       responses:
         '204':
           description: 已保存（本 mode PaymentMethod 配置立即生效）
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '500':
-          description: 支付方式配置源读不到内容 —— **不保存**（fail-closed，不按残缺配置校验方式集）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208003
+        - 208001
+        - 208003
   /service-page/acceptance-modes:
     post:
       tags:
@@ -969,7 +954,7 @@ paths:
       operationId: connectAcceptanceMode
       summary: 申请新增 AcceptanceMode（Connect；in_store storePhoto / online type+url → PENDING_REVIEW）
       description: |
-        自助申请未开通的 AcceptanceMode，附凭证（in_store: store photo fileId;online: 线上服务类型 + Website 类型 URL）， 校验通过创建 `AcceptanceEnrollment{PENDING_REVIEW}` + 触发审核（审核结果异步生效，前端后续经 getServicePage 读取最新状态）。 同 mode 已有 PENDING_REVIEW 或已 ACTIVE → 409（禁重复提交）;凭证缺失 / 格式非法 → 400（不创建）。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复开通**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        自助申请未开通的 AcceptanceMode，附凭证（in_store: store photo fileId;online: 线上服务类型 + Website 类型 URL）， 校验通过创建 `AcceptanceEnrollment{PENDING_REVIEW}` + 触发审核（审核结果异步生效，前端后续经 getServicePage 读取最新状态）。 同 mode 已有 PENDING_REVIEW → `409`·208002（提示「申请审核中，请等待结果」）;同 mode **已 ACTIVE** → `409`·208026（这件事已经成了——提示已开通并引导去配置支付方式，不是「有待审核请求」也不是「状态变了」）;凭证缺失 / 格式非法 → 400（不创建）。 **`storePhotoFileId` 指向的文件确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，本次不创建。 **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新 `fileId`**）并重新直传，再以新引用提交——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 ⚠️ **换了 `fileId` 就是换了请求体，必须同时换一个新的 `Idempotency-Key`**；沿用旧键提交新内容 → `409`·208005。 文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，请求内容未变，用**原键原样重试**。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复开通**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。 支付方式配置源读不到内容时**不创建**开通申请 → `500`（fail-closed）。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -985,7 +970,7 @@ paths:
                 summary: in_store（store photo fileId）
                 value:
                   mode: in_store
-                  storePhotoFileId: sp_1a2b3c
+                  storePhotoFileId: e903c15b7a2d4e6fb81c30947da5f2e6
               online:
                 summary: online（Website 类型 + URL）
                 value:
@@ -1017,25 +1002,14 @@ paths:
                 enrollmentId: aenr_5b2f9c10
                 mode: online
                 status: PENDING_REVIEW
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '500':
-          description: 支付方式配置源读不到内容 —— **不创建**开通申请（fail-closed）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208002
-          - 208005
+        - 204014
+        - 208001
+        - 208002
+        - 208005
+        - 208026
   /service-page/acceptance-modes/{mode}/website-url:
     put:
       tags:
@@ -1102,77 +1076,59 @@ paths:
                 mode: online
                 status: ACTIVE
                 pendingUrlChange: true
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208002
-          - 208003
-          - 208005
-  /service-page/acceptance-modes/store-photo:
+        - 208001
+        - 208002
+        - 208003
+        - 208005
+  /service-page/files/upload-targets:
     post:
       tags:
         - service-page
-      operationId: uploadStorePhoto
-      summary: 上传店铺照（in_store Connect 凭证；返回 storePhotoFileId）
+      operationId: createStorePhotoUploadTarget
+      summary: 取得店铺照直传目标（in_store Connect 凭证前置）
       description: |
-        in_store AcceptanceMode Connect 的凭证前置：上传店铺照（PNG / JPEG，默认 ≤ 2MB 可配置；按文件实际内容判定、拒 SVG）， 返回 `storePhotoFileId` 供 connectAcceptanceMode（in_store）引用;上传失败 / 格式不支持 → 400。 幂等：每次上传返回独立 fileId，按流程语义不挂幂等键。
+        in_store AcceptanceMode Connect 的凭证前置。**第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标； **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。 允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——**换一个合规的文件**再申请，同一文件重试无用。 返回的 `fileId` 即 `connectAcceptanceMode`（in_store）所用的 `storePhotoFileId`——**无需再调其他接口**，该文件在 Connect 时才正式归属该受理开通。 幂等：每次调用返回独立 fileId，按流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  format: binary
-                  description: 店铺照（PNG / JPEG，默认 ≤ 2MB 可配置）
+              allOf:
+                - $ref: '#/components/schemas/FileUploadTargetRequest'
+                - type: object
+                  properties:
+                    purpose:
+                      allOf:
+                        - $ref: '#/components/schemas/MerchantFilePurpose'
+                      enum:
+                        - store_photo
+                    contentType:
+                      enum:
+                        - image/png
+                        - image/jpeg
+            example:
+              purpose: store_photo
+              fileName: store-front.jpg
+              contentType: image/jpeg
+              fileSize: 1572864
       responses:
-        '200':
-          description: 已上传（返回 storePhotoFileId）
+        '201':
+          description: 已签发直传目标；其 fileId 即 Connect 时引用的 storePhotoFileId
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required:
-                  - storePhotoFileId
-                properties:
-                  storePhotoFileId:
-                    type: string
-                    readOnly: true
-                    description: 店铺照文件 id（供 connectAcceptanceMode in_store 引用）
-              example:
-                storePhotoFileId: sp_1a2b3c
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '502':
-          $ref: '#/components/responses/BadGateway'
+                $ref: '#/components/schemas/FileUploadTarget'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 204015
+        - 208001
   /integrations/terminal:
     put:
       tags:
@@ -1180,7 +1136,7 @@ paths:
       operationId: connectTerminalIntegration
       summary: 连接 / 切换 TerminalIntegration（Moneris / Clover 互斥；即时生效）
       description: |
-        连接或切换 POS provider（Moneris / Clover），即时生效无审核;互斥 —— 同 Merchant 至多 1 个 active provider，切换时旧 provider 凭据保留但不生效。 可设 3DS 开关（默认关闭，用于线上交易 3DS 验证）。凭据保存后仅掩码回显、明文不二次回显;凭据校验失败 → 400。 幂等：纯 PUT 覆盖当前生效 provider、天然幂等（重放同 provider+凭据结果一致），不挂 Idempotency-Key。
+        连接或切换 POS provider（Moneris / Clover），即时生效无审核;互斥 —— 同 Merchant 至多 1 个 active provider，切换时旧 provider 凭据保留但不生效。 3DS 开关（用于线上交易 3DS 验证）**每次必传**——本端点全量覆盖，缺省不代表保持原样；表单初始值**按目标 provider 是不是当前生效者分两支取**：目标 = 读面的 `activeProvider`（即**更新在用凭据**）→ 取 `terminal.threedsEnabled`（当前生效值）;目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;两处都没有才关闭。凭据保存后仅掩码回显、明文不二次回显;凭据校验失败 → 400。 幂等：纯 PUT 覆盖当前生效 provider、天然幂等（重放同 provider+凭据结果一致），不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1213,42 +1169,31 @@ paths:
               schema:
                 $ref: '#/components/schemas/TerminalIntegrationView'
               example:
+                connected: true
                 activeProvider: moneris
                 threedsEnabled: false
                 credentialSummary: Store ID ••• 4321
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
     delete:
       tags:
         - integrations
       operationId: disableTerminalIntegration
       summary: 停用 TerminalIntegration（清当前生效 provider；凭据保留以便再连）
       description: |
-        商户后台自助停用：清除当前生效 TerminalIntegration（activeProvider 置空）+ 凭据保留以便再次连接 + 记录审计事件;即时生效无审核。 停用后该 Merchant 无生效 provider（彻底清除已存凭据走客服 / 运营）。幂等：DELETE 天然幂等（已无 active 时仍 204）。
+        商户后台自助停用：清除当前生效 TerminalIntegration（activeProvider 置空）+ **凭据与 3DS 开关一并保留**以便再次连接（保留内容见读面 `getServicePage` 的 `terminal.retained`）;即时生效无审核。 停用后该 Merchant 无生效 provider（彻底清除已存凭据走客服 / 运营）。幂等：DELETE 天然幂等（已无 active 时仍 204）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
           description: 已停用（无生效 provider，凭据保留）
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /integrations/ecommerce:
     post:
       tags:
@@ -1256,7 +1201,7 @@ paths:
       operationId: connectEcommerceIntegration
       summary: 连接 EcommerceIntegration（Shopify / Allvalue review-gated；不互斥 → PENDING_REVIEW）
       description: |
-        连接电商平台（Shopify / Allvalue），提交 website URL + 关联 PaymentMethod 配置，创建 `EcommerceIntegration{PENDING_REVIEW}`（不互斥，可各自 ACTIVE）+ 记录审计事件; 审核结果异步生效（不在本 BFF）。同平台审核中重复提交 → 409;URL / 配置校验失败 → 400。 Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复接入**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        连接电商平台（Shopify / Allvalue），提交 website URL + 关联 PaymentMethod 配置，创建 `EcommerceIntegration{PENDING_REVIEW}`（不互斥，可各自 ACTIVE）; 审核结果异步生效（不在本 BFF）。同平台审核中重复提交 → 409;URL / 配置校验失败 → 400。 Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复接入**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。 支付方式配置源读不到内容时**不创建**连接 → `500`（fail-closed）。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -1298,25 +1243,12 @@ paths:
                 integrationId: eint_7c3a91f0
                 provider: shopify
                 status: PENDING_REVIEW
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '500':
-          description: 支付方式配置源读不到内容 —— **不创建**连接（fail-closed）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208002
-          - 208005
+        - 208001
+        - 208002
+        - 208005
   /integrations/ecommerce/{integrationId}:
     put:
       tags:
@@ -1364,27 +1296,15 @@ paths:
                 websiteUrl: https://shop.example.com
                 pendingUrlChange: true
                 urlChangeRequestId: eurc_9f2a
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '500':
-          description: 支付方式配置源读不到内容 —— **不保存**（fail-closed）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
+                paymentMethodConfig:
+                  - online-wechat
+                  - online-alipay
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208002
-          - 208005
+        - 208001
+        - 208002
+        - 208005
   /account/documents:
     get:
       tags:
@@ -1392,7 +1312,7 @@ paths:
       operationId: getDocuments
       summary: Documents 只读展示（5 必传 + 2 可选；未上传必传项显示缺失占位）
       description: |
-        只读返回入驻上传的文档：5 必传（Void Cheque / Owner ID / Certificate of Incorporation / Store Inside / Store Outside） + 2 可选 Other（仅已上传时返回）。已上传项含预览 / 下载引用 + 文件类型;未上传必传项 `present: false`（缺失占位）。 无自助上传 / 替换 / 删除入口（续期 / 替换走客服 / 管理后台）。
+        只读返回入驻上传的文档：5 必传（Void Cheque / Owner ID / Certificate of Incorporation / Store Inside / Store Outside） + 2 可选 Other（仅已上传时返回）。已上传项含**内联展示**与**下载**两个短时效引用 + 文件类型；未上传必传项 `present: false`（缺失占位）。 两个引用指向同一份文件、只是交付方式不同；**均短时效且不可持久化**（这类文档含身份与银行资料）。 无自助上传 / 替换 / 删除入口（续期 / 替换走客服 / 管理后台）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -1408,34 +1328,33 @@ paths:
                     present: true
                     fileName: void-cheque.pdf
                     fileType: application/pdf
-                    downloadUrl: https://cdn.example.com/doc/vc.pdf
+                    previewUrl: https://files.example.com/o/8f1c2a6e?exp=1755331200&sig=REDACTED&disp=inline
+                    downloadUrl: https://files.example.com/o/8f1c2a6e?exp=1755331200&sig=REDACTED&disp=attachment
                   - docType: OWNER_ID
                     present: false
                   - docType: CERTIFICATE_OF_INCORPORATION
                     present: true
                     fileName: coi.pdf
                     fileType: application/pdf
-                    downloadUrl: https://cdn.example.com/doc/coi.pdf
+                    previewUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=inline
+                    downloadUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=attachment
                   - docType: STORE_INSIDE
                     present: true
                     fileName: inside.jpg
                     fileType: image/jpeg
-                    downloadUrl: https://cdn.example.com/doc/in.jpg
+                    previewUrl: https://files.example.com/o/c41e6b28?exp=1755331200&sig=REDACTED&disp=inline
+                    downloadUrl: https://files.example.com/o/c41e6b28?exp=1755331200&sig=REDACTED&disp=attachment
                   - docType: STORE_OUTSIDE
                     present: true
                     fileName: outside.jpg
                     fileType: image/jpeg
-                    downloadUrl: https://cdn.example.com/doc/out.jpg
+                    previewUrl: https://files.example.com/o/5a92f0d7?exp=1755331200&sig=REDACTED&disp=inline
+                    downloadUrl: https://files.example.com/o/5a92f0d7?exp=1755331200&sig=REDACTED&disp=attachment
                 optional: []
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
 components:
   securitySchemes:
     cookieAuth:
@@ -1443,7 +1362,7 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     RelationType:
       type: string
@@ -1456,7 +1375,7 @@ components:
       enum:
         - in_store
         - online
-      description: 商户业务模式（in_store / online）。**封闭 enum**：新增取值 = 破坏性变更、走新契约版本发布（非配置新增）；前端须 unknown-safe（遇未识别值保守处理、不静默丢弃）。
+      description: 商户业务模式（in_store / online）。**封闭 enum**（取值集固定、可穷举分支）；前端仍须 unknown-safe（遇未识别值保守处理、不静默丢弃）。
     AcceptanceModeStatus:
       type: string
       enum:
@@ -1478,6 +1397,21 @@ components:
         - shopify
         - allvalue
       description: 电商平台 provider（不互斥）
+    SettlementOptions:
+      type: object
+      additionalProperties: false
+      required:
+        - settlementCycleOptions
+      description: |
+        Settlement section 的**动态值域**。示例值仅为当前实例的一种可能取值， **不构成契约承诺**——实际候选集由后端配置决定。
+      properties:
+        settlementCycleOptions:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            $ref: '#/components/schemas/SettlementCycleOption'
+          description: 可选结算周期档位。**顺序即展示顺序**——前端不要自己排序。⚠️ **编辑面的初始选中 = 该商户当前的 `settlementSchedule`**（取自 `getAccountProfile`），**不是本数组的第一项**；本数组只用于渲染下拉与校验提交值。提交时回传选中项的 `code`。
     BusinessInformationOptions:
       type: object
       additionalProperties: false
@@ -1496,7 +1430,7 @@ components:
       type: string
       minLength: 1
       description: |
-        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。 **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**—— 候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。 本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe** （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。 作**商户营业日**归属日标签的时区基准；供交易 / 账务 / 数据洞察等查询确定商户营业日口径——**相对日期目标（今日 / 本月等）由服务端计算、前端不自行换算**， **不用于重算已固化的历史归属**。
+        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。 **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**—— 候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。 本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe** （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。 商户的时区。**「今日 / 本月」这类相对日期由服务端认定,前端不要拿本字段自己推。**
       examples:
         - America/Toronto
     LockedField:
@@ -1504,17 +1438,20 @@ components:
       additionalProperties: false
       description: Locked 字段展示项：值 + locked 标识（服务端强制，展示 + 救济提示在前端）
       required:
-        - value
         - locked
       properties:
         value:
-          oneOf:
-            - type: string
-            - type: 'null'
-          description: 字段当前值（底层无值时 null，仍按 Locked 展示）
+          type: string
+          description: 字段当前值；**底层无值则不返回本键**，该字段仍按 Locked 展示
         locked:
           type: boolean
           description: 恒 true（Business Information 内 7 项 Locked 字段）
+    IndustryCategoryDisplayName:
+      type: string
+      minLength: 1
+      description: 行业的**展示名**（如 `Food & Beverage`），由服务端从入驻时的同一份行业配置解析后给出。 入驻提交与持久化用的是**稳定行业标识**（见入驻契约 `OnboardingConfig.industries[].code`，形如 `FOOD_BEVERAGE`）， 本域**不回传该标识**——商户资料侧没有行业配置读取面，拿到标识也无从解析成人读文案。 本字段**只读、只供展示**（Industry 属 Locked 字段、不可自助修改），前端不要解析它、也不要拿它做分支或回传。
+      examples:
+        - Food & Beverage
     BusinessInformationView:
       type: object
       additionalProperties: false
@@ -1531,7 +1468,9 @@ components:
         referredBy:
           $ref: '#/components/schemas/LockedField'
         industryCategory:
-          $ref: '#/components/schemas/LockedField'
+          allOf:
+            - $ref: '#/components/schemas/LockedField'
+          description: Locked 展示项；其 `value` 是行业**展示名**（口径见 `IndustryCategoryDisplayName`），**与 Header card 的 `industryCategoryDisplayName` 同源同值**——两处是同一份数据的两个呈现位，不是两项数据。本键沿用字段名（与其余 6 项 Locked 字段并列），展示名装在 `value` 里
         mcc:
           $ref: '#/components/schemas/LockedField'
         address:
@@ -1562,17 +1501,15 @@ components:
           readOnly: true
           description: Merchant ID（创建时分配、对外展示；Header card 展示项）
         logoUrl:
-          oneOf:
-            - type: string
-              format: uri
-            - type: 'null'
-          description: Logo URL；无 Logo 为 null（前端回退默认首字母标识）
+          type: string
+          format: uri
+          description: Logo URL；**无 Logo 则不返回本键**（前端回退默认首字母标识）
         tradeName:
           type: string
         legalBusinessName:
           type: string
-        industryCategory:
-          type: string
+        industryCategoryDisplayName:
+          $ref: '#/components/schemas/IndustryCategoryDisplayName'
         mcc:
           type: string
     ContactInformationView:
@@ -1593,7 +1530,7 @@ components:
           description: '= Owner Primary Email = 登录邮箱（三合一）'
     ProfileFunds:
       description: |
-        资金字段（只读展示，能力归 06）。Profile 固定展示区块。 **降级**：资金数据不可用时 `available=false` + 金额省略（区块仍在、标注暂不可用），不阻断 Profile 其余区块。
+        资金字段（只读展示，无修改入口）。Profile 固定展示区块。 **降级**：资金数据不可用时 `available=false` + 金额省略（区块仍在、标注暂不可用），不阻断 Profile 其余区块。
       oneOf:
         - title: FundsAvailable
           type: object
@@ -1653,7 +1590,7 @@ components:
           type: string
           const: ACTIVE
           readOnly: true
-          description: Profile 仅 ACTIVE 商户可访问（INCOMPLETE / PENDING_REVIEW / REJECTED / WITHDRAWN 均不返回 Profile，前端按 Merchant 状态分流）
+          description: 恒为 `ACTIVE`——本响应只在商户已激活时产生，故该字段无其他取值
         header:
           $ref: '#/components/schemas/ProfileHeader'
         businessInformation:
@@ -1671,7 +1608,7 @@ components:
       additionalProperties: false
       minProperties: 1
       description: |
-        编辑请求：7 项可编辑字段 + 7 项 Locked 字段（Locked 字段为合法槽位以便服务端兑现 403）。 Locked 字段是合法属性（不作未知属性打成 400）；任一 Locked 字段出现在请求体 → 服务端拒绝 → **403 + 审计**； 真正未知属性 → 400；空提交（no-op）→ 400。 校验：postalCode 按国家格式、phone 默认 +1 / 10 位、Province × Country 联动（可选项后端配置驱动）。
+        编辑请求：7 项可编辑字段 + 7 项 Locked 字段（Locked 字段为合法槽位以便服务端兑现 403）。 Locked 字段是合法属性（不作未知属性打成 400）；任一 Locked 字段出现在请求体 → 服务端拒绝 → **403 + 审计**； 真正未知属性 → 400；空提交（no-op）→ 400。 校验：postalCode 按国家格式、phone 按区号白名单与对应长度规则（部署可配；`+1` / 10 位只是空白表单初始值、编辑时回显当前值）、Province × Country 联动（可选项后端配置驱动）。
       properties:
         address:
           type: string
@@ -1719,7 +1656,7 @@ components:
           type: string
           format: uri
           readOnly: true
-          description: 新 Logo 引用
+          description: 生效后 Logo 的**可渲染地址**（只出不入；长效稳定的公开地址，可直接放进页面）。本响应不回引用——引用即刚提交的那个 `fileId`
     SettlementView:
       type: object
       additionalProperties: false
@@ -1746,27 +1683,16 @@ components:
           readOnly: true
           description: account_number 仅末 4 位（`•••• 5678`；明文不返回）
         settlementSchedule:
-          type: string
-          description: 默认 T+2 Business Days（可配置）
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
+          description: 该商户当前的结算周期档位 code；**编辑面以本值作初始选中**，展示名按 `getSettlementOptions` 的同 code 项取（或前端自有 i18n 资源）
         storeId:
-          oneOf:
-            - type: string
-            - type: 'null'
-          description: 可选；无则 null
+          type: string
+          description: 可选；**未指定则不返回本键**
         pendingReview:
           type: boolean
           readOnly: true
           description: 存在 PENDING_REVIEW 变更请求 → true（前端隐 Edit 入口 + 审核中提示）
-    FileRef:
-      type: object
-      additionalProperties: false
-      required:
-        - fileRef
-      properties:
-        fileRef:
-          type: string
-          readOnly: true
-          description: 上传文件引用（供创建变更请求引用）
     OtpChallenge:
       type: object
       additionalProperties: false
@@ -1823,7 +1749,7 @@ components:
           description: verifySettlementOtp 签发的单次 token
         voidChequeRef:
           type: string
-          description: bank-related 变更必带（uploadSettlementVoidCheque 返回）；须与 otpToken 绑定值一致
+          description: bank-related 变更必带（createSettlementVoidChequeUploadTarget 返回的 fileId）；须与 otpToken 绑定值一致。创建本请求时该文件才正式归属它——文件未就位则拒绝创建
         changes:
           $ref: '#/components/schemas/BankSettlementChanges'
     NonBankSettlementChanges:
@@ -1835,7 +1761,7 @@ components:
         storeId:
           type: string
         settlementSchedule:
-          type: string
+          $ref: '#/components/schemas/SettlementCycleCode'
     BankSettlementChanges:
       type: object
       additionalProperties: false
@@ -1859,7 +1785,7 @@ components:
         storeId:
           type: string
         settlementSchedule:
-          type: string
+          $ref: '#/components/schemas/SettlementCycleCode'
     SettlementChanges:
       type: object
       additionalProperties: false
@@ -1870,7 +1796,8 @@ components:
           type: string
           description: 非 bank-related
         settlementSchedule:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
           description: 非 bank-related
         bankName:
           type: string
@@ -1929,10 +1856,9 @@ components:
             - ACTIVE
           description: switcher 仅 INCOMPLETE / PENDING_REVIEW / ACTIVE（REJECTED 不在 switcher）
         relationType:
-          oneOf:
+          allOf:
             - $ref: '#/components/schemas/RelationType'
-            - type: 'null'
-          description: 关联关系（root 商户为 null）
+          description: 关联关系；**root 商户不返回本键**
     AddMerchantRequest:
       type: object
       additionalProperties: false
@@ -1956,18 +1882,31 @@ components:
     PaymentMethodState:
       type: object
       additionalProperties: false
-      description: PaymentMethod 启用状态（按 mode 区分实例，如 instore-wechat / online-wechat）
+      description: '该 mode 下**一个可选支付方式**的呈现与启用态。⚠️ **本数组是候选全集、不是已启用子集**—— 未启用的方式也在里面（`enabled: false`），「管理支付方式」弹窗直接拿它渲染可勾选项，不需要另调接口取候选。'
       required:
         - methodId
+        - displayName
         - enabled
       properties:
         methodId:
           type: string
-          description: 按 mode 区分的 method id（取值以后端返回的可用 PaymentMethod 列表为准，前端不写死）
+          minLength: 1
+          description: 按 mode 区分的 method id（如 `instore-wechat` / `online-alipay`）；提交 `updateAcceptanceModePaymentMethods` 时用它
+          examples:
+            - instore-wechat
+            - online-alipay
+        displayName:
+          type: string
+          description: 展示名（品牌名，如 WeChat Pay）——必返，直接渲染
+        iconUrl:
+          type: string
+          format: uri
+          description: 展示图标 URL；无图标则**不返回本键**，前端按自身资产兜底
         enabled:
           type: boolean
+          description: 该方式当前是否已在本 mode 启用
     AcceptanceModeView:
-      description: AcceptanceMode 分组（开通/审核状态 + 已启用 PaymentMethod + online 当前 URL）
+      description: AcceptanceMode 分组（开通/审核状态 + 该 mode 支付方式候选全集〔含未启用项〕 + online 当前 URL）
       oneOf:
         - title: AcceptanceModeWithPendingUrlChange
           type: object
@@ -1984,11 +1923,9 @@ components:
             status:
               $ref: '#/components/schemas/AcceptanceModeStatus'
             websiteUrl:
-              oneOf:
-                - type: string
-                  format: uri
-                - type: 'null'
-              description: online 当前生效 URL（原 URL 继续生效）
+              type: string
+              format: uri
+              description: online 当前生效 URL（原 URL 继续生效）；**无生效 URL 则不返回本键**
             pendingUrlChange:
               type: boolean
               const: true
@@ -2013,57 +1950,79 @@ components:
             status:
               $ref: '#/components/schemas/AcceptanceModeStatus'
             websiteUrl:
-              oneOf:
-                - type: string
-                  format: uri
-                - type: 'null'
-              description: online 当前生效 URL（in_store 为 null）
+              type: string
+              format: uri
+              description: online 当前生效 URL；**in_store 无 URL，不返回本键**
             pendingUrlChange:
               type: boolean
               const: false
-            urlChangeRequestId:
-              type: 'null'
-              description: 无待审核 URL 变更
             paymentMethods:
               type: array
               items:
                 $ref: '#/components/schemas/PaymentMethodState'
     TerminalIntegrationView:
-      description: TerminalIntegration 摘要（凭据掩码；无生效 provider 时 activeProvider null）
+      description: TerminalIntegration 摘要（凭据掩码）。按 `connected` 判别：已连接分支带生效 provider，未连接分支不带。
       oneOf:
         - title: ActiveTerminalIntegration
           type: object
           additionalProperties: false
           required:
+            - connected
             - activeProvider
             - threedsEnabled
             - credentialSummary
           properties:
+            connected:
+              type: boolean
+              const: true
             activeProvider:
               $ref: '#/components/schemas/TerminalProvider'
             threedsEnabled:
               type: boolean
-              description: 3DS 开关
+              description: 生效 provider 的 3DS 开关
             credentialSummary:
               type: string
               readOnly: true
               description: 凭据掩码摘要（明文 token / secret 不返回）
+            retained:
+              type: array
+              uniqueItems: true
+              description: '**另一个** provider 的保留配置（切换走的那个；没有则不返回本键）。用于「切回去」时预填，语义同未连接分支的 `retained`'
+              items:
+                $ref: '#/components/schemas/RetainedTerminalConfig'
         - title: InactiveTerminalIntegration
           type: object
           additionalProperties: false
           required:
-            - activeProvider
+            - connected
           properties:
-            activeProvider:
-              type: 'null'
-              description: 当前无生效 provider
-            threedsEnabled:
+            connected:
               type: boolean
-              description: 已保留凭据存在时可返回原 3DS 配置
-            credentialSummary:
-              type: string
-              readOnly: true
-              description: 已保留凭据的掩码摘要；从未连接时省略
+              const: false
+              description: 当前无生效 provider——本分支不返回 `activeProvider`
+            retained:
+              type: array
+              uniqueItems: true
+              description: 已保留凭据的 provider 配置；**从未连接过任何 provider 时不返回本键**。两个 provider 都有保留配置时本数组两项，各自归属由项内 `provider` 指明
+              items:
+                $ref: '#/components/schemas/RetainedTerminalConfig'
+    RetainedTerminalConfig:
+      type: object
+      additionalProperties: false
+      description: 某个**当前不生效**的 POS provider 的保留配置——切换走或停用时凭据与 3DS 一并保留，供再次连接时预填。
+      required:
+        - provider
+        - threedsEnabled
+      properties:
+        provider:
+          $ref: '#/components/schemas/TerminalProvider'
+        threedsEnabled:
+          type: boolean
+          description: 该 provider 上次生效时的 3DS 开关；再次连接时以它作为表单初始值
+        credentialSummary:
+          type: string
+          readOnly: true
+          description: 该 provider 保留凭据的掩码摘要（明文不返回）
     EcommerceIntegrationView:
       description: EcommerceIntegration 摘要（不互斥）
       oneOf:
@@ -2076,6 +2035,7 @@ components:
             - status
             - pendingUrlChange
             - urlChangeRequestId
+            - paymentMethodConfig
           properties:
             integrationId:
               type: string
@@ -2090,16 +2050,20 @@ components:
                 - REJECTED
               description: review-gated 态机
             websiteUrl:
-              oneOf:
-                - type: string
-                  format: uri
-                - type: 'null'
+              type: string
+              format: uri
+              description: 当前生效 URL；**无生效 URL 则不返回本键**
             pendingUrlChange:
               type: boolean
               const: true
             urlChangeRequestId:
               type: string
               description: 待审核 URL 变更请求 ID
+            paymentMethodConfig:
+              type: array
+              description: 当前已关联的支付方式（methodId 集）。`manageEcommerceIntegration` 的方式配置分支是**覆盖式**提交，编辑弹窗用本字段预填当前值——漏传即等于取消关联。
+              items:
+                type: string
         - title: EcommerceIntegrationWithoutPendingUrlChange
           type: object
           additionalProperties: false
@@ -2108,6 +2072,7 @@ components:
             - provider
             - status
             - pendingUrlChange
+            - paymentMethodConfig
           properties:
             integrationId:
               type: string
@@ -2122,16 +2087,17 @@ components:
                 - REJECTED
               description: review-gated 态机
             websiteUrl:
-              oneOf:
-                - type: string
-                  format: uri
-                - type: 'null'
+              type: string
+              format: uri
+              description: 当前生效 URL；**无生效 URL 则不返回本键**
             pendingUrlChange:
               type: boolean
               const: false
-            urlChangeRequestId:
-              type: 'null'
-              description: 无待审核 URL 变更
+            paymentMethodConfig:
+              type: array
+              description: 当前已关联的支付方式（methodId 集）。`manageEcommerceIntegration` 的方式配置分支是**覆盖式**提交，编辑弹窗用本字段预填当前值——漏传即等于取消关联。
+              items:
+                type: string
     IntegrationsView:
       type: object
       additionalProperties: false
@@ -2180,7 +2146,7 @@ components:
             - in_store
         storePhotoFileId:
           type: string
-          description: in_store 必填：store photo 文件 id（uploadStorePhoto 返回；PNG / JPEG，默认 ≤ 2MB 可配置）
+          description: in_store 必填：store photo 文件 id（createStorePhotoUploadTarget 返回；PNG / JPEG，默认 ≤ 2MB 可配置）。Connect 时该文件才正式归属本次受理开通——文件未就位则拒绝 Connect
     WebsiteOnlineConnect:
       type: object
       additionalProperties: false
@@ -2223,7 +2189,7 @@ components:
     TerminalIntegrationInput:
       type: object
       description: |
-        连接 / 切换 Terminal provider（多态，按 provider 判别）。凭据保存后仅掩码回显，明文不二次回显。 3DS 开关可选（默认 false）。
+        连接 / 切换 Terminal provider（多态，按 provider 判别）。凭据保存后仅掩码回显，明文不二次回显。 `threedsEnabled` **每次必传**（两个变体均 required）；表单初始值取法见 `connectTerminalIntegration` 说明（按目标 provider 是不是当前生效者分两支，**不要一律从 `retained` 取**），两支都取不到才为 `false`。
       oneOf:
         - $ref: '#/components/schemas/MonerisTerminalInput'
         - $ref: '#/components/schemas/CloverTerminalInput'
@@ -2239,6 +2205,7 @@ components:
         - provider
         - storeId
         - apiToken
+        - threedsEnabled
       properties:
         provider:
           type: string
@@ -2251,8 +2218,7 @@ components:
           description: 明文输入（保存后掩码回显）
         threedsEnabled:
           type: boolean
-          default: false
-          description: 3DS 开关（线上交易 3DS 验证）
+          description: 3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。**表单初始值按目标 provider 是不是当前生效者分两支取**：目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;两支都取不到才 `false`
     CloverTerminalInput:
       type: object
       additionalProperties: false
@@ -2260,6 +2226,7 @@ components:
         - provider
         - publicToken
         - privateToken
+        - threedsEnabled
       properties:
         provider:
           type: string
@@ -2272,8 +2239,7 @@ components:
           description: 明文输入（保存后掩码回显）
         threedsEnabled:
           type: boolean
-          default: false
-          description: 3DS 开关（线上交易 3DS 验证）
+          description: 3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。**表单初始值按目标 provider 是不是当前生效者分两支取**：目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;两支都取不到才 `false`
     EcommerceIntegrationInput:
       type: object
       additionalProperties: false
@@ -2292,7 +2258,7 @@ components:
         paymentMethodConfig:
           type: array
           minItems: 1
-          description: 关联 online PaymentMethod id（取值以后端返回的可用 PaymentMethod 列表为准，前端不写死）
+          description: 关联 online PaymentMethod id（取自 `getServicePage` 的 online mode `paymentMethods[].methodId`，前端不写死）
           items:
             type: string
     EcommerceIntegrationManage:
@@ -2334,6 +2300,7 @@ components:
             - present
             - fileName
             - fileType
+            - previewUrl
             - downloadUrl
           properties:
             docType:
@@ -2354,11 +2321,16 @@ components:
             fileType:
               type: string
               description: MIME 类型（如 application/pdf、image/jpeg）
+            previewUrl:
+              type: string
+              format: uri
+              readOnly: true
+              description: '**内联展示**用引用（浏览器直接渲染，如放进 `<img>` 或内嵌查看器）。 **短时效**、过期后重新调本接口取新值；**不要持久化、不要分享**——这类文档含身份与银行资料，地址泄露即资料泄露。'
             downloadUrl:
               type: string
               format: uri
               readOnly: true
-              description: 预览 / 下载引用
+              description: '**下载**用引用（浏览器另存为文件）。与 `previewUrl` 指向同一份文件、只是交付方式不同。 **短时效**、过期后重新调本接口取新值；**不要持久化、不要分享**。'
         - title: MissingDocument
           type: object
           additionalProperties: false
@@ -2397,30 +2369,12 @@ components:
           description: 2 可选 Other（仅已上传时返回，未上传不占位）
           items:
             $ref: '#/components/schemas/DocumentItem'
-    Currency:
+    DiagnosticDetail:
       type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
-    Money:
-      type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
-      required:
-        - amount
-        - currency
-      properties:
-        amount:
-          type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。可重定义面默认最小单位整数字符串;十进制金额须接口契约显式声明。
-        currency:
-          $ref: '#/components/schemas/Currency'
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
     ErrorEnvelope:
       type: object
-      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
       required:
         - code
         - detail
@@ -2429,8 +2383,9 @@ components:
           type: integer
           description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
         detail:
-          type: string
-          description: 错误描述(面向调用方;本地化按 locale)。
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
         links:
           type: object
           description: 可选:错误说明 / 后续恢复操作链接。
@@ -2452,76 +2407,165 @@ components:
                 type: string
               issue:
                 type: string
-    MerchantBffError:
-      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
-      allOf:
-        - $ref: '#/components/schemas/ErrorEnvelope'
-        - type: object
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
           properties:
-            context:
-              type: object
-              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
-              properties:
-                currentMerchantId:
-                  type:
-                    - string
-                    - 'null'
-                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
-                attemptsRemaining:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战错误但可重试时的剩余尝试次数（错误可重试 400 携带；**整数类型、走 context 结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            currentMerchantId:
+              type: string
+              description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            maskedEmail:
+              type: string
+              description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+    SettlementCycleCode:
+      type: string
+      minLength: 1
+      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（`400`·`204017` + `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    SettlementCycleOption:
+      type: object
+      description: 结算周期档位的一个候选项（入驻向导与商户资料的 Settlement 编辑面共用同一形状）。
+      additionalProperties: false
+      required:
+        - code
+        - displayName
+      properties:
+        code:
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
+          description: 本档位的稳定取值；候选集与取值域由后端配置决定，契约不写死。
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 展示名（**非本地化**、不随 locale 变）。前端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+    FileUploadTargetRequest:
+      type: object
+      additionalProperties: false
+      description: '**申请直传目标的入参**。所有上传入口形状一致 —— 用**声明值**换一个直传目标,文件字节不经本平台 API。 校验按声明值做:`purpose` 决定允许的格式与大小上限,不合规 → 400 且**不签发目标**; 两项同时写入目标的提交条件,实际超限的文件在提交时即被存储端拒收。 **内容类型按声明判定,不做内容识别。**'
+      required:
+        - purpose
+        - fileName
+        - contentType
+        - fileSize
+      properties:
+        purpose:
+          type: string
+          description: 文件用途 —— 决定允许的格式、大小上限与取用方式。取值集合由各消费面自行定义; **每个上传入口只接受它所属业务范围内的用途**,传入范围外的用途 → 400。
+        fileName:
+          type: string
+          description: 原始文件名(保留作展示;直传后服务端无从取得,须在此声明)。
+        contentType:
+          type: string
+          description: 声明的内容类型;不在该 `purpose` 的白名单内 → 400。
+        fileSize:
+          type: integer
+          format: int64
+          description: 声明的字节数;超该 `purpose` 的上限 → 400。上限同时写入提交条件。
+    MerchantFilePurpose:
+      type: string
+      description: |
+        商户后台可上传的**文件用途**总表 —— 用途决定允许的格式、大小上限与取用方式。
+        每个上传入口只接受它所属业务范围内的用途（各入口在自己的请求体里列出），传入范围外的用途 → 400。
+
+        | 用途 | 允许格式 | 大小上限 | 传上去之后怎么取用 |
+        |---|---|---|---|
+        | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
+        | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `merchant_logo` | PNG / JPEG | 默认 512KB（可配置） | 长效稳定的公开地址（要展示给外部访客） |
+        | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `payment_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `payment_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+
+        **短时效地址不要持久化、不要分享**（过期即失效，重新读取所在资源可拿到新的）；长效公开地址可直接放进页面。
+      enum:
+        - onboarding_document
+        - settlement_void_cheque
+        - store_photo
+        - merchant_logo
+        - payment_page_logo
+        - payment_link_banner
+        - payment_link_brand_logo
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
-    ResendCooldownError:
-      description: 重发冷却错误体（`TooManyRequestsWithCooldown` 用；OTP 挑战 / 邀请链接等重发场景通用）：在 MerchantBffError 上把 `code` 钉死 208013、`context.cooldownSeconds` 强制必带（整数冷却剩余秒数——覆盖刷新 / 跨标签页，首次成功响应的 `cooldownSeconds` 之外的权威剩余值）。
-      allOf:
-        - $ref: '#/components/schemas/MerchantBffError'
-        - type: object
-          required:
-            - context
-          properties:
-            code:
-              const: 208013
-            context:
-              type: object
-              required:
-                - cooldownSeconds
-              properties:
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
-    OtpRetryableError:
-      description: OTP 可重试错误体（`OtpRetryableBadRequest` 用）：在 MerchantBffError 上把 `code` 钉死 204010、`context.attemptsRemaining` 强制必带（整数剩余尝试次数）。
-      allOf:
-        - $ref: '#/components/schemas/MerchantBffError'
-        - type: object
-          required:
-            - context
-          properties:
-            code:
-              const: 204010
-            context:
-              type: object
-              required:
-                - attemptsRemaining
-              properties:
-                attemptsRemaining:
-                  type: integer
-                  minimum: 0
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+    FileUploadTarget:
+      type: object
+      description: '**文件直传目标**。上传分两步:先向业务接口取得本对象,再由客户端把文件连同 `fields` 一起提交到 `action`; 提交成功后回到业务接口完成绑定 —— **未完成绑定的文件不可用**(取不到、无法预览或下载)。 提交方式**固定**:`POST` + `multipart/form-data`,先把 `fields` 逐项追加,**最后**追加名为 `file` 的文件本体 (存储端要求文件是最后一个字段,其后的字段会被忽略)。**不要手设 `Content-Type`** —— 直接提交 `FormData` 让客户端自己带上 `boundary`,手设会丢 `boundary`、导致存储端解析不出表单。 `fields` **必须原样全部提交、不得增删或改写**:签名与签发时的条件(允许的内容类型、大小上限、有效期)绑定,改动会被存储端拒绝。 **成功判据 = HTTP 2xx**(具体码由存储端决定,不要判具体值);失败时返回的是**存储端自己的格式、不是本平台错误体**。 本对象**限时有效、一次性**,且**只能用于其中的那个 `fileId`**——不能拿它上传别的文件。 **提交失败后不要向原目标重试**:重新申请一个目标,会得到**新的 `fileId`**,后续业务提交须改用新引用;过期同理。'
+      required:
+        - fileId
+        - action
+        - fields
+        - expiresAt
+      properties:
+        fileId:
+          type: string
+          description: 该文件的稳定引用。业务侧后续一律用它指代此文件(绑定 / 取用 / 展示均凭此); **不要保存 `action` 或任何物理地址** —— 存储位置会变更,而 `fileId` 不变。
+          examples:
+            - 0f8c2a6e4b1d47f0a9c3e5d7b2148a6f
+        action:
+          type: string
+          format: uri
+          description: 表单提交目标(对象存储端点,非本平台 API)。
+        fields:
+          type: object
+          additionalProperties:
+            type: string
+          description: 必须随文件一起提交的表单字段(含签名)。原样提交、键值不改; **文件本体在这些字段全部追加完之后、以 `file` 为字段名追加**(必须是最后一个字段)。
+        expiresAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          description: 本目标的失效时刻。**过了这个点提交会被存储端拒绝**,须重新申请一个目标。 用户选好文件后放置较久、或准备提交大文件时,可据此提前判断要不要先换一个新目标, 不必等提交失败再回退。
+    OtpCode:
+      type: string
+      pattern: ^[0-9]{6}$
+      description: |
+        **一次性验证码**:恒为 **6 位纯数字**,长度固定、不随部署变化 —— 客户端可据此做输入框长度限制与"填满即可提交"的交互。
+
+        **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
+
+        本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
+    RefundPin:
+      type: string
+      writeOnly: true
+      pattern: ^[0-9]{6}$
+      description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行； **不一致 → 409 `MerchantBffConflict`**（`code` `208001`、`MERCHANT_CONTEXT_CHANGED`）——**读不返回错商户数据、写不执行**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：listMerchants（返回 currentMerchantId 的 re-sync 入口）、switchCurrentMerchant（切换当前商户）、withdrawOnboardingApplication（目标由 path 指定、与当前商户无关）、以及不依赖当前商户的接口。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -2529,7 +2573,7 @@ components:
       name: X-CSRF-Token
       in: header
       required: true
-      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
       schema:
         type: string
         minLength: 1
@@ -2544,99 +2588,9 @@ components:
         minLength: 1
         pattern: \S
   responses:
-    Unauthorized:
-      description: 401 未认证 / 凭证无效或已撤销
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Forbidden:
-      description: 403 无权限(fail-secure,默认拒绝)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    NotFound:
-      description: 404 资源不存在
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    MerchantBffConflict:
+    MerchantBffDefaultError:
       description: |
-        409 冲突。前端据整数 `code` 区分子因——**常见 `208xxx` 商户后台 BFF 业务·资源型**（下列枚举）；**部分 409 另带身份类业务码**（如 `968xxx`：Login ID 占用 / 改邮箱在途等），**具体码以该 op 的 `x-error-codes` 为准**（另有同域 op 专属 `208xxx`，均不在此枚举）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**必携 `context.currentMerchantId`** 供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208005` 幂等键复用但 payload 不一致。 （`208004` 乐观锁基线漂移为 op 专属〔如签名公钥 `expectedKeyVersion` 版本校验〕，见该 op `x-error-codes`、不在此通用枚举。） 前端动作：208001 刷新当前商户、208002 提示已存在、208003 重载最新态、208005 排查重复请求。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/MerchantBffError'
-          examples:
-            staleTab:
-              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
-              value:
-                code: 208001
-                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
-                context:
-                  currentMerchantId: '1000024'
-            businessConflict:
-              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
-              value:
-                code: 208002
-                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
-            idempotencyConflict:
-              summary: 幂等键冲突（code 208005，同 Idempotency-Key 复用但请求内容不一致；业务·资源型无 context）
-              value:
-                code: 208005
-                detail: 该幂等键已用于其他请求内容，请核对原请求；如确需发起新的业务操作，再使用新幂等键
-    BadRequest:
-      description: 400 业务/校验错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    PayloadTooLarge:
-      description: 413 上传内容超过大小上限(文件 / 请求体；尺寸上限部署可配)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    BadGateway:
-      description: 502 上游通道错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    TooManyRequestsWithCooldown:
-      description: |
-        429 Resend 冷却中：错误体 = `MerchantBffError`，**剩余冷却秒数走 `context.cooldownSeconds`**（整数、权威值——覆盖刷新 / 跨标签页，不依赖首次成功响应的 `cooldownSeconds`）。整数 `code` 见该 op `x-error-codes`。前端据此从收到响应时刻本地倒计时、冷却结束前禁重发。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ResendCooldownError'
-          example:
-            code: 208013
-            detail: 请求过于频繁，请稍后重试
-            context:
-              cooldownSeconds: 42
-    OtpRetryableBadRequest:
-      description: |
-        400 OTP / 挑战错误但**可重试**（尝试未超限）：错误体 = `MerchantBffError`，**剩余尝试次数走 `context.attemptsRemaining`**（整数类型）； `details` 仍只做请求字段级校验红框、不承载剩余次数。整数 `code` 见该 op `x-error-codes`。 区别于同族其它 OTP 终态：**尝试超限锁定 → 423** / **过期·已消费 → 410** / **Resend 冷却 → 429**（各自响应，不在本响应）。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/OtpRetryableError'
-          example:
-            code: 204010
-            detail: 验证码错误，请重试
-            context:
-              attemptsRemaining: 3
-    Gone:
-      description: 410 一次性凭据失效(OTP / 验证链接 过期 / 已使用)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Locked:
-      description: 423 登录临时锁定(防爆破)
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

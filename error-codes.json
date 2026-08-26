@@ -1,0 +1,381 @@
+{
+  "codes": {
+    "204001": {
+      "httpStatus": 400,
+      "name": "APPLICATION_FIELD_INVALID",
+      "retryable": false
+    },
+    "204002": {
+      "httpStatus": 400,
+      "name": "REQUIRED_DOCUMENTS_INCOMPLETE",
+      "retryable": false
+    },
+    "204003": {
+      "httpStatus": 400,
+      "name": "INVOICE_AMOUNT_INVALID",
+      "retryable": false
+    },
+    "204004": {
+      "httpStatus": 400,
+      "name": "INVOICE_DUE_DATE_INVALID",
+      "retryable": false
+    },
+    "204005": {
+      "httpStatus": 400,
+      "name": "PAYMENT_METHOD_SELECTION_EMPTY",
+      "retryable": false
+    },
+    "204006": {
+      "httpStatus": 400,
+      "name": "CONTENT_CURRENCY_MISMATCH",
+      "retryable": false
+    },
+    "204007": {
+      "httpStatus": 400,
+      "name": "REFUND_AMOUNT_INVALID",
+      "retryable": false
+    },
+    "204008": {
+      "httpStatus": 400,
+      "name": "REFUND_REJECTED",
+      "retryable": false
+    },
+    "204009": {
+      "httpStatus": 400,
+      "name": "EXPORT_RESULT_SET_TOO_LARGE",
+      "retryable": false
+    },
+    "204010": {
+      "httpStatus": 400,
+      "name": "OTP_RETRYABLE",
+      "requiredContextFields": [
+        "attemptsRemaining"
+      ],
+      "retryable": true
+    },
+    "204011": {
+      "httpStatus": 400,
+      "name": "SIGNING_KEY_INVALID_PEM",
+      "retryable": false
+    },
+    "204012": {
+      "httpStatus": 400,
+      "name": "WINDOW_RANGE_TOO_LARGE",
+      "retryable": false
+    },
+    "204013": {
+      "httpStatus": 400,
+      "name": "GIFTCARD_CONTENT_INVALID",
+      "retryable": false
+    },
+    "204014": {
+      "httpStatus": 400,
+      "name": "FILE_NOT_IN_PLACE",
+      "retryable": false
+    },
+    "204015": {
+      "httpStatus": 400,
+      "name": "FILE_DECLARATION_REJECTED",
+      "retryable": false
+    },
+    "204016": {
+      "httpStatus": 400,
+      "name": "RESERVE_WITHDRAWAL_SELECTOR_INVALID",
+      "retryable": false
+    },
+    "204017": {
+      "httpStatus": 400,
+      "name": "SETTLEMENT_FIELD_INVALID",
+      "retryable": false
+    },
+    "206001": {
+      "httpStatus": 410,
+      "name": "AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED",
+      "retryable": false
+    },
+    "206002": {
+      "httpStatus": 410,
+      "name": "AUTH_REGISTRATION_ALREADY_ACTIVATED",
+      "retryable": false
+    },
+    "206003": {
+      "httpStatus": 403,
+      "name": "REFUND_PIN_INVALID",
+      "retryable": false
+    },
+    "206004": {
+      "httpStatus": 423,
+      "name": "REFUND_PIN_LOCKED",
+      "retryable": false
+    },
+    "206005": {
+      "httpStatus": 403,
+      "name": "OTP_INTENT_MISMATCH",
+      "retryable": false
+    },
+    "206006": {
+      "httpStatus": 410,
+      "name": "CHALLENGE_EXPIRED_OR_CONSUMED",
+      "retryable": false
+    },
+    "206007": {
+      "httpStatus": 423,
+      "name": "CHALLENGE_LOCKED",
+      "retryable": false
+    },
+    "206008": {
+      "httpStatus": 410,
+      "name": "EXPORT_LINK_EXPIRED",
+      "retryable": false
+    },
+    "206009": {
+      "httpStatus": 410,
+      "name": "INVITATION_TOKEN_INVALID_OR_EXPIRED",
+      "retryable": false
+    },
+    "206010": {
+      "httpStatus": 410,
+      "name": "INVITATION_ALREADY_ACCEPTED",
+      "retryable": false
+    },
+    "206011": {
+      "httpStatus": 403,
+      "name": "STEP_UP_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "206012": {
+      "httpStatus": 400,
+      "name": "LOGIN_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "208001": {
+      "httpStatus": 409,
+      "name": "MERCHANT_CONTEXT_CHANGED",
+      "requiredContextFields": [
+        "currentMerchantId"
+      ],
+      "retryable": false
+    },
+    "208002": {
+      "httpStatus": 409,
+      "name": "PENDING_REQUEST_EXISTS",
+      "retryable": false
+    },
+    "208003": {
+      "httpStatus": 409,
+      "name": "STATE_PRECONDITION_MISMATCH",
+      "retryable": false
+    },
+    "208004": {
+      "httpStatus": 409,
+      "name": "BASELINE_DRIFT",
+      "retryable": false
+    },
+    "208005": {
+      "httpStatus": 409,
+      "name": "IDEMPOTENCY_PAYLOAD_CONFLICT",
+      "retryable": false
+    },
+    "208006": {
+      "httpStatus": 409,
+      "name": "INVOICE_HAS_PENDING_PAYMENT",
+      "retryable": false
+    },
+    "208007": {
+      "httpStatus": 409,
+      "name": "PAYMENT_METHOD_NOT_ACCEPTABLE",
+      "retryable": false
+    },
+    "208009": {
+      "httpStatus": 409,
+      "name": "REFUND_NOT_CANCELLABLE",
+      "retryable": false
+    },
+    "208010": {
+      "httpStatus": 409,
+      "name": "PREAUTH_NOT_RELEASABLE",
+      "retryable": false
+    },
+    "208011": {
+      "httpStatus": 409,
+      "name": "REFUND_REQUEST_IN_PROGRESS",
+      "retryable": true
+    },
+    "208012": {
+      "httpStatus": 409,
+      "name": "NOTIFICATION_RECIPIENT_DUPLICATE",
+      "retryable": false
+    },
+    "208013": {
+      "httpStatus": 429,
+      "name": "CHALLENGE_RESEND_COOLDOWN",
+      "requiredContextFields": [
+        "cooldownSeconds"
+      ],
+      "retryable": true
+    },
+    "208014": {
+      "httpStatus": 409,
+      "name": "GATEWAY_CREDENTIAL_UNAVAILABLE",
+      "retryable": false
+    },
+    "208015": {
+      "httpStatus": 409,
+      "name": "SIGNING_KEY_ROTATION_GRACE_ACTIVE",
+      "retryable": false
+    },
+    "208016": {
+      "httpStatus": 409,
+      "name": "ATTRIBUTION_DAY_SEALED",
+      "retryable": false
+    },
+    "208017": {
+      "httpStatus": 409,
+      "name": "GIFTCARD_FULFILLMENT_MODE_IMMUTABLE",
+      "retryable": false
+    },
+    "208018": {
+      "httpStatus": 409,
+      "name": "GIFTCARD_VOUCHER_NOT_VOIDABLE",
+      "retryable": false
+    },
+    "208019": {
+      "httpStatus": 409,
+      "name": "GIFTCARD_CREDENTIAL_NOT_RESENDABLE",
+      "retryable": false
+    },
+    "208020": {
+      "httpStatus": 409,
+      "name": "GIFTCARD_RISK_DISPOSITION_STALE",
+      "retryable": false
+    },
+    "208021": {
+      "httpStatus": 409,
+      "name": "DEVICE_SERIAL_TAKEN",
+      "retryable": false
+    },
+    "208022": {
+      "httpStatus": 409,
+      "name": "MERCHANT_NOT_ACCESSIBLE",
+      "retryable": false
+    },
+    "208023": {
+      "httpStatus": 409,
+      "name": "MERCHANT_HIERARCHY_DEPTH_EXCEEDED",
+      "retryable": false
+    },
+    "208024": {
+      "httpStatus": 409,
+      "name": "ONBOARDING_WITHDRAWAL_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "208025": {
+      "httpStatus": 409,
+      "name": "PAYMENT_LINK_FIELD_FROZEN_AFTER_SALE",
+      "retryable": false
+    },
+    "208026": {
+      "httpStatus": 409,
+      "name": "ACCEPTANCE_MODE_ALREADY_ACTIVE",
+      "retryable": false
+    },
+    "208027": {
+      "httpStatus": 403,
+      "name": "LOGIN_ACCOUNT_DISABLED",
+      "retryable": false
+    },
+    "208028": {
+      "httpStatus": 403,
+      "name": "LOGIN_MERCHANT_SUSPENDED",
+      "retryable": false
+    },
+    "208029": {
+      "httpStatus": 403,
+      "name": "LOGIN_EMAIL_UNVERIFIED",
+      "requiredContextFields": [
+        "maskedEmail"
+      ],
+      "retryable": false
+    },
+    "966001": {
+      "httpStatus": 423,
+      "name": "ACCOUNT_LOCKED",
+      "retryable": false
+    },
+    "966002": {
+      "httpStatus": 410,
+      "name": "ONE_TIME_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "966003": {
+      "httpStatus": 423,
+      "name": "CHALLENGE_ATTEMPTS_LOCKED",
+      "retryable": false
+    },
+    "968001": {
+      "httpStatus": 409,
+      "name": "LOGIN_ID_TAKEN",
+      "retryable": false
+    },
+    "968002": {
+      "httpStatus": 409,
+      "name": "EXTERNAL_ACCOUNT_OCCUPIED",
+      "retryable": false
+    },
+    "968003": {
+      "httpStatus": 409,
+      "name": "WECHAT_ENROLLMENT_ALREADY_ACTIVE",
+      "retryable": false
+    },
+    "968004": {
+      "httpStatus": 409,
+      "name": "MFA_ALREADY_ENROLLED",
+      "retryable": false
+    },
+    "968005": {
+      "httpStatus": 409,
+      "name": "IDENTITY_ALREADY_VERIFIED",
+      "retryable": false
+    },
+    "968006": {
+      "httpStatus": 409,
+      "name": "MEMBERSHIP_STATE_CONFLICT",
+      "retryable": false
+    },
+    "968007": {
+      "httpStatus": 409,
+      "name": "CONFIG_VERSION_CONFLICT",
+      "retryable": false
+    },
+    "968008": {
+      "httpStatus": 409,
+      "name": "ACTIVATION_GRANT_CONFLICT",
+      "retryable": false
+    },
+    "968009": {
+      "httpStatus": 409,
+      "name": "SESSION_REFRESH_CONFLICT",
+      "retryable": false
+    },
+    "968010": {
+      "httpStatus": 409,
+      "name": "LOGIN_EMAIL_CHANGE_IN_FLIGHT",
+      "retryable": false
+    },
+    "968011": {
+      "httpStatus": 409,
+      "name": "XCUT_IDEMPOTENCY_PAYLOAD_CONFLICT",
+      "retryable": false
+    },
+    "968012": {
+      "httpStatus": 409,
+      "name": "CONFIG_CONSTRAINT_VIOLATION",
+      "retryable": false
+    },
+    "968013": {
+      "httpStatus": 409,
+      "name": "MEMBERSHIP_ALREADY_EXISTS",
+      "retryable": false
+    }
+  }
+}

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>API 基础约定 — 调用时序</title>
+<title>API 基础约定</title>
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
 <p><a href="./">← 全部契约</a></p>
 <div id="content"></div>
@@ -19,8 +19,10 @@
 
 ## 鉴权与 CSRF
 
-- **会话**：登录成功后 BFF 下发 httpOnly opaque 会话 cookie；**浏览器不持 token**（服务端持后端 token），前端拿不到也不需要。
-- **CSRF**：以 cookie 承载会话的面，非安全方法（POST / PUT / DELETE）一律带 `X-CSRF-Token`（double-submit）；缺失 / 不匹配 → `403`。
+- **会话**：登录成功后 BFF 下发 httpOnly opaque 会话 cookie（`__Host-msession`，`Secure` + `SameSite=Lax`）；**浏览器不持 token**（服务端持后端 token），前端拿不到也不需要。
+- **CSRF**：以 cookie 承载会话的面，非安全方法（POST / PUT / **PATCH** / DELETE）一律带 `X-CSRF-Token`（double-submit）；缺失 / 不匹配 → `403` fail-closed。
+  - **取值**：建会话时 BFF 同时下发**可读**伴生 cookie `__Host-mcsrf`（非 httpOnly、与会话同生命周期、同 path）。每次发非安全方法请求时从该 cookie 读出、**原样**放进 `X-CSRF-Token`。
+  - **不要缓存该值**：会话轮换时（登录 / 改密后重建会话）两个 cookie 一起换，每次从 cookie 现读。
 - 公开端点（注册 / 登录 / 找回等 `security: []`）无会话、故无 CSRF。
 
 ## 应用启动链路（bootstrap，登录 / 扫码 / 激活后必走）
@@ -28,34 +30,43 @@
 登录 / 微信扫码 / 邮箱激活成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录 / 激活响应直接携带 merchantId 或路由**：
 
 1. `getCurrentSession`（`GET /sessions/current`）→ 取 `merchantId`（当前商户内部 id）、`menus`（可见菜单树）、`landingPage`（默认落地页）。
-2. 以该 `merchantId` 初始化 `X-Merchant-Context`，作为后续所有 merchant-scoped 调用的 header（见下「merchant scope 守卫」）。
+2. 以该 `merchantId` 初始化 `X-Merchant-Context`，作为后续所有 merchant-scoped 调用的 header（见下「merchant scope + stale-tab 守卫」）。
 3. `getOnboardingStatus`（`GET /onboarding/status`，带 `X-Merchant-Context`）→ `routeTo` 决定落到哪个区域：`ONBOARDING_WIZARD` / `REVIEW_STATUS_PAGE` / `REJECTED_PAGE` / `MERCHANT_HOME`。
 4. **`routeTo` 是区域分流的唯一真相源**；**仅 `routeTo = MERCHANT_HOME` 时才采用 `landingPage`**（商户后台内默认页）。入驻 / 审核 / 拒绝区域不看 `landingPage`。
 
-> **`merchantId = null`（无当前商户）分支**：`getCurrentSession.merchantId` 可为 null（撤回当前商户 / 无可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / 入驻相关接口**。
+> **无当前商户分支**：`getCurrentSession` **可能不返回 `merchantId` 键**（该用户当前没有任何可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / 入驻相关接口**。
 >
-> 邮箱激活与登录在此链路上等价：激活成功即建会话，FE 同样从 `getCurrentSession` 起步。
+> 邮箱激活**在建了会话时**与登录等价，FE 同样从 `getCurrentSession` 起步；激活响应的 `sessionEstablished=false` 则表示账号已激活但本次没建会话，跳登录页首次密码登录——**两支都要留**，别默认激活必然带会话。
 
 ## merchant scope + stale-tab 守卫（`X-Merchant-Context`）
 
 商户后台**单会话单当前商户**；会话当前商户 = merchant scope **唯一权威**（服务端不信请求体里的 merchantId）。FE 须实现**统一 interceptor**：
 
 - **发送**：所有 merchant-current-scoped 读 + 写请求带 header `X-Merchant-Context = 当前 merchantId`（来源 = `getCurrentSession`；切换商户后更新）。它是**守卫、非 selector**——服务端只比对、不据它选商户。
-- **冲突**：`X-Merchant-Context` ≠ 会话当前商户（如另一标签页已切换）→ 服务端**读不返回错商户数据、写不执行**，返 **`409` `208001`（`MERCHANT_CONTEXT_CHANGED`）**，body `context.currentMerchantId` = 会话真实当前商户。
-- **interceptor 处理**：读 `context.currentMerchantId` → 更新前端当前商户 + 提示用户；**安全读（GET）自动重放**到新当前商户；**写请求不自动重放**（由用户重新发起，杜绝静默跨商户写）。
+- **冲突**：`X-Merchant-Context` ≠ 会话当前商户 → 服务端**读不返回错商户数据、写不执行**，`409` + 按两种情形分码：
+  - **会话有当前商户、只是与你发的不同**（如另一标签页已切换）→ **`208001`（`MERCHANT_CONTEXT_CHANGED`）**，body `context.currentMerchantId` = 会话真实当前商户。
+  - **会话没有当前商户**（无可回显者）→ **`409` `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，处置同「商户可访问性」一节：**重跑启动链路、按 `routeTo` 分流**（不是跳登录，会话是好的）。
+- **interceptor 处理**（`208001`）：读 `context.currentMerchantId` → 更新前端当前商户 + 提示用户；**安全读（GET）自动重放**到新当前商户；**写请求不自动重放**（由用户重新发起，杜绝静默跨商户写）。
+- **无当前商户时不要发 merchant-scoped 请求**：该 header 必带且不接受空值，没有当前商户就没有值可发——此时应停在「无可用商户」态或商户选择界面（见上「无当前商户分支」），只调豁免类接口；旧标签页带着已失效的值继续发，就是上面 `208022` 那一支。
 - **豁免**（不带守卫 / 不触发该 409）：`listMerchants`、`switchCurrentMerchant`、`withdrawOnboardingApplication`（path-selector，target 由 path 定）、以及不依赖当前商户的全局 / 公开接口。
 
 ## HTTP 状态语义
 
-用 HTTP status 表达请求结果；非 `2xx` 时响应体只返 `ErrorEnvelope`（见下）。
+用 HTTP status 表达请求结果，**语义即 RFC 原义**（本文不复述）；非 `2xx` 时响应体只返 `ErrorEnvelope`（见下）。以下几个是本平台**做了收窄或借用**的，按这里的口径认：
 
-| 区间 | 含义 |
+| status | 本平台口径 |
 |---|---|
-| `2xx` | `200` 成功 / `201` 创建 / **`202` 已受理**（非终态，结果待查询 / 事件 / 回调收敛） |
-| `4xx` | `400` 参数 · `401` 未认证 · `403` 无权 · `404` 不存在 · `409` 幂等键 payload 冲突或资源状态冲突 · **`410` 一次性凭据失效**（OTP / 验证链接 过期或已用）· **`423` 临时锁定**（防爆破）· `429` 限流 |
-| `5xx` | `500` 内部 · `502` 上游 · `504` 上游超时 |
+| `400` | 登录 / 二次校验的**凭据输错**走这里，**不走 `401`**（见下「凭据错 ≠ 会话失效」） |
+| `401` | **只表会话失效** → 跳登录页。凭据输错不占 `401` |
+| `409` | 除资源状态冲突外，**幂等键 payload 冲突**也走这里（见下「幂等」） |
+| `410` | **一次性凭据失效**：OTP / 验证链接 过期或已用 → 回第一步重新发起 |
+| `423` | **账号临时锁定**（连续失败防爆破）→ 等冷却 |
 
-`202` 仅表示已受理，**不能当最终成功**。
+**跨 scope 的资源一律 `404`**（不区分「这东西不存在」与「它不属于你」）——反枚举。所以拿到 `404` 时**不要**据此推断资源是否真的存在、更不要提示用户「无权访问该资源」；按「找不到」处理即可。
+
+**列表 / 详情类读接口不做部分成功**——不会返回半截列表或缺列的详情，失败即整份响应失败。所以 FE 按整块降级（如展示「暂不可用」+ 重试入口），不必去判断"这批数据是不是只回来一半"。
+
+**例外：响应体内显式声明分块状态的端点**（如各区块带 `status: available | unavailable`、或带 `degraded` 标志）——这类端点**单块失败仍返 `200`**、其余块照常渲染，FE 须**逐块判别**。哪些端点如此、各块怎么判，以该端点自身的契约为准。
 
 ## 错误响应体 `ErrorEnvelope`
 
@@ -63,25 +74,94 @@
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `code` | integer | 结构化整数错误码，**与 HTTP 状态正交**；可解析「责任方 + 来源域」，不必逐条查表 |
-| `detail` | string | 错误描述（面向调用方，按 locale 本地化） |
+| `code` | integer | 结构化整数错误码，**与 HTTP 状态正交**——**分流一律按 `code`**，HTTP status 只作大类（见下「怎么读 `code`」）|
+| `detail` | string | **诊断描述**——给排查用（日志 / 客服 / 配合 `traceId`），**不做本地化、不要直接展示给用户**。用户可见文案：按 `code` 查码表取 `name` 当 i18n key，从你自己的多语言资源渲染 |
 | `links` | object（可选） | 错误说明 / 后续恢复操作链接 |
 | `traceId` | string（可选） | 串联日志 / 分布式 trace，出错可直连诊断 |
 | `details` | array（可选） | 字段级校验错误 `[{ field, issue }]`，把错误定位到具体字段 |
+| `context` | object（可选） | 该错误专属的结构化上下文（如 stale-tab 冲突回显 `currentMerchantId`、可重试 OTP 回显 `attemptsRemaining`）。**哪些码必带哪些字段，见码表的 `requiredContextFields`**——不要按状态码猜 |
 
 必填仅 `code` + `detail`。
 
-### `code` 责任方维度 → 前端处理策略
+### 怎么读 `code`
 
-`code` 自带「谁的错」，可据此分流处理与告警分级：
+**随包发了一份错误码表 `error-codes.json`**（在 payload 根目录，与 `conventions.html` 同级）。它给的是**码的固有属性**——不随调用点变的那部分：
 
-| 责任方 | 含义 | 前端策略 |
+| 字段 | 拿它做什么 |
+|---|---|
+| `name` | 符号名，**直接当 i18n key**：用户看到的文案由你从自己的多语言资源渲染，不要显示服务端返回的 `detail` |
+| `httpStatus` | 该码对应的 HTTP 状态。每个 op 只声明 `responses.default`，status ↔ code 的映射只能在这里查 |
+| `retryable` | 重试有没有用 |
+| `requiredContextFields` | 该码必带哪些 `context` 字段 |
+
+**「这个码什么时候出现、你该怎么处理」不在码表里，看返回它的那个接口的说明**——同一个码在不同接口下的成因与正确处置可以不同（例：状态冲突类的码，在删除类接口上是「重拉最新状态再试」，在创建类接口上是「把冲突字段标红、别重试」）。所以码表只回答「这个码是什么」，接口文档回答「在这儿它意味着什么、你该做什么」。
+
+每个接口的 `x-error-codes` 列的是**该接口特定的业务码**；通用失败（未认证 / 无权 / 限流 / 上游不可用等）不逐个列，按下面的责任方策略兜底即可。
+
+**码表里查不到的码**（新增码、或本次未随包的域）按结构解析——码 = `XX`（能力域段）+ `Y`（责任方位）+ `ZZZ`（域内末段）：
+
+| `Y` | 责任方 | 含义 | 前端策略 |
+|---|---|---|---|
+| `4` | 客户端·参数校验 | 报文 / 参数 / 格式 / 正则不合法（不含业务冲突） | 提示输入错误，结合 `details` 定位字段 |
+| `5` | 服务端·内部 | 内部异常 / 基础设施不可用 / 资源耗尽 | 提示系统繁忙，允许重试 |
+| `6` | 客户端·权限安全 | 令牌失效 / 签名失败 / 无权操作 | 跳登录或提示无权访问 |
+| `7` | 第三方·外部服务 | 微信 / 支付宝 / 银联等超时或返回失败 | 提示渠道繁忙或透传渠道错误 |
+| `8` | 业务·资源 | 请求合法但业务状态不满足 / 资源不存在 | 展示业务错误文案 |
+
+**一次性挑战（OTP / 验证链接 / TOTP）的失败码有两组**——`206006` / `206007` 与 `966002` / `966003`。**两组对前端处置完全相同**，认全即可（分两组是平台内部的记账方式，与你无关）：
+
+| 情形 | 码 | 你该做什么 |
 |---|---|---|
-| 客户端·参数校验 | 报文 / 参数 / 格式 / 正则不合法（不含业务冲突） | 提示输入错误，结合 `details` 定位字段 |
-| 服务端·内部 | 内部异常 / 基础设施不可用 / 资源耗尽 | 提示系统繁忙，允许重试 |
-| 客户端·权限安全 | 令牌失效 / 签名失败 / 无权操作 | 跳登录或提示无权访问 |
-| 第三方·外部服务 | 微信 / 支付宝 / 银联等超时或返回失败 | 提示渠道繁忙或透传渠道错误 |
-| 业务·资源 | 请求合法但业务状态不满足 / 资源不存在 | 展示业务错误文案 |
+| 挑战过期 / 已消费 / 无效 | `410`·`206006` 或 `966002` | 回第一步重新发起，**重输验证码无用** |
+| 该挑战错误尝试超限、已作废 | `423`·`206007` 或 `966003` | 回第一步重新发起，或按提示等冷却 |
+| 凭据 / 因子输错，会话仍有效，且这次校验**没有尝试预算** | `403`·`206011` | **留在当前弹窗提示重输，不要跳登录页**；没有剩余次数可显示 |
+| 验证码 / 因子输错，且这次校验**有尝试预算、尚未用完** | `400`·`204010` | 留在原处重输；剩余次数见 `context.attemptsRemaining`，用完则转 `423`·`206007` / `966003` |
+| 重发过于频繁 | `429`·`208013` | 按冷却秒数倒计时后才允许再发 |
+
+⚠️ **有没有尝试预算是那个接口的事，不是因子类型的事**——**一律以该 op 的 `x-error-codes` 是否登记 `204010` 为准**，没登记就不会有剩余次数可显示，别做一个恒为空的计数 UI。共用的 OTP 输入组件请把「剩余次数」做成可选呈现。
+
+**凭据错 ≠ 会话失效**——**`401` 只有一个含义：会话本身失效 → 跳登录页**，统一 interceptor 照此处理即可。「输错了」一律不是 401：
+
+| 什么时候 | 码 | 你该做什么 |
+|---|---|---|
+| **登录 / 登录二次校验**输错（密码 / TOTP） | `400`·`206012` | 留在当前输入框重输，**不跳登录页、不跳回第一步、不清空已填状态** |
+| **登录态**重输当前密码 / TOTP（改密、启停 MFA 等 step-up） | `403`·`206011` | 留在当前弹窗重输，不跳登录页 |
+
+例：`208001` → `XX=20`、`Y=8`（业务·资源）、`ZZZ=001`；`204010` → `Y=4`（参数校验）。
+
+**兜底次序**：先查码表 → 查不到就按 `Y` 位落默认策略 → 都不行才退到 HTTP status 大类。**不要把 `detail` 当分支依据**（它是诊断串、措辞随时会变）。
+
+## 商户可访问性（区域分流）
+
+**当前商户能不能进某个区域，由启动链路的 `getOnboardingStatus.routeTo` 裁决——这是唯一真相源**（见上「应用启动链路」）。商户尚未激活时，`routeTo` 会把你送去入驻向导 / 审核状态页 / 拒绝页，**根本走不到**商户后台内的业务页面。所以：
+
+- **不要从业务端点的错误响应去推断「商户是不是激活了」**，也不要在各页面各自判一遍——那是 `routeTo` 已经裁决过的事。
+- **兜底路径**：stale tab、深链直接进某个业务页、或切商户后状态变了，仍可能在非可访问态调到业务端点。此时服务端返 **`409` · `208022`**（`MERCHANT_NOT_ACCESSIBLE`），**你的动作固定是重跑启动链路、按新的 `routeTo` 分流**，不要跳登录（会话是好的）、也不要提示「无权访问」。
+
+## locale 与本地化
+
+**谁渲染，谁负责本地化**：
+
+- **前端渲染的一切**（页面文案、按钮、状态徽章、错误提示）用你自己的多语言资源，**不需要告诉后端 locale**。
+- **后端产出的文件**（PDF / Excel 导出）是唯一的例外——你拿不到渲染现场，所以这类端点接受 `Accept-Language`（BCP-47），并在响应回 `Content-Language` 告诉你实际渲染用了哪种语言（**以响应头为准，不要回退去猜请求头**）。哪些端点如此，见各端点参数说明。
+- **邮件 / 通知**由后端按收件人偏好渲染，与本次请求无关，传不了也不必传。
+- **商户自己录入的多语言内容**（如 Payment Link 的 FAQ / Policy）是**数据**不是 locale 问题——字段本身按语言分组返回，按当前语言取用即可。
+
+## 更新语义（PUT）
+
+- 更新已有资源一律 **PUT + 部分更新**：请求体里**未出现的字段保持原值**。所以「只改一个字段」就**只传那一个字段**，不必先读全量再原样回传。
+- 要**清空**某个字段就**显式传 `null`**。哪些字段能清空看 schema 即知——能清的类型是 `[T, "null"]`，不能清的不接受 `null`。
+- **数组整组置换**：传空数组 = 清空该集，不传 = 保持原集；**不做逐元素合并**（想「加一项」要把完整的新集合传上来）。
+- **嵌套对象递归合并**（本节规则逐层适用）；要把整段清空则该段传 `null`。
+- ⚠️ 有些 PUT 的请求体**就是目标本身**——置一个开关、换一把密钥、整体置换一套规则。那种没有「其余字段」可言，本节不适用，按该端点的 schema 提交即可。**怎么认：只看该端点自己的说明**——这类 op 会在 description 里明写「全量覆盖、缺省不代表保持原样」之类。**别从端点名或 schema 形状去推**：名字（`set*` / `update*` …）和「是不是全字段必填」都会判错，本节默认（部分更新）只在端点没有相反声明时成立。
+
+## `null` 只出现在请求里
+
+**响应里不会有 `null`。**「这个字段没有值」一律表达为**键不存在**——不要写 `if (x === null)`，判 `x === undefined` 或 `!('x' in obj)`。
+
+- 所以**看到 `[T, "null"]` 就知道那是给你填的**：它是「这个字段可以被清空」的标记，只在请求体里有意义（上一节）。
+- 反过来，**响应 schema 里字段不在 `required` 里 ≠ 它多半是空的**。`required` 是校验约束，不是出现频率的提示；某个字段实际上几乎总有值、只是存在一种它不适用的情形，这在契约里同样表现为「不必填」。什么时候不返回，看该字段的 description。
+- 少数字段的「没有值」本身**带含义**（例如一行汇总数据代表的是「全部」而非某个具体状态）。这类不会靠 `null` 传达，而是用**独立的字段或不同的响应形状**表达，读 schema 即知。
 
 ## 分页
 
@@ -90,6 +170,25 @@
 - 请求：`pageNum`（默认 **1**，从 1 计）、`pageSize`（默认 **20**；上限可配置）
 - 响应：`{ total, data[] }`（`total` 总记录数，`data` 当页记录数组）
 - 排序由具体接口约定。
+
+## 列表页顶部的快捷筛选（chip）
+
+**所有带 chip 的列表形状一致，前端只需写一个 helper。** 列表本身只返 `{ total, data }`，chip 的项与数字另取一个 `…/counts` 端点，返回 `{ items: [ { value, label, count } ] }`。
+
+**照着 `items` 渲染，不要自己枚举取值。** 项集、顺序、展示名、数字全部由服务端给出——状态、类型这类固定枚举与角色、年份这类由配置或数据决定的，走的是同一个契约，前端一视同仁。某项当期为 `0` 也会返回（那一格不该因为没数据就消失），所以不用自己补空位。
+
+**chip 就是列表的一个筛选参数**，没有特殊机制：
+
+- 选中某项 → 把该项的 `value` **原样**放进对应列表端点的那个筛选参数（`value` 对你不透明，别解析、别拼接、别据其分支）。
+- **选 `All` = 不带这个参数**。`All` 不是一个取值。
+- **`All` 那一项由你自己补**，数字 = 其余各项之和。服务端保证 `items` 覆盖该列表不带本维筛选时的全部命中，所以这个和恒等于此时列表的 `total`。
+
+**`label` 是兜底**：有自己的多语言资源就按 `value` 取用，没有（角色名、年份这类）就直接显示它。
+
+**两个别踩的**：
+
+- ⚠️ **counts 端点不收被计维度那个参数**，其余筛选要与列表**传同一组**。切筛选时列表和 counts 一起重发；只重发列表，chip 上的数字就跟列表对不上了。
+- ⚠️ **翻页不必重取 counts**——它按整个命中集算，与 `pageNum` / `pageSize` 无关。
 
 ## 幂等
 
@@ -100,9 +199,51 @@
 - **怎么生成**：**一次逻辑操作生成一个键**（如用户点一次「提交」），值取任意不重复字符串（UUID 即可）；**网络失败 / 超时重试时复用同一个键**，这正是幂等键的用途。不要每次请求都新生成（那样重试会变成重复下单），也不要跨不同操作复用。
 - 另有**防重提交**短窗（防双击 / 误触，窗口可配置），独立于业务幂等。
 
+## 文件上传（直传对象存储）
+
+**所有上传入口形状一致，前端只需写一个 helper。** 文件字节**不经过本平台 API**，浏览器直接传给对象存储。
+
+**三步**：
+
+1. **取直传目标** —— `POST <业务前缀>/files/upload-targets`，body 恒为 `{ purpose, fileName, contentType, fileSize }`（**声明值**，不是文件本身）。用途、允许格式与大小上限见该入口 `purpose` 的说明；声明不合规 → `400` 且**不签发目标**。
+2. **提交文件到对象存储** —— `POST` + `multipart/form-data` 到 `action`：把 `fields` 逐项追加，**最后**追加名为 `file` 的文件本体。
+
+   ```js
+   const fd = new FormData()
+   Object.entries(t.fields).forEach(([k, v]) => fd.append(k, v))
+   fd.append('file', file)                        // 必须最后一个
+   let ok = false
+   try { ok = (await fetch(t.action, { method: 'POST', body: fd })).ok } catch { /* 网络 / 跨源被挡：也算没确认 */ }
+   if (!ok) { /* 无法确认成功：不要进第 3 步，重新申请目标 */ }
+   ```
+
+   这一跳容易写错的地方：
+
+   - ⚠️ **不要手设 `Content-Type`**。`multipart/form-data` 必须带 `boundary` 才能解析，而 `boundary` 是提交 `FormData` 时由浏览器生成并写进 header 的；一旦手写 `Content-Type: 'multipart/form-data'`，浏览器就**不再补 `boundary`**，存储端拿到没有分隔符的 body、整个表单解析不出来。**全局 axios 实例若默认 `application/json`，这个请求要把该 header 删掉**（不是覆盖成 multipart）。
+   - **`fields` 不得增删或改写**，`file` 必须是最后一个字段（其后的字段会被存储端忽略）。
+   - **判据是「有没有确认到 2xx」，不是「成功还是失败」**。不要只判具体状态码（存储端可能返 `204` 也可能 `201`），也不能只判 `r.ok` —— `fetch` 还会**直接 reject**（网络断开、响应被跨源策略挡住），那时你连状态码都拿不到。**两种情况都算「没确认」**，处理方式相同：不进第 3 步、重新申请目标。
+   - ⚠️ **「没确认」不等于「没传上去」**。这个 POST 不走预检，浏览器是**先把请求发出去**、拿到响应后才判跨源是否放行；被挡住时对象**可能已经存进去了**，只是你读不到响应。所以别把它当成「一定失败」去做补偿逻辑——**平台侧允许这种没被引用的对象存在**，你只管重新申请目标、拿新 `fileId` 走一遍。真正判定文件在不在，是第 3 步由服务端做的。
+   - **失败响应不是本平台的 `ErrorEnvelope`**，是存储端自己的格式——**别交给统一错误 interceptor**，也不必解析它。另外这是**跨源请求，不要带 credentials**（`fetch` 跨源默认不带；axios 全局 `withCredentials: true` 会带，会撞 CORS）。
+3. **把 `fileId` 交回业务接口** —— 直传成功**不等于生效**；`fileId` 要随对应的业务写操作提交（保存草稿 / 使 Logo 生效 / 创建变更请求 / 保存设置 / 创建或编辑链接），**在那一步文件才正式归属该业务对象**。未完成这一步的文件**不会出现在业务读接口里、也不能跨会话取用**；当前会话要预览，用本地选中的文件渲染。
+
+**目标是限时且一次性的**（`expiresAt` 给出失效时刻）。用户选好文件后放置较久、或要传大文件时，可据此提前换一个新目标，不必等失败再回退。**提交失败不要向原目标重试**——重新申请会得到**新的 `fileId`**，后续业务提交须改用新引用。
+
+**第 3 步的两种失败必须分开处理**（这是最容易写错的地方）：
+
+| 响应 | 含义 | 前端动作 |
+|---|---|---|
+| `400`（`204014` `FILE_NOT_IN_PLACE`） | 文件**确定未就位**（第 2 步没成功 / 被存储端拒收）——**终态** | 重走第 1、2 步取**新 `fileId`**，再以新引用提交。**不要**原样重试 |
+| `502` / `504` | **暂时判不出**是否就位 | **不必重传文件**，用**原请求原样重试** |
+
+⚠️ **与幂等键的联动**：换了 `fileId` 就是换了请求体，若该业务接口带 `Idempotency-Key`，**必须同时换一个新键**——沿用旧键提交新内容会撞 `409`（`208005`）。
+
+**读回来时**：具体字段以各端点 schema 为准，命名有两类——`*Ref` / `*FileId` 是**引用**（可写，提交时用），`*Url` / `*previewUrl` 是**可渲染地址**（`readOnly`，只出不入，不要提交、不要持久化）。**响应同时给出两者时**：不换文件就**不传该引用**（未出现的字段保持原值，见「更新语义」），换文件传新 `fileId`，移除传 `null`；只给地址的响应（如使 Logo 生效后回显）直接渲染即可。地址分两类：**长效稳定的公开地址**可直接放进页面；**短时效地址**过期即失效，重新读取所在资源即可拿到新的。哪个用途属于哪类，见该入口 `purpose` 的说明。
+
 ## 时间 / 金额 / 币种
 
-- **时间**：API 入参 / 出参用 ISO 8601 带时区 offset（如 `2026-05-19T10:30:00-04:00`）；服务端以 UTC 存储，商户后台按商户配置时区显示。
+- **时间**：**响应**的瞬时时刻一律 UTC `Z`（如 `2026-05-19T14:30:00Z`）；**请求 / query 入参**接受任意合法 offset、服务端归一 UTC。展示按商户配置时区换算（时区走单独字段，`offset ≠ timezone`）。
+- **日期**：`YYYY-MM-DD`、**不带时区**（spec 内的 `LocalDate`），**按字面收发**——别塞进 `Date` 按浏览器时区渲染（负偏移时区会显示成前一天）。**时间戳**（`Timestamp`）则相反，可按商户时区换算展示。
+  日期区间一律 `from` / `to`（**闭区间、含当日**），`to < from` → `400`；是否必填、有无跨度上限看该端点。
 - **金额**：**字符串**类型（避免 JSON Number 精度丢失）；默认最小货币单位的整数字符串（如「分」），scale 由币种 ISO 精度解释（CAD / USD 2 位、JPY 0 位）；接口若用十进制金额字符串（如 `"10.00"`）会在该接口契约显式声明。
 - **币种**：ISO 4217 三字母码（`CAD` / `CNY` / `USD`…）。
 
@@ -111,7 +252,7 @@
 - API 版本走 URL path（如 `/api/merchant/v1`）；破坏性变更通过新版本路径并行，兼容期可配置。
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

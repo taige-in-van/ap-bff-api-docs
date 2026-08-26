@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: 商户后台 通知 (20-07 BFF) — 前端契约面
-  version: 0.4.1
+  title: 商户后台 通知 — 前端契约面
+  version: 0.8.4
   contact:
     name: 商户后台 BFF
   description: |
-    通知前端契约：通知设置页（Email / WeChat 通道总开关、只读 Primary + Extra 邮箱增删〔OTP 验证〕、 WeChat 通知接收方扫码绑定 / 解绑）+ 站内信（顶栏铃铛未读计数、列表 / 详情、已读回执、Dashboard 摘要）。 字段类型以本 spec 为准。 merchant scope 从会话取、不信请求体；全部 op merchant-current-scoped，均挂 MerchantContextGuard（stale-tab 守卫，无豁免）。 **全部端点前置 `Merchant.status = ACTIVE` 门禁**（非 ACTIVE → 403；仅 ACTIVE 商户可用日常能力〔通知设置 / 铃铛 / 站内信中心〕，会话上下文含 INCOMPLETE / PENDING_REVIEW / REJECTED 仅供入驻 / 拒绝页）。
+    通知前端契约：通知设置页（Email / WeChat 通道总开关、只读 Primary + Extra 邮箱增删〔OTP 验证〕、 WeChat 通知接收方扫码绑定 / 解绑）+ 站内信（顶栏铃铛未读计数、列表 / 详情、已读回执、Dashboard 摘要）。 字段类型以本 spec 为准。 merchant scope 从会话取、不信请求体；全部 op merchant-current-scoped，均挂 MerchantContextGuard（stale-tab 守卫，无豁免）。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -24,7 +24,7 @@ paths:
       operationId: getNotificationSettings
       summary: 读通知设置（通道开关 + Email 接收方 + WeChat 接收方）
       description: |
-        返回当前商户通知设置聚合：Email / WeChat 通道总开关、只读 Primary（= Owner Primary Email，生命周期归注册登录与认证域、 变更随之即时反映）、已验证 Extra 邮箱列表、WeChat 通知接收方列表（昵称 + 绑定时间，平等、无 Primary/Extra 之分）。 站内信无商户开关（不出现在本聚合）。 **生效设置**：商户从未配置过通道开关时**仍返回 200**，两开关取商户已配置值、**未配置则一律为开启** （默认开为固定业务规则，不随部署配置变化）；接收方列表独立于开关设置、照常返回已有 Extra / WeChat。
+        返回当前商户通知设置聚合：Email / WeChat 通道总开关、只读 Primary（= Owner 账号邮箱， 变更随之即时反映）、已验证 Extra 邮箱列表、WeChat 通知接收方列表（昵称 + 绑定时间，平等、无 Primary/Extra 之分）。 站内信无商户开关（不出现在本聚合）。 **生效设置**：商户从未配置过通道开关时**仍返回 200**，两开关取商户已配置值、**未配置则一律为开启** （默认开为固定业务规则，不随部署配置变化）；接收方列表独立于开关设置、照常返回已有 Extra / WeChat。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -49,15 +49,10 @@ paths:
                   - recipientId: wnb_3d8e2f
                     nickname: 老板娘
                     boundAt: '2026-07-02T08:30:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notification-settings/channels/{channel}:
     put:
       tags:
@@ -65,12 +60,12 @@ paths:
       operationId: updateNotificationChannel
       summary: 切换 Email / WeChat 通道总开关（关闭仅停投递、配置保留）
       description: |
-        设置指定通道总开关。关闭后该通道不投递，接收方配置保留。 天然幂等（重复置同值 no-op）。站内信无商户开关、不在 channel 枚举内。 **首次配置**：从未配置过开关的商户首次切换直接成功——未配置的通道视为开启（固定默认）；**未被本次修改的通道不受影响**（另一通道保持其生效值）；两通道各自独立、互不覆盖。加 Extra / 绑 WeChat 不影响开关设置（接收方独立）。
+        设置指定通道总开关。**本端点请求体即目标本身：全量覆盖、缺省不代表「保持原样」**（`enabled` 必传）。关闭后该通道不投递，接收方配置保留。 天然幂等（重复置同值 no-op）。站内信无商户开关、不在 channel 枚举内。 **首次配置**：从未配置过开关的商户首次切换直接成功——未配置的通道视为开启（固定默认）；**未被本次修改的通道不受影响**（另一通道保持其生效值）；两通道各自独立、互不覆盖。加 Extra / 绑 WeChat 不影响开关设置（接收方独立）。
       parameters:
         - name: channel
           in: path
           required: true
-          description: 通道（仅 email / wechat；站内信无商户开关）。封闭枚举：新增通道属破坏性变更、走并行版本。
+          description: 通道（仅 email / wechat；站内信无商户开关）。封闭枚举（取值集固定、可穷举分支）。
           schema:
             type: string
             enum:
@@ -102,17 +97,10 @@ paths:
                 $ref: '#/components/schemas/NotificationChannelState'
               example:
                 enabled: false
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notification-settings/email/extra-recipients/otp-challenges:
     post:
       tags:
@@ -152,26 +140,12 @@ paths:
                 email: finance@example.com
                 cooldownSeconds: 60
                 expiresAt: '2026-07-22T10:05:00Z'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '429':
-          $ref: '#/components/responses/TooManyRequestsWithCooldown'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208012
-        '429':
-          - 208013
+        - 208001
+        - 208012
+        - 208013
   /notification-settings/email/extra-recipients/otp-challenges/{challengeId}/verification:
     post:
       tags:
@@ -179,7 +153,7 @@ paths:
       operationId: verifyExtraEmailOtp
       summary: 添加 Extra 邮箱第 2 步——校验 OTP，通过即生效
       description: |
-        校验候选邮箱 OTP：匹配 + 未过期 + 未消费 + 未超尝试上限 → 通过则该邮箱（经验证）加入 Extra 列表并生效。 **通过时以当前 Primary 重做去重**（挑战有效期内 Owner Primary Email 若已改成该候选邮箱）：与当前 Primary / 已有 Extra 冲突 → 不创建 Extra、返 409 208012。开关配置独立、不受加 Extra 影响（见 updateNotificationChannel）。 OTP 错误分类（按挑战生命周期）：**错误但可重试 → 400 `204010`（剩余尝试数走 `context.attemptsRemaining`〔整数类型〕、`details` 不承载）；尝试超限作废 → 423；过期 / 已消费失败 / 被同邮箱新挑战替代（superseded）→ 410** （用户侧提示文案统一「验证失败」、detail 不泄露码值比对信息）。 并发竞态下该邮箱已被添加 → 409 208012。OTP 一次性消费；**成功重放例外**： 同一挑战已验证成功后以同码重试（首次 201 响应丢失场景）→ 重放首次结果（返已创建接收方，不再走 410）。
+        校验候选邮箱 OTP：匹配 + 未过期 + 未消费 + 未超尝试上限 → 通过则该邮箱（经验证）加入 Extra 列表并生效。 **通过时以当前 Primary 重做去重**（挑战有效期内 Owner Primary Email 若已改成该候选邮箱）：与当前 Primary / 已有 Extra 冲突 → 不创建 Extra、返 409 208012。开关配置独立、不受加 Extra 影响（见 updateNotificationChannel）。 OTP 错误分类（按挑战生命周期）：**错误但可重试 → 400 `204010`（剩余尝试数走 `context.attemptsRemaining`〔整数类型〕、`details` 不承载）；尝试超限作废 → 423；过期 / 已消费失败 / 被同邮箱新挑战替代（superseded）→ 410** （用户侧提示文案统一「验证失败」、detail 不泄露码值比对信息）。 `challengeId` 未知 / 已清理 / 不属当前商户 → **404**（反枚举、不区分成因；处置同 410——回第 1 步重新发起）。 并发竞态下该邮箱已被添加 → 409 208012。OTP 一次性消费；**成功重放例外**： 同一挑战已验证成功后以同码重试（首次 201 响应丢失场景）→ 重放首次结果（返已创建接收方，不再走 410）。
       parameters:
         - name: challengeId
           in: path
@@ -201,9 +175,9 @@ paths:
                 - code
               properties:
                 code:
-                  type: string
-                  pattern: ^[0-9]{6}$
-                  description: 6 位数字验证码
+                  allOf:
+                    - $ref: '#/components/schemas/OtpCode'
+                  description: 发到该邮箱的验证码
             example:
               code: '493028'
       responses:
@@ -217,26 +191,14 @@ paths:
                 recipientId: xtr_9f2a1c
                 email: finance@example.com
                 verifiedAt: '2026-07-22T10:02:11Z'
-        '400':
-          $ref: '#/components/responses/OtpRetryableBadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '423':
-          $ref: '#/components/responses/Locked'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '400':
-          - 204010
-        '409':
-          - 208001
-          - 208012
+        - 204010
+        - 206006
+        - 206007
+        - 208001
+        - 208012
   /notification-settings/email/extra-recipients/{recipientId}:
     delete:
       tags:
@@ -258,17 +220,10 @@ paths:
       responses:
         '204':
           description: 已移除
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notification-settings/wechat/bind-sessions:
     post:
       tags:
@@ -276,7 +231,7 @@ paths:
       operationId: createWechatBindSession
       summary: 发起 WeChat 通知接收方绑定（创建绑定会话、返回二维码）
       description: |
-        创建 WeChat 绑定会话并返回二维码：**会话创建为 PENDING（expiresAt 与二维码 TTL 同源）后才返回 201**； 创建失败 → 500、不返回二维码。 SPA 展示二维码并轮询 getWechatBindSession（`QR_EXPIRED` 既不是终态、也不是失败证据，见该接口说明）。用户扫码授权**并在微信内显式确认**后绑定即告成立 （**扫码本身不构成绑定**——确认前一律呈现 `PENDING`），经轮询可见（同一微信身份跨会话去重合并）； **关页 / 停止轮询不会使已确认的绑定失效**。 取消 / 二维码超时 / 扫码失败 → 该二维码不能再扫、不新增绑定、可重新发起；**无物理 CANCELLED 态——用户取消 / 关页仅停前端轮询、不改服务器会话**，**用户已确认的绑定照常生效**。 **`expiresAt` 是二维码的有效期，不是本次轮询的截止时间**：到期只表示这张二维码不能再扫，`sessionId` 在此之后**仍可继续轮询**（不是一次性查询票），已确认但尚未落地的绑定经由它转 `COMPLETED`。 按多步挑战流程语义不挂幂等键（可安全重发的挑战资源：重复创建各自独立会话，各自的二维码自然到期）。 微信侧不可用 → 502/504（无降级伪成功）。二维码有效期为部署可配业务参数（与上游挑战 TTL 同源）。 与微信快捷登录绑定解耦。
+        创建 WeChat 绑定会话并返回二维码：**会话创建为 PENDING（expiresAt 与二维码 TTL 同源）后才返回 201**； 创建失败 → 500、不返回二维码。 SPA 展示二维码并轮询 getWechatBindSession（`QR_EXPIRED` 既不是终态、也不是失败证据，见该接口说明）。用户扫码授权**并在微信内显式确认**后绑定即告成立 （**扫码本身不构成绑定**——确认前一律呈现 `PENDING`），经轮询可见（同一微信身份跨会话去重合并）； **关页 / 停止轮询不会使已确认的绑定失效**。 取消 / 二维码超时 / 扫码失败 → 该二维码不能再扫、不新增绑定、可重新发起；**状态枚举里没有「已取消」——用户取消 / 关页只是前端停止轮询**，**已确认的绑定照常生效**。 **`expiresAt` 是二维码的有效期，不是本次轮询的截止时间**：到期只表示这张二维码不能再扫，`sessionId` 在此之后**仍可继续轮询**（不是一次性查询票），已确认但尚未落地的绑定经由它转 `COMPLETED`。 按多步挑战流程语义不挂幂等键（可安全重发的挑战资源：重复创建各自独立会话，各自的二维码自然到期）。 微信侧不可用 → 502/504（无降级伪成功）。二维码有效期为部署可配业务参数（以响应里的 `expiresAt` 为准，不要 hardcode）。 与微信快捷登录绑定解耦。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -292,21 +247,10 @@ paths:
                 status: PENDING
                 qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-07-22T10:10:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '500':
-          $ref: '#/components/responses/InternalServerError'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notification-settings/wechat/bind-sessions/{sessionId}:
     get:
       tags:
@@ -314,7 +258,7 @@ paths:
       operationId: getWechatBindSession
       summary: 轮询 WeChat 绑定会话状态
       description: |
-        轮询绑定会话：`PENDING`（未扫 / 已扫未确认 / 已确认但结果尚未落地——**三者对前端表现一致**）/ `COMPLETED`（绑定完成，必携接收方）/ `QR_EXPIRED`（二维码不能再扫）。 **`QR_EXPIRED` 纯时间派生**（`PENDING 且 now > expiresAt`）、非服务端物理状态；用户取消 / 关页只是前端停轮询、不改会话。 **已在微信内完成的确认不会因关页 / 停止轮询而丢失**——重新打开页面或稍后轮询仍可见 `COMPLETED`； 上游短暂不可用时轮询可能维持 `PENDING`，前端按 `PENDING` 处理、不必视为失败。 **`QR_EXPIRED` 不是终态**：用户若已在微信内确认、只是结果尚未落地，会话可能先呈现 `QR_EXPIRED`、随后转 `COMPLETED` （**已确认的绑定不会因二维码过期而作废**）。由此给消费方三条保证： **① `QR_EXPIRED` 不是失败证据**——不得据它清理本地状态、也不得据它阻止后续 `COMPLETED`； **② 只要用户已完成确认，继续轮询即会转 `COMPLETED`**； **③ 何时停止轮询由前端自行决定，停止不影响绑定成立**——已确认的绑定会在**有界时延内**（上界为部署可配业务参数） 出现在通知设置页的 WeChat 接收方列表（`getNotificationSettings`）。故停止轮询后的正确处置是**提示稍后刷新设置页查看**， 而不是提示「绑定失败」；仅在确知用户未完成确认（取消 / 未扫）时才提示「请重新扫码」。 除此之外状态不回退；`COMPLETED` 是终态。 同一微信身份重复扫码不产生新接收方（去重合并）。**会话取不到 / 跨商户一律 404**（归一，不泄露会话是否存在——同本面其余读接口的反枚举口径）； 404 表达的是「你取不到这个会话」、**不是会话态、也不代表绑定未成立**——前端应停止本次轮询并按上条 ③ 处置。
+        轮询绑定会话：`PENDING`（未扫 / 已扫未确认 / 已确认但结果尚未落地——**三者对前端表现一致**）/ `COMPLETED`（绑定完成，必携接收方）/ `QR_EXPIRED`（二维码不能再扫）。 **`QR_EXPIRED` 纯时间派生**（`PENDING 且 now > expiresAt`）；用户取消 / 关页只是前端停止轮询。 **已在微信内完成的确认不会因关页 / 停止轮询而丢失**——重新打开页面或稍后轮询仍可见 `COMPLETED`； 上游短暂不可用时轮询可能维持 `PENDING`，前端按 `PENDING` 处理、不必视为失败。 **`QR_EXPIRED` 不是终态**：用户若已在微信内确认、只是结果尚未落地，会话可能先呈现 `QR_EXPIRED`、随后转 `COMPLETED` （**已确认的绑定不会因二维码过期而作废**）。由此给消费方三条保证： **① `QR_EXPIRED` 不是失败证据**——不得据它清理本地状态、也不得据它阻止后续 `COMPLETED`； **② 只要用户已完成确认，继续轮询即会转 `COMPLETED`**； **③ 何时停止轮询由前端自行决定，停止不影响绑定成立**——已确认的绑定会在**有界时延内**（上界为部署可配业务参数） 出现在通知设置页的 WeChat 接收方列表（`getNotificationSettings`）。故停止轮询后的正确处置是**提示稍后刷新设置页查看**， 而不是提示「绑定失败」；仅在确知用户未完成确认（取消 / 未扫）时才提示「请重新扫码」。 除此之外状态不回退；`COMPLETED` 是终态。 同一微信身份重复扫码不产生新接收方（去重合并）。**会话取不到 / 跨商户一律 404**（归一，不泄露会话是否存在——同本面其余读接口的反枚举口径）； 404 表达的是「你取不到这个会话」、**不是会话态、也不代表绑定未成立**——前端应停止本次轮询并按上条 ③ 处置。
       parameters:
         - name: sessionId
           in: path
@@ -354,17 +298,10 @@ paths:
                     sessionId: wbs_7c4e1a
                     status: QR_EXPIRED
                     expiresAt: '2026-07-22T10:10:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notification-settings/wechat/recipients/{recipientId}:
     delete:
       tags:
@@ -386,17 +323,10 @@ paths:
       responses:
         '204':
           description: 已解绑
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notices:
     get:
       tags:
@@ -404,7 +334,7 @@ paths:
       operationId: listNotices
       summary: 站内信列表（时间倒序分页，含已读 / 未读）
       description: |
-        按时间倒序分页返回当前商户保留期内全部站内信（含已读 / 未读），每条含标题 / 时间 / 已读态 / 样式 （success / failure / warning / default，来源未提供则 default）。每页条数默认可配。
+        按时间倒序分页返回当前商户保留期内全部站内信（含已读 / 未读），每条含标题 / 时间 / 已读态 / 样式 （success / failure / warning / default，来源未提供则 default）。分页参数与默认值见公共约定。 顶栏铃铛的未读计数另取 `getNoticeUnreadCount`（与本列表的筛选 / 分页无关）。
       parameters:
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
@@ -418,7 +348,6 @@ paths:
                 $ref: '#/components/schemas/NoticeListPage'
               example:
                 total: 2
-                unreadCount: 1
                 data:
                   - noticeId: ntc_88a1
                     title: 退款已完成
@@ -430,15 +359,10 @@ paths:
                     style: default
                     status: READ
                     createdAt: '2026-07-21T18:00:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notices/unread-count:
     get:
       tags:
@@ -458,15 +382,10 @@ paths:
                 $ref: '#/components/schemas/NoticeUnreadCount'
               example:
                 unreadCount: 3
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notices/summary:
     get:
       tags:
@@ -474,12 +393,12 @@ paths:
       operationId: getNoticeSummary
       summary: 最新通知摘要（Dashboard / 首页摘要区消费）
       description: |
-        返回最新 N 条通知摘要（按通知时间倒序，字段沿用站内信列表摘要口径）； N 默认值为业务参数（部署可配），limit 入参仅可收窄、不超服务端上限。
+        返回最新 N 条通知摘要（按通知时间倒序，字段沿用站内信列表摘要口径）； N 默认值为业务参数（部署可配），`limit` 入参**仅可收窄**。
       parameters:
         - name: limit
           in: query
           required: false
-          description: 返回条数（缺省用服务端默认 N；仅可收窄）
+          description: 返回条数（缺省用服务端默认 N）。**仅可收窄**：传大于 N 的值**不报错、按 N 截断**， 所以实际条数以 `data` 长度为准、**别拿 `limit` 当渲染条数**。
           schema:
             type: integer
             minimum: 1
@@ -507,15 +426,10 @@ paths:
                     style: success
                     status: UNREAD
                     createdAt: '2026-07-22T09:00:00Z'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notices/{noticeId}:
     get:
       tags:
@@ -523,7 +437,7 @@ paths:
       operationId: getNotice
       summary: 站内信详情（纯读，无副作用）
       description: |
-        返回站内信详情（标题 + 时间 + 富文本正文；正文由通知引擎渲染并服务端净化后交付，前端渲染另走受限白名单）。 **纯读无副作用**（可安全重试 / 预取）；「打开详情自动已读」由 SPA 随详情加载调 markNoticeRead 完成（页面行为编排）。 跨商户 / 不存在 → 404、不改变任何未读计数（反枚举）。
+        返回站内信详情（标题 + 时间 + 富文本正文；正文已由服务端净化后交付，前端渲染另走受限白名单）。 **纯读无副作用**（可安全重试 / 预取）；「打开详情自动已读」由 SPA 随详情加载调 markNoticeRead 完成（页面行为编排）。 跨商户 / 不存在 → 404、不改变任何未读计数（反枚举）。
       parameters:
         - name: noticeId
           in: path
@@ -547,17 +461,10 @@ paths:
                 status: UNREAD
                 createdAt: '2026-07-22T09:00:00Z'
                 body: <p>订单 202607220001 的退款已完成。</p>
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notices/{noticeId}/read-receipt:
     post:
       tags:
@@ -587,17 +494,10 @@ paths:
                 noticeId: ntc_88a1
                 status: READ
                 unreadCount: 2
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /notices/read-receipts:
     post:
       tags:
@@ -618,15 +518,10 @@ paths:
                 $ref: '#/components/schemas/NoticeUnreadCount'
               example:
                 unreadCount: 0
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
 components:
   securitySchemes:
     cookieAuth:
@@ -634,7 +529,7 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     NotificationChannelState:
       type: object
@@ -670,7 +565,7 @@ components:
           type: string
           format: email
           readOnly: true
-          description: 只读 Primary（= Owner Primary Email；生命周期归注册登录与认证域、变更随之即时反映，本面无修改入口）
+          description: 只读 Primary（= Owner 账号邮箱；随账号邮箱变更即时反映，本面无修改入口——改它走注册登录与认证契约）
         extraEmailRecipients:
           type: array
           description: 已验证 Extra 邮箱接收方（仅含 OTP 验证通过项）
@@ -751,7 +646,7 @@ components:
         sessionId:
           type: string
           description: |
-            绑定会话 id：轮询本次绑定进度用；**二维码到期后仍然可用**（不是一次性查询票）。 二维码过期后该会话**仍然留存**——用户已在微信内确认但尚未落地时，绑定会经由本会话完成，因此它不是「用完即弃的查询票」； 跨商户 / 不存在一律 404。
+            绑定会话 id：轮询本次绑定进度用；**二维码到期后仍然可用**（不是一次性查询票）。 二维码过期后 `sessionId` **仍可继续轮询**——用户已在微信内确认但尚未落地时，绑定会经由本次扫码完成，因此它不是「用完即弃的查询票」； 跨商户 / 不存在一律 404。
         status:
           type: string
           const: PENDING
@@ -764,7 +659,7 @@ components:
           description: 二维码有效期截止（到点即不能再扫；**不是会话的生命周期**——会话仍留存，已确认的绑定不因此作废）
     WechatBindSessionStatus:
       description: |
-        绑定会话状态。本 schema 是**封闭判别联合**（`oneOf` + `status` discriminator）——三态穷举， 由此换得一条 schema 级保证：**`COMPLETED` 必携 `boundRecipient`**（前端不必对「完成但没有接收方」做防御）。 按 status 三态分支： `PENDING` 待扫码（无接收方）/ `COMPLETED` 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、 不重复加入）/ `QR_EXPIRED` **到期派生**（`PENDING 且 now > expiresAt`，非服务端物理状态；用户取消 / 关页只停前端轮询、不改会话）（无接收方）。
+        绑定会话状态。本 schema 是**封闭判别联合**（`oneOf` + `status` discriminator）——三态穷举， 由此换得一条 schema 级保证：**`COMPLETED` 必携 `boundRecipient`**（前端不必对「完成但没有接收方」做防御）。 按 status 三态分支： `PENDING` 待扫码（无接收方）/ `COMPLETED` 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、 不重复加入）/ `QR_EXPIRED` **到期派生**（`PENDING 且 now > expiresAt`；用户取消 / 关页只是前端停止轮询）（无接收方）。
       oneOf:
         - $ref: '#/components/schemas/WechatBindSessionPending'
         - $ref: '#/components/schemas/WechatBindSessionCompleted'
@@ -835,13 +730,13 @@ components:
         - failure
         - warning
         - default
-      description: 站内信样式（仅视觉语义；来源未提供 → default）。封闭枚举：新增取值属破坏性变更（走并行版本）。
+      description: 站内信样式（仅视觉语义；来源未提供 → default）。封闭枚举（取值集固定、可穷举分支）。
     NoticeStatus:
       type: string
       enum:
         - UNREAD
         - READ
-      description: 已读态（商户级共享一份；READ 为终态不回退）。封闭枚举：新增取值属破坏性变更、走并行版本。
+      description: 已读态（商户级共享一份；READ 为终态不回退）。封闭枚举（取值集固定、可穷举分支）。
     NoticeListItem:
       type: object
       additionalProperties: false
@@ -869,17 +764,12 @@ components:
       additionalProperties: false
       required:
         - total
-        - unreadCount
         - data
       properties:
         total:
           type: integer
           minimum: 0
           description: 保留期内站内信总数（含已读）
-        unreadCount:
-          type: integer
-          minimum: 0
-          description: 商户级未读计数（随页返回，铃铛可同步）
         data:
           type: array
           items:
@@ -909,12 +799,11 @@ components:
           description: 通知时间
         body:
           type: string
-          description: 富文本正文（通知引擎渲染并服务端净化后交付；前端渲染另走受限白名单）
+          description: 富文本正文（已由服务端净化后交付；前端渲染另走受限白名单）
         readAt:
-          description: 首次转 READ 时间（未读为 null）
-          oneOf:
+          description: 首次转 READ 时间；**未读则不返回本键**
+          allOf:
             - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
     NoticeUnreadCount:
       type: object
       additionalProperties: false
@@ -943,13 +832,12 @@ components:
           type: integer
           minimum: 0
           description: 回执后商户级最新未读计数
-    Timestamp:
+    DiagnosticDetail:
       type: string
-      format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
     ErrorEnvelope:
       type: object
-      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
       required:
         - code
         - detail
@@ -958,8 +846,9 @@ components:
           type: integer
           description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
         detail:
-          type: string
-          description: 错误描述(面向调用方;本地化按 locale)。
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
         links:
           type: object
           description: 可选:错误说明 / 后续恢复操作链接。
@@ -981,65 +870,37 @@ components:
                 type: string
               issue:
                 type: string
-    MerchantBffError:
-      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
-      allOf:
-        - $ref: '#/components/schemas/ErrorEnvelope'
-        - type: object
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
           properties:
-            context:
-              type: object
-              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
-              properties:
-                currentMerchantId:
-                  type:
-                    - string
-                    - 'null'
-                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
-                attemptsRemaining:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战错误但可重试时的剩余尝试次数（错误可重试 400 携带；**整数类型、走 context 结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-    ResendCooldownError:
-      description: 重发冷却错误体（`TooManyRequestsWithCooldown` 用；OTP 挑战 / 邀请链接等重发场景通用）：在 MerchantBffError 上把 `code` 钉死 208013、`context.cooldownSeconds` 强制必带（整数冷却剩余秒数——覆盖刷新 / 跨标签页，首次成功响应的 `cooldownSeconds` 之外的权威剩余值）。
-      allOf:
-        - $ref: '#/components/schemas/MerchantBffError'
-        - type: object
-          required:
-            - context
-          properties:
-            code:
-              const: 208013
-            context:
-              type: object
-              required:
-                - cooldownSeconds
-              properties:
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
-    OtpRetryableError:
-      description: OTP 可重试错误体（`OtpRetryableBadRequest` 用）：在 MerchantBffError 上把 `code` 钉死 204010、`context.attemptsRemaining` 强制必带（整数剩余尝试次数）。
-      allOf:
-        - $ref: '#/components/schemas/MerchantBffError'
-        - type: object
-          required:
-            - context
-          properties:
-            code:
-              const: 204010
-            context:
-              type: object
-              required:
-                - attemptsRemaining
-              properties:
-                attemptsRemaining:
-                  type: integer
-                  minimum: 0
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            currentMerchantId:
+              type: string
+              description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            maskedEmail:
+              type: string
+              description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+    Timestamp:
+      type: string
+      format: date-time
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+    OtpCode:
+      type: string
+      pattern: ^[0-9]{6}$
+      description: |
+        **一次性验证码**:恒为 **6 位纯数字**,长度固定、不随部署变化 —— 客户端可据此做输入框长度限制与"填满即可提交"的交互。
+
+        **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
+
+        本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
     WechatQrContent:
       type: string
       description: |
@@ -1055,7 +916,7 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行； **不一致 → 409 `MerchantBffConflict`**（`code` `208001`、`MERCHANT_CONTEXT_CHANGED`）——**读不返回错商户数据、写不执行**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：listMerchants（返回 currentMerchantId 的 re-sync 入口）、switchCurrentMerchant（切换当前商户）、withdrawOnboardingApplication（目标由 path 指定、与当前商户无关）、以及不依赖当前商户的接口。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -1063,7 +924,7 @@ components:
       name: X-CSRF-Token
       in: header
       required: true
-      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
       schema:
         type: string
         minLength: 1
@@ -1079,112 +940,16 @@ components:
     PageSize:
       name: pageSize
       in: query
-      description: 每页记录数(上限可配置;分页默认 20)
+      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
       schema:
         type: integer
         minimum: 1
         maximum: 200
         default: 20
   responses:
-    Unauthorized:
-      description: 401 未认证 / 凭证无效或已撤销
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Forbidden:
-      description: 403 无权限(fail-secure,默认拒绝)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    MerchantBffConflict:
+    MerchantBffDefaultError:
       description: |
-        409 冲突。前端据整数 `code` 区分子因——**常见 `208xxx` 商户后台 BFF 业务·资源型**（下列枚举）；**部分 409 另带身份类业务码**（如 `968xxx`：Login ID 占用 / 改邮箱在途等），**具体码以该 op 的 `x-error-codes` 为准**（另有同域 op 专属 `208xxx`，均不在此枚举）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**必携 `context.currentMerchantId`** 供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208005` 幂等键复用但 payload 不一致。 （`208004` 乐观锁基线漂移为 op 专属〔如签名公钥 `expectedKeyVersion` 版本校验〕，见该 op `x-error-codes`、不在此通用枚举。） 前端动作：208001 刷新当前商户、208002 提示已存在、208003 重载最新态、208005 排查重复请求。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/MerchantBffError'
-          examples:
-            staleTab:
-              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
-              value:
-                code: 208001
-                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
-                context:
-                  currentMerchantId: '1000024'
-            businessConflict:
-              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
-              value:
-                code: 208002
-                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
-            idempotencyConflict:
-              summary: 幂等键冲突（code 208005，同 Idempotency-Key 复用但请求内容不一致；业务·资源型无 context）
-              value:
-                code: 208005
-                detail: 该幂等键已用于其他请求内容，请核对原请求；如确需发起新的业务操作，再使用新幂等键
-    BadRequest:
-      description: 400 业务/校验错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    TooManyRequestsWithCooldown:
-      description: |
-        429 Resend 冷却中：错误体 = `MerchantBffError`，**剩余冷却秒数走 `context.cooldownSeconds`**（整数、权威值——覆盖刷新 / 跨标签页，不依赖首次成功响应的 `cooldownSeconds`）。整数 `code` 见该 op `x-error-codes`。前端据此从收到响应时刻本地倒计时、冷却结束前禁重发。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ResendCooldownError'
-          example:
-            code: 208013
-            detail: 请求过于频繁，请稍后重试
-            context:
-              cooldownSeconds: 42
-    BadGateway:
-      description: 502 上游通道错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    GatewayTimeout:
-      description: 504 上游超时
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    OtpRetryableBadRequest:
-      description: |
-        400 OTP / 挑战错误但**可重试**（尝试未超限）：错误体 = `MerchantBffError`，**剩余尝试次数走 `context.attemptsRemaining`**（整数类型）； `details` 仍只做请求字段级校验红框、不承载剩余次数。整数 `code` 见该 op `x-error-codes`。 区别于同族其它 OTP 终态：**尝试超限锁定 → 423** / **过期·已消费 → 410** / **Resend 冷却 → 429**（各自响应，不在本响应）。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/OtpRetryableError'
-          example:
-            code: 204010
-            detail: 验证码错误，请重试
-            context:
-              attemptsRemaining: 3
-    NotFound:
-      description: 404 资源不存在
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Gone:
-      description: 410 一次性凭据失效(OTP / 验证链接 过期 / 已使用)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Locked:
-      description: 423 登录临时锁定(防爆破)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    InternalServerError:
-      description: 500 服务端内部错误(可重试)
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

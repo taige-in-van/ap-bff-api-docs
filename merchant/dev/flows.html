@@ -8,13 +8,13 @@
 <script type="text/plain" id="src">
 # 开发者（API 凭据 / 签名密钥）—— 调用时序
 
-> 本文是 `09-开发者.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+> 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对凭据 / 密钥后端的委派**不画**（后端面，与前端无关）。点击 / 复制 / 粘贴等用户操作属 SPA 内部交互，不单列 actor。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 的内部实现**不画**（后端面，与前端无关）。点击 / 复制 / 粘贴等用户操作属 SPA 内部交互，不单列 actor。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST/PUT)一律带 `X-CSRF-Token`；**所有接口均携带 `X-Merchant-Context`（本模块无豁免）**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；**开发者页仅已激活商户可达**（非 ACTIVE → 403）；错误体统一 `MerchantBffError`（整数 `code` → 前端策略）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法一律带 `X-CSRF-Token`；**所有接口均携带 `X-Merchant-Context`（本模块无豁免）**——守卫语义与 409 分流见 API 基础约定「merchant scope + stale-tab 守卫」；商户可访问性由启动链路裁决、不在本文重复（见基础约定「商户可访问性」）；错误体统一 `ErrorEnvelope`（整数 `code` → 前端策略；本域在其上附加 `context`）。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
 
@@ -49,7 +49,7 @@ sequenceDiagram
         else 凭据服务暂不可用（502 / 504）
             BFF-->>SPA: 提示稍后重试（不返回部分值）
         else 审计提交失败（500）
-            BFF-->>SPA: 不披露（先记录访问审计、成功才返明文）
+            BFF-->>SPA: 500 不披露（可重试）
         else 披露成功（已审计、no-store）
             BFF-->>SPA: 200 完整 Gateway Credential
             Note over SPA: 展示完整值 / 写入剪贴板；每次披露均已留审计
@@ -76,8 +76,8 @@ sequenceDiagram
         BFF-->>SPA: 重载最新公钥态后再试（防旧页 / 多操作员覆盖）
     else 活跃宽限期内不可再替换（409 208015：上次替换旧钥仍在宽限期）
         BFF-->>SPA: 提示须待宽限结束再替换（当前公钥 / 宽限期不受影响）
-    else 密钥服务暂不可用（502 / 504）
-        BFF-->>SPA: 提示稍后重试（未写入）
+    else 上游暂不可用（502 / 504）
+        BFF-->>SPA: 是否写入未确认——重载最新公钥态确认后再决定要不要重发（同一 PEM 重提交为 no-op）
     else 登记 / 替换成功
         BFF-->>SPA: 200 registered + keyVersion
         Note over SPA: 替换进入轮换宽限期——旧钥宽限期内仍可验入站签名、宽限期后仅新钥
@@ -85,10 +85,10 @@ sequenceDiagram
 ```
 
 - 登记 = 替换（覆盖当前唯一一把公钥）；**与当前公钥相同的重复提交 = no-op**（不新版本 / 不重启宽限期 / 不重复审计），仅不同公钥触发轮换；**多操作员 / 旧页并发以 `expectedKeyVersion` 版本前置防覆盖**（版本不一致 → 409 208004、重载重试），本写不自动重试；不提供清除 / 解绑。
-- 密钥存储、轮换宽限期与生命周期审计由后端密钥服务负责；本页只发起、不实现宽限期。
+- 宽限期由服务端计时，本页只发起替换、不自行倒计时；宽限期内不接受再次替换（`409`·`208015`）。
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

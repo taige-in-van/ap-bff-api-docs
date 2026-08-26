@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: 商户后台 交易管理 (20-05 BFF) — 前端契约面
-  version: 0.10.1
+  title: 商户后台 交易管理 — 前端契约面
+  version: 0.23.0
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台交易域的**读 + 命令**窗口：统一支付交易查询表（多维过滤 + 汇总卡）· 交易详情（含回调技术细节 + 换汇呈现）· 统一退款查询表 · 退款详情 · 支付 / 退款收据（PDF）· 数据导出（Excel）· 发起退款（凭 Refund PIN）· 撤销待处理退款 · 预授权完成（Release）。 交易 / 退款 / 预授权的状态机、清结算、Fee、通道交互归支付核心系统，本域只提供「可见 + 可操作」窗口。 金额一律最小币种单位整数 + currency；列表行不同标价币种不混算，汇总卡单一结算币种（把每笔**实际结算到商户结算币种的金额**相加，不按标价币种分组）；换汇信息在**支付渠道给出了汇率或换算说明时**有条件展示——标价 ≠ 结算币种为典型场景、非判定条件。 **全部端点前置 `Merchant.status = ACTIVE` 门禁**（非 ACTIVE → 403；仅 ACTIVE 商户可用日常能力，会话上下文含 INCOMPLETE / PENDING_REVIEW / REJECTED 仅供入驻 / 拒绝页）。字段类型以本 spec 为准。 **幂等**：所有命令类端点必带 `Idempotency-Key`（缺失 → `400`）。同键 + 同请求体重发返首次结果、不重复执行——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+    商户后台交易域的**读 + 命令**窗口：统一支付交易查询表（多维过滤 + 汇总卡）· 交易详情（含回调技术细节 + 换汇呈现）· 统一退款查询表 · 退款详情 · 支付 / 退款收据（PDF）· 数据导出（Excel）· 发起退款（凭 Refund PIN）· 撤销待处理退款 · 预授权完成（Release）。 交易 / 退款 / 预授权的状态机、清结算、Fee、通道交互归支付核心系统，本域只提供「可见 + 可操作」窗口。 金额一律最小币种单位整数 + currency；列表行不同标价币种不混算，汇总卡单一结算币种（把每笔**实际结算到商户结算币种的金额**相加，不按标价币种分组）；换汇信息在**支付渠道给出了汇率或换算说明时**有条件展示——标价 ≠ 结算币种为典型场景、非判定条件。 字段类型以本 spec 为准。 **幂等**：所有命令类端点必带 `Idempotency-Key`（缺失 → `400`）。同键 + 同请求体重发返首次结果、不重复执行——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（兼前端 BFF）面；浏览器 cookieAuth，非外部面。
@@ -24,7 +24,7 @@ paths:
       operationId: listPayments
       summary: 统一支付交易查询表（过滤 + 排序 + 分页）
       description: |
-        返回当前商户支付交易列表（默认「今日」时间窗）。多维过滤（时间 / 支付方式〔品牌 Family〕/ 来源 / 状态）+ 关键词（订单号 / 备注模糊，金额数值精确、跨标价币种按数值命中）+ 排序 + 分页。 每行金额按其标价币种展示、**不同币种不合并**；行操作可见性（可退 / 收据）由后端返回。查询超时 → 降级（展示「暂不可用」，不返回半截数据）。
+        返回当前商户支付交易列表（**服务端不设默认时间窗**——页面默认今日由客户端决定并作为普通日期范围发出）。多维过滤（时间 / 支付方式〔品牌 Family〕/ 来源 / 状态）+ 关键词（订单号 / 备注模糊，金额数值精确、跨标价币种按数值命中）+ 排序 + 分页。 每行金额按其标价币种展示、**不同币种不合并**；行操作可见性（可退 / 收据）由后端返回。 汇总卡只统计计入营收的那几个状态（白名单见 `PaymentStatus`），**但列表本身不筛**——两者口径不同、别用卡片笔数去对列表行数。 查询超时 → 降级（展示「暂不可用」，不返回半截数据）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -53,9 +53,9 @@ paths:
                 $ref: '#/components/schemas/PaymentList'
               examples:
                 page:
-                  summary: 首页 2 条（CAD + CNY 标价、不混算）
+                  summary: 首页 3 条（CAD + CNY 标价、不混算；含一条 REJECTED）
                   value:
-                    total: 2
+                    total: 3
                     data:
                       - orderId: P100240001
                         paymentMethod: wechat
@@ -63,9 +63,8 @@ paths:
                         amount:
                           amount: '10500'
                           currency: CAD
-                        status: paid
+                        status: PAID
                         transactionTime: '2026-07-19T03:12:00Z'
-                        note: null
                         refundable: true
                         receiptAvailable: true
                       - orderId: P100240002
@@ -74,42 +73,24 @@ paths:
                         amount:
                           amount: '20000'
                           currency: CNY
-                        status: partially_refunded
+                        status: PARTIALLY_REFUNDED
                         transactionTime: '2026-07-19T02:40:00Z'
                         note: 门店订单
                         refundable: true
                         receiptAvailable: true
-                    statusCounts:
-                      - status: null
-                        count: 2
-                      - status: paid
-                        count: 1
-                      - status: partially_refunded
-                        count: 1
-                    filterOptions:
-                      paymentMethods:
-                        - code: wechat
-                          displayName: WeChat Pay
-                        - code: alipay
-                          displayName: Alipay
-                        - code: credit_card
-                          displayName: Credit Card
-                      sources:
-                        - code: store_qr
-                          displayName: Store QR
-                        - code: payment_link
-                          displayName: Payment Link
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+                      - orderId: P100240003
+                        source: payment_link
+                        amount:
+                          amount: '9900'
+                          currency: CAD
+                        status: REJECTED
+                        transactionTime: '2026-07-19T01:05:00Z'
+                        refundable: false
+                        receiptAvailable: false
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /payments/summary:
     get:
       tags:
@@ -117,7 +98,7 @@ paths:
       operationId: getPaymentSummary
       summary: 交易页头汇总卡（随筛选、单一结算币种）
       description: |
-        返回与 `listPayments` 同筛选上下文的汇总卡：交易笔数（币种无关计数）+ **单一结算币种**（把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**）的 Gross Sales / Refund Amount / Net Sales + To Settle。 **与列表同轴**：Gross Sales / `transactions` 与 `listPayments` 用同一组筛选参数、且同按交易的**发生营业日**入窗， 但**汇总卡只统计成功交易**（`failed` 不计入，故汇总卡笔数**小于**列表行数；按状态筛成功后**笔数**即与列表行数一致）。 **金额不要靠加总列表行来核对**——行金额是该笔的**标价币种**（同一商户可同时有不同标价币种的收款码）， Gross Sales 是**结算币种**合计；可核对的是「哪些行计入了汇总」与**笔数**。 **`refundAmount` / `netSales` 是本页专有量**——分别为**筛选退款额**（按退款申请营业日、按当前状态投影）与**筛选净收款额**（= Gross − 筛选退款额）， **非 Dashboard 的 canonical Refund Amount / Net Sales**（那边按商户侧资金归属日、是有符号资金事实流），两者不可互推； 其中筛选净收款额的两个分量入窗轴不同，**不参与逐行核对承诺**。 To Settle 为账户账务的资金派生值、**不由交易筛选条件重算**（结算币种口径）。
+        返回与 `listPayments` 同筛选上下文的汇总卡：交易笔数（币种无关计数）+ **单一结算币种**（把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**）的 Gross Sales / Refund Amount / Net Sales + To Settle。 **与列表同轴**：Gross Sales / `transactions` 与 `listPayments` 用同一组筛选参数、**同一批交易进这两个数**， 但**汇总卡只统计白名单四态**——计入的状态是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`（穷举）， `FAILED` / `REJECTED` 不计入（钱从未收到）；而列表把这两态也一并列出，故**汇总卡笔数通常小于列表行数**。 **金额不要靠加总列表行来核对**——行金额是该笔的**标价币种**（同一商户可同时有不同标价币种的收款码）， Gross Sales 是**结算币种**合计；可核对的是「哪些行计入了汇总」与**笔数**。 **`refundAmount` / `netSales` 是本页专有量**——分别为**筛选退款额**（按退款当前状态投影）与**筛选净收款额**（= Gross − 筛选退款额）， **与 Dashboard 的 Refund Amount / Net Sales 口径不同、两者不可互推**（别跨页对数）； 其中筛选净收款额的两个分量口径不同，**不参与逐行核对承诺**。 To Settle 为账户账务的资金派生值、**不由交易筛选条件重算**（结算币种口径）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -154,17 +135,56 @@ paths:
                     toSettle:
                       amount: '495000'
                       currency: CAD
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
+  /payments/counts:
+    get:
+      tags:
+        - payments
+      operationId: getPaymentCounts
+      summary: 交易列表状态快捷筛选的各项与计数
+      description: |
+        交易列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listPayments` 的 `status`；本端点**不接受 `status`**，其余筛选（时间窗 / 支付方式 / 来源 / 关键词）与列表一致。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/PaymentMethodFilter'
+        - $ref: '#/components/parameters/PaymentSourceFilter'
+        - $ref: '#/components/parameters/PaymentKeyword'
+      responses:
+        '200':
+          description: 各项与计数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickFilterCounts'
+              example:
+                items:
+                  - value: PAID
+                    label: Paid
+                    count: 1
+                  - value: PARTIALLY_REFUNDED
+                    label: Partially refunded
+                    count: 1
+                  - value: REFUNDED
+                    label: Refunded
+                    count: 0
+                  - value: FAILED
+                    label: Failed
+                    count: 0
+                  - value: REJECTED
+                    label: Rejected
+                    count: 1
+                  - value: PREAUTH_HOLDING
+                    label: Pre-auth holding
+                    count: 0
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
   /payments/export:
     get:
       tags:
@@ -202,7 +222,7 @@ paths:
                 type: string
             Content-Language:
               required: true
-              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**、FE / contract test 可断言
+              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**，可直接据此渲染，不必回退到请求头
               schema:
                 type: string
           content:
@@ -210,25 +230,11 @@ paths:
               schema:
                 type: string
                 format: binary
-        '400':
-          description: 结果集命中数超业务上限（部署可配置）——缩小时间 / 筛选范围重导（非上传体过大、不截断、不异步）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '400':
-          - 204009
-        '409':
-          - 208001
+        - 204009
+        - 208001
   /payments/{orderId}:
     get:
       tags:
@@ -260,7 +266,7 @@ paths:
                     amount:
                       amount: '20000'
                       currency: CNY
-                    status: partially_refunded
+                    status: PARTIALLY_REFUNDED
                     transactionTime: '2026-07-19T02:40:00Z'
                     confirmedAt: '2026-07-19T02:40:05Z'
                     refundedAmount:
@@ -270,7 +276,6 @@ paths:
                     paymentMethodDisplayName: Alipay
                     source: payment_link
                     sourceDisplayName: Payment Link
-                    productAttribution: null
                     customerName: Jane Doe
                     customerEmail: jane@example.com
                     payerAccountMasked: •••• 6789
@@ -280,7 +285,7 @@ paths:
                     note: 门店订单
                     relatedRefunds:
                       - refundNo: R100240002-1
-                        refundStatus: SUCCESS
+                        status: SUCCESS
                         amount:
                           amount: '5000'
                           currency: CNY
@@ -310,20 +315,10 @@ paths:
                       remainingRefundable:
                         amount: '15000'
                         currency: CNY
-                    giftCard: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /payments/{orderId}/receipt:
     get:
       tags:
@@ -331,7 +326,7 @@ paths:
       operationId: getPaymentReceipt
       summary: 支付收据（PDF，可打印）
       description: |
-        为**已收款交易**（`paid` / `partially_refunded` / `refunded`）生成可打印支付收据 PDF。 含商户抬头 / 订单号 / 时间 / 金额明细（含退款行 + 净额）/ 状态 / 换汇说明（涉换汇时）；文案按 locale 本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回 `Content-Language`**）。 非已收款交易 / `PREAUTH_HOLDING` 挂起单 → 404（无收据）。
+        为**已收款交易**（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）生成可打印支付收据 PDF。 含商户抬头 / 订单号 / 时间 / 金额明细（含退款行 + 净额）/ 状态 / 换汇说明（涉换汇时）；文案按 locale 本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回 `Content-Language`**）。 非已收款交易 / `PREAUTH_HOLDING` 挂起单 → 404（无收据）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: orderId
@@ -352,7 +347,7 @@ paths:
                 type: string
             Content-Language:
               required: true
-              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**、FE / contract test 可断言
+              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**，可直接据此渲染，不必回退到请求头
               schema:
                 type: string
           content:
@@ -360,19 +355,10 @@ paths:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /payments/{orderId}/refunds:
     post:
       tags:
@@ -380,7 +366,7 @@ paths:
       operationId: createRefund
       summary: 发起退款（全 / 部分 + Refund PIN）
       description: |
-        对**可退订单**发起全额 / 部分退款——可退资格 = **后端权威结果**（`paid` / `partially_refunded` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；**BFF 不硬编码允许状态**，最终以后端重验为准。金额以成交结果金额币种为准、须 ∈ (0, 剩余可发起额]（= 成交 − 已落账 − 未落账在途占用）。 凭商户级 Refund PIN 授权，PIN 校验结果映射为响应：通过 → 继续；不匹配 / 不可校验 → `403`·206003（反枚举同响应、不披露是否匹配）；连续失败锁定 → `423`·206004（防爆破）；数据完整性故障 → `5xx`。原始 PIN 仅入参、绝不回显。建单后由平台审核规则判定 `REVIEWING` / `CHANNEL_PROCESSING`（`SUBMITTED` 仅建单阶段瞬态、不回显）。 允许与未终态退款并发（各占用其额）。退款原因系统默认 `customer_request`、无商户 picker。 **幂等**：同 `Idempotency-Key` + 同 payload → 返冻结的首次结果、不重复创建退款单；同键异 payload → `409`（208005）；**处理中 → `409`·208011（FE 以同键同 payload 重发 `createRefund` 轮询、无独立查询端点）**。退款单已创建即回 `refundNo` + `refundStatus`（**首次受理为非终态**；**一经成功即冻结**、后续同键重发返冻结结果），终态经后续刷新收敛（FE 勿误读为最终成功）。**可退额校验权威在后端**：BFF 侧剩余可发起额仅 UX 预检（可能陈旧）；后端在受理时原子重验资格 / 币种 / 剩余额并占用——并发两请求之和超限时仅可容纳部分成功、其余以 **`400` + `reason`（机器判别）+ `detail`（人类文案）** 拒绝（可退不足 / 能力关闭 / 产品已核销 / 挂起受理面未开启 均 `400`、**非 `409`**；FE 面 `{code 204008, reason, detail}`——`204007` 仅 BFF `amount` 格式预检〔无 reason〕；FE 据 `reason` enum 区分、重取剩余额后可再退），杜绝并发超退资损。
+        对**可退订单**发起全额 / 部分退款——可退资格 = **后端权威结果**（`PAID` / `PARTIALLY_REFUNDED` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；**不要按 status 自行判定能否退款**——一律以 `refundable` / 可退摘要为准，且发起时仍可能被拒（见下方错误分支）。金额以成交结果金额币种为准、须 ∈ (0, 剩余可发起额]（= 成交 − 已落账 − 未落账在途占用）。 凭商户级 Refund PIN 授权，PIN 校验结果映射为响应：通过 → 继续；不匹配 / 不可校验 → `403`·206003（反枚举同响应、不披露是否匹配）；连续失败锁定 → `423`·206004（防爆破）；数据完整性故障 → `5xx`（**不创建退款单**；资金路径不做即时重试恢复，提示稍后再试 / 联系支持）。原始 PIN 仅入参、绝不回显。建单后由平台审核规则判定 `REVIEWING` / `CHANNEL_PROCESSING`（`SUBMITTED` 仅建单阶段瞬态、不回显）。 允许与未终态退款并发（各占用其额）。退款原因系统默认 `customer_request`、无商户 picker。 **幂等**：同 `Idempotency-Key` + 同 payload → 返冻结的首次结果、不重复创建退款单；同键异 payload → `409`（208005）；**处理中 → `409`·208011（FE 以同键同 payload 重发 `createRefund` 轮询、无独立查询端点）**。退款单已创建即回 `refundNo` + `status`（**首次受理为非终态**；**一经成功即冻结**、后续同键重发返冻结结果），终态经后续刷新收敛（FE 勿误读为最终成功）。**可退额校验权威在后端**：BFF 侧剩余可发起额仅 UX 预检（可能陈旧）；后端在受理时原子重验资格 / 币种 / 剩余额并占用——并发两请求之和超限时仅可容纳部分成功、其余以 **`400`·`204008`** 拒绝（可退不足 / 能力关闭 / 产品已核销 / 挂起受理面未开启 均 `400`、**非 `409`**；`204007` 仅 BFF 的 `amount` 格式预检），杜绝并发超退资损。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -418,77 +404,17 @@ paths:
                   summary: 受理（进审核）
                   value:
                     refundNo: R100240002-2
-                    refundStatus: REVIEWING
-        '400':
-          description: 拒绝、不创建。两支判别联合（`code` 区分）：BFF 预检参数错误（`code` `204007`、无 `reason`）或后端业务拒绝（`code` `204008` + `reason` enum 机器判别 + `detail` 人类文案：可退不足 / 能力关闭 / 核销 / 挂起 gate）
-          content:
-            application/json:
-              schema:
-                oneOf:
-                  - title: BFF 参数预检错误（无 reason）
-                    allOf:
-                      - $ref: '#/components/schemas/ErrorEnvelope'
-                      - type: object
-                        properties:
-                          code:
-                            const: 204007
-                          reason: false
-                  - title: 后端业务拒绝（reason 必带）
-                    allOf:
-                      - $ref: '#/components/schemas/ErrorEnvelope'
-                      - type: object
-                        required:
-                          - reason
-                        properties:
-                          code:
-                            const: 204008
-                          reason:
-                            type: string
-                            enum:
-                              - insufficient_refundable
-                              - amount_invalid
-                              - refund_capability_disabled
-                              - product_redeemed
-                              - product_voided
-                              - settlement_waterfall_insufficient
-                              - preauth_acceptance_closed
-                            description: 后端业务拒绝判别（FE 据此分流文案）。产品闸按**产品终结态**分值： `product_redeemed` 已核销、`product_voided` 已作废（礼卡 Voucher Mode）。 新增产品终结态时会扩枚举，**FE 须对未知值降级为通用「该订单不可退款」文案**、不要穷举分支。
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '423':
-          description: Refund PIN 连续失败锁定（防爆破、稍后重试）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '500':
-          description: 数据完整性故障（ACTIVE 商户缺 Refund PIN 等）——不创建退款单、**不可靠即时重试恢复**（资金路径本就不重试）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+                    status: REVIEWING
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '400':
-          - 204007
-          - 204008
-        '403':
-          - 206003
-        '409':
-          - 208001
-          - 208005
-          - 208011
-        '423':
-          - 206004
+        - 204007
+        - 204008
+        - 206003
+        - 206004
+        - 208001
+        - 208005
+        - 208011
   /payments/{orderId}/preauth-completion:
     post:
       tags:
@@ -509,7 +435,7 @@ paths:
             minLength: 1
       responses:
         '200':
-          description: 完成成功（订单商户状态由后端派生：paid / partially_refunded / refunded）
+          description: 完成成功（订单商户状态由后端派生：PAID / PARTIALLY_REFUNDED / REFUNDED）
           content:
             application/json:
               schema:
@@ -519,26 +445,13 @@ paths:
                   summary: 预授权完成 → PAID
                   value:
                     orderId: P100240003
-                    status: paid
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+                    status: PAID
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 208010
+        - 208001
+        - 208005
+        - 208010
   /payments/{orderId}/gift-card/credential-redelivery:
     post:
       tags:
@@ -573,25 +486,12 @@ paths:
       responses:
         '204':
           description: 已重发
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 208018
+        - 208001
+        - 208005
+        - 208019
   /payments/{orderId}/gift-card/voucher-invalidation:
     post:
       tags:
@@ -599,7 +499,7 @@ paths:
       operationId: voidGiftCardVoucher
       summary: 作废礼卡兑换券（Void）
       description: |
-        **仅 Voucher Mode、已付款、未核销且无未终态退款**时可用；作废后订单转 `VOID`、该券不可继续核销、**不可退款**，动作写入订单日志。 已核销的券不得作废；退款冻结期（存在未终态退款）不得作废（处置交退款流程收敛）；Inventory Mode 不提供本操作（`actions.canVoid` 恒 false）。 前端须走站内确认弹窗（展示礼卡订单号 / 券号 / 券 PIN + 风险提示 + 原因备注），不使用浏览器原生确认框。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复作废——网络重试请复用同一个键。 同键但请求体不同 → `409`·208005。**换新键再作废已作废的券 → `409`·208018**（当前状态不可执行），不会当成重放。
+        **仅 Voucher Mode、已付款、未核销且无未终态退款**时可用；作废后该券不可继续核销、**不可退款**。作废结果不在支付状态上体现（`status` 保持原值）——看 `credentialState=CANCELED` / `invalidation.cause=voucher_voided` / `refundable=false`。 已核销的券不得作废；退款冻结期（存在未终态退款）不得作废（处置交退款流程收敛）；Inventory Mode 不提供本操作（`actions.canVoid` 恒 false）。 前端须走站内确认弹窗（展示礼卡订单号 / 券号 / 券 PIN + 风险提示 + 原因备注），不使用浏览器原生确认框。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复作废——网络重试请复用同一个键。 同键但请求体不同 → `409`·208005。**换新键再作废已作废的券 → `409`·208018**（当前状态不可执行），不会当成重放。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -626,25 +526,12 @@ paths:
       responses:
         '204':
           description: 已作废
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 208018
+        - 208001
+        - 208005
+        - 208018
   /payments/{orderId}/gift-card/risk-disposition:
     post:
       tags:
@@ -652,7 +539,7 @@ paths:
       operationId: disposeGiftCardOrderRisk
       summary: 礼卡订单风控人工处置
       description: |
-        对中 / 高风险礼卡订单执行人工处置：medium 可 `escalate`（升为高风险）/ `blacklist`（加入礼卡客户风险名单）； high 可 `approve`（放行发放）/ `remove_blacklist`（移出）。可执行集合读详情的 `giftCard.actions.riskDispositions`。 ⚠️ 此处「黑名单」是**礼卡客户风险资料**（按「客户标识 + 支付渠道」维度、仅影响该客户后续礼卡交易）， **不是**平台级风控准入名单，不影响商品码 / 票务、不阻断其他支付。 中风险订单凭证多已交付，升为高风险**不撤回已交付凭证**。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复处置——网络重试请复用同一个键。 改处置动作要重提**必须换新键**；沿用旧键改动作 → `409`·208005。换新键提交时若风险等级已被他人改变、该处置不再可执行 → `409`·208018。
+        对中 / 高风险礼卡订单执行人工处置：medium 可 `escalate`（升为高风险）/ `blacklist`（加入礼卡客户风险名单）； high 可 `approve`（放行发放）/ `remove_blacklist`（移出）。可执行集合读详情的 `giftCard.actions.riskDispositions`。 ⚠️ 此处「黑名单」是**礼卡客户风险资料**（按「客户标识 + 支付渠道」维度、仅影响该客户后续礼卡交易）， **不是**平台级风控准入名单，不影响商品码 / 票务、不阻断其他支付。 中风险订单凭证多已交付，升为高风险**不撤回已交付凭证**。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复处置——网络重试请复用同一个键。 改处置动作要重提**必须换新键**；沿用旧键改动作 → `409`·208005。换新键提交时若风险等级已被他人改变、该处置不再可执行 → `409`·208020。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -687,25 +574,12 @@ paths:
       responses:
         '204':
           description: 已处置
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 208018
+        - 208001
+        - 208005
+        - 208020
   /refunds:
     get:
       tags:
@@ -713,14 +587,14 @@ paths:
       operationId: listRefunds
       summary: 统一退款查询表（过滤 + 回溯原交易）
       description: |
-        返回当前商户**发起**退款列表（默认时间窗为业务参数〔部署可配置〕；**排除 `refundSource=system_auto`**〔≠ 下方 query/response `source` = 原支付来源〕——系统自动退款不进商户列表 / 状态计数 / 导出，经原支付详情关联退款可追溯）。过滤（时间 / 支付方式 / 来源 / 退款状态）+ 关键词（退款号 / 原订单号 / 金额 / 备注）+ 排序 + 分页。 支付方式 / 来源筛选选项**从原支付集合推导**（与 `listPayments` 一致、非仅退款已有值）；每行含「原交易」引用可回链。行操作可见性（撤销 / 收据）由后端返回。
+        返回当前商户**发起**退款列表（**服务端不设默认时间窗**——页面默认近 30 天由客户端决定并作为普通日期范围发出；**排除 `refundSource=system_auto`**〔≠ 下方 query/response `source` = 原支付来源〕——系统自动退款不进商户列表 / 状态计数 / 导出，经原支付详情关联退款可追溯）。过滤（时间 / 支付方式 / 来源 / 退款状态）+ 关键词（退款号 / 原订单号 / 金额 / 备注）+ 排序 + 分页。 支付方式 / 来源筛选选项**从原支付集合推导**（与 `listPayments` 一致、非仅退款已有值）；每行含「原交易」引用可回链。行操作可见性（撤销 / 收据）由后端返回。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
         - $ref: '#/components/parameters/PaymentMethodFilter'
         - $ref: '#/components/parameters/PaymentSourceFilter'
-        - name: refundStatus
+        - name: status
           in: query
           required: false
           schema:
@@ -757,34 +631,90 @@ paths:
                         originalAmount:
                           amount: '20000'
                           currency: CNY
-                        refundStatus: SUCCESS
+                        status: SUCCESS
                         requestTime: '2026-07-19T02:50:00Z'
-                        note: null
                         voidable: false
                         receiptAvailable: true
-                    statusCounts:
-                      - status: null
-                        count: 1
-                      - status: SUCCESS
-                        count: 1
-                    filterOptions:
-                      paymentMethods:
-                        - code: alipay
-                          displayName: Alipay
-                      sources:
-                        - code: payment_link
-                          displayName: Payment Link
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
+  /refunds/counts:
+    get:
+      tags:
+        - refunds
+      operationId: getRefundCounts
+      summary: 退款列表状态快捷筛选的各项与计数
+      description: |
+        退款列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。口径同 `listRefunds`——同样**排除 `refundSource=system_auto`**。 `value` 原样回传给 `listRefunds` 的 `status`；本端点**不接受 `status`**，其余筛选与列表一致。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/PaymentMethodFilter'
+        - $ref: '#/components/parameters/PaymentSourceFilter'
+        - $ref: '#/components/parameters/RefundKeyword'
+      responses:
+        '200':
+          description: 各项与计数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuickFilterCounts'
+              example:
+                items:
+                  - value: REVIEWING
+                    label: Reviewing
+                    count: 0
+                  - value: CHANNEL_PROCESSING
+                    label: Processing
+                    count: 0
+                  - value: SUCCESS
+                    label: Succeeded
+                    count: 1
+                  - value: FAILED
+                    label: Failed
+                    count: 0
+                  - value: REJECTED
+                    label: Rejected
+                    count: 0
+                  - value: CANCELLED
+                    label: Cancelled
+                    count: 0
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
+  /transactions/filter-options:
+    get:
+      tags:
+        - payments
+      operationId: getTransactionFilterOptions
+      summary: 支付方式 / 来源的商户级候选目录
+      description: |
+        支付方式 / 来源两个筛选控件的候选集，**从原支付全集派生**。 **商户级、不随页面也不随任何筛选条件变化**——候选集若跟着当前筛选收窄，用户就改不回其他取值了；整页取一次即可。 故凡需要这两个 code 的候选或 canonical 展示名的地方都可取用（交易页、退款页，以及别处呈现支付交易行的页面）， **不限于本模块**——具体谁在用不必在此登记。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: 筛选项候选集
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FilterOptions'
+              example:
+                paymentMethods:
+                  - code: wechat
+                    displayName: WeChat Pay
+                  - code: alipay
+                    displayName: Alipay
+                sources:
+                  - code: payment_link
+                    displayName: Payment Link
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
   /refunds/export:
     get:
       tags:
@@ -799,7 +729,7 @@ paths:
         - $ref: '#/components/parameters/ToDate'
         - $ref: '#/components/parameters/PaymentMethodFilter'
         - $ref: '#/components/parameters/PaymentSourceFilter'
-        - name: refundStatus
+        - name: status
           in: query
           required: false
           schema:
@@ -822,7 +752,7 @@ paths:
                 type: string
             Content-Language:
               required: true
-              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**、FE / contract test 可断言
+              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**，可直接据此渲染，不必回退到请求头
               schema:
                 type: string
           content:
@@ -830,25 +760,11 @@ paths:
               schema:
                 type: string
                 format: binary
-        '400':
-          description: 结果集命中数超业务上限（部署可配置）——缩小时间 / 筛选范围重导（非上传体过大、不截断、不异步）
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorEnvelope'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '400':
-          - 204009
-        '409':
-          - 208001
+        - 204009
+        - 208001
   /refunds/{refundNo}:
     get:
       tags:
@@ -880,7 +796,7 @@ paths:
                     amount:
                       amount: '5000'
                       currency: CNY
-                    refundStatus: SUCCESS
+                    status: SUCCESS
                     requestTime: '2026-07-19T02:50:00Z'
                     isPartial: true
                     paymentMethod: alipay
@@ -898,20 +814,10 @@ paths:
                       currency: CNY
                     voidable: false
                     receiptAvailable: true
-                    note: null
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /refunds/{refundNo}/receipt:
     get:
       tags:
@@ -940,7 +846,7 @@ paths:
                 type: string
             Content-Language:
               required: true
-              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**、FE / contract test 可断言
+              description: 实际渲染语言（BCP-47；来自 `Accept-Language` → 会话 locale → 商户默认）——**必返**，可直接据此渲染，不必回退到请求头
               schema:
                 type: string
           content:
@@ -948,19 +854,10 @@ paths:
               schema:
                 type: string
                 format: binary
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '504':
-          $ref: '#/components/responses/UpstreamTimeout'
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
+        - 208001
   /refunds/{refundNo}/cancellation:
     post:
       tags:
@@ -968,7 +865,7 @@ paths:
       operationId: voidRefund
       summary: 撤销待处理退款（仅 REVIEWING）
       description: |
-        撤销当前商户仍在审核中（未进通道：`REVIEWING`）的退款：退款单转 `CANCELLED`、不退款、**仅释放该笔可退额度占用**（其他未终态退款占用不受影响）、剩余可发起额回升。（`SUBMITTED` 是受理事务内瞬态、非商户可观察态、不作可撤入口。） `CHANNEL_PROCESSING` / `SUCCESS` / `FAILED` / `REJECTED` 不可撤 → `409`（208009）；**已 `CANCELLED` 再撤 → 幂等 `200`**（天然幂等、无副作用——已达目标终态）。**幂等**：必带 `Idempotency-Key`；**本端点无请求体，幂等键作用域 = 该键 + 路径资源 `{refundNo}`**——同键重发同一退款 → 返首次结果、不重复撤销；**同键用于不同 `{refundNo}` → `409`（208005）**（网络重试请复用同一个键，换退款单必须换新键）；对已撤单的新撤销请求天然幂等（无副作用）。
+        撤销当前商户仍在审核中（未进通道：`REVIEWING`）的退款：退款单转 `CANCELLED`、不退款、**仅释放该笔可退额度占用**（其他未终态退款占用不受影响）、剩余可发起额回升。（`SUBMITTED` 不会出现在响应里，也不作可撤入口。） `CHANNEL_PROCESSING` / `SUCCESS` / `FAILED` / `REJECTED` 不可撤 → `409`（208009）；**已 `CANCELLED` 再撤 → 幂等 `200`**（天然幂等、无副作用——已达目标终态）。**幂等**：必带 `Idempotency-Key`；**本端点无请求体，幂等键作用域 = 该键 + 路径资源 `{refundNo}`**——同键重发同一退款 → 返首次结果、不重复撤销；**同键用于不同 `{refundNo}` → `409`（208005）**（网络重试请复用同一个键，换退款单必须换新键）；对已撤单的新撤销请求天然幂等（无副作用）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -991,42 +888,29 @@ paths:
                   summary: 撤销待处理退款
                   value:
                     refundNo: R100240002-3
-                    refundStatus: CANCELLED
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/MerchantBffConflict'
-        '502':
-          $ref: '#/components/responses/BadGateway'
-        '504':
-          $ref: '#/components/responses/GatewayTimeout'
+                    status: CANCELLED
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        '409':
-          - 208001
-          - 208005
-          - 208009
+        - 208001
+        - 208005
+        - 208009
 components:
   parameters:
     FromDate:
       name: from
       in: query
-      required: false
+      required: true
       schema:
-        $ref: '#/components/schemas/BusinessDate'
-      description: 起始**商户营业日**（含；省略 = 今日）。**按每笔已固化的归属日标签字面值匹配**， **不做时区换算**。 **匹配哪个标签按列表语义由服务端固定、前端不选**：**支付列表 → 发生营业日** （列表含 `failed`，失败交易没有资金归属日）； **退款列表 → 申请营业日**（列表须展示审核中等**未落账**退款，只有申请日对全部结果态都存在）。 省略时的「今日」由服务端在本次查询观察点按该商户**当前生效**的 Time Zone + 日切时刻求出目标营业日， 再按字面值匹配——**不用浏览器日 / UTC 日，也不重算历史事实的归属**。 列表 / 汇总 / 导出**共享同一组查询参数**；**入窗标签各按自身语义**——支付列表 / 支付导出、以及汇总卡的 Gross Sales 与笔数按**发生营业日**；退款列表 / 退款导出、以及汇总卡的**筛选退款额**按**申请营业日** （故汇总卡是分字段两轴，见 `getPaymentSummary`）。
+        $ref: '#/components/schemas/LocalDate'
+      description: 起始日期（含当日）。**与 `to` 同为必填**——交易 / 退款列表恒在一个时间窗内查询，业务上没有「看全部」这个诉求， 故不允许省略成无界查询。 **服务端不设默认时间窗**——页面初始展示哪一段（支付列表今日 / 退款列表近 30 天）由客户端自己算出并作为具体日期发出， 服务端不代为求「今日」。 列表 / 汇总 / 导出**共享同一组查询参数**；各自筛的是哪个日期由服务端按列表语义固定、**前端不选** （由此汇总卡内部分字段口径不同，见 `getPaymentSummary`）。
     ToDate:
       name: to
       in: query
-      required: false
+      required: true
       schema:
-        $ref: '#/components/schemas/BusinessDate'
-      description: 截止**商户营业日**（含当日）。口径同 `from`——按固化标签字面值匹配、零时区换算。
+        $ref: '#/components/schemas/LocalDate'
+      description: 截止日期（含当日；与 `from` 成对必填）。
     PaymentMethodFilter:
       name: paymentMethod
       in: query
@@ -1067,7 +951,7 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行； **不一致 → 409 `MerchantBffConflict`**（`code` `208001`、`MERCHANT_CONTEXT_CHANGED`）——**读不返回错商户数据、写不执行**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：listMerchants（返回 currentMerchantId 的 re-sync 入口）、switchCurrentMerchant（切换当前商户）、withdrawOnboardingApplication（目标由 path 指定、与当前商户无关）、以及不依赖当前商户的接口。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -1082,7 +966,7 @@ components:
     PageSize:
       name: pageSize
       in: query
-      description: 每页记录数(上限可配置;分页默认 20)
+      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
       schema:
         type: integer
         minimum: 1
@@ -1092,7 +976,7 @@ components:
       name: X-CSRF-Token
       in: header
       required: true
-      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
       schema:
         type: string
         minLength: 1
@@ -1106,96 +990,29 @@ components:
         type: string
         minLength: 1
         pattern: \S
-  responses:
-    UpstreamTimeout:
-      description: 查询超时——整份响应失败、**不返回半截数据**（read fail-safe）；FE 降级展示「暂不可用」。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Unauthorized:
-      description: 401 未认证 / 凭证无效或已撤销
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    Forbidden:
-      description: 403 无权限(fail-secure,默认拒绝)
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    MerchantBffConflict:
-      description: |
-        409 冲突。前端据整数 `code` 区分子因——**常见 `208xxx` 商户后台 BFF 业务·资源型**（下列枚举）；**部分 409 另带身份类业务码**（如 `968xxx`：Login ID 占用 / 改邮箱在途等），**具体码以该 op 的 `x-error-codes` 为准**（另有同域 op 专属 `208xxx`，均不在此枚举）： `208001` **stale-tab 守卫 `MERCHANT_CONTEXT_CHANGED`**——**必携 `context.currentMerchantId`** 供前端 re-sync 当前商户； `208002` 资源已有进行中变更请求或已 `PENDING_REVIEW`（重复提交）； `208003` 状态前置不符（非法状态迁移 / 目标已决策）； `208005` 幂等键复用但 payload 不一致。 （`208004` 乐观锁基线漂移为 op 专属〔如签名公钥 `expectedKeyVersion` 版本校验〕，见该 op `x-error-codes`、不在此通用枚举。） 前端动作：208001 刷新当前商户、208002 提示已存在、208003 重载最新态、208005 排查重复请求。
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/MerchantBffError'
-          examples:
-            staleTab:
-              summary: stale-tab 守卫命中（code 208001，必携 context.currentMerchantId）
-              value:
-                code: 208001
-                detail: 页面预期商户与会话当前商户不一致，请刷新到当前商户
-                context:
-                  currentMerchantId: '1000024'
-            businessConflict:
-              summary: 业务冲突（code 208002，资源已有进行中变更请求 / 已 PENDING_REVIEW；业务·资源型无 context）
-              value:
-                code: 208002
-                detail: 该资源已有进行中的变更请求或已处于待审核状态，请勿重复提交
-            idempotencyConflict:
-              summary: 幂等键冲突（code 208005，同 Idempotency-Key 复用但请求内容不一致；业务·资源型无 context）
-              value:
-                code: 208005
-                detail: 该幂等键已用于其他请求内容，请核对原请求；如确需发起新的业务操作，再使用新幂等键
-    NotFound:
-      description: 404 资源不存在
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    BadGateway:
-      description: 502 上游通道错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    GatewayTimeout:
-      description: 504 上游超时
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
-    BadRequest:
-      description: 400 业务/校验错误
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ErrorEnvelope'
   securitySchemes:
     cookieAuth:
       type: apiKey
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（httpOnly / secure / SameSite；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法）另需 CSRF 防护（X-CSRF-Token）；商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     PaymentStatus:
       type: string
       description: |
-        支付订单**商户可见状态**（小写 = 商户口径 / 大写 = 内核态透传）：`paid` 已收款 · `partially_refunded` 部分退款 · `refunded` 全额退款 · `failed` 失败 · `PREAUTH_HOLDING` 预授权挂起。 `paid` / `partially_refunded` / `refunded` 均基于内核 `PAID`（后两者为**退款度派生** f(成交, Σ已落账退款)、非独立 status；「已落账」= 已达通道受理成功里程碑，受理后失败经冲正 / 回冲回退）；`failed` 来自内核 `FAILED`；`PREAUTH_HOLDING` 为内核挂起态透传。瞬态 `CREATED` / `PAYING` 不进列表。 **封闭 enum**：新增取值 = 破坏性变更、走契约版本化；消费方须 unknown-safe 处理未识别值（保守对待、不静默丢弃）。
+        支付订单**商户可见状态**：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` 三者同属**已收款**、按已落账退款量区分（「已落账」= 通道受理成功；受理后失败会回退，故订单可能从 `PARTIALLY_REFUNDED` 退回 `PAID`）；`REJECTED` 未受理、`FAILED` 收款失败、`PREAUTH_HOLDING` 预授权挂起待放行。收款过程中的中间态不进列表。 **`REJECTED` 与 `FAILED` 不可混用**：`REJECTED` = 平台未受理该笔交易、**支付从未发生**（无支付尝试、不可退款、无收据，`refundable` / `receiptAvailable` 恒 false）；`FAILED` = 已尝试支付但失败。 **计入营收类聚合（收款额 / 净额 / 笔数）的状态白名单（穷举）**：`PAID` · `PARTIALLY_REFUNDED` · `REFUNDED` · `PREAUTH_HOLDING`——哪些页面有这类聚合、聚合字段叫什么，见该页契约。 **不计入聚合 ≠ 不在列表**：本 enum 的每个取值都可能作为列表行出现（`FAILED` / `REJECTED` 亦然）、并可按状态单独筛出——别以为列表只给成功单。 **封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe 处理未识别值（保守对待、不静默丢弃）。
       enum:
-        - paid
-        - partially_refunded
-        - refunded
-        - failed
+        - PAID
+        - PARTIALLY_REFUNDED
+        - REFUNDED
+        - FAILED
+        - REJECTED
         - PREAUTH_HOLDING
     RefundStatus:
       type: string
       description: |
-        退款状态（**商户可观察态**）：`REVIEWING` 审核中 · `CHANNEL_PROCESSING` 通道处理中 · `SUCCESS` 成功 · `FAILED` 失败 · `REJECTED` 已拒绝 · `CANCELLED` 已撤销。 **`SUBMITTED` 不在商户可观察态**（受理事务内瞬态、非稳定可观察态）；正常可撤 = `REVIEWING`（未进通道），`CHANNEL_PROCESSING`+ 不可撤。**封闭 enum**：新增取值 = 破坏性变更、走版本化；消费方 unknown-safe。
+        退款状态（**商户可观察态**）：`REVIEWING` 审核中 · `CHANNEL_PROCESSING` 通道处理中 · `SUCCESS` 成功 · `FAILED` 失败 · `REJECTED` 已拒绝 · `CANCELLED` 已撤销。 **`SUBMITTED` 不在商户可观察态**（受理过程中的中间态，不会出现在响应里、也不作可撤入口）；正常可撤 = `REVIEWING`（未进通道），`CHANNEL_PROCESSING`+ 不可撤。**封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe。
       enum:
         - REVIEWING
         - CHANNEL_PROCESSING
@@ -1205,7 +1022,7 @@ components:
         - CANCELLED
     PaymentSort:
       type: string
-      description: 支付列表排序（默认时间倒序）。**封闭 enum**：新增取值走版本化；消费方 unknown-safe。
+      description: 支付列表排序（默认时间倒序）。**封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe。
       enum:
         - time_desc
         - time_asc
@@ -1213,7 +1030,7 @@ components:
         - amount_asc
     RefundSort:
       type: string
-      description: 退款列表排序（默认申请时间倒序）。**封闭 enum**：新增取值走版本化；消费方 unknown-safe。
+      description: 退款列表排序（默认申请时间倒序）。**封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe。
       enum:
         - time_desc
         - time_asc
@@ -1221,7 +1038,7 @@ components:
         - amount_asc
     FxInfo:
       type: object
-      description: 换汇呈现（**present 条件 = 支付渠道给出了汇率或换算说明**——标价 ≠ 结算币种为典型场景、非判定条件）：付款人扣款币种 / 商户结算币种 / 汇率 / 换算说明。汇率与换算说明的**数值均来自支付渠道回报**，平台不自行推算（不拿平台牌价充当成交汇率）；汇率仅做方向 / 标度的**等价归一**（见 `exchangeRate`）。有的渠道只给结算金额、不给汇率，此时 `fx` 整体 = null、不 present（**不存在「空 fx」**，N/A 呈现归 FE）。**present 时 `exchangeRate` 与 `note` 至少一个非空**。**仅供展示**：本块只用于告诉商户「这笔发生过换汇、渠道给的汇率/说明是什么」，**请勿用 `exchangeRate` 反算任何金额**，也不作退款校验币种。
+      description: 换汇呈现（**present 条件 = 支付渠道给出了汇率或换算说明**——标价 ≠ 结算币种为典型场景、非判定条件）：付款人扣款币种 / 商户结算币种 / 汇率 / 换算说明。汇率与换算说明的**数值均来自支付渠道回报**，平台不自行推算（不拿平台牌价充当成交汇率）；汇率仅做方向 / 标度的**等价归一**（见 `exchangeRate`）。有的渠道只给结算金额、不给汇率，此时**整体不返回 `fx` 本键**（**不存在「空 fx」**，N/A 呈现归 FE）。**present 时 `exchangeRate` 与 `note` 至少一个非空**。**仅供展示**：本块只用于告诉商户「这笔发生过换汇、渠道给的汇率/说明是什么」，**请勿用 `exchangeRate` 反算任何金额**，也不作退款校验币种。
       required:
         - payerCurrency
         - settlementCurrency
@@ -1231,15 +1048,11 @@ components:
         settlementCurrency:
           $ref: '#/components/schemas/Currency'
         exchangeRate:
-          type:
-            - string
-            - 'null'
-          description: 汇率（十进制字符串；**方向：1 单位 `settlementCurrency` = `exchangeRate` 单位 `payerCurrency`**——如结算 CAD、付款 CNY 时形如 `5.2`。**方向由平台统一归一**（数值取自渠道回报，平台只做方向与标度的等价换算、不自行定价也不重算金额）；缺失 = 无换算信息）
+          type: string
+          description: 汇率（十进制字符串；**方向：1 单位 `settlementCurrency` = `exchangeRate` 单位 `payerCurrency`**——如结算 CAD、付款 CNY 时形如 `5.2`。**方向由平台统一归一**（数值取自渠道回报，平台只做方向与标度的等价换算、不自行定价也不重算金额）；**渠道未给汇率则不返回本键**）
         note:
-          type:
-            - string
-            - 'null'
-          description: 换算说明（**通道原文——原样展示、不保证本地化**；事实数据、非平台生成文案）
+          type: string
+          description: 换算说明（**通道原文——原样展示、不保证本地化**；事实数据、非平台生成文案）；**渠道未给说明则不返回本键**
       anyOf:
         - required:
             - exchangeRate
@@ -1255,10 +1068,9 @@ components:
               minLength: 1
     PaymentRow:
       type: object
-      description: 支付交易列表行（默认列）。付款人 / 客户明细归详情，不入列表。
+      description: 支付交易列表行（默认列）。付款人 / 客户明细归详情，不入列表。凡呈现交易列表的页面（交易管理列表、Payment Link 详情的交易 tab）**行形状逐字段相同**，行组件可直接复用。
       required:
         - orderId
-        - paymentMethod
         - source
         - amount
         - status
@@ -1272,10 +1084,10 @@ components:
           description: 平台订单号（全局唯一；列表 / 详情 / 命令主键；≠ 商户自填订单号）
         paymentMethod:
           type: string
-          description: 支付方式（**稳定 Family code**，如 `wechat`——非本地化展示名；展示名 / 图标 FE 按 `filterOptions.paymentMethods[].displayName` / i18n 映射）
+          description: 支付方式（**稳定 Family code**，如 `wechat`——不是展示名）。**展示名 / 图标 FE 按 code 本地化**；拿不到本地化资源时，用交易管理契约 `getTransactionFilterOptions` 的 `paymentMethods[].displayName` 作 canonical 兜底（该目录是**商户级**、不随页面或筛选条件变，凡呈现本行的页面都可取用）。**`status = REJECTED` 时不返回本键**——平台未受理、从未发生支付尝试，故无支付方式可言；FE 在本键缺席时呈现「—」，不得回退为任意默认方式
         source:
           type: string
-          description: 来源（**稳定 code**，如 `store_qr`；展示名 FE 按 `filterOptions.sources[].displayName` 映射；后端动态配置枚举）
+          description: 来源（**稳定 code**，如 `store_qr`，后端动态配置枚举；不是展示名）。展示名同上——按 code 本地化，`getTransactionFilterOptions` 的 `sources[].displayName` 作 canonical 兜底
         amount:
           $ref: '#/components/schemas/Money'
         status:
@@ -1283,45 +1095,14 @@ components:
         transactionTime:
           $ref: '#/components/schemas/Timestamp'
         note:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 备注（无则不返回本键）。**成型后的展示文本**——前端直接显示、**不要反解析成结构**（内容可能较长；格式非契约、随时可能变化）
         refundable:
           type: boolean
-          description: 可退——**后端可退资格结果**（`paid` / `partially_refunded` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；非按 status 硬编码。行内退款入口可见性。
+          description: 可退——**后端可退资格结果**（`PAID` / `PARTIALLY_REFUNDED` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；非按 status 硬编码。行内退款入口可见性。
         receiptAvailable:
           type: boolean
-          description: 已收款（`paid` / `partially_refunded` / `refunded`）——收据入口可见性
-    PaymentStatusCount:
-      type: object
-      description: 支付状态快捷标签计数项（随筛选由后端返回；null = All 总计）。
-      required:
-        - status
-        - count
-      properties:
-        status:
-          oneOf:
-            - $ref: '#/components/schemas/PaymentStatus'
-            - type: 'null'
-          description: 支付状态（null = All 总计）
-        count:
-          type: integer
-          minimum: 0
-    RefundStatusCount:
-      type: object
-      description: 退款状态快捷标签计数项（随筛选由后端返回；null = All 总计）。
-      required:
-        - status
-        - count
-      properties:
-        status:
-          oneOf:
-            - $ref: '#/components/schemas/RefundStatus'
-            - type: 'null'
-          description: 退款状态（null = All 总计）
-        count:
-          type: integer
-          minimum: 0
+          description: 该笔已收款（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）、有收据可取。**取收据的端点在交易管理契约**；所在页没有收据入口时本键可忽略
     FilterOptions:
       type: object
       description: 动态筛选选项（支付方式 / 来源；从**原支付全集**派生；退款页与支付页**同源**、非仅当前结果，由后端输出）。
@@ -1366,8 +1147,6 @@ components:
       required:
         - total
         - data
-        - statusCounts
-        - filterOptions
       properties:
         total:
           type: integer
@@ -1377,27 +1156,19 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PaymentRow'
-        statusCounts:
-          type: array
-          description: 状态快捷标签计数（All + 各状态；随筛选、非仅当前页；由后端输出）
-          items:
-            $ref: '#/components/schemas/PaymentStatusCount'
-        filterOptions:
-          $ref: '#/components/schemas/FilterOptions'
     PaymentSummary:
       type: object
-      description: 交易页头汇总卡（随筛选，**单一结算币种口径**；把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**——「不混算」管列表行、非汇总卡）。**只有 `grossSales` / `transactions` 与列表同轴**（同一组筛选参数 + 同按交易的**发生营业日**入窗——**同一批交易进这两个数**，可判定某行是否计入汇总、笔数可直接核对；但**行金额是该笔标价币种、`grossSales` 是结算币种合计，不要靠加总行金额来核对**）；`refundAmount` 是**筛选退款额**（按退款**申请营业日**、当前状态投影），`netSales` 是**筛选净收款额**（= Gross − 筛选退款额）的**混轴派生量**——**不参与逐行核对承诺、不得用 `transactions` 对其取平均**。各字段状态范围另见各字段说明。
+      description: 交易页头汇总卡（随筛选，**单一结算币种口径**；把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**——「不混算」管列表行、非汇总卡）。**只有 `grossSales` / `transactions` 与列表同轴**（同一组筛选参数、**同一批交易进这两个数**，可判定某行是否计入汇总、笔数可直接核对；但**行金额是该笔标价币种、`grossSales` 是结算币种合计，不要靠加总行金额来核对**）；`refundAmount` 是**筛选退款额**（按退款当前状态投影），`netSales` 是**筛选净收款额**（= Gross − 筛选退款额）的**混口径派生量**——**不参与逐行核对承诺、不得用 `transactions` 对其取平均**。各字段状态范围另见各字段说明。
       required:
         - transactions
         - grossSales
         - refundAmount
         - netSales
-        - toSettle
       properties:
         transactions:
           type: integer
           minimum: 0
-          description: 成功交易笔数（随筛选）——**仅计成功交易**，`failed` 不计入：**列表含失败交易时小于列表行数**，筛选范围仅含计入汇总的成功交易时**与列表行数相等**；**仅与 Gross Sales 同口径**（同按交易的发生营业日入窗，可据此算平均单笔收款金额）。**不得用于对 `netSales` 取平均**——后者是混轴派生量（含按申请营业日入窗的筛选退款额），分母口径对不上。
+          description: 计入汇总的交易笔数（随筛选）——**仅计 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING` 四态**（白名单、穷举；`FAILED` / `REJECTED` 不计），故筛选范围含这两态时本值小于列表行数。**仅与 Gross Sales 同口径**（可据此算平均单笔收款金额）。**不得用于对 `netSales` 取平均**——后者混了口径不同的两个分量，分母对不上。
         grossSales:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1405,29 +1176,28 @@ components:
         refundAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: '**筛选退款额**（结算币种）—— 本页专有量、**非 Dashboard 的 Refund Amount 指标**：按退款**申请营业日**入窗、按退款**当前状态**投影（仅计 `CHANNEL_PROCESSING` + `SUCCESS`，审核中 / 失败 / 拒绝 / 撤销不计入，故受理后失败的退款会退出本汇总）；**排除 `refundSource=system_auto`**，同退款列表 / 导出口径。Dashboard 的 Refund Amount 是按商户侧资金归属日的有符号资金事实流，两者**不可互推**'
+          description: '**筛选退款额**（结算币种）—— 本页专有量、**非 Dashboard 的 Refund Amount 指标**：按退款**当前状态**投影（仅计 `CHANNEL_PROCESSING` + `SUCCESS`，故受理后失败的退款会退出本汇总）；**排除 `refundSource=system_auto`**，同退款列表 / 导出口径。Dashboard 的 Refund Amount 是另一套口径（有符号、可为负），两者**不可互推**'
         netSales:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: '**筛选净收款额** = Gross Sales − 筛选退款额（结算币种）—— 本页专有量、**非 Dashboard 的 Net Sales 指标**；两个分量入窗轴不同（Gross 按发生营业日与列表同轴、筛选退款额按申请营业日），故**不参与逐行核对承诺**'
+          description: '**筛选净收款额** = Gross Sales − 筛选退款额（结算币种）—— 本页专有量、**非 Dashboard 的 Net Sales 指标**；两个分量口径不同（Gross 与列表同轴、筛选退款额不与列表同轴），故**不参与逐行核对承诺**'
         toSettle:
-          description: To Settle（结算币种，账务资金派生值；无则 null）
-          oneOf:
+          description: To Settle（结算币种，账务资金派生值；无则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Money'
-            - type: 'null'
     RefundRef:
       type: object
       description: 交易详情内的关联退款条目。
       required:
         - refundNo
-        - refundStatus
+        - status
         - amount
         - requestTime
       properties:
         refundNo:
           type: string
           minLength: 1
-        refundStatus:
+        status:
           $ref: '#/components/schemas/RefundStatus'
         amount:
           $ref: '#/components/schemas/Money'
@@ -1435,42 +1205,27 @@ components:
           $ref: '#/components/schemas/Timestamp'
     TechnicalDetails:
       type: object
-      description: 回调技术细节（审计可观测；默认折叠）。**五字段恒 present、缺失值 = null**（稳定响应形状）。
-      required:
-        - ip
-        - callbackHttpStatus
-        - callbackSentAt
-        - callbackLatencyMs
-        - callbackUrl
+      description: 回调技术细节（审计可观测；默认折叠）。**五个字段均为可选——无值时不返回对应键**，FE 逐键判断有无、缺席即呈现「—」。
       properties:
         ip:
-          type:
-            - string
-            - 'null'
-          description: 付款人 / 回调来源 IP
+          type: string
+          description: 付款人 / 回调来源 IP（无则不返回本键）
         callbackHttpStatus:
-          type:
-            - integer
-            - 'null'
-          description: 回调 HTTP 状态码
+          type: integer
+          description: 回调 HTTP 状态码（未取得响应则不返回本键）
         callbackSentAt:
-          description: 回调发送时间
-          oneOf:
+          description: 回调发送时间（未发送则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
         callbackLatencyMs:
-          type:
-            - integer
-            - 'null'
-          description: 回调延迟（毫秒）
+          type: integer
+          description: 回调延迟（毫秒；无则不返回本键）
         callbackUrl:
-          type:
-            - string
-            - 'null'
-          description: 回调 URL
+          type: string
+          description: 回调 URL（未配置则不返回本键）
     Refundability:
       type: object
-      description: 可退摘要（供发起退款前展示 + 入口可见性）。**来自后端权威结果**（成交 / **已落账** / **未落账在途占用** / 剩余额 + 可退资格）：展示 / UX 预检口径、权威在后端受理重验；无占用行 = 零占用（仅当后端确认无历史退款）；本端只映射、不自算第二真相源。同标价币种口径。
+      description: 可退摘要（供发起退款前展示 + 入口可见性）。**来自后端权威结果**（成交 / **已落账** / **未落账在途占用** / 剩余额 + 可退资格）：仅供展示与入口可见性判断，**发起时仍会被重新校验**（可能被拒，见 `createRefund` 的错误分支）；无占用行 = 零占用；本面只展示这些取值、不自行重算。同标价币种口径。
       required:
         - refundable
         - transactedAmount
@@ -1496,25 +1251,17 @@ components:
           description: 剩余可发起额 = 成交 − 已落账 − 未落账在途占用；> 0 才可发起退款
     PaymentDetail:
       type: object
-      description: 支付交易详情。恒 present 字段（值可 null）：merchantOrderNo / confirmedAt / refundedAmount / fx / refundability / giftCard——FE 稳定消费、区分「不适用(null)」与「有值」，不出现「字段省略」歧义。
+      description: 支付交易详情。可选字段（不适用时不返回本键）：merchantOrderNo / confirmedAt / refundedAmount / fx / giftCard / paymentMethod / paymentMethodDisplayName / platformTxnNo——FE 逐键判断有无，缺席 = 不适用。**后三者在 `status = REJECTED` 时不返回本键**：平台未受理、从未产生支付尝试，无支付方式与平台交易号可言。FE 在这些键缺席时呈现「—」，**不得编造交易号或回退为任意默认支付方式**。（`refundability` 该态**仍恒 present**、四个金额位为 0，见其自身说明。）
       required:
         - orderId
         - amount
         - status
         - transactionTime
-        - paymentMethod
-        - paymentMethodDisplayName
         - source
         - sourceDisplayName
-        - merchantOrderNo
-        - platformTxnNo
         - relatedRefunds
         - technicalDetails
-        - confirmedAt
-        - refundedAmount
-        - fx
         - refundability
-        - giftCard
       properties:
         orderId:
           type: string
@@ -1526,21 +1273,19 @@ components:
         transactionTime:
           $ref: '#/components/schemas/Timestamp'
         confirmedAt:
-          description: 确认时间（未确认则 null）
-          oneOf:
+          description: 确认时间（未确认则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
         refundedAmount:
-          description: 已落账退款累计（通道受理成功即计入、含尚未最终成功的在途；受理后失败经冲正 / 回冲回退；无退款则 null）
-          oneOf:
+          description: 已落账退款累计（通道受理成功即计入、含尚未最终成功的在途；受理后失败经冲正 / 回冲回退；无退款则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Money'
-            - type: 'null'
         paymentMethod:
           type: string
-          description: 支付方式（**稳定 Family code**）
+          description: 支付方式（**稳定 Family code**）。`status = REJECTED` 时不返回本键
         paymentMethodDisplayName:
           type: string
-          description: 支付方式 **canonical 默认展示名**（非本地化；FE 按 code 本地化、此值作 unknown-safe fallback——详情自足、邮件 CTA 深链直开不依赖列表 filterOptions；**PDF / xlsx 的服务端本地化与此无关**、按请求 locale 另行渲染）
+          description: 支付方式 **canonical 默认展示名**（非本地化；FE 按 code 本地化、此值作 unknown-safe fallback——详情自足、邮件 CTA 深链直开不依赖列表 filterOptions；**PDF / xlsx 的服务端本地化与此无关**、按请求 locale 另行渲染）。`status = REJECTED` 时不返回本键
         source:
           type: string
           description: 来源（**稳定 code**）
@@ -1548,39 +1293,29 @@ components:
           type: string
           description: 来源 **canonical 默认展示名**（非本地化；FE 按 code 本地化、此值作 fallback；详情自足）
         productAttribution:
-          type:
-            - string
-            - 'null'
-          description: Product 归因（无则 null）
+          type: string
+          description: Product 归因（无则不返回本键）
         customerName:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 客户姓名（无则不返回本键）
         customerEmail:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 客户邮箱（无则不返回本键）
         payerAccountMasked:
-          type:
-            - string
-            - 'null'
-          description: 付款账户（脱敏）
+          type: string
+          description: 付款账户（脱敏；通道未给则不返回本键）
         merchantOrderNo:
-          type:
-            - string
-            - 'null'
-          description: 商户自填订单号（可复制；允许缺省 → 值可 null；orderId 才是平台主键）
+          type: string
+          description: 商户自填订单号（可复制；允许缺省 → 缺省时不返回本键；orderId 才是平台主键）
         platformTxnNo:
           type: string
-          description: 平台交易号（可复制）
+          description: 平台交易号（可复制）。`status = REJECTED` 时不返回本键——从未建立支付交易
         tradeName:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: Trade Name（无则不返回本键）
         note:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 备注（无则不返回本键）。**成型后的展示文本**——前端直接显示、**不要反解析成结构**（内容可能较长；格式非契约、随时可能变化）
         relatedRefunds:
           type: array
           description: 关联退款（无则空数组）
@@ -1589,19 +1324,17 @@ components:
         technicalDetails:
           $ref: '#/components/schemas/TechnicalDetails'
         fx:
-          description: 换汇呈现（仅涉换汇时 present、否则 null）
-          oneOf:
+          description: 换汇呈现（仅涉换汇时 present、否则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/FxInfo'
-            - type: 'null'
         refundability:
-          description: '可退摘要（**恒返非空**）：`refundable: true/false` = 后端 gate 结果、FE 据此判入口、**不按 null 推断**；不可退时 `refundable=false` + `remainingRefundable=0`。'
+          description: '可退摘要（**恒返非空**）：`refundable: true/false` = 后端 gate 结果、FE 据此判入口、**不按 null 推断**；不可退时 `refundable=false` + `remainingRefundable=0`。**`status = REJECTED` 时四个金额位一律为 0**（该单从未成交，故成交额 / 已落账退款 / 在途占用 / 剩余可退**均确为零**——不是缺失、更不是占位），`refundable=false`；币种取该单标价币种。如此保持本块恒非空，FE 无需为该态分叉。'
           allOf:
             - $ref: '#/components/schemas/Refundability'
         giftCard:
-          description: 礼卡订单扩展段（**仅礼卡订单 present，其余恒 null**）。语义与前置条件由后端判定，本面只呈现与转发命令。
-          oneOf:
+          description: 礼卡订单扩展段（**仅礼卡订单 present，其余不返回本键**）。语义与前置条件由后端判定，本面只呈现与转发命令。
+          allOf:
             - $ref: '#/components/schemas/GiftCardOrderDetail'
-            - type: 'null'
     GiftCardOrderDetail:
       type: object
       description: 礼卡订单详情扩展（订单详情页的礼卡扩展区）。**内容按 `fulfillmentMode` 分叉**： Inventory Mode 无核销态、不展示 Void 入口；Voucher Mode 有核销态与 Void。 **可执行动作一律读 `actions.*`、不要按状态自行推断**——闸的权威在后端返回的 `actions.*`。
@@ -1615,7 +1348,6 @@ components:
         - recipient
         - credentialState
         - refundFrozen
-        - invalidation
         - credential
         - risk
         - actions
@@ -1631,20 +1363,14 @@ components:
           type: string
           minLength: 1
         channelOrderId:
-          type:
-            - string
-            - 'null'
-          description: 通道订单号（无则 null）
+          type: string
+          description: 通道订单号（无则不返回本键）
         paymentId:
-          type:
-            - string
-            - 'null'
-          description: 支付单号（无则 null）
+          type: string
+          description: 支付单号（无则不返回本键）
         customerId:
-          type:
-            - string
-            - 'null'
-          description: 付款人客户标识（无则 null）
+          type: string
+          description: 付款人客户标识（无则不返回本键）
         campaignName:
           type: string
           description: 后台活动名（订单列表主标题；**不面向持卡人**）
@@ -1656,10 +1382,9 @@ components:
         price:
           $ref: '#/components/schemas/Money'
         discountAmount:
-          description: 折扣额（Promotion Type=discount 时 present，否则 null）
-          oneOf:
+          description: 折扣额（Promotion Type=discount 时 present，否则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Money'
-            - type: 'null'
         purchaseType:
           type: string
           enum:
@@ -1685,10 +1410,9 @@ components:
           type: boolean
           description: 退款冻结标记（由后端维护）——该订单存在未终态退款时为 true，**与 `credentialState` 正交** （冻结不改发放态）。冻结期不得核销 / 重发 / Void，`actions.*` 相应为 false；退款全部终态且无一成功后解冻， 任一退款成功则凭证转 `CANCELED`（届时本字段回 false、以 `invalidation` 为准）。FE 据此展示「退款处理中」提示。
         invalidation:
-          description: 凭证失效详情（`credentialState=CANCELED` 时 present，否则 null）——FE 据此决定呈现哪一支
-          oneOf:
+          description: 凭证失效详情（`credentialState=CANCELED` 时 present，否则不返回本键）——FE 据此决定呈现哪一支
+          allOf:
             - $ref: '#/components/schemas/GiftCardInvalidation'
-            - type: 'null'
         credential:
           $ref: '#/components/schemas/GiftCardCredential'
         risk:
@@ -1723,102 +1447,116 @@ components:
           description: Inventory Mode 库存后果；Voucher Mode 恒 `not_applicable`
     GiftCardParty:
       type: object
-      required:
-        - name
-        - email
       properties:
         name:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 姓名（无则不返回本键）
         email:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 邮箱（无则不返回本键）
         greetingMessage:
-          type:
-            - string
-            - 'null'
-          description: 送礼留言（仅 recipient、自购时 null）
+          type: string
+          description: 送礼留言（仅 recipient；自购时不返回本键）
     GiftCardCredential:
+      description: 凭证信息，**按 `fulfillmentMode` 判别两种形状**——两支各自只带自己那套字段，不再互相占位。 **PIN 单独看 `pinVisibility`**：凭证正文经邮件交付、后台不作为分发渠道，所以「有权看且凭证有效」时才给 PIN 值； 其余情形只说明原因、不给值（这与「本模式没有这个字段」是两回事，勿混）。
+      oneOf:
+        - $ref: '#/components/schemas/GiftCardInventoryCredential'
+        - $ref: '#/components/schemas/GiftCardVoucherCredential'
+      discriminator:
+        propertyName: fulfillmentMode
+        mapping:
+          inventory: '#/components/schemas/GiftCardInventoryCredential'
+          voucher: '#/components/schemas/GiftCardVoucherCredential'
+    GiftCardCredentialCommon:
       type: object
-      description: 凭证信息，**按 fulfillmentMode 分叉**。Inventory Mode 用 card* 字段（Bonus Card 订单可能另带赠卡， 与主卡同属一个**凭证组**、整组同生共死）；Voucher Mode 用 voucher* 字段并带核销态。 **PIN 仅在凭证有效且调用方有权查看时返回，否则 null**——凭证正文经邮件交付，后台不作为分发渠道。
-      required:
-        - cardNoMasked
-        - cardPin
-        - bonusCardNoMasked
-        - bonusCardPin
-        - voucherNo
-        - voucherPin
-        - redemptionStatus
-        - redemptionRule
+      description: 两种凭证形态共有的展示字段。
       properties:
-        cardNoMasked:
-          type:
-            - string
-            - 'null'
-          description: 礼卡卡号（脱敏）——仅 inventory，voucher 恒 null
-        cardPin:
-          type:
-            - string
-            - 'null'
-          description: 礼卡 PIN——仅 inventory 且可见时
-        bonusCardNoMasked:
-          type:
-            - string
-            - 'null'
-          description: 赠卡卡号（脱敏）——仅 inventory 且 Bonus Card 分两张卡时
-        bonusCardPin:
-          type:
-            - string
-            - 'null'
-          description: 赠卡 PIN——同上
-        voucherNo:
-          type:
-            - string
-            - 'null'
-          description: 兑换券号——仅 voucher，inventory 恒 null
-        voucherPin:
-          type:
-            - string
-            - 'null'
-          description: 兑换券 PIN——仅 voucher 且可见时
-        redemptionStatus:
-          description: 核销态——**仅 voucher**，inventory 恒 null（无平台核销）
-          oneOf:
-            - type: string
+        mainAmount:
+          description: 主卡金额（展示三项金额、供门店按额兑换时给；不适用则不返回本键）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        bonusAmount:
+          description: 赠卡金额（同上）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        totalAmount:
+          description: 合计金额（同上）
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        bonusNotes:
+          type: string
+          description: 赠卡备注（仅 Bonus Terms=custom 时；否则不返回本键）
+        pinVisibility:
+          $ref: '#/components/schemas/GiftCardPinVisibility'
+    GiftCardPinVisibility:
+      type: string
+      description: PIN 的可见性。`visible` = 本响应给出 PIN 值；`hidden_no_permission` = 调用方无权查看； `hidden_credential_inactive` = 凭证已失效 / 已作废。**非 `visible` 时不返回 PIN 键**。
+      enum:
+        - visible
+        - hidden_no_permission
+        - hidden_credential_inactive
+    GiftCardInventoryCredential:
+      description: Inventory Mode 凭证：发预先导入的真品牌卡。Bonus Card 订单可能另带赠卡，与主卡同属一个**凭证组**、整组同生共死。**无平台核销**，故不带核销态。
+      allOf:
+        - $ref: '#/components/schemas/GiftCardCredentialCommon'
+        - type: object
+          required:
+            - fulfillmentMode
+            - cardNoMasked
+            - pinVisibility
+          properties:
+            fulfillmentMode:
+              type: string
+              const: inventory
+            pinVisibility:
+              $ref: '#/components/schemas/GiftCardPinVisibility'
+            cardNoMasked:
+              type: string
+              description: 礼卡卡号（脱敏）
+            cardPin:
+              type: string
+              description: 礼卡 PIN——**仅 `pinVisibility=visible` 时返回**
+            bonusCardNoMasked:
+              type: string
+              description: 赠卡卡号（脱敏）——**仅 Bonus Card 分两张卡时返回**
+            bonusCardPin:
+              type: string
+              description: 赠卡 PIN——同上，且须 `pinVisibility=visible`
+    GiftCardVoucherCredential:
+      description: Voucher Mode 凭证：发系统生成的兑换券，门店核销 + 可 Void，故带核销态与核销规则。
+      allOf:
+        - $ref: '#/components/schemas/GiftCardCredentialCommon'
+        - type: object
+          required:
+            - fulfillmentMode
+            - voucherNo
+            - redemptionStatus
+            - redemptionRule
+            - pinVisibility
+          properties:
+            fulfillmentMode:
+              type: string
+              const: voucher
+            pinVisibility:
+              $ref: '#/components/schemas/GiftCardPinVisibility'
+            voucherNo:
+              type: string
+              description: 兑换券号
+            voucherPin:
+              type: string
+              description: 兑换券 PIN——**仅 `pinVisibility=visible` 时返回**
+            redemptionStatus:
+              type: string
               enum:
                 - not_redeemed
                 - redeemed
                 - voided
-            - type: 'null'
-        redemptionRule:
-          description: 核销规则——仅 voucher；本期取值集合仅一次性核销
-          oneOf:
-            - type: string
+              description: 核销态
+            redemptionRule:
+              type: string
               enum:
                 - one_time
-            - type: 'null'
-        mainAmount:
-          description: 主卡金额（Bonus Card + voucher 时展示三项金额，供门店按额兑换）
-          oneOf:
-            - $ref: '#/components/schemas/Money'
-            - type: 'null'
-        bonusAmount:
-          description: 赠卡金额（同上）
-          oneOf:
-            - $ref: '#/components/schemas/Money'
-            - type: 'null'
-        totalAmount:
-          description: 合计金额（同上）
-          oneOf:
-            - $ref: '#/components/schemas/Money'
-            - type: 'null'
-        bonusNotes:
-          type:
-            - string
-            - 'null'
-          description: 赠卡备注（Bonus Terms=custom 时）
+              description: 核销规则；本期取值集合仅一次性核销
     GiftCardRisk:
       type: object
       description: 订单风险（仅活动开启 Order Risk Review 时有意义）。等级由后端判定，本面只呈现。
@@ -1892,7 +1630,7 @@ components:
         - source
         - amount
         - isPartial
-        - refundStatus
+        - status
         - requestTime
         - voidable
         - receiptAvailable
@@ -1917,18 +1655,16 @@ components:
           type: boolean
           description: 部分退款（true）/ 全额退款（false）
         originalAmount:
-          description: 原订单金额（部分退款辅助信息；否则 null）
-          oneOf:
+          description: 原订单金额（部分退款辅助信息；否则不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Money'
-            - type: 'null'
-        refundStatus:
+        status:
           $ref: '#/components/schemas/RefundStatus'
         requestTime:
           $ref: '#/components/schemas/Timestamp'
         note:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 退款备注（无则不返回本键）
         voidable:
           type: boolean
           description: 可撤（`REVIEWING`，未进通道；`SUBMITTED` 是内部瞬态、不作商户可撤态）——撤销入口可见性
@@ -1940,8 +1676,6 @@ components:
       required:
         - total
         - data
-        - statusCounts
-        - filterOptions
       properties:
         total:
           type: integer
@@ -1950,22 +1684,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RefundRow'
-        statusCounts:
-          type: array
-          description: 退款状态快捷标签计数（All + 各状态；随筛选、非仅当前页；状态语义 + 排除 system_auto，由后端输出）
-          items:
-            $ref: '#/components/schemas/RefundStatusCount'
-        filterOptions:
-          allOf:
-            - $ref: '#/components/schemas/FilterOptions'
-          description: 支付方式 / 来源选项**与支付列表同源**（从原支付全集派生）
     RefundDetail:
       type: object
-      description: 退款详情。`completedAt` 恒 present（值可 null，仅 `SUCCESS` 有值）。**不含换汇字段**——退款详情不展示换汇信息；换汇仅在退款收据呈现。
+      description: 退款详情。`completedAt` **仅 `SUCCESS` 返回**，其余状态不返回本键。**不含换汇字段**——退款详情不展示换汇信息；换汇仅在退款收据呈现。
       required:
         - refundNo
         - amount
-        - refundStatus
+        - status
         - requestTime
         - isPartial
         - paymentMethod
@@ -1976,7 +1701,6 @@ components:
         - initiatedBy
         - originalOrderId
         - originalAmount
-        - completedAt
         - voidable
         - receiptAvailable
       properties:
@@ -1985,7 +1709,7 @@ components:
           minLength: 1
         amount:
           $ref: '#/components/schemas/Money'
-        refundStatus:
+        status:
           $ref: '#/components/schemas/RefundStatus'
         requestTime:
           $ref: '#/components/schemas/Timestamp'
@@ -2004,13 +1728,11 @@ components:
           type: string
           description: 原支付来源 **canonical 默认展示名**（非本地化；FE 按 code 本地化、此值作 fallback；详情自足）
         customerName:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 客户姓名（无则不返回本键）
         customerEmail:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 客户邮箱（无则不返回本键）
         initiatorType:
           type: string
           enum:
@@ -2025,10 +1747,9 @@ components:
           minLength: 1
           description: 发起人**安全展示值（非空、必显）**：`initiatorType=merchant_user` → 商户用户展示名（后端解析）；其余 type → **canonical 默认标签**（unknown-safe fallback、非本地化——FE 按 `initiatorType` 本地化、此值兜底）。发起人原始标识仍排除〔敏感〕
         completedAt:
-          description: 退款完成时间（**恒 present、值可 null**；仅 `SUCCESS` 非 null）
-          oneOf:
+          description: 退款完成时间（**仅 `SUCCESS` 返回**；其余状态不返回本键）
+          allOf:
             - $ref: '#/components/schemas/Timestamp'
-            - type: 'null'
         originalOrderId:
           type: string
           minLength: 1
@@ -2037,14 +1758,13 @@ components:
           $ref: '#/components/schemas/Money'
         voidable:
           type: boolean
-          description: 可撤（`REVIEWING`，未进通道）——详情撤销入口可见性（**深链直开自足**、与列表行同口径、勿按 refundStatus 硬编码）
+          description: 可撤（`REVIEWING`，未进通道）——详情撤销入口可见性（**深链直开自足**、与列表行同口径、勿按 status 硬编码）
         receiptAvailable:
           type: boolean
           description: 收据可用（`SUCCESS`）——详情收据入口可见性（深链直开自足）
         note:
-          type:
-            - string
-            - 'null'
+          type: string
+          description: 退款备注（无则不返回本键）
     CreateRefundRequest:
       type: object
       description: '发起退款请求。金额 ∈ (0, 剩余可发起额]，币种 = 成交结果金额币种。**封闭对象**（`additionalProperties: false`——拒绝拼错字段 / 意外凭据字段 / 客户端自填 scope 信息）。'
@@ -2059,35 +1779,35 @@ components:
           type:
             - string
             - 'null'
-          description: 退款备注（选填；长度上限为业务参数〔部署可配置〕）
+          maxLength: 300
+          description: 退款备注（选填）。超长由后端拒绝，前端建议同步限制输入。
         refundPin:
-          type: string
-          minLength: 1
-          writeOnly: true
-          description: 商户级 Refund PIN（write-only：仅入参、绝不回显〔含错误响应〕；格式〔默认 6 位数字〕由后端校验、本契约不锁 pattern；**不参与幂等比对**——同键重试即使重输 PIN 也返首次结果）
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 发起退款时校验的商户级 Refund PIN。**不参与幂等比对**——同键重试即使重输 PIN 也返首次结果。
     CreateRefundResult:
       type: object
       required:
         - refundNo
-        - refundStatus
+        - status
       properties:
         refundNo:
           type: string
           minLength: 1
-        refundStatus:
+        status:
           allOf:
             - $ref: '#/components/schemas/RefundStatus'
-          description: 退款单可观察态（复用 `RefundStatus` 封闭 enum；`SUBMITTED` 为受理事务内瞬态、不回显）：**首次受理** → `REVIEWING`（审核中）/ `CHANNEL_PROCESSING`（处理中）；同键重发在恢复期可能返终态（`SUCCESS` / `FAILED` / …）；**一经成功即冻结**——后续同键重发返此冻结记录、非当前实时态
+          description: 退款单可观察态（复用 `RefundStatus` 封闭 enum；`SUBMITTED` 不会出现在响应里）：**首次受理** → `REVIEWING`（审核中）/ `CHANNEL_PROCESSING`（处理中）；同键重发在恢复期可能返终态（`SUCCESS` / `FAILED` / …）；**一经成功即冻结**——后续同键重发返此冻结记录、非当前实时态
     RefundCancellationResult:
       type: object
       required:
         - refundNo
-        - refundStatus
+        - status
       properties:
         refundNo:
           type: string
           minLength: 1
-        refundStatus:
+        status:
           type: string
           const: CANCELLED
           description: 撤销后状态（恒 `CANCELLED`）
@@ -2103,44 +1823,22 @@ components:
         status:
           type: string
           enum:
-            - paid
-            - partially_refunded
-            - refunded
-          description: 完成后订单**商户状态**（后端派生、**非固定 `paid`**；**成功响应值域收窄** `paid` / `partially_refunded` / `refunded`，不含 `failed` / `PREAUTH_HOLDING`——非成功走非 200）：无挂起期退 = `paid`；挂起期已直退过 = `partially_refunded` / `refunded`（退款度派生）。FE 可据此更新或重读交易。
-    BusinessDate:
+            - PAID
+            - PARTIALLY_REFUNDED
+            - REFUNDED
+          description: 完成后订单**商户状态**（后端派生、**非固定 `PAID`**；**成功响应值域收窄** `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`，不含 `FAILED` / `PREAUTH_HOLDING`——非成功走非 200）：无挂起期退 = `PAID`；挂起期已直退过 = `PARTIALLY_REFUNDED` / `REFUNDED`（退款度派生）。FE 可据此更新或重读交易。
+    LocalDate:
       type: string
       format: date
-      description: '**归属日标签**(无偏移日历日期,`YYYY-MM-DD`)。在**业务事实达成时刻**按当时生效配置 **一次算定并固化**、此后不可变。三个切日主体各一: **商户营业日**(商户 IANA 时区 + 日切时刻)、**系统运营日**(运营方时区、无日切时刻,= 清算日)、 **通道日**(通道声明的可空外部标签,平台不推算不兜底)。 **消费方硬约束**:① **不带时区、前端不得做任何时区换算**(禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天); ② 日期范围过滤**按字面值匹配**、**不做时区换算**; ③ **不得按当前配置重算历史归属**(改商户时区 / 日切时刻不改变已固化标签)。 相对日期预设(今日 / 本月 / 上月)由服务端在查询观察点按当前生效配置求出目标日、再按字面值匹配。'
+      description: 日期 `YYYY-MM-DD`，**不带时区**。本面所有日期字段与日期入参都是它。 **按字面收发**——展示直接用这个字符串，别塞进 `Date` 按浏览器时区格式化（负偏移时区会显示成前一天）。
       examples:
         - '2026-05-19'
-    Currency:
+    DiagnosticDetail:
       type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
-    Money:
-      type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
-      required:
-        - amount
-        - currency
-      properties:
-        amount:
-          type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。可重定义面默认最小单位整数字符串;十进制金额须接口契约显式声明。
-        currency:
-          $ref: '#/components/schemas/Currency'
-    Timestamp:
-      type: string
-      format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 日 / 月归属一律用 `BusinessDate`(见其说明); **禁止把本类型当日期范围过滤的归属依据**(瞬时点与营业日在日切时刻附近必然分属两天)。'
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
     ErrorEnvelope:
       type: object
-      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details)。
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
       required:
         - code
         - detail
@@ -2149,8 +1847,9 @@ components:
           type: integer
           description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
         detail:
-          type: string
-          description: 错误描述(面向调用方;本地化按 locale)。
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
         links:
           type: object
           description: 可选:错误说明 / 后续恢复操作链接。
@@ -2172,29 +1871,89 @@ components:
                 type: string
               issue:
                 type: string
-    MerchantBffError:
-      description: 商户后台 BFF 错误体 = ErrorEnvelope + 可选 context（错误专属结构化上下文，非字段校验 details）。
-      allOf:
-        - $ref: '#/components/schemas/ErrorEnvelope'
-        - type: object
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
           properties:
-            context:
-              type: object
-              description: 错误专属结构化上下文（非 details 字段校验数组）。MERCHANT_CONTEXT_CHANGED 时携 currentMerchantId 供前端 re-sync。
-              properties:
-                currentMerchantId:
-                  type:
-                    - string
-                    - 'null'
-                  description: 服务端会话当前商户（≠ 请求携带的 expected X-Merchant-Context）；**null = 无当前商户**（前端须重选）。**契约不变量**：code=208001 时本字段必 **present**（值可为 null）。
-                attemptsRemaining:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战错误但可重试时的剩余尝试次数（错误可重试 400 携带；**整数类型、走 context 结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
-                cooldownSeconds:
-                  type: integer
-                  minimum: 0
-                  description: OTP / 挑战 Resend 冷却剩余秒数（冷却 429 携带；**整数类型、走 context 结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            currentMerchantId:
+              type: string
+              description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            maskedEmail:
+              type: string
+              description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    Timestamp:
+      type: string
+      format: date-time
+      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+    QuickFilterItem:
+      type: object
+      additionalProperties: false
+      required:
+        - value
+        - label
+        - count
+      properties:
+        value:
+          type: string
+          description: 该项对应的筛选值 —— **对客户端不透明**:选中本项就把它**原样**回传给对应列表端点的那个筛选参数, 不要解析、拼接或据其分支。
+          examples:
+            - PAID
+        label:
+          type: string
+          description: 后端给的默认展示名。**客户端有自己的多语言资源时按 `value` 取用、本字段作兜底**; 没有资源(取值由配置或数据决定,如角色名、年份)时直接展示本字段。
+          examples:
+            - Paid
+        count:
+          type: integer
+          minimum: 0
+          description: 该项当前的命中数(口径见 `QuickFilterCounts` 说明)。
+    QuickFilterCounts:
+      type: object
+      additionalProperties: false
+      description: |
+        **列表页顶部快捷筛选的各项与计数**。快捷筛选就是该列表的一个筛选维度,没有特殊机制:选中某项 = 给列表带上该维度的筛选参数(值 = 该项 `value`),**选 All = 不带这个参数**。
+
+        **照着 `items` 渲染即可** —— 项集、顺序、展示名、数字全部由服务端给出,客户端不枚举取值、不 hardcode 项集;某项当期为 `0` 时**仍会返回**(那一格不该因为没数据就消失)。
+
+        **`All` 不在 `items` 里,由客户端自己补一项**,数字 = 其余各项之和 —— 服务端保证 `items` 覆盖该列表在不带本维度筛选时的全部命中(每行恰好落进一项),故这个和恒等于此时列表的 `total`。
+
+        **本端点不接受被计维度自身的参数**;其余筛选条件与对应列表端点一致、传什么算什么。因此:点某项后列表 `total` = 该项 `count`;点 All 后列表 `total` = 各项 `count` 之和。
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuickFilterItem'
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
@@ -2204,3 +1963,16 @@ components:
             amount:
               type: string
               pattern: ^[1-9][0-9]*$
+    RefundPin:
+      type: string
+      writeOnly: true
+      pattern: ^[0-9]{6}$
+      description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
+  responses:
+    MerchantBffDefaultError:
+      description: |
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

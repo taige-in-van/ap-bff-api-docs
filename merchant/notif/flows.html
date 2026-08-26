@@ -8,13 +8,13 @@
 <script type="text/plain" id="src">
 # 通知（通知设置 / 站内信）—— 调用时序
 
-> 本文是 `07-通知.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+> 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对上游能力的委派（验证码邮件外发 / 微信扫码挑战）**不画**（后端面，与前端无关）；外部参与方（微信）仅在用户真参与异步交互时出现。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 的内部实现**不画**（后端面，与前端无关）；外部参与方（微信）仅在用户真参与异步交互时出现。点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；**所有接口均携带 `X-Merchant-Context`（本模块无豁免）**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；目标资源不在可访问范围 → 404；错误体统一 `MerchantBffError`（整数 `code` → 前端策略）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法一律带 `X-CSRF-Token`；**所有接口均携带 `X-Merchant-Context`（本模块无豁免）**——守卫语义与 409 分流见 API 基础约定「merchant scope + stale-tab 守卫」；目标资源不在可访问范围 → 404；错误体统一 `ErrorEnvelope`（整数 `code` → 前端策略；本域在其上附加 `context`）。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
 
@@ -44,6 +44,7 @@ sequenceDiagram
     autonumber
     participant SPA as 商户后台 SPA
     participant BFF as BFF
+    participant EM as 候选邮箱（用户另处查看）
 
     Note over SPA: 通知设置页邮件区，点 Add Extra，填候选邮箱
     SPA->>BFF: [requestExtraEmailOtp] 候选邮箱
@@ -55,12 +56,18 @@ sequenceDiagram
         BFF-->>SPA: 提示稍后重试（不新增附加邮箱）
     else 受理
         BFF-->>SPA: 202 challengeId + cooldownSeconds + expiresAt
-        Note over SPA: 进入输码步，展示重发倒计时（验证码邮件异步送达候选邮箱）
+        BFF-->>EM: 验证码邮件（异步送达，不经 SPA）
+        Note over SPA: 进入输码步，展示重发倒计时
+        Note over EM,SPA: 用户在邮箱取码、回到本页输入（此处是本流程的断点）
         SPA->>BFF: [verifyExtraEmailOtp] challengeId + code
         alt 码错但可重试（400，context.attemptsRemaining 剩余次数）
             BFF-->>SPA: 提示验证失败，可再输
         else 过期 / 已消费失败 / 被新挑战替代（410）或尝试超限（423）
             BFF-->>SPA: 挑战作废，需重新发起（回到第 1 步）
+        else challengeId 未知 / 已清理 / 不属当前商户（404）
+            BFF-->>SPA: 同 410 处置——回到第 1 步重新发起
+        else 该邮箱已是主邮箱或已在附加列表（409·208012）
+            BFF-->>SPA: 不创建、不重试；提示该邮箱已在列表（通过时以当前 Primary 重做去重，故本支在验证通过后仍可能出现）
         else 通过（已成功挑战的同码重试 = 重放首次结果）
             BFF-->>SPA: 201 新附加接收方（经验证）
             SPA->>BFF: [getNotificationSettings] 刷新列表
@@ -68,7 +75,7 @@ sequenceDiagram
     end
 ```
 
-- 重发验证码 = 冷却结束后再调 [`requestExtraEmailOtp`]（新挑战、同一候选邮箱的旧挑战失效；不同候选邮箱可并行验证）。
+- 重发验证码 = 冷却结束后再调 [`requestExtraEmailOtp`](index.html#tag/notification-settings/operation/requestExtraEmailOtp)（新挑战、同一候选邮箱的旧挑战失效；不同候选邮箱可并行验证）。
 - 验码成功但响应丢失时，以同码重试同一挑战 → 重放首次结果（返回已创建接收方，不会误报 410 过期）。
 - 该验证只授予通知接收资格，不创建 / 修改任何登录账号或安全凭据。
 
@@ -105,7 +112,7 @@ sequenceDiagram
     end
 ```
 
-- 解绑 = [`removeWechatNotifyRecipient`]（不影响微信快捷登录绑定，两者互不同步）。
+- 解绑 = [`removeWechatNotifyRecipient`](index.html#tag/notification-settings/operation/removeWechatNotifyRecipient)（不影响微信快捷登录绑定，两者互不同步）。
 
 ## 流程 3：站内信（铃铛 → 列表 → 详情自动已读）
 
@@ -120,7 +127,7 @@ sequenceDiagram
     BFF-->>SPA: 商户级未读计数（铃铛 Badge）
     Note over SPA: 点击铃铛进入列表
     SPA->>BFF: [listNotices] 分页
-    BFF-->>SPA: 倒序分页（含已读 / 未读 + 样式 + unreadCount）
+    BFF-->>SPA: 倒序分页（含已读 / 未读 + 样式）
     Note over SPA: 点击某条进入详情
     SPA->>BFF: [getNotice] noticeId
     alt 不存在 / 不属当前商户（404）
@@ -136,11 +143,11 @@ sequenceDiagram
     end
 ```
 
-- 首页摘要区直调 [`getNoticeSummary`]（最新 N 条，条数默认可配置），点击跳列表 / 详情。
+- 首页摘要区直调 [`getNoticeSummary`](index.html#tag/notices/operation/getNoticeSummary)（最新 N 条，条数默认可配置），点击跳列表 / 详情。
 - 已读态商户级共享：任一操作员回执后，其他操作员的计数 / 列表随下次拉取同步下降。
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

@@ -11,7 +11,7 @@
 
 ## 鉴权
 
-浏览器持 httpOnly opaque 会话 cookie;非安全方法(POST/PUT/DELETE)带 `X-CSRF-Token`(详见契约 description)。
+浏览器持 httpOnly opaque 会话 cookie;非安全方法带 `X-CSRF-Token`(详见「API 基础约定」与契约 description)。
 
 ## 反馈
 

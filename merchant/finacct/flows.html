@@ -14,7 +14,7 @@
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`，即 OpenAPI 原生 `operationId`——全局唯一，也是生成客户端的**方法名**。**图例表与正文里的 operationId 是可点深链**，直达 ReDoc 接口详情；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法(POST/PUT/DELETE)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带页面当前 merchantId（`X-Merchant-Context`）**——与会话当前商户不一致 → 409 `MERCHANT_CONTEXT_CHANGED`，FE 统一处理（见 [API 基础约定](../../conventions.html)）；金额一律**最小币种单位整数字符串 + 币种**（如 `{ amount: "150000", currency: CAD }`）；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly opaque 会话 cookie(`__Host-msession`)，服务端持后端 token；非安全方法一律带 `X-CSRF-Token`；**所有当前商户相关读写携带页面当前 merchantId（`X-Merchant-Context`）**——守卫语义与 409 分流见 [API 基础约定](../../conventions.html)「merchant scope + stale-tab 守卫」；金额一律**最小币种单位整数字符串 + 币种**（如 `{ amount: "150000", currency: CAD }`）；错误体统一 `ErrorEnvelope`（结构 / 状态码 / 责任方→前端策略 / 分页 / 幂等 / CSRF / 鉴权会话 详见 [API 基础约定](../../conventions.html)）。
 >
 > ⚠️ **碰钱红线**：储备金 Top Up / Withdraw 是**资金动作**——写请求带 `Idempotency-Key`，**重试必须复用同一个键**（同一幂等键重试会继续原操作，不重复划转）；金额格式 / OTP 校验失败即不生效，前端**不放大重试**、按错误码引导用户。
 >
@@ -24,11 +24,12 @@
 
 | operationId | method + path | 用途 |
 |---|---|---|
-| [`getAccountOverview`](index.html#tag/account-overview/operation/getAccountOverview) | `GET /account/overview` | 资金概览(Account Balance / To Settle / Refund Reserve 三项余额) |
-| [`listAccountLedger`](index.html#tag/account-ledger/operation/listAccountLedger) | `GET /account/ledger` | 账户流水(过滤 + 搜索 + 分页，只读分录)。**日期区间按每行的商户营业日**筛；**倒序稳定分页按 `postedAt`**（与账本折叠序同源，保证 `balanceAfter` 顺序正确），`occurredAt` 仅展示 |
-| [`listSettlements`](index.html#tag/settlement/operation/listSettlements) | `GET /settlements` | 结算单列表(周期 / 状态过滤 + 搜索 + 排序 + 分页)。**日期区间按结算单的清算日**筛，不按明细的商户营业日 |
+| [`getAccountOverview`](index.html#tag/account-overview/operation/getAccountOverview) | `GET /account/overview` | 资金概览(Account Balance / To Settle / Refund Reserve / Available Balance 四项金额 + 结算模式 + 降级标记) |
+| [`listAccountLedger`](index.html#tag/account-ledger/operation/listAccountLedger) | `GET /account/ledger` | 账户流水(过滤 + 搜索 + 分页，只读分录)。**日期区间按每行自身的日期**筛；**倒序稳定分页按 `postedAt`**（`balanceAfter` **只在同一资金池内**衔接；`pool` 缺省时两池交错、跨行相减对不上，要连续走势就带 `pool` 筛），`occurredAt` 仅展示 |
+| [`listSettlements`](index.html#tag/settlement/operation/listSettlements) | `GET /settlements` | 结算单列表(周期 / 状态过滤 + 搜索 + 排序 + 分页)。**日期区间按结算单自身的日期**筛，不是按它明细行的日期 |
 | [`getSettlementDetail`](index.html#tag/settlement/operation/getSettlementDetail) | `GET /settlements/{settlementId}` | 结算单详情(批次汇总 + 逐笔结算影响明细) |
 | [`listStatements`](index.html#tag/statement/operation/listStatements) | `GET /statements` | 月度账单列表(按年份过滤) |
+| [`getStatementCounts`](index.html#tag/statement/operation/getStatementCounts) | `GET /statements/counts` | 账单列表年份 chip 的各项与计数(项集 = 有账单的年份) |
 | [`getStatementDetail`](index.html#tag/statement/operation/getStatementDetail) | `GET /statements/{statementId}` | 月度账单详情(服务明细分行 + Net Settlement) |
 | [`getStatementPdf`](index.html#tag/statement/operation/getStatementPdf) | `GET /statements/{statementId}/pdf` | 单月账单 PDF 导出(二进制流) |
 | [`requestRefundReserveOtp`](index.html#tag/refund-reserve/operation/requestRefundReserveOtp) | `POST /refund-reserve/otp-challenges` | 储备金操作发起 Owner email OTP(绑定本次操作摘要) |
@@ -46,9 +47,10 @@
 资金概览 / 账户流水 / 结算单(列表 + 详情) / 月度账单(列表 + 详情 + PDF) 都是**单次 GET**，由对应页面直接调用、无多步时序：
 
 - 列表类(`listAccountLedger` / `listSettlements` / `listStatements`)用共享 `pageNum` / `pageSize` 分页 + `{ total, data[] }`，按各自过滤 / 搜索参数查询。
+- 账单页顶部的年份 chip 另取 `getStatementCounts`，取法见公共约定「列表页顶部的快捷筛选」。**年份项集来自它**——别在前端按当前年份往回推算区间，没有账单的年份不会出现。
 - 详情类(`getSettlementDetail` / `getStatementDetail`)按 `{id}` 取单条。
-- `getStatementPdf` 返回 `application/pdf` 二进制流（非 JSON），前端直接触发下载。
-- `getAccountOverview` 上游账务读超时会**降级**（concept：degraded 概览），前端展示「暂不可用」而非阻塞——只读降级，**资金写无安全降级**（见下）。
+- `getStatementPdf` 返回 `application/pdf` 二进制流（非 JSON），`Content-Disposition: inline` —— **默认在浏览器内预览打印**；要「另存为」由前端自行触发下载（导出品种走 `createExport`，那条是 `attachment`）。
+- `getAccountOverview` 上游账务读超时会**降级**（响应体带 `degraded` 标志），前端展示「暂不可用」而非阻塞——只读降级，**资金写无安全降级**（见下）。
 
 下面 3 条是有多步编排、值得讲清调用顺序的流程。
 
@@ -77,12 +79,13 @@ sequenceDiagram
             A-->>B: 200 OperationDetail{ opType＝FUNDING, topUpResult/autoReplenishResult 子项 status }
         end
     end
-    Note over B,A: 重试必须复用同一 Idempotency-Key → 同一幂等键重试会继续原操作，不重复验证 OTP、也不重复划转<br/>提交内容与申请 OTP 时不一致 403（防夹带/改额，须重发 OTP）<br/>challenge 过期 410（重发 OTP）<br/>OTP 错误超限锁定 423<br/>冷却中/限流 429<br/>同一幂等键对应的请求内容不一致 409<br/>金额格式/校验 400
+    Note over B,A: 幂等键 = 一次提交意图（用户重开弹窗 / 重新确认才换新键）<br/>验证码错 400·204010 → 留在弹窗重输，**键不变**（本 op 指纹不含 otp，服务端会重验新码）<br/>已受理过的同键同摘要重投 → 返首次结果、不重复划转<br/>改了金额或配置 → 必须换新键；沿用旧键改摘要 409·208005<br/>提交内容与申请 OTP 时不一致 403·206005（防夹带/改额，须重走一次 OTP）<br/>challenge 过期 410·966002（重发 OTP）<br/>OTP 错误超限锁定 423·966003<br/>⚠️ 以上 4xx 都是**受理前**失败：即便规定动作是「回第一步重走 OTP」，只要金额与配置没改就**仍用原键**——别把重走 OTP 当成新意图换新键（那会重复划转）<br/>限流 429<br/>金额格式/校验 400
 ```
 
 - **OTP 发往 Owner 邮箱、非操作者邮箱**：202 返回脱敏目标邮箱供前端展示「OTP 已发至 o***@example.com」；若操作者非 Owner，需 Owner 转告 OTP（资金动作须 Owner 联签）。
 - **同一摘要贯穿两阶段**：funding 提交的 `topUpAmount` / `autoReplenish` 必须与发 OTP 时**完全一致**——服务端校验提交内容与申请 OTP 时完全一致，不一致 403（杜绝「批了 A 改成 B / 改币种 / 夹带配置」）。前端两阶段间不要让用户改额。
-- **项 ⟺ 提交项、可部分成功**：提交 `topUpAmount` + `autoReplenish` → 回 `topUpResult`（status `SUCCEEDED/FAILED/PENDING`）+ `autoReplenishResult`（status `SAVED/FAILED/PENDING`）；可能一项成功、一项失败，前端**分项回报**、别整体判成败。
+- **项 ⟺ 提交项，执行顺序固定**：提交 `topUpAmount` + `autoReplenish` → 回 `topUpResult`（status `SUCCEEDED/FAILED/PENDING`）+ `autoReplenishResult`（status `SAVED/FAILED/**NOT_EXECUTED**/PENDING`）。**先 Top Up、再存配置**，因此只有三种终态：〔1〕都成；〔2〕Top Up 成功 + 配置 `FAILED`（部分失败）；〔3〕**Top Up `FAILED` → 配置 `NOT_EXECUTED`**（未执行、配置维持原值）。**「Top Up 失败而配置成功」不会出现**。前端**分项回报**、别整体判成败；`NOT_EXECUTED` 不是失败，别报错。
+- **受理前 vs 受理后**：参数 / OTP / 幂等 / 限流问题在**受理前**被拒（4xx，什么都没发生）；**执行期失败（如 Account Balance 余额不足）属受理后的结果**——仍返 `200`，由 `topUpResult.status=FAILED` + `failureReason` 表达（按其取值分支，不止余额不足一种），**别把它接到 error 分支**，否则余额不足时前端什么都不提示。Withdraw 侧同理（Refund Reserve 不足）。
 - **PENDING 轮询**：`RefundReserveFundingResult` / `OperationDetail` **无顶层 `status`**——看各子项（`topUpResult` / `autoReplenishResult`）的 `status`；未同步达终态时拿 `operationId` 轮询 `getReserveOperation`，以其返回的各子项终态为准。
 - **失败两者都不生效**：OTP 校验失败 / 提交内容不一致 / 会话不符时，Top Up 与配置**都不生效**，前端按错误码引导（重发 OTP / 稍后重试）。
 - **金额由 PositiveMoney 守 > 0**；auto-replenish 开启时 Account Limit 必填且 > 0。
@@ -107,12 +110,12 @@ sequenceDiagram
             A-->>B: 200 OperationDetail{ opType＝WITHDRAW, withdrawResult.status }
         end
     end
-    Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（避免余额变化造成取回金额错误）<br/>Reserve 不足 → status＝FAILED、不划转<br/>amount 与 max 二选一（both/neither 非法 400）<br/>幂等键复用、同一幂等键对应的请求内容不一致 409、限流 429
+    Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（避免余额变化造成取回金额错误）<br/>执行期失败（Reserve 不足等）→ status＝FAILED + failureReason、不划转<br/>amount 与 max 二选一（both/neither 非法 400）<br/>幂等键复用、同一幂等键对应的请求内容不一致 409、限流 429
 ```
 
-- **全额用 `max=true`**：「取回全部」由服务端按执行时的实际可取金额处理（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（会引入并发竞态）。固定额才传 `amount`。
+- **全额用 `max=true`**：「取回全部」由服务端按执行时的实际可取金额处理（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（读到与执行之间余额可能已变，会取错数）。固定额才传 `amount`。
 - **`amount` 与 `max` 二选一**：都传 / 都不传 → 400。
-- 资金去向 = 商户**最终正常结算入账账户**（取回资金**先回 Account Balance、再随正常结算入该账户**，非独立提现）：确认前调用**商户实体契约的 `getSettlement`（`GET /account/settlement`）** 展示该账户（末 4 位掩码、只读仅供核对），由**具备对应权限的商户用户**核对后再提交；**复用商户实体契约的 `getSettlement`、不另设「当前结算账户」端点**。Reserve 不足则 `FAILED`、不划转。
+- 资金去向 = 商户**最终正常结算入账账户**（取回资金**先回 Account Balance、再随正常结算入该账户**，非独立提现）：确认前调用**商户实体契约的 `getSettlement`（`GET /account/settlement`）** 展示该账户（末 4 位掩码、只读仅供核对），由**具备对应权限的商户用户**核对后再提交；**复用商户实体契约的 `getSettlement`、不另设「当前结算账户」端点**。执行期失败（Reserve 不足等）则 `FAILED` + `failureReason`、不划转（按取值分支）。
 
 ---
 
@@ -132,7 +135,7 @@ sequenceDiagram
     end
     B->>A: [downloadExport] GET /exports/{exportJobId}/download（downloadUrl 指向此 BFF 端点）
     A-->>B: 200 文件流 XLSX ｜ 403 撤权 / 404 跨scope / 409 未 READY / 410 过期
-    Note over B,A: 按当前查询条件导出（filters，不局限当前分页）<br/>downloadUrl 指向 download 端点、经会话鉴权、短期有效（expiresAt 过期 410）<br/>大结果集异步、超限/非法过滤 400
+    Note over B,A: 按当前查询条件导出（filters，不局限当前分页）<br/>downloadUrl 指向 download 端点、经会话鉴权、短期有效（expiresAt 过期 410）<br/>恒异步：创建即返 202 + exportJobId，凭它轮询<br/>命中超上限 / 命中为 0 → 轮询到 status=FAILED + failureReason（RESULT_SET_TOO_LARGE / EMPTY_RESULT），**不产出文件、不是 4xx**<br/>非法过滤参数 400
 ```
 
 - **按查询条件、非当前页**：`filters` 镜像对应列表端点的过滤字段，导出的是符合条件的**全集**、不是当前分页；导出范围固定为发起时的当前商户，`filters` 仅表达筛选条件、不能扩大商户范围。
@@ -140,7 +143,7 @@ sequenceDiagram
 - 大结果集异步执行，前端发起后给 toast / 通知，不阻塞页面。
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

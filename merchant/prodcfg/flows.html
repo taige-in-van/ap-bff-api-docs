@@ -8,13 +8,13 @@
 <script type="text/plain" id="src">
 # 收单配置（Store QR / 收款页 / Invoice / Payment Link / 设备 / 配置）—— 调用时序
 
-> 本文是 `04-收单配置.openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
+> 本文是 `openapi.yaml` 的**调用顺序伴档**：OpenAPI 讲清每个接口的入参 / 出参 / 错误码（WHAT），本文讲清**多步流程里先调谁、后调谁、分支怎么走**（HOW）。
 >
-> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部对支付核心系统的命令与取数**不画**（后端面，与前端无关）；核心态变化（账单被支付 / 设备扫码激活）由系统驱动、前端靠刷新读到。外部参与方（收款设备等）仅在用户可见 / 真参与异步交互时出现；点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
+> **视角**：浏览器(SPA) ↔ BFF。前端只与 BFF 交互；BFF 内部委派**不画**（后端面，与前端无关）；核心态变化（账单被支付 / 设备首次登录激活）由系统驱动、前端靠刷新读到。外部参与方（收款设备等）仅在用户可见 / 真参与异步交互时出现；点击 / 填写 / 确认等用户操作属 SPA 内部交互，不单列 actor。
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST/PUT/PATCH/DELETE)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带 `X-Merchant-Context`**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`**（读不返回错商户、写不执行，前端刷新到当前商户）；目标资源不在可访问范围 → 404；错误体统一 `MerchantBffError`（整数 `code` → 前端策略）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法一律带 `X-CSRF-Token`；**所有当前商户相关读写携带 `X-Merchant-Context`**——守卫语义与 409 分流见 API 基础约定「merchant scope + stale-tab 守卫」；目标资源不在可访问范围 → 404；错误体统一 `ErrorEnvelope`（整数 `code` → 前端策略；本域在其上附加 `context`）。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
 
@@ -22,13 +22,17 @@
 
 | operationId | method + path | 用途 |
 |---|---|---|
-| [`listStoreQrVariants`](index.html#tag/store-qr/operation/listStoreQrVariants) | `GET /store-qr` | 店铺码展示变体（主 QR + More） |
-| [`downloadStoreQrImage`](index.html#tag/store-qr/operation/downloadStoreQrImage) | `GET /store-qr/{variantId}/image` | 下载变体 PNG |
+| [`listStoreQrVariants`](index.html#tag/store-qr/operation/listStoreQrVariants) | `GET /store-qr` | 店铺码展示变体（主 QR + More）；每个变体带 `qrContent`，**二维码图形由前端渲染**，无图片端点 |
 | [`getPaymentPageSettings`](index.html#tag/payment-page/operation/getPaymentPageSettings) | `GET /payment-page` | 读收款页设置 + 小费 + 可用方式候选 |
 | [`savePaymentPageSettings`](index.html#tag/payment-page/operation/savePaymentPageSettings) | `PUT /payment-page` | 保存收款页设置 + 小费（两组共同成功 / 失败） |
-| [`uploadPaymentPageLogo`](index.html#tag/payment-page/operation/uploadPaymentPageLogo) | `POST /payment-page/logo` | 上传 Logo（multipart → logoRef） |
+| [`createPaymentPageLogoUploadTarget`](index.html#tag/payment-page/operation/createPaymentPageLogoUploadTarget) | `POST /payment-page/files/upload-targets` | 取得 Logo 直传目标（文件由浏览器直传对象存储、不经本面） |
 | [`getInvoiceCreateConfig`](index.html#tag/invoices/operation/getInvoiceCreateConfig) | `GET /products/invoices/creation-config` | 账单创建候选（可选标价币种） |
-| [`listInvoices`](index.html#tag/invoices/operation/listInvoices) | `GET /products/invoices` | 账单列表 + 汇总卡 |
+| [`listInvoices`](index.html#tag/invoices/operation/listInvoices) | `GET /products/invoices` | 账单列表 |
+| [`getInvoiceCounts`](index.html#tag/invoices/operation/getInvoiceCounts) | `GET /products/invoices/counts` | 账单列表状态 chip 的各项与计数（随筛选、与列表同轴） |
+| [`getInvoiceSummary`](index.html#tag/invoices/operation/getInvoiceSummary) | `GET /products/invoices/summary` | 账单页顶汇总卡（商户全量口径、不随列表筛选变） |
+| [`getDeviceCounts`](index.html#tag/devices/operation/getDeviceCounts) | `GET /devices/counts` | 设备列表状态 chip 的各项与计数（不收状态参数） |
+| [`getPaymentLinkCounts`](index.html#tag/payment-links/operation/getPaymentLinkCounts) | `GET /products/payment-links/counts` | 支付链接列表类型 chip 的各项与计数（不收 type） |
+| [`getDeviceLogCounts`](index.html#tag/device-logs/operation/getDeviceLogCounts) | `GET /devices/{deviceId}/logs/counts` | 设备日志类型 chip 的各项与计数（不收 type） |
 | [`createInvoice`](index.html#tag/invoices/operation/createInvoice) | `POST /products/invoices` | 创建账单 |
 | [`getInvoice`](index.html#tag/invoices/operation/getInvoice) | `GET /products/invoices/{invoiceId}` | 账单详情 |
 | [`downloadInvoicePoster`](index.html#tag/invoices/operation/downloadInvoicePoster) | `GET /products/invoices/{invoiceId}/poster` | 下载账单收款海报 PNG |
@@ -37,22 +41,22 @@
 | [`listPaymentLinks`](index.html#tag/payment-links/operation/listPaymentLinks) | `GET /products/payment-links` | 支付链接列表 |
 | [`createPaymentLink`](index.html#tag/payment-links/operation/createPaymentLink) | `POST /products/payment-links` | 创建（giftcard/product/ticket） |
 | [`getPaymentLink`](index.html#tag/payment-links/operation/getPaymentLink) | `GET /products/payment-links/{linkId}` | 详情（Overview） |
-| [`updatePaymentLink`](index.html#tag/payment-links/operation/updatePaymentLink) | `PATCH /products/payment-links/{linkId}` | 分段编辑配置 |
+| [`updatePaymentLink`](index.html#tag/payment-links/operation/updatePaymentLink) | `PUT /products/payment-links/{linkId}` | 分段编辑配置 |
 | [`downloadPaymentLinkQr`](index.html#tag/payment-links/operation/downloadPaymentLinkQr) | `GET /products/payment-links/{linkId}/qr` | 下载支付链接收款 QR PNG |
 | [`setPaymentLinkStatus`](index.html#tag/payment-links/operation/setPaymentLinkStatus) | `PUT /products/payment-links/{linkId}/status` | 启停（ACTIVE↔DISABLED） |
 | [`deletePaymentLink`](index.html#tag/payment-links/operation/deletePaymentLink) | `DELETE /products/payment-links/{linkId}` | 删除（软删 DELETED） |
 | [`savePaymentLinkPolicies`](index.html#tag/payment-links/operation/savePaymentLinkPolicies) | `PUT /products/payment-links/{linkId}/policies` | 保存 Policies（三语 + 商户级默认） |
-| [`uploadPaymentLinkBanner`](index.html#tag/payment-links/operation/uploadPaymentLinkBanner) | `POST /products/payment-links/{linkId}/banner` | 上传 Banner（multipart → bannerRef） |
+| [`createPaymentLinkAssetUploadTarget`](index.html#tag/payment-links/operation/createPaymentLinkAssetUploadTarget) | `POST /products/payment-links/files/upload-targets` | 取得链接素材直传目标（`purpose` = payment_link_banner / payment_link_brand_logo；**不需要链接已存在**） |
+| [`getPaymentLinkTransactions`](index.html#tag/payment-links/operation/getPaymentLinkTransactions) | `GET /products/payment-links/{linkId}/transactions` | Transactions tab：该链接的交易只读列表（行形状 = 交易管理的交易列表行；退款走交易管理的 `createRefund`） |
 | [`getPaymentLinkRedemptions`](index.html#tag/payment-links/operation/getPaymentLinkRedemptions) | `GET /products/payment-links/{linkId}/redemptions` | Redemptions 只读**核销**记录（product / ticket / giftcard-Voucher；**giftcard-Inventory 恒空、tab 置灰**，其发卡记录在订单详情） |
 | [`listDevices`](index.html#tag/devices/operation/listDevices) | `GET /devices` | 设备列表（不含 RELEASED） |
 | [`bindDevice`](index.html#tag/devices/operation/bindDevice) | `POST /devices` | 绑定新设备 |
 | [`getDevice`](index.html#tag/devices/operation/getDevice) | `GET /devices/{deviceId}` | 设备详情 |
 | [`unbindDevice`](index.html#tag/devices/operation/unbindDevice) | `DELETE /devices/{deviceId}` | 解绑（→ RELEASED） |
 | [`setDeviceStatus`](index.html#tag/devices/operation/setDeviceStatus) | `PUT /devices/{deviceId}/status` | 启停（ACTIVE↔DISABLED） |
-| [`regenerateActivationQr`](index.html#tag/devices/operation/regenerateActivationQr) | `PUT /devices/{deviceId}/activation-qr` | 重发激活 QR（挂 Idempotency-Key） |
 | [`listDeviceLogs`](index.html#tag/device-logs/operation/listDeviceLogs) | `GET /devices/{deviceId}/logs` | 设备日志（3 类 + 导出） |
 | [`getGeneralSettings`](index.html#tag/settings/operation/getGeneralSettings) | `GET /settings/general` | 读 Order Expiry / Service Fee / Checkout 入口 |
-| [`listOrderExpiryOptions`](index.html#tag/settings/operation/listOrderExpiryOptions) | `GET /settings/order-expiry-options` | Order Expiry 候选值集 |
+| [`listOrderExpiryOptions`](index.html#tag/settings/operation/listOrderExpiryOptions) | `GET /settings/order-expiry-options` | Order Expiry 预设档（分钟数；展示文案前端自行格式化） |
 | [`setOrderExpiry`](index.html#tag/settings/operation/setOrderExpiry) | `PUT /settings/order-expiry` | 设置 Order Expiry |
 | [`setCustomerServiceFee`](index.html#tag/settings/operation/setCustomerServiceFee) | `PUT /settings/customer-service-fee` | 切换 Customer Service Fee 总开关 |
 | [`getReceiptContent`](index.html#tag/receipt/operation/getReceiptContent) | `GET /settings/receipt` | 读 POS 小票内容 |
@@ -64,18 +68,18 @@
 
 下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
 
-- **列表 / 详情读**：`listStoreQrVariants` / `listInvoices`（+ 汇总卡）/ `getInvoice` / `listPaymentLinks` / `getPaymentLink` / `getPaymentLinkRedemptions` / `listDevices` / `getDevice` / `listDeviceLogs`（`format=xlsx` 同一端点导出）—— BFF 内部向支付核心系统取数、前端只见聚合结果。
-- **二进制下载**：`downloadStoreQrImage` / `downloadInvoicePoster`（账单海报 = 收款 QR + 品牌 + 金额 + 当前可用支付方式标识）/ `downloadPaymentLinkQr`（收款 QR）—— `image/png` + `Content-Disposition: attachment`；**Copy Link 是前端本地复制 paymentUrl、不调端点**。
+- **列表 / 详情读**：`listStoreQrVariants` / `listInvoices` / `getInvoice` / `listPaymentLinks` / `getPaymentLink` / `getPaymentLinkRedemptions` / `listDevices` / `getDevice` / `listDeviceLogs`（`format=xlsx` 同一端点导出）—— BFF 内部取数、前端只见聚合结果。
+- **顶部 chip**：账单 / 支付链接 / 设备 / 设备日志四个列表各有一排 chip，分别另取 `getInvoiceCounts` / `getPaymentLinkCounts` / `getDeviceCounts` / `getDeviceLogCounts`，取法见公共约定「列表页顶部的快捷筛选」。⚠️ 账单页的 `getInvoiceSummary` **不是** chip 计数——它是页顶三格汇总卡，恒按商户全量算、不随筛选变，两者不可互相核对。
+- **二进制下载**：`downloadInvoicePoster`（账单海报 = 收款 QR + 品牌 + 金额 + 当前可用支付方式标识）/ `downloadPaymentLinkQr`（收款 QR）—— `image/png` + `Content-Disposition: attachment`；**Copy Link 是前端本地复制 paymentUrl、不调端点**。⚠️ **店铺码不在此列**——它没有图片端点，前端拿 `listStoreQrVariants` 回的 `qrContent` 自行出图（预览与下载都在前端完成）。
 - **创建向导前置读**：`getInvoiceCreateConfig` / `getPaymentLinkCreateConfig` —— 取可选标价币种 / 方式候选（含各方式 `pricingCurrencies`），驱动创建表单与 currency × method 联动；`getPaymentLinkCreateConfig` **须先选链接类型**（候选按类型给）。候选为空时按空列表渲染（见流程一 / 三）。
-- **配置单调用写**：`savePaymentPageSettings`（两组共同成功 / 失败；保存前经受理判定收窄校验，方式空 → 400、不通过 → 409）/ `savePaymentLinkPolicies`（同步商户级默认）/ `setPaymentLinkStatus` / `setOrderExpiry` / `setCustomerServiceFee` / `saveReceiptContent` —— 天然幂等 PUT。
-- **上传**：`uploadPaymentPageLogo` / `uploadPaymentLinkBanner`（multipart → ref，供后续 save 引用）。
-- **Payment Link Transactions tab**：展示该链接的交易列表 + 行内退款，**契约由交易管理模块发布**（不在当前收单配置契约重复暴露）。⚠️ **当前无可调用端点，前端不要假设已有接口**（契约随交易管理模块后续发布）。
+- **配置单调用写**：`savePaymentPageSettings`（两组共同成功 / 失败；保存前经受理判定收窄校验，方式空 → 400、不通过 → 409；**换 Logo 时是三步流程，见流程四**）/ `savePaymentLinkPolicies`（同步商户级默认）/ `setPaymentLinkStatus` / `setOrderExpiry` / `setCustomerServiceFee` / `saveReceiptContent` —— 天然幂等 PUT。
+- **Payment Link Transactions tab**：调本域的 [`getPaymentLinkTransactions`](index.html#tag/payment-links/operation/getPaymentLinkTransactions) 取该链接的交易列表（按交易时间倒序）——**行形状与交易管理的交易列表逐字段相同**，行组件可直接复用。**行内退款不在本端点、且是两跳**：先调 [`getPaymentDetail`](../txview/index.html#tag/payments/operation/getPaymentDetail) 做可退额预检（行里的 `refundable` 只表示入口可见、不含金额上限），再调 [`createRefund`](../txview/index.html#tag/payments/operation/createRefund) 提交——两跳都在交易管理契约里，退款规则 / PIN / 幂等口径全在那边。展示名兜底同理走那边的 [`getTransactionFilterOptions`](../txview/index.html#tag/payments/operation/getTransactionFilterOptions)（商户级候选目录，不随页面变）。
 
 ---
 
 ## 流程一：账单创建 → 分享 → 作废 / 隐藏
 
-> 创建前先取可选币种候选；账单核心记录归支付核心系统、BFF 内部命令不画。作废分「有无未终态支付尝试」分支。
+> 创建前先取可选币种候选；BFF 内部命令不画。作废分「有无未终态支付尝试」分支。
 
 ```mermaid
 sequenceDiagram
@@ -113,9 +117,9 @@ sequenceDiagram
 
 ---
 
-## 流程二：设备绑定 → 展示激活 QR → 激活（跨域） / 重发
+## 流程二：设备预登记 → 该设备首次登录激活（跨域）
 
-> 设备生命周期归支付核心系统、BFF 内部命令不画。设备扫码激活由系统确认（跨域），前端靠刷新列表读到 ACTIVE。
+> 设备生命周期由系统驱动、BFF 内部命令不画。**激活由该设备首次登录时匹配预登记触发**（跨域、无扫码交互），前端靠刷新列表读到 ACTIVE。
 
 ```mermaid
 sequenceDiagram
@@ -124,22 +128,17 @@ sequenceDiagram
     participant A as 商户后台 BFF
     actor DEV as 收款设备
 
-    B->>A: [bindDevice]（Idempotency-Key；Model / SN / Source / Store）
-    alt Serial 已被在册设备占用
-        A-->>B: 409 STATE_PRECONDITION_MISMATCH
-        B->>B: 字段级错误、不创建
+    B->>A: [bindDevice]（Idempotency-Key；Model / 家族 / SN / Source / Store）
+    alt 该设备（家族 + SN 决定的身份）已被在册设备占用
+        A-->>B: 409 DEVICE_SERIAL_TAKEN（208021）
+        B->>B: 渲染成 Serial Number 的字段级错误、不创建
     else 可绑定
-        Note over A: 系统建 PENDING_ACTIVATION + 生成 Activation QR
-        A-->>B: 201 DeviceDetail（activationQrRef）
-        B->>B: 展示激活二维码
+        Note over A: 系统建 PENDING_ACTIVATION（定商户 / 店铺归属；不签发凭据）
+        A-->>B: 201 DeviceDetail（PENDING_ACTIVATION）
+        B->>B: 提示「待该设备首次登录后自动激活」
 
-        opt QR 过期需重发
-            B->>A: [regenerateActivationQr]（**Idempotency-Key**）
-            Note over A: 每次轮换新凭据、旧 QR 立即失效、状态不变；同键重试返同一次新 QR（防网络重试使刚返回的 QR 立即失效）
-            A-->>B: 200 DeviceDetail（新 activationQrRef）
-        end
-
-        DEV->>DEV: 扫 Activation QR（系统确认激活，跨域）
+        DEV->>DEV: 操作员在该设备上登录（设备自带标识与本条预登记匹配）
+        Note over DEV: 匹配成功 → 设备取得凭据并转 ACTIVE（不经浏览器）
         B->>A: [listDevices]（刷新）
         A-->>B: 200 设备列表（该设备 ACTIVE + 连接健康）
     end
@@ -149,38 +148,61 @@ sequenceDiagram
 
 ## 流程三：支付链接类型化创建向导
 
-> 选类型 → 取该类型候选（驱动 currency × method 联动）→ 创建链接（成功返回 linkId + 链接详情）→ **详情阶段**（已有 linkId）按需上传 Banner / 编辑 Policies。
+> 选类型 → 取该类型候选（驱动 currency × method 联动）→ **可选：先传 Banner / 品牌 Logo**（素材直传目标**不需要链接已存在**）→ 创建链接（可一并带素材引用，成功返回 linkId + 链接详情）→ **详情阶段**按需改图 / 编辑 Policies。
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
+    participant S as 对象存储
 
     Note over B,A: 先选类型再取候选（候选按类型给，驱动 currency × method 联动）
     B->>B: 选 type（giftcard / product / ticket）
     B->>A: [getPaymentLinkCreateConfig]（type 必填）
     A-->>B: 200 可选币种 + 候选方式（**含线上与线下**，每方式带可标价币种 pricingCurrencies）
     B->>B: 按 type 渲染字段 → 选 Currency + 方式（联动过滤：方式须支持所选标价币种；内容价格币种须 = 顶层 Currency）
-    B->>A: [createPaymentLink]（Idempotency-Key；type 判别内容）
+    opt giftcard / ticket 在向导内就传素材（链接尚不存在也可以）
+        B->>A: [createPaymentLinkAssetUploadTarget] POST /products/payment-links/files/upload-targets { purpose, fileName, contentType, fileSize }
+        A-->>B: 201 FileUploadTarget{ fileId, action, fields, expiresAt }
+        B->>S: 按 fields 提交文件到 action（直传对象存储、不经后端；POST multipart，文件字段名 file、放最后）
+        S-->>B: 2xx 收下 / 4xx 拒收（存储端自有格式、非本平台错误体）
+        Note over B: 收下后把 fileId 作 bannerRef / brandLogoRef 带进下一步；被拒则不带引用、或重新申请目标
+    end
+    B->>A: [createPaymentLink]（Idempotency-Key；type 判别内容；可含 bannerRef / brandLogoRef）
     alt 币种 × 方式不兼容 / 方式不适用
         A-->>B: 409 PAYMENT_METHOD_NOT_ACCEPTABLE
         B->>B: 提示改币种 / 方式
     else 内容币种 ≠ 顶层 Currency / 方式空
         A-->>B: 400（CONTENT_CURRENCY_MISMATCH / PAYMENT_METHOD_SELECTION_EMPTY）
         B->>B: 字段级错误
+    else 素材文件确定未就位
+        A-->>B: 400·FILE_NOT_IN_PLACE(204014)（链接不创建）
+        B->>B: 重取目标（得**新 fileId**）→ 重新直传 → **换新 Idempotency-Key** 重提
+    else 素材是否就位暂时判不出
+        A-->>B: 502 / 504（不必重传，用**原键原样重试**）
     else 通过
         Note over A: 创建 ACTIVE 实例 + 生成链接 URL / QR（整串），返回链接详情
         A-->>B: 201 PaymentLinkDetail
         B->>B: 跳详情页继续配置
     end
 
-    Note over B,A: 详情阶段——针对已存在链接（新建成功后进入、或从列表打开已有链接）：按需上传 / 保存
-    opt giftcard / ticket 传 Banner
-        B->>A: [uploadPaymentLinkBanner]（multipart → bannerRef）
-        A-->>B: 200 bannerRef
+    Note over B,A: 详情阶段——新建成功后进入、或从列表打开已有链接：按需改图 / 保存
+    opt giftcard / ticket 换链接素材（下图以 purpose=payment_link_banner 为例；品牌 Logo 同流，仅 purpose 与引用字段不同）
+        B->>A: [createPaymentLinkAssetUploadTarget] POST /products/payment-links/files/upload-targets { purpose, fileName, contentType, fileSize }
+        A-->>B: 201 FileUploadTarget{ fileId, action, fields, expiresAt }
+        B->>S: 按 fields 提交文件到 action（直传对象存储、不经后端；POST multipart，文件字段名 file、放最后）
+        S-->>B: 2xx 收下 / 4xx 拒收（存储端自有格式、非本平台错误体）
+        Note over B: 确认到 2xx 才用 fileId 作 bannerRef；没确认（含跨源被挡 / 网络中断）则重新申请目标——**没确认不等于字节没落**，不做补偿
         B->>A: [updatePaymentLink]（type + 对应内容对象中的 bannerRef：giftcard.bannerRef / ticket.bannerRef）
-        A-->>B: 200 PaymentLinkDetail
+        alt 文件确定未就位
+            A-->>B: 400·FILE_NOT_IN_PLACE(204014)（本次编辑不生效）
+            B->>B: 重取目标（得**新 fileId**）→ 重新直传 → 以新引用重提
+        else 暂时判不出
+            A-->>B: 502 / 504（不必重传，原样重试本请求）
+        else 就位
+            A-->>B: 200 PaymentLinkDetail
+        end
     end
 
     %% giftcard 卡密装载本期无 BFF 入口：运营整理后交技术按面值导入，面值档 stock 只读呈现
@@ -197,8 +219,39 @@ sequenceDiagram
     end
 ```
 
+---
+
+## 流程四：收款页 Logo 直传 → 随设置保存
+
+换 Logo 是三步：[`createPaymentPageLogoUploadTarget`](index.html#tag/payment-page/operation/createPaymentPageLogoUploadTarget) 取目标 → 浏览器直传对象存储 → [`savePaymentPageSettings`](index.html#tag/payment-page/operation/savePaymentPageSettings) 把 `logoRef` 随设置写入。**不换 Logo 时本流程不发生**，保存设置为单次调用、不传 `logoRef` 即可（要移除 Logo 则传 `null`）。
+
+```mermaid
+sequenceDiagram
+    participant B as 浏览器(SPA)
+    participant A as 商户后台 BFF
+    participant S as 对象存储
+
+    B->>A: [createPaymentPageLogoUploadTarget] POST /payment-page/files/upload-targets { purpose= payment_page_logo, fileName, contentType, fileSize }
+    alt 声明的类型 / 大小不合规
+        A-->>B: 400·FILE_DECLARATION_REJECTED(204015)（不签发目标；换个合规文件再申请）
+    else 通过
+        A-->>B: 201 FileUploadTarget{ fileId, action, fields, expiresAt }（非幂等：每次新 fileId）
+        B->>S: 按 fields 提交文件到 action（直传对象存储、不经 BFF；POST multipart，文件字段名 file、放最后）
+        S-->>B: 2xx 收下 / 4xx 拒收（存储端自有格式、非本平台错误体）；跨源被挡或网络中断则前端**读不到响应 = 没确认**
+        B->>A: [savePaymentPageSettings] PUT /payment-page { logoRef= 上一步的 fileId, ...其余设置 }
+        alt 文件确定未就位
+            A-->>B: 400·FILE_NOT_IN_PLACE(204014)（整次保存被拒）
+        else 暂时判不出
+            A-->>B: 502 / 504（不必重传，原样重试保存）
+        else 就位
+            A-->>B: 200 PaymentPageSettings{ logoRef, logoUrl }
+        end
+    end
+    Note over B,A: 204014 是终态——须重新取目标（得**新 fileId**）、重新直传、以新引用再保存；**不要向原目标补传**（目标一次性，提交失败即作废）<br/>回显用响应里的 logoUrl（只出不入）——收款页 Logo 面向匿名付款人，是**长效稳定的公开地址**、不会过期；本流程的保存要带上新取得的 logoRef
+```
+
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);

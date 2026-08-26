@@ -14,9 +14,9 @@
 >
 > **接口 ID = `operationId`**：下方每个发往 BFF 的调用都标 `[operationId]`（OpenAPI 原生、全局唯一、生成客户端方法名）。**图例表与正文里的 operationId 可点深链**直达 ReDoc；时序图**内**的 `[operationId]` 受 Mermaid 限制不可点，点同名链接即可。
 >
-> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法(POST)一律带 `X-CSRF-Token`；**所有当前商户相关读写携带 `X-Merchant-Context`**——与会话当前商户不一致 → **409 `MERCHANT_CONTEXT_CHANGED`(208001)**（读不返回错商户、写不执行，前端刷新到当前商户）；目标资源不在可访问范围 → 404；**读接口后端查询超时 → 504**（整份失败、不返半截数据，前端展示「暂不可用」）；错误体统一 `ErrorEnvelope`（整数 `code` → 前端策略；部分 BFF 冲突响应在其上附加 context，如 208001 回显 `currentMerchantId`）。**仅 ACTIVE 商户可用本模块**（非 ACTIVE → 403，入口本就不该出现）。
+> **通用约定**（每条流程都成立，不在图里重复）：浏览器**不持 token**——靠 httpOnly 会话 cookie(`__Host-msession`)；非安全方法一律带 `X-CSRF-Token`；**所有当前商户相关读写携带 `X-Merchant-Context`**——守卫语义与 409 分流见 API 基础约定「merchant scope + stale-tab 守卫」；目标资源不在可访问范围 → 404；**读接口后端查询超时 → 504**（整份失败、不返半截数据，前端展示「暂不可用」）；错误体统一 `ErrorEnvelope`（整数 `code` → 前端策略；部分 BFF 冲突响应在其上附加 context，如 208001 回显 `currentMerchantId`）。商户可访问性由启动链路裁决、不在本文重复（见基础约定「商户可访问性」）。
 >
-> **稳定 code vs 展示名**：列表 / 详情的 `paymentMethod` / `source` 是**稳定 code**（如 `wechat` / `store_qr`）——筛选传 code、展示名按前端 i18n 映射（`filterOptions[].displayName` 是默认兜底展示名）；详情自带 `paymentMethodDisplayName` / `sourceDisplayName`（深链直开可用）。
+> **稳定 code vs 展示名**：列表 / 详情的 `paymentMethod` / `source` 是**稳定 code**（如 `wechat` / `store_qr`）——筛选传 code、展示名按前端 i18n 映射（`getTransactionFilterOptions` 返回的 `displayName` 是默认兜底展示名）；详情自带 `paymentMethodDisplayName` / `sourceDisplayName`（深链直开可用）。
 >
 > ⚠️ **design / review 阶段**契约 —— 实现前可能调整，勿当冻结契约。
 
@@ -24,7 +24,10 @@
 
 | operationId | method + path | 用途 |
 |---|---|---|
-| [`listPayments`](index.html#tag/payments/operation/listPayments) | `GET /payments` | 支付交易列表（过滤 + 关键词 + 排序 + 分页 + 状态计数 + 筛选选项） |
+| [`listPayments`](index.html#tag/payments/operation/listPayments) | `GET /payments` | 支付交易列表（过滤 + 关键词 + 排序 + 分页） |
+| [`getPaymentCounts`](index.html#tag/payments/operation/getPaymentCounts) | `GET /payments/counts` | 交易列表状态 chip 的各项与计数（不收状态参数） |
+| [`getRefundCounts`](index.html#tag/refunds/operation/getRefundCounts) | `GET /refunds/counts` | 退款列表状态 chip 的各项与计数（不收状态参数） |
+| [`getTransactionFilterOptions`](index.html#tag/payments/operation/getTransactionFilterOptions) | `GET /transactions/filter-options` | 支付方式 / 来源筛选项候选集（交易页与退款页共用） |
 | [`getPaymentSummary`](index.html#tag/payments/operation/getPaymentSummary) | `GET /payments/summary` | 页头汇总卡（随筛选、单一结算币种 KPI + To Settle） |
 | [`exportPayments`](index.html#tag/payments/operation/exportPayments) | `GET /payments/export` | 导出交易 Excel（当前筛选全集） |
 | [`getPaymentDetail`](index.html#tag/payments/operation/getPaymentDetail) | `GET /payments/{orderId}` | 交易详情（含关联退款 + 可退摘要 + 技术细节 + FX） |
@@ -46,11 +49,12 @@
 
 下列端点是**单次调用**（页面直接调用、无多步时序），不画图：
 
-- **列表页加载**：`listPayments` 与 `getPaymentSummary` **并行调用**（同一组筛选参数——`from`/`to` 是**商户营业日**、按固化标签字面值匹配（前端**不做时区换算**、直接传 `YYYY-MM-DD`），连同 `paymentMethod`/`source`/`status`/`keyword` 与列表一致）——**只有 Gross Sales / `transactions` 与列表同轴**（同按交易的发生营业日入窗——同一批交易进这两个数、可判定某行是否计入汇总），且**只统计成功交易**，所以「列表 100 行、汇总卡 80 笔」是正常的——列表含 `failed`，按状态筛成功后**笔数**即与列表行数一致；**金额别靠加总列表行核对**——行金额是该笔**标价币种**（同一商户可同时有不同标价币种的收款码），Gross Sales 是**结算币种**合计；**`Refund Amount` / `Net Sales` 两张卡是另一个量**——分别为筛选退款额（按退款**申请营业日**、仅计处理中 + 成功的当前状态投影）与筛选净收款额（= Gross − 筛选退款额、**混轴派生**），**不与列表逐行核对、也不要用 `transactions` 对其取平均**；列表响应自带 `statusCounts`（状态快捷标签计数）+ `filterOptions`（支付方式 / 来源候选，code + displayName）——**筛选器选项来自这里、不要另行拼**。切筛选 → 两个接口带同参重发。汇总卡失败不阻断列表（独立降级）。
-- **退款列表页**：`listRefunds`（同上；`source` 传**原支付来源** code；筛选选项与支付页同源）。系统自动退款不在此列表（服务端排除）——其事实经原交易详情 `relatedRefunds` 可见。
+- **列表页加载**：`listPayments` / `getPaymentSummary` / `getPaymentCounts` **并行调用**（chip 的取法见公共约定「列表页顶部的快捷筛选」；筛选项候选集另取 `getTransactionFilterOptions`、整页一次、不随筛选变）（同一组筛选参数——`from`/`to` 前端**不做时区换算**、直接传 `YYYY-MM-DD`，连同 `paymentMethod`/`source`/`status`/`keyword` 与列表一致）——**只有 Gross Sales / `transactions` 与列表同轴**（同一批交易进这两个数、可判定某行是否计入汇总），且**只统计已收款交易**——计入的状态是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING` 四个，`FAILED` / `REJECTED` 不计入（钱从未收到）。所以「列表 100 行、汇总卡 80 笔」是正常的——列表把这两个不计入的状态也一并列出（`REJECTED` 是平台未受理、支付从未发生）；**金额别靠加总列表行核对**——行金额是该笔**标价币种**（同一商户可同时有不同标价币种的收款码），Gross Sales 是**结算币种**合计；**`Refund Amount` / `Net Sales` 两张卡是另一个量**——分别为筛选退款额（按退款**当前状态**投影，仅计处理中 + 成功）与筛选净收款额（= Gross − 筛选退款额、**两个分量口径不同**），**不与列表逐行核对、也不要用 `transactions` 对其取平均**。切筛选 → 列表 / 汇总卡 / chip 计数三者带同参重发；筛选项候选集不随筛选变、不必重取。汇总卡失败不阻断列表（独立降级）。
+- **退款列表页**：`listRefunds` / `getRefundCounts` **并行调用**（同上；`source` 传**原支付来源** code；筛选选项与支付页同源）。系统自动退款不在此列表（服务端排除）——其事实经原交易详情 `relatedRefunds` 可见。
 - **详情**：`getPaymentDetail`（列表行点击 / 深链直开均可——展示名字段自足）；`getRefundDetail`（列表行「查看」/ **退款成功邮件 CTA 深链直达**）。退款入口显隐的**唯一依据**是后端权威结果、勿按 status 硬编码——**列表行用 `PaymentRow.refundable`、详情用 `refundability.refundable`**；`initiatorType` + `initiatedBy` 按 type 决定直接展示（`merchant_user`）还是本地化（其余 code）。
 - **导出**：`exportPayments` / `exportRefunds`——带与列表**同一组筛选参数** + `Accept-Language`；成功 = xlsx 二进制（`Content-Disposition: attachment` + **`Content-Language` 实际渲染语言**）；**结果集超上限 → 400 `EXPORT_RESULT_SET_TOO_LARGE`(204009)**，提示缩小筛选范围重导（不截断、不异步）。
 - **收据**：`getPaymentReceipt`（仅已收款交易；挂起单 404）/ `getRefundReceipt`（仅 `SUCCESS` 退款）——带 `Accept-Language`；成功 = PDF（`Content-Disposition: inline` 可打印 + `Content-Language`）。
+- **礼卡订单命令**：`resendGiftCardCredential`（重发凭证邮件，可改收件邮箱）/ `voidGiftCardVoucher`（作废券）/ `disposeGiftCardOrderRisk`（风控处置）——三者**都必带 `Idempotency-Key`**（换邮箱 / 换动作就换新键）；成功是 **`204` 无响应体**，所以生效后要**回头重拉 `getPaymentDetail`** 才能看到 `actions.*` 与 `credentialState` 的新值。动作不可用（券已作废 / 凭证已失效 / 风险等级已被他人改变 / 退款冻结中等）→ `409`，**三个 op 各有各的码**（重发 `208019` / 作废 `208018` / 风控处置 `208020`，见各 op 的 `x-error-codes`），同样是重拉详情按 `actions.*` 刷新入口显隐。`voidGiftCardVoucher` 前端须先弹站内确认框（展示礼卡订单号 / 券号 / 券 PIN〔`voucherPin` 仅当 `pinVisibility=visible` 时返回该键、不可见时**不返回本键**（响应里不会有 `null`），缺失时省略该行〕+ 风险提示 + 原因备注）。
 
 ---
 
@@ -73,14 +77,14 @@ sequenceDiagram
         B->>B: 生成 Idempotency-Key（本次提交固定持有、重试复用）
         B->>A: [createRefund]（amount + note + refundPin；Idempotency-Key）
         alt 受理成功
-            A-->>B: 201 { refundNo, refundStatus }（REVIEWING 审核中 / CHANNEL_PROCESSING 处理中）
+            A-->>B: 201 { refundNo, status }（REVIEWING 审核中 / CHANNEL_PROCESSING 处理中）
             B->>B: 展示受理结果（非终态、勿当最终成功）→ 刷新详情 / 退款列表
         else 金额格式预检失败
-            A-->>B: 400 code=204007（无 reason）
-            B->>B: 表单纠错（新提交换新 Idempotency-Key）
+            A-->>B: 400 code=204007
+            B->>B: 表单纠错（字段级错误看 details，新提交换新 Idempotency-Key）
         else 业务拒绝
-            A-->>B: 400 code=204008 + reason
-            B->>B: 按 reason 分流文案（insufficient_refundable → 重取剩余额可再退、其余按枚举）
+            A-->>B: 400 code=204008
+            B->>B: 提示该订单本次不可退（重拉详情看最新可退摘要）
         else PIN 错误
             A-->>B: 403 REFUND_PIN_INVALID(206003)
             B->>B: 提示重输 PIN（重新提交 = 新请求、换新 Idempotency-Key）
@@ -122,18 +126,18 @@ sequenceDiagram
     Note over B,A: 受理后——未终态展示与刷新
     B->>A: [listRefunds] 或 [getRefundDetail]
     A-->>B: 200（REVIEWING 审核中 / CHANNEL_PROCESSING 处理中）
-    B->>B: 行操作按返回字段显隐——voidable 展示撤销、receiptAvailable 展示收据（勿按 refundStatus 硬编码）
+    B->>B: 行操作按返回字段显隐——voidable 展示撤销、receiptAvailable 展示收据（勿按 status 硬编码）
 
     opt 撤销待审核退款（仅 REVIEWING）
         B->>A: [voidRefund]（Idempotency-Key）
         alt 撤销成功
-            A-->>B: 200 { refundNo, refundStatus: CANCELLED }
+            A-->>B: 200 { refundNo, status: CANCELLED }
             B->>B: 刷新列表 / 原交易详情（该笔占用释放、剩余可发起额回升）
         else 已进通道 / 终态不可撤
             A-->>B: 409 REFUND_NOT_CANCELLABLE(208009)
             B->>B: 重载最新状态（撤销入口随之消失）
         else 已是 CANCELLED
-            A-->>B: 200 { refundStatus: CANCELLED }（幂等、无副作用）
+            A-->>B: 200 { status: CANCELLED }（幂等、无副作用）
         else 同键异 payload
             A-->>B: 409 code=208005
             B->>B: 排查重复操作（勿改目标退款后复用旧键——换目标 = 新请求新键）
@@ -165,7 +169,7 @@ sequenceDiagram
     B->>B: 生成 Idempotency-Key（本次操作固定持有）
     B->>A: [releasePreAuth]（Idempotency-Key）
     alt 完成成功
-        A-->>B: 200 { orderId, status }（paid / partially_refunded / refunded——挂起期已退过则非 paid）
+        A-->>B: 200 { orderId, status }（PAID / PARTIALLY_REFUNDED / REFUNDED——挂起期已退过则非 PAID）
         B->>B: 按返回 status 更新行 / 详情（订单进入下批清结算）
     else 非 PREAUTH_HOLDING（已完成 / 状态已变）
         A-->>B: 409 PREAUTH_NOT_RELEASABLE(208010)
@@ -190,7 +194,7 @@ sequenceDiagram
 3. 响应**必带 `Content-Language`**（实际渲染语言，可断言）+ `Content-Disposition`（收据 `inline` 可打印 / 导出 `attachment` 下载）。
 
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
