@@ -1,14 +1,40 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户实体 — 前端契约面
-  version: 0.23.2
+  version: 0.23.4
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台 React SPA 消费的商户主体资料 / 结算 / Refund PIN / 多商户 / Service Page / 集成 契约。 覆盖 Merchant 主体资料 + BusinessProfile + Refund PIN 凭据 + 结算事前审批 + Service Page 2 层模型（AcceptanceMode / PaymentMethod）。 字段类型以本 spec 为准。 幂等/CSRF 口径:① **创建类 + 非天然幂等写**（Add Merchant / Connect AcceptanceMode / Connect Ecommerce / 创建结算变更请求 / 改 Refund PIN / Forgot PIN 重置 / 改 URL 触发重审）挂 Idempotency-Key——无自然业务单号，或重放不自洽（当前 PIN 已消费、撞待审核请求 → 409），retry 用同键返**首次结果**;
+    商户后台 React SPA 消费的商户主体资料 / 结算 / Refund PIN / 多商户 / Service Page / 集成 契约。
+    覆盖 Merchant 主体资料 + BusinessProfile + Refund PIN 凭据 + 结算事前审批 + Service Page 2 层模型（AcceptanceMode / PaymentMethod）。
+
+    字段类型以本 spec 为准。
+
+    **幂等/CSRF 口径:**
+
+    - ① **创建类 + 非天然幂等写**（Add Merchant / Connect AcceptanceMode / Connect Ecommerce / 创建结算变更请求 / 改 Refund PIN / Forgot PIN 重置 / 改 URL 触发重审）挂 Idempotency-Key——无自然业务单号，或重放不自洽（当前 PIN 已消费、撞待审核请求 → 409），retry 用同键返**首次结果**;
+
       **天然幂等的纯 PUT/DELETE**（改 Business Information / 切当前商户 / 启停 PaymentMethod / Terminal 连接·停用 / Logo）可不挂幂等键;
+
       **OTP 多步挑战**按流程语义每次重新校验。
-    ② 非安全方法一律挂 X-CSRF-Token（double-submit，fail-closed）。 ③ **当前商户上下文守卫（读写统一）**：会话当前商户 = 数据可见范围**唯一权威**、不信请求体（`switchCurrentMerchant` 切换更新会话）；目标商户不在可访问集 → 404 反枚举。**所有当前商户相关读 + 写**携带页面预期 `X-Merchant-Context`（`MerchantContextGuard` header param；expected 商户 ID，**仅与会话当前商户比对、非选择器**）——一致才执行；**≠ 会话当前商户 → `409`**（读不返回错商户、写不执行）：会话**有**当前商户、只是与 expected 不同 → `208001`（`MERCHANT_CONTEXT_CHANGED`，`context.currentMerchantId` 回显）；会话**没有**当前商户 → `208022`（`MERCHANT_NOT_ACCESSIBLE`，无可回显者、前端重跑启动链路）。前端统一 interceptor 发送 + 处理 409（提示 + 刷新当前商户）。**豁免** listMerchants / switchCurrentMerchant / withdrawOnboardingApplication（按 path 选目标、target≠current）/ 全局接口。 ④ **Idempotency-Key 语义**：retry 用同一 key 返回**首次结果**（retry-safe），区别于 OTP token 的一次性消费（消费后不可重取首次结果）。 ⑤ **OTP 错误分类**（OTP verify 端点 verifySettlementOtp）：错误但可重试 → 400 `204010`（剩余尝试数走 **`context.attemptsRemaining`** 整数类型——该码必带，见错误码表 `requiredContextFields`；`details` 只做请求字段校验红框、不承载剩余次数）;尝试超限锁定 → 423;过期 / 已消费 → 410;Resend 冷却 → 429。
+
+    - ② 非安全方法一律挂 X-CSRF-Token（double-submit，fail-closed）。
+
+    - ③ **当前商户上下文守卫（读写统一）**：会话当前商户 = 数据可见范围**唯一权威**、不信请求体（`switchCurrentMerchant` 切换更新会话）；目标商户不在可访问集 → 404 反枚举。**所有当前商户相关读 + 写**携带页面预期 `X-Merchant-Context`（`MerchantContextGuard` header param；expected 商户 ID，**仅与会话当前商户比对、非选择器**）——一致才执行；**≠ 会话当前商户 →** `409`（读不返回错商户、写不执行）：
+
+      - 会话**有**当前商户、只是与 expected 不同 → `208001`（`MERCHANT_CONTEXT_CHANGED`，`context.currentMerchantId` 回显）；
+      - 会话**没有**当前商户 → `208022`（`MERCHANT_NOT_ACCESSIBLE`，无可回显者、前端重跑启动链路）。
+
+      前端统一 interceptor 发送 + 处理 409（提示 + 刷新当前商户）。**豁免** listMerchants / switchCurrentMerchant / withdrawOnboardingApplication（按 path 选目标、target≠current）/ 全局接口。
+
+    - ④ **Idempotency-Key 语义**：retry 用同一 key 返回**首次结果**（retry-safe），区别于 OTP token 的一次性消费（消费后不可重取首次结果）。
+
+    - ⑤ **OTP 错误分类**（OTP verify 端点 verifySettlementOtp）：
+
+      - 错误但可重试 → 400 `204010`（剩余尝试数走 **`context.attemptsRemaining`** 整数类型——该码必带，见错误码表 `requiredContextFields`；`details` 只做请求字段校验红框、不承载剩余次数）;
+      - 尝试超限锁定 → 423;
+      - 过期 / 已消费 → 410;
+      - Resend 冷却 → 429。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
@@ -37,7 +63,14 @@ paths:
       operationId: getAccountProfile
       summary: 查看 Profile 概览（Header card + 4 section；聚合 BusinessProfile + Merchant + Contact + 资金）
       description: |
-        聚合当前选中 ACTIVE 商户的 Profile 概览：Header card（Logo / Trade Name (DBA) / Legal Business Name / Industry • MCC / Merchant ID） + 4 section（Business Information / Settlement / Contact Information / Documents 摘要）。Locked 字段附 `locked: true` 标识; account_number 掩码仅末 4 位（`•••• 5678`）;资金字段（Account Balance / Refund Reserved）为只读展示（无修改入口）; Contact Information 为只读聚合展示、编辑走 owner-contact 端点。 404 仅表示资源不存在 / 不可见，不承载商户状态前置失败。
+        聚合当前选中 ACTIVE 商户的 Profile 概览：Header card（Logo / Trade Name (DBA) / Legal Business Name / Industry • MCC / Merchant ID） + 4 section（Business Information / Settlement / Contact Information / Documents 摘要）。
+
+        - Locked 字段附 `locked: true` 标识;
+        - account_number 掩码仅末 4 位（`•••• 5678`）;
+        - 资金字段（Account Balance / Refund Reserved）为只读展示（无修改入口）;
+        - Contact Information 为只读聚合展示、编辑走 owner-contact 端点。
+
+        404 仅表示资源不存在 / 不可见，不承载商户状态前置失败。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -123,7 +156,19 @@ paths:
       operationId: updateBusinessInformation
       summary: 编辑 Business Information（7 可编辑字段直接生效；Locked 字段 enforce 403）
       description: |
-        编辑 ACTIVE 商户 Business Information section 的 7 项可编辑字段（Address / City / Province / Postal Code / Country / Time Zone / Business Phone）， 保存直接生效（无审核）。**任何 7 项 Locked 字段 （Legal Business Name / Trade Name (DBA) / Ownership Type / Registration Number / Referred By / Industry Category / MCC） 出现在请求体即服务端拒绝（403），不持久化、不依赖前端隐藏**。 幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。 **改 `timeZone` 可能被拒**：与已出账的历史数据冲突时 → `409 208016`， 且**整个请求不持久化**（含同请求内其他 6 个可编辑字段，需整体重提）； 系统暂时判不出时也返同一个码，按「当前不能改、稍后再试」处理。 未改 `timeZone` 的请求不会触发这条。
+        编辑 ACTIVE 商户 Business Information section 的 7 项可编辑字段（Address / City / Province / Postal Code / Country / Time Zone / Business Phone），
+        保存直接生效（无审核）。
+
+        **任何 7 项 Locked 字段
+        （Legal Business Name / Trade Name (DBA) / Ownership Type / Registration Number / Referred By / Industry Category / MCC）
+        出现在请求体即服务端拒绝（403），不持久化、不依赖前端隐藏**。
+
+        幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。
+
+        **改 `timeZone` 可能被拒**：与已出账的历史数据冲突时 → `409 208016`，
+        且**整个请求不持久化**（含同请求内其他 6 个可编辑字段，需整体重提）；
+        系统暂时判不出时也返同一个码，按「当前不能改、稍后再试」处理。
+        未改 `timeZone` 的请求不会触发这条。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -216,7 +261,15 @@ paths:
       operationId: createLogoUploadTarget
       summary: 取得 Logo 直传目标（浏览器据此直传，文件不经本接口）
       description: |
-        更换 Logo 分两步。**第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标； **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**； 提交成功后调 POST /account/profile/logo 使其生效。 允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——**换一个合规的文件**再申请，同一文件重试无用。 **非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
+        更换 Logo 分两步。
+
+        - **第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标；
+        - **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**；
+          提交成功后调 POST /account/profile/logo 使其生效。
+
+        允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——**换一个合规的文件**再申请，同一文件重试无用。
+
+        **非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -262,7 +315,15 @@ paths:
       operationId: applyLogo
       summary: 使已直传的 Logo 生效（即时生效，无审核）
       description: |
-        浏览器把 Logo 直传到目标（见 /account/profile/files/upload-targets）成功后调本接口使其生效： 校验文件已就位后替换当前 Logo。 文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，当前 Logo 不变。 **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新 `fileId`**）并重新直传，再以新引用调用——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。 幂等：同一 `fileId` 重复调用为覆盖同一结果、天然幂等，不挂 Idempotency-Key。
+        浏览器把 Logo 直传到目标（见 /account/profile/files/upload-targets）成功后调本接口使其生效：
+        校验文件已就位后替换当前 Logo。
+
+        文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，当前 Logo 不变。
+        **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新** `fileId`）并重新直传，再以新引用调用——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。
+
+        文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。
+
+        幂等：同一 `fileId` 重复调用为覆盖同一结果、天然幂等，不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -348,7 +409,16 @@ paths:
       operationId: createSettlementVoidChequeUploadTarget
       summary: 取得 Void cheque 直传目标（bank-related 变更第 1 步前置）
       description: |
-        bank-related 结算字段变更的 Step 1 前置。**第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标； **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。 允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**（不进入 Step 2 OTP）——**换一个合规的文件**再申请，同一文件重试无用。 返回的 `fileId` 即后续创建变更请求所用的 `voidChequeRef`——**无需再调其他接口**，该文件在创建变更请求时才正式归属该请求。 幂等：每次调用返回独立 fileId，按流程语义不挂幂等键。
+        bank-related 结算字段变更的 Step 1 前置。
+
+        - **第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标；
+        - **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。
+
+        允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**（不进入 Step 2 OTP）——**换一个合规的文件**再申请，同一文件重试无用。
+
+        返回的 `fileId` 即后续创建变更请求所用的 `voidChequeRef`——**无需再调其他接口**，该文件在创建变更请求时才正式归属该请求。
+
+        幂等：每次调用返回独立 fileId，按流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -395,7 +465,13 @@ paths:
       operationId: requestSettlementOtp
       summary: 发送结算变更 OTP 到 Owner email（bank 第 2 步 / 非 bank 唯一前置；绑定变更意图）
       description: |
-        发送 OTP 到 Owner 的登录邮箱作结算变更身份验证， **并把本次变更内容（changes）+ voidChequeRef 绑定到该 OTP 挑战**—— verifySettlementOtp 签发的 otpToken 锚定这次变更意图，createSettlementChangeRequest 提交的 changes 须与之一致（防"用普通变更 OTP 授权银行账户变更"）。 bank-related 变更为 Step 2（Void cheque 之后）、非 bank-related 变更为唯一前置。Resend 冷却中 → 429。 按多步挑战流程语义不挂幂等键（每次发新 OTP，旧 OTP 失效并重新绑定）。
+        发送 OTP 到 Owner 的登录邮箱作结算变更身份验证，
+        **并把本次变更内容（changes）+ voidChequeRef 绑定到该 OTP 挑战**——
+        verifySettlementOtp 签发的 otpToken 锚定这次变更意图，createSettlementChangeRequest 提交的 changes 须与之一致（防"用普通变更 OTP 授权银行账户变更"）。
+
+        bank-related 变更为 Step 2（Void cheque 之后）、非 bank-related 变更为唯一前置。Resend 冷却中 → 429。
+
+        按多步挑战流程语义不挂幂等键（每次发新 OTP，旧 OTP 失效并重新绑定）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -503,7 +579,24 @@ paths:
       operationId: createSettlementChangeRequest
       summary: 创建结算变更请求（前置全通过 → PENDING_REVIEW；旧值生效；409 若已有 PENDING_REVIEW；403 若意图不符）
       description: |
-        前置步骤（bank-related: Void cheque + OTP / 非 bank: OTP）全通过后创建 `SettlementChangeRequest{PENDING_REVIEW}`（含本次变更 + bank-related 时 voidChequeRef）+ 发送结算变更审核中通知 + 旧值仍生效（结算字段不立即变更）。 资损红线：同 Merchant 至多 1 个 PENDING_REVIEW → 已存在则 409（不创建新请求）; **提交 changes ≠ otpToken 绑定的变更内容 → 403**（意图不符，OTP 防串改）; 直接提交绕过前置（缺有效 otpToken / bank 缺 voidChequeRef）→ 400； **`voidChequeRef` 指向的文件确定未就位**（直传未完成 / 被存储端拒收）→ `400`·204014，本次不创建、`otpToken` **未被消费**。 **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新 `fileId`**）并重新直传——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 因 `otpToken` 只授权它绑定的那个 `voidChequeRef`、对新 ref 无效，故**必须重走 request/verify OTP** 拿新 token，再用**新 token + 新 `Idempotency-Key`** 提交（OTP 绑定变更意图的必然结果，不设绕过路径）。 文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，请求内容未变，用**原键原样重试**。 审核 approve/reject 结果异步更新（不在本 BFF）。 幂等：必带 `Idempotency-Key`。验证码只能用一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**首次创建的那条变更请求**（不重复建、也不要求重走验证）；改了请求内容就必须换新键，沿用旧键改内容 → `409`·208005。
+        前置步骤（bank-related: Void cheque + OTP / 非 bank: OTP）全通过后创建 `SettlementChangeRequest{PENDING_REVIEW}`（含本次变更 + bank-related 时 voidChequeRef）+
+        发送结算变更审核中通知 + 旧值仍生效（结算字段不立即变更）。
+
+        **资损红线：**
+
+        - 同 Merchant 至多 1 个 PENDING_REVIEW → 已存在则 409（不创建新请求）;
+        - **提交 changes ≠ otpToken 绑定的变更内容 → 403**（意图不符，OTP 防串改）;
+        - 直接提交绕过前置（缺有效 otpToken / bank 缺 voidChequeRef）→ 400；
+        - **`voidChequeRef` 指向的文件确定未就位**（直传未完成 / 被存储端拒收）→ `400`·204014，本次不创建、`otpToken` **未被消费**。
+
+        **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新** `fileId`）并重新直传——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。
+        因 `otpToken` 只授权它绑定的那个 `voidChequeRef`、对新 ref 无效，故**必须重走 request/verify OTP** 拿新 token，再用**新 token + 新 `Idempotency-Key`** 提交（OTP 绑定变更意图的必然结果，不设绕过路径）。
+
+        文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，请求内容未变，用**原键原样重试**。
+
+        审核 approve/reject 结果异步更新（不在本 BFF）。
+
+        幂等：必带 `Idempotency-Key`。验证码只能用一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**首次创建的那条变更请求**（不重复建、也不要求重走验证）；改了请求内容就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -558,7 +651,12 @@ paths:
       operationId: setRefundPin
       summary: 设置 Refund PIN（oneOf 授权：旧 PIN 改 / Forgot PIN reset-challenge OTP）
       description: |
-        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。 ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。 ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 是通用校验失败、**不声明 `204010`**（即不承诺结构化剩余次数——区别于纯 OTP verify 端点）。OTP 一次性消费。 幂等：必带 `Idempotency-Key`。授权凭据校验一次即失效，**网络重试务必复用同一个键**——同键 + 同请求体重发返首次结果（`204`），不会因「凭据已用过」而假失败；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。
+
+        - ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。
+        - ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 是通用校验失败、**不声明** `204010`（即不承诺结构化剩余次数——区别于纯 OTP verify 端点）。OTP 一次性消费。
+
+        幂等：必带 `Idempotency-Key`。授权凭据校验一次即失效，**网络重试务必复用同一个键**——同键 + 同请求体重发返首次结果（`204`），不会因「凭据已用过」而假失败；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -712,7 +810,15 @@ paths:
       operationId: addMerchant
       summary: 添加关联商户（branch / new_legal_entity；创建 INCOMPLETE + 交入驻流程；2 层上限）
       description: |
-        **原子创建关联商户**：一次创建一个 `INCOMPLETE` 关联商户（branch / new_legal_entity）+ 对应的入驻申请草稿（`DRAFT`），返回 merchantId。 **仅创建、不切会话**：前端拿到 merchantId 后**显式调 switchCurrentMerchant 切上下文**（幂等），再 GET /onboarding/application **加载**已建 DRAFT 续走向导。 字段预填及 5 步规则由入驻向导接口返回。 2 层上限：当前商户已是二级关联商户 → `409`·208023（不创建；层级是结构事实、刷新不变，应提示「已达最大层级」而非引导重试）;Country × Currency 组合非法 → 400。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复建商户**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        **原子创建关联商户**：一次创建一个 `INCOMPLETE` 关联商户（branch / new_legal_entity）+ 对应的入驻申请草稿（`DRAFT`），返回 merchantId。
+
+        **仅创建、不切会话**：前端拿到 merchantId 后**显式调 switchCurrentMerchant 切上下文**（幂等），再 GET /onboarding/application **加载**已建 DRAFT 续走向导。
+        字段预填及 5 步规则由入驻向导接口返回。
+
+        - 2 层上限：当前商户已是二级关联商户 → `409`·208023（不创建；层级是结构事实、刷新不变，应提示「已达最大层级」而非引导重试）;
+        - Country × Currency 组合非法 → 400。
+
+        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复建商户**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -767,7 +873,18 @@ paths:
       operationId: withdrawOnboardingApplication
       summary: 撤回未激活商户的在途入驻申请（INCOMPLETE / PENDING_REVIEW；409 若 ACTIVE / REJECTED）
       description: |
-        撤回该关联商户**在途的入驻申请**：在途申请（`DRAFT`/`UNDER_REVIEW`/`MORE_INFO_REQUIRED`）迁终态 `WITHDRAWN` + 冻结草稿数据。被撤回的是入驻申请、不是商户；撤回后该商户不再于 switcher 展示。 **会话闭环（200 body）**：若撤回的是**当前选中商户** → 服务端优先切**可访问的上级商户**、否则**不返回 `currentMerchantId` 键**（前端重选）；响应回 `contextChanged` + 可能的 `currentMerchantId` 让该副作用可观测。会话绝不保留指向 WITHDRAWN 商户的有效 current；若会话更新失败由 `listMerchants` / 上下文守卫兜底。 资损红线：ACTIVE / REJECTED 不可撤回 → `409`·208003（状态前置，重拉最新态）;**无上级关联关系的商户不可撤回 → `409`·208024**（仅关联子商户可撤回；结构事实、刷新不变，正确 UI 下不该出现该入口）;目标不在可访问集 → 404 反枚举;在可访问集内但 RBAC 拒 → 403。 幂等：DELETE 天然幂等——已 `WITHDRAWN` 授权重放 = 成功 no-op（返当前会话上下文），不挂 Idempotency-Key。
+        撤回该关联商户**在途的入驻申请**：在途申请（`DRAFT`/`UNDER_REVIEW`/`MORE_INFO_REQUIRED`）迁终态 `WITHDRAWN` + 冻结草稿数据。被撤回的是入驻申请、不是商户；撤回后该商户不再于 switcher 展示。
+
+        **会话闭环（200 body）**：若撤回的是**当前选中商户** → 服务端优先切**可访问的上级商户**、否则**不返回 `currentMerchantId` 键**（前端重选）；响应回 `contextChanged` + 可能的 `currentMerchantId` 让该副作用可观测。会话绝不保留指向 WITHDRAWN 商户的有效 current；若会话更新失败由 `listMerchants` / 上下文守卫兜底。
+
+        **资损红线：**
+
+        - ACTIVE / REJECTED 不可撤回 → `409`·208003（状态前置，重拉最新态）;
+        - **无上级关联关系的商户不可撤回 → `409`·208024**（仅关联子商户可撤回；结构事实、刷新不变，正确 UI 下不该出现该入口）;
+        - 目标不在可访问集 → 404 反枚举;
+        - 在可访问集内但 RBAC 拒 → 403。
+
+        幂等：DELETE 天然幂等——已 `WITHDRAWN` 授权重放 = 成功 no-op（返当前会话上下文），不挂 Idempotency-Key。
       parameters:
         - name: merchantId
           in: path
@@ -807,7 +924,15 @@ paths:
       operationId: switchCurrentMerchant
       summary: 切换当前商户上下文（更新会话 merchant context；直接生效无二次确认）
       description: |
-        将会话当前 merchant context 切到目标商户（须在该用户可访问集内）;切换后所有 merchant 级页面 / 操作按新上下文裁决数据与权限。 切换直接生效（不修改业务数据）;目标不在可访问集（out-of-scope）→ 404 反枚举（不泄存在性）;在集内但 RBAC 拒 / REJECTED 不可切 → 403。 merchant 上下文从会话取、不信请求体 —— 切换即更新会话当前商户（**单会话单当前商户**：另一标签页切换后，本标签页下次操作前弹窗提示 → 确认后同步切到当前商户）。 幂等：纯 PUT、天然幂等（重放切到同商户结果一致），不挂 Idempotency-Key。
+        将会话当前 merchant context 切到目标商户（须在该用户可访问集内）;切换后所有 merchant 级页面 / 操作按新上下文裁决数据与权限。
+        切换直接生效（不修改业务数据）;
+
+        - 目标不在可访问集（out-of-scope）→ 404 反枚举（不泄存在性）;
+        - 在集内但 RBAC 拒 / REJECTED 不可切 → 403。
+
+        merchant 上下文从会话取、不信请求体 —— 切换即更新会话当前商户（**单会话单当前商户**：另一标签页切换后，本标签页下次操作前弹窗提示 → 确认后同步切到当前商户）。
+
+        幂等：纯 PUT、天然幂等（重放切到同商户结果一致），不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -838,7 +963,11 @@ paths:
       operationId: getServicePage
       summary: 浏览 Service Page（AcceptanceMode/PaymentMethod 2 层 + Integrations 摘要；凭据掩码）
       description: |
-        聚合当前 ACTIVE 商户的 Service Capabilities（AcceptanceMode 分组 + 各 mode 开通/审核状态 + **该 mode 的支付方式候选全集（含未启用项、带展示名与图标）** + online 当前生效 URL） + Integrations 摘要（Terminal: Moneris/Clover 互斥 active;Ecommerce: Shopify/Allvalue 连接状态）。 敏感凭据（terminal/integration token / secret / private key）仅返回掩码摘要，明文不返回。 支付方式配置源读不到内容时**不返回不完整配置**，按服务端错误处理（`500`）。
+        聚合当前 ACTIVE 商户的 Service Capabilities（AcceptanceMode 分组 + 各 mode 开通/审核状态 + **该 mode 的支付方式候选全集（含未启用项、带展示名与图标）** + online 当前生效 URL） + Integrations 摘要（Terminal: Moneris/Clover 互斥 active;Ecommerce: Shopify/Allvalue 连接状态）。
+
+        敏感凭据（terminal/integration token / secret / private key）仅返回掩码摘要，明文不返回。
+
+        支付方式配置源读不到内容时**不返回不完整配置**，按服务端错误处理（`500`）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -911,7 +1040,16 @@ paths:
       operationId: updateAcceptanceModePaymentMethods
       summary: 启停 AcceptanceMode 内 PaymentMethod（覆盖式；mode 须 ACTIVE）
       description: |
-        在已 ACTIVE 的 AcceptanceMode 内覆盖式设置启用的 PaymentMethod 集合，保存立即生效。 校验：mode 须 ACTIVE、所选 method 须全部取自 `getServicePage` 返回的该 mode `paymentMethods[].methodId`。 method 不属于该 mode / 不存在或不可用 → 400;mode 未开通或未 ACTIVE → 409（不改配置）。 幂等：纯 PUT 覆盖式、天然幂等，不挂 Idempotency-Key。 支付方式配置源读不到内容时**不保存** → `500`（fail-closed，不按残缺配置校验方式集）。
+        在已 ACTIVE 的 AcceptanceMode 内覆盖式设置启用的 PaymentMethod 集合，保存立即生效。
+
+        校验：mode 须 ACTIVE、所选 method 须全部取自 `getServicePage` 返回的该 mode `paymentMethods[].methodId`。
+
+        - method 不属于该 mode / 不存在或不可用 → 400;
+        - mode 未开通或未 ACTIVE → 409（不改配置）。
+
+        幂等：纯 PUT 覆盖式、天然幂等，不挂 Idempotency-Key。
+
+        支付方式配置源读不到内容时**不保存** → `500`（fail-closed，不按残缺配置校验方式集）。
       parameters:
         - name: mode
           in: path
@@ -954,7 +1092,22 @@ paths:
       operationId: connectAcceptanceMode
       summary: 申请新增 AcceptanceMode（Connect；in_store storePhoto / online type+url → PENDING_REVIEW）
       description: |
-        自助申请未开通的 AcceptanceMode，附凭证（in_store: store photo fileId;online: 线上服务类型 + Website 类型 URL）， 校验通过创建 `AcceptanceEnrollment{PENDING_REVIEW}` + 触发审核（审核结果异步生效，前端后续经 getServicePage 读取最新状态）。 同 mode 已有 PENDING_REVIEW → `409`·208002（提示「申请审核中，请等待结果」）;同 mode **已 ACTIVE** → `409`·208026（这件事已经成了——提示已开通并引导去配置支付方式，不是「有待审核请求」也不是「状态变了」）;凭证缺失 / 格式非法 → 400（不创建）。 **`storePhotoFileId` 指向的文件确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，本次不创建。 **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新 `fileId`**）并重新直传，再以新引用提交——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 ⚠️ **换了 `fileId` 就是换了请求体，必须同时换一个新的 `Idempotency-Key`**；沿用旧键提交新内容 → `409`·208005。 文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，请求内容未变，用**原键原样重试**。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复开通**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。 支付方式配置源读不到内容时**不创建**开通申请 → `500`（fail-closed）。
+        自助申请未开通的 AcceptanceMode，附凭证（in_store: store photo fileId;online: 线上服务类型 + Website 类型 URL），
+        校验通过创建 `AcceptanceEnrollment{PENDING_REVIEW}` + 触发审核（审核结果异步生效，前端后续经 getServicePage 读取最新状态）。
+
+        - 同 mode 已有 PENDING_REVIEW → `409`·208002（提示「申请审核中，请等待结果」）;
+        - 同 mode **已 ACTIVE** → `409`·208026（这件事已经成了——提示已开通并引导去配置支付方式，不是「有待审核请求」也不是「状态变了」）;
+        - 凭证缺失 / 格式非法 → 400（不创建）。
+
+        **`storePhotoFileId` 指向的文件确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，本次不创建。
+        **204014 是终态、不可原样重试**：须**重新申请直传目标**（得到**新** `fileId`）并重新直传，再以新引用提交——**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。
+        ⚠️ **换了 `fileId` 就是换了请求体，必须同时换一个新的** `Idempotency-Key`；沿用旧键提交新内容 → `409`·208005。
+
+        文件是否就位**暂时无法判定**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，请求内容未变，用**原键原样重试**。
+
+        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复开通**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+
+        支付方式配置源读不到内容时**不创建**开通申请 → `500`（fail-closed）。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -1017,7 +1170,13 @@ paths:
       operationId: changeAcceptanceModeWebsiteUrl
       summary: online AcceptanceMode 改 website URL（触发重审；原 URL 继续生效）
       description: |
-        ACTIVE online AcceptanceMode 改 website URL → 创建**独立 URL 变更请求**（PENDING_REVIEW），主状态仍 ACTIVE、原 URL 继续生效; 审核通过后新 URL 生效、拒绝则归档（审核结果异步生效，不在本 BFF）。 已有待审核 URL 变更 → 409（不允许再次提交）;mode 非 online ACTIVE → 409。 幂等：必带 `Idempotency-Key`。直接重发会撞「已有待审核 URL 变更」→ `409`·208002，所以**网络重试务必复用同一个键**——同键 + 同请求体重发返**首次**的 changeRequestId；想改成另一个 URL 就必须换新键，沿用旧键改 URL → `409`·208005。
+        ACTIVE online AcceptanceMode 改 website URL → 创建**独立 URL 变更请求**（PENDING_REVIEW），主状态仍 ACTIVE、原 URL 继续生效;
+        审核通过后新 URL 生效、拒绝则归档（审核结果异步生效，不在本 BFF）。
+
+        - 已有待审核 URL 变更 → 409（不允许再次提交）;
+        - mode 非 online ACTIVE → 409。
+
+        幂等：必带 `Idempotency-Key`。直接重发会撞「已有待审核 URL 变更」→ `409`·208002，所以**网络重试务必复用同一个键**——同键 + 同请求体重发返**首次**的 changeRequestId；想改成另一个 URL 就必须换新键，沿用旧键改 URL → `409`·208005。
       parameters:
         - name: mode
           in: path
@@ -1090,7 +1249,16 @@ paths:
       operationId: createStorePhotoUploadTarget
       summary: 取得店铺照直传目标（in_store Connect 凭证前置）
       description: |
-        in_store AcceptanceMode Connect 的凭证前置。**第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标； **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。 允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——**换一个合规的文件**再申请，同一文件重试无用。 返回的 `fileId` 即 `connectAcceptanceMode`（in_store）所用的 `storePhotoFileId`——**无需再调其他接口**，该文件在 Connect 时才正式归属该受理开通。 幂等：每次调用返回独立 fileId，按流程语义不挂幂等键。
+        in_store AcceptanceMode Connect 的凭证前置。
+
+        - **第一步**调本接口，用**声明值**（内容类型 / 大小）换一个直传目标；
+        - **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。
+
+        允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——**换一个合规的文件**再申请，同一文件重试无用。
+
+        返回的 `fileId` 即 `connectAcceptanceMode`（in_store）所用的 `storePhotoFileId`——**无需再调其他接口**，该文件在 Connect 时才正式归属该受理开通。
+
+        幂等：每次调用返回独立 fileId，按流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1136,7 +1304,18 @@ paths:
       operationId: connectTerminalIntegration
       summary: 连接 / 切换 TerminalIntegration（Moneris / Clover 互斥；即时生效）
       description: |
-        连接或切换 POS provider（Moneris / Clover），即时生效无审核;互斥 —— 同 Merchant 至多 1 个 active provider，切换时旧 provider 凭据保留但不生效。 3DS 开关（用于线上交易 3DS 验证）**每次必传**——本端点全量覆盖，缺省不代表保持原样；表单初始值**按目标 provider 是不是当前生效者分两支取**：目标 = 读面的 `activeProvider`（即**更新在用凭据**）→ 取 `terminal.threedsEnabled`（当前生效值）;目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;两处都没有才关闭。凭据保存后仅掩码回显、明文不二次回显;凭据校验失败 → 400。 幂等：纯 PUT 覆盖当前生效 provider、天然幂等（重放同 provider+凭据结果一致），不挂 Idempotency-Key。
+        连接或切换 POS provider（Moneris / Clover），即时生效无审核;互斥 —— 同 Merchant 至多 1 个 active provider，切换时旧 provider 凭据保留但不生效。
+
+        3DS 开关（用于线上交易 3DS 验证）**每次必传**——本端点全量覆盖，缺省不代表保持原样；表单初始值**按目标 provider 是不是当前生效者分两支取**：
+
+        - 目标 = 读面的 `activeProvider`（即**更新在用凭据**）→ 取 `terminal.threedsEnabled`（当前生效值）;
+        - 目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;
+
+        两处都没有才关闭。
+
+        凭据保存后仅掩码回显、明文不二次回显;凭据校验失败 → 400。
+
+        幂等：纯 PUT 覆盖当前生效 provider、天然幂等（重放同 provider+凭据结果一致），不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1201,7 +1380,17 @@ paths:
       operationId: connectEcommerceIntegration
       summary: 连接 EcommerceIntegration（Shopify / Allvalue review-gated；不互斥 → PENDING_REVIEW）
       description: |
-        连接电商平台（Shopify / Allvalue），提交 website URL + 关联 PaymentMethod 配置，创建 `EcommerceIntegration{PENDING_REVIEW}`（不互斥，可各自 ACTIVE）; 审核结果异步生效（不在本 BFF）。同平台审核中重复提交 → 409;URL / 配置校验失败 → 400。 Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复接入**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。 支付方式配置源读不到内容时**不创建**连接 → `500`（fail-closed）。
+        连接电商平台（Shopify / Allvalue），提交 website URL + 关联 PaymentMethod 配置，创建 `EcommerceIntegration{PENDING_REVIEW}`（不互斥，可各自 ACTIVE）;
+        审核结果异步生效（不在本 BFF）。
+
+        - 同平台审核中重复提交 → 409;
+        - URL / 配置校验失败 → 400。
+
+        Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。
+
+        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、**不会重复接入**（防重复点击 / 网络重试）；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+
+        支付方式配置源读不到内容时**不创建**连接 → `500`（fail-closed）。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -1256,7 +1445,16 @@ paths:
       operationId: manageEcommerceIntegration
       summary: 管理 EcommerceIntegration（改 URL 触发重审 / 仅改方式配置不重审）
       description: |
-        管理 ACTIVE EcommerceIntegration：**仅改 PaymentMethod 配置（URL 未变）→ 保存生效、status 仍 ACTIVE、不重审**; **改 URL → 创建待审核变更、原 URL/原配置继续生效、status 仍 ACTIVE**（审核结果异步生效）。 已有待审核 URL 变更时再改 URL → 409（不允许再次提交）;校验失败 → 400。不提供 Ecommerce 自助断开入口（走客服 / 运营）。 幂等：必带 `Idempotency-Key`。只改支付方式配置时重发无副作用；**改 URL 时直接重发会撞「已有待审核 URL 变更」→ `409`·208002**，所以网络重试务必复用同一个键——同键 + 同请求体重发返**首次**结果；想换成另一份配置 / 另一个 URL 就必须换新键，沿用旧键改内容 → `409`·208005。
+        管理 ACTIVE EcommerceIntegration：
+
+        - **仅改 PaymentMethod 配置（URL 未变）→ 保存生效、status 仍 ACTIVE、不重审**;
+        - **改 URL → 创建待审核变更、原 URL/原配置继续生效、status 仍 ACTIVE**（审核结果异步生效）。
+
+        已有待审核 URL 变更时再改 URL → 409（不允许再次提交）;校验失败 → 400。
+
+        不提供 Ecommerce 自助断开入口（走客服 / 运营）。
+
+        幂等：必带 `Idempotency-Key`。只改支付方式配置时重发无副作用；**改 URL 时直接重发会撞「已有待审核 URL 变更」→ `409`·208002**，所以网络重试务必复用同一个键——同键 + 同请求体重发返**首次**结果；想换成另一份配置 / 另一个 URL 就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
         - name: integrationId
           in: path
@@ -1362,7 +1560,12 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     RelationType:
       type: string
@@ -1411,7 +1614,7 @@ components:
           uniqueItems: true
           items:
             $ref: '#/components/schemas/SettlementCycleOption'
-          description: 可选结算周期档位。**顺序即展示顺序**——前端不要自己排序。⚠️ **编辑面的初始选中 = 该商户当前的 `settlementSchedule`**（取自 `getAccountProfile`），**不是本数组的第一项**；本数组只用于渲染下拉与校验提交值。提交时回传选中项的 `code`。
+          description: 可选结算周期档位。**顺序即展示顺序**——前端不要自己排序。⚠️ **编辑面的初始选中 = 该商户当前的** `settlementSchedule`（取自 `getAccountProfile`），**不是本数组的第一项**；本数组只用于渲染下拉与校验提交值。提交时回传选中项的 `code`。
     BusinessInformationOptions:
       type: object
       additionalProperties: false
@@ -1430,7 +1633,15 @@ components:
       type: string
       minLength: 1
       description: |
-        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。 **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**—— 候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。 本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe** （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。 商户的时区。**「今日 / 本月」这类相对日期由服务端认定,前端不要拿本字段自己推。**
+        商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。
+
+        **取值域 = 后端动态配置的白名单**（与 country 联动、随部署 / 运营调整），**契约不写死候选集**——
+        候选集由 `GET /account/profile/business-information/options` 下发，前端据此渲染选项。
+
+        本字段**从设计起即为可扩展取值**，消费方须 **unknown-safe**
+        （遇未知 tz 原样透传 / 展示，不得因不在本地枚举而报错或丢值）。
+
+        商户的时区。**「今日 / 本月」这类相对日期由服务端认定,前端不要拿本字段自己推。**
       examples:
         - America/Toronto
     LockedField:
@@ -2218,7 +2429,15 @@ components:
           description: 明文输入（保存后掩码回显）
         threedsEnabled:
           type: boolean
-          description: 3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。**表单初始值按目标 provider 是不是当前生效者分两支取**：目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;两支都取不到才 `false`
+          description: |
+            3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。
+
+            **表单初始值按目标 provider 是不是当前生效者分两支取**：
+
+            - 目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;
+            - 目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;
+
+            两支都取不到才 `false`
     CloverTerminalInput:
       type: object
       additionalProperties: false
@@ -2239,7 +2458,15 @@ components:
           description: 明文输入（保存后掩码回显）
         threedsEnabled:
           type: boolean
-          description: 3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。**表单初始值按目标 provider 是不是当前生效者分两支取**：目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;两支都取不到才 `false`
+          description: |
+            3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。
+
+            **表单初始值按目标 provider 是不是当前生效者分两支取**：
+
+            - 目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;
+            - 目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;
+
+            两支都取不到才 `false`
     EcommerceIntegrationInput:
       type: object
       additionalProperties: false
@@ -2517,10 +2744,33 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+
+        **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
+        **别拿本类型自己推**：两者在跨日边界附近会分属两天。
     FileUploadTarget:
       type: object
-      description: '**文件直传目标**。上传分两步:先向业务接口取得本对象,再由客户端把文件连同 `fields` 一起提交到 `action`; 提交成功后回到业务接口完成绑定 —— **未完成绑定的文件不可用**(取不到、无法预览或下载)。 提交方式**固定**:`POST` + `multipart/form-data`,先把 `fields` 逐项追加,**最后**追加名为 `file` 的文件本体 (存储端要求文件是最后一个字段,其后的字段会被忽略)。**不要手设 `Content-Type`** —— 直接提交 `FormData` 让客户端自己带上 `boundary`,手设会丢 `boundary`、导致存储端解析不出表单。 `fields` **必须原样全部提交、不得增删或改写**:签名与签发时的条件(允许的内容类型、大小上限、有效期)绑定,改动会被存储端拒绝。 **成功判据 = HTTP 2xx**(具体码由存储端决定,不要判具体值);失败时返回的是**存储端自己的格式、不是本平台错误体**。 本对象**限时有效、一次性**,且**只能用于其中的那个 `fileId`**——不能拿它上传别的文件。 **提交失败后不要向原目标重试**:重新申请一个目标,会得到**新的 `fileId`**,后续业务提交须改用新引用;过期同理。'
+      description: |
+        **文件直传目标**。上传分两步:先向业务接口取得本对象,再由客户端把文件连同 `fields` 一起提交到 `action`;
+        提交成功后回到业务接口完成绑定 —— **未完成绑定的文件不可用**(取不到、无法预览或下载)。
+
+        提交方式**固定**:`POST` + `multipart/form-data`,先把 `fields` 逐项追加,**最后**追加名为 `file` 的文件本体
+        (存储端要求文件是最后一个字段,其后的字段会被忽略)。
+
+        - **不要手设 `Content-Type`** —— 直接提交 `FormData`
+          让客户端自己带上 `boundary`,手设会丢 `boundary`、导致存储端解析不出表单。
+        - `fields` **必须原样全部提交、不得增删或改写**:签名与签发时的条件(允许的内容类型、大小上限、有效期)绑定,改动会被存储端拒绝。
+        - **成功判据 = HTTP 2xx**(具体码由存储端决定,不要判具体值);失败时返回的是**存储端自己的格式、不是本平台错误体**。
+
+        本对象**限时有效、一次性**,且**只能用于其中的那个** `fileId`——不能拿它上传别的文件。
+        **提交失败后不要向原目标重试**:重新申请一个目标,会得到**新的 `fileId`**,后续业务提交须改用新引用;过期同理。
       required:
         - fileId
         - action
@@ -2565,7 +2815,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -2590,7 +2849,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

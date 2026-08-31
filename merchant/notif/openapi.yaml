@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 通知 — 前端契约面
-  version: 0.8.4
+  version: 0.8.6
   contact:
     name: 商户后台 BFF
   description: |
@@ -108,7 +108,16 @@ paths:
       operationId: requestExtraEmailOtp
       summary: 添加 Extra 邮箱第 1 步——向候选邮箱发送 OTP
       description: |
-        对候选 Extra 邮箱发起 OTP 挑战：服务端规范化（去首尾空格 + 大小写归一）→ 格式校验（非法 → 400，不发码）→ 去重校验（与 Primary 或已有 Extra 重复 → 409 208012）→ 发 6 位验证码到该邮箱（异步外发； 外发**受理未确认** → 502/504——非最终发送失败、不新增 Extra、可稍后重试）。 有效期 / 重发冷却 / 尝试上限为部署可配业务参数；冷却窗口内重复请求 → 429。 按多步挑战流程语义不挂幂等键（每次发新挑战，**仅使同一候选邮箱〔规范化后〕的既有活动挑战失效** 〔superseded，验证同 410〕；不同候选邮箱的挑战互不影响、可并行验证）。 本 OTP 只授予通知投递资格，不创建 / 修改员工登录 ID、不构成登录安全凭据。
+        对候选 Extra 邮箱发起 OTP 挑战：服务端规范化（去首尾空格 + 大小写归一）→ 格式校验（非法 → 400，不发码）→
+        去重校验（与 Primary 或已有 Extra 重复 → 409 208012）→ 发 6 位验证码到该邮箱（异步外发；
+        外发**受理未确认** → 502/504——非最终发送失败、不新增 Extra、可稍后重试）。
+
+        有效期 / 重发冷却 / 尝试上限为部署可配业务参数；冷却窗口内重复请求 → 429。
+
+        按多步挑战流程语义不挂幂等键（每次发新挑战，**仅使同一候选邮箱〔规范化后〕的既有活动挑战失效**
+        〔superseded，验证同 410〕；不同候选邮箱的挑战互不影响、可并行验证）。
+
+        本 OTP 只授予通知投递资格，不创建 / 修改员工登录 ID、不构成登录安全凭据。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -153,7 +162,24 @@ paths:
       operationId: verifyExtraEmailOtp
       summary: 添加 Extra 邮箱第 2 步——校验 OTP，通过即生效
       description: |
-        校验候选邮箱 OTP：匹配 + 未过期 + 未消费 + 未超尝试上限 → 通过则该邮箱（经验证）加入 Extra 列表并生效。 **通过时以当前 Primary 重做去重**（挑战有效期内 Owner Primary Email 若已改成该候选邮箱）：与当前 Primary / 已有 Extra 冲突 → 不创建 Extra、返 409 208012。开关配置独立、不受加 Extra 影响（见 updateNotificationChannel）。 OTP 错误分类（按挑战生命周期）：**错误但可重试 → 400 `204010`（剩余尝试数走 `context.attemptsRemaining`〔整数类型〕、`details` 不承载）；尝试超限作废 → 423；过期 / 已消费失败 / 被同邮箱新挑战替代（superseded）→ 410** （用户侧提示文案统一「验证失败」、detail 不泄露码值比对信息）。 `challengeId` 未知 / 已清理 / 不属当前商户 → **404**（反枚举、不区分成因；处置同 410——回第 1 步重新发起）。 并发竞态下该邮箱已被添加 → 409 208012。OTP 一次性消费；**成功重放例外**： 同一挑战已验证成功后以同码重试（首次 201 响应丢失场景）→ 重放首次结果（返已创建接收方，不再走 410）。
+        校验候选邮箱 OTP：匹配 + 未过期 + 未消费 + 未超尝试上限 → 通过则该邮箱（经验证）加入 Extra 列表并生效。
+
+        **通过时以当前 Primary 重做去重**（挑战有效期内 Owner Primary Email 若已改成该候选邮箱）：与当前 Primary / 已有 Extra
+        冲突 → 不创建 Extra、返 409 208012。开关配置独立、不受加 Extra 影响（见 updateNotificationChannel）。
+
+        **OTP 错误分类**（按挑战生命周期）：
+
+        - **错误但可重试 → 400 `204010`（剩余尝试数走 `context.attemptsRemaining`〔整数类型〕、`details` 不承载）**；
+        - **尝试超限作废 → 423**；
+        - **过期 / 已消费失败 / 被同邮箱新挑战替代（superseded）→ 410**
+
+        （用户侧提示文案统一「验证失败」、detail 不泄露码值比对信息）。
+
+        `challengeId` 未知 / 已清理 / 不属当前商户 → **404**（反枚举、不区分成因；处置同 410——回第 1 步重新发起）。
+        并发竞态下该邮箱已被添加 → 409 208012。
+
+        OTP 一次性消费；**成功重放例外**：
+        同一挑战已验证成功后以同码重试（首次 201 响应丢失场景）→ 重放首次结果（返已创建接收方，不再走 410）。
       parameters:
         - name: challengeId
           in: path
@@ -231,7 +257,21 @@ paths:
       operationId: createWechatBindSession
       summary: 发起 WeChat 通知接收方绑定（创建绑定会话、返回二维码）
       description: |
-        创建 WeChat 绑定会话并返回二维码：**会话创建为 PENDING（expiresAt 与二维码 TTL 同源）后才返回 201**； 创建失败 → 500、不返回二维码。 SPA 展示二维码并轮询 getWechatBindSession（`QR_EXPIRED` 既不是终态、也不是失败证据，见该接口说明）。用户扫码授权**并在微信内显式确认**后绑定即告成立 （**扫码本身不构成绑定**——确认前一律呈现 `PENDING`），经轮询可见（同一微信身份跨会话去重合并）； **关页 / 停止轮询不会使已确认的绑定失效**。 取消 / 二维码超时 / 扫码失败 → 该二维码不能再扫、不新增绑定、可重新发起；**状态枚举里没有「已取消」——用户取消 / 关页只是前端停止轮询**，**已确认的绑定照常生效**。 **`expiresAt` 是二维码的有效期，不是本次轮询的截止时间**：到期只表示这张二维码不能再扫，`sessionId` 在此之后**仍可继续轮询**（不是一次性查询票），已确认但尚未落地的绑定经由它转 `COMPLETED`。 按多步挑战流程语义不挂幂等键（可安全重发的挑战资源：重复创建各自独立会话，各自的二维码自然到期）。 微信侧不可用 → 502/504（无降级伪成功）。二维码有效期为部署可配业务参数（以响应里的 `expiresAt` 为准，不要 hardcode）。 与微信快捷登录绑定解耦。
+        创建 WeChat 绑定会话并返回二维码：**会话创建为 PENDING（expiresAt 与二维码 TTL 同源）后才返回 201**；
+        创建失败 → 500、不返回二维码。
+
+        SPA 展示二维码并轮询 getWechatBindSession（`QR_EXPIRED` 既不是终态、也不是失败证据，见该接口说明）。用户扫码授权**并在微信内显式确认**后绑定即告成立
+        （**扫码本身不构成绑定**——确认前一律呈现 `PENDING`），经轮询可见（同一微信身份跨会话去重合并）；
+        **关页 / 停止轮询不会使已确认的绑定失效**。
+
+        取消 / 二维码超时 / 扫码失败 → 该二维码不能再扫、不新增绑定、可重新发起；**状态枚举里没有「已取消」——用户取消 / 关页只是前端停止轮询**，**已确认的绑定照常生效**。
+
+        **`expiresAt` 是二维码的有效期，不是本次轮询的截止时间**：到期只表示这张二维码不能再扫，`sessionId` 在此之后**仍可继续轮询**（不是一次性查询票），已确认但尚未落地的绑定经由它转 `COMPLETED`。
+
+        按多步挑战流程语义不挂幂等键（可安全重发的挑战资源：重复创建各自独立会话，各自的二维码自然到期）。
+
+        微信侧不可用 → 502/504（无降级伪成功）。二维码有效期为部署可配业务参数（以响应里的 `expiresAt` 为准，不要 hardcode）。
+        与微信快捷登录绑定解耦。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -258,7 +298,26 @@ paths:
       operationId: getWechatBindSession
       summary: 轮询 WeChat 绑定会话状态
       description: |
-        轮询绑定会话：`PENDING`（未扫 / 已扫未确认 / 已确认但结果尚未落地——**三者对前端表现一致**）/ `COMPLETED`（绑定完成，必携接收方）/ `QR_EXPIRED`（二维码不能再扫）。 **`QR_EXPIRED` 纯时间派生**（`PENDING 且 now > expiresAt`）；用户取消 / 关页只是前端停止轮询。 **已在微信内完成的确认不会因关页 / 停止轮询而丢失**——重新打开页面或稍后轮询仍可见 `COMPLETED`； 上游短暂不可用时轮询可能维持 `PENDING`，前端按 `PENDING` 处理、不必视为失败。 **`QR_EXPIRED` 不是终态**：用户若已在微信内确认、只是结果尚未落地，会话可能先呈现 `QR_EXPIRED`、随后转 `COMPLETED` （**已确认的绑定不会因二维码过期而作废**）。由此给消费方三条保证： **① `QR_EXPIRED` 不是失败证据**——不得据它清理本地状态、也不得据它阻止后续 `COMPLETED`； **② 只要用户已完成确认，继续轮询即会转 `COMPLETED`**； **③ 何时停止轮询由前端自行决定，停止不影响绑定成立**——已确认的绑定会在**有界时延内**（上界为部署可配业务参数） 出现在通知设置页的 WeChat 接收方列表（`getNotificationSettings`）。故停止轮询后的正确处置是**提示稍后刷新设置页查看**， 而不是提示「绑定失败」；仅在确知用户未完成确认（取消 / 未扫）时才提示「请重新扫码」。 除此之外状态不回退；`COMPLETED` 是终态。 同一微信身份重复扫码不产生新接收方（去重合并）。**会话取不到 / 跨商户一律 404**（归一，不泄露会话是否存在——同本面其余读接口的反枚举口径）； 404 表达的是「你取不到这个会话」、**不是会话态、也不代表绑定未成立**——前端应停止本次轮询并按上条 ③ 处置。
+        轮询绑定会话：`PENDING`（未扫 / 已扫未确认 / 已确认但结果尚未落地——**三者对前端表现一致**）/ `COMPLETED`（绑定完成，必携接收方）/ `QR_EXPIRED`（二维码不能再扫）。
+
+        **`QR_EXPIRED` 纯时间派生**（`PENDING 且 now > expiresAt`）；用户取消 / 关页只是前端停止轮询。
+
+        **已在微信内完成的确认不会因关页 / 停止轮询而丢失**——重新打开页面或稍后轮询仍可见 `COMPLETED`；
+        上游短暂不可用时轮询可能维持 `PENDING`，前端按 `PENDING` 处理、不必视为失败。
+
+        **`QR_EXPIRED` 不是终态**：用户若已在微信内确认、只是结果尚未落地，会话可能先呈现 `QR_EXPIRED`、随后转 `COMPLETED`
+        （**已确认的绑定不会因二维码过期而作废**）。由此给消费方三条保证：
+
+        - **① `QR_EXPIRED` 不是失败证据**——不得据它清理本地状态、也不得据它阻止后续 `COMPLETED`；
+        - **② 只要用户已完成确认，继续轮询即会转** `COMPLETED`；
+        - **③ 何时停止轮询由前端自行决定，停止不影响绑定成立**——已确认的绑定会在**有界时延内**（上界为部署可配业务参数）
+          出现在通知设置页的 WeChat 接收方列表（`getNotificationSettings`）。故停止轮询后的正确处置是**提示稍后刷新设置页查看**，
+          而不是提示「绑定失败」；仅在确知用户未完成确认（取消 / 未扫）时才提示「请重新扫码」。
+
+        除此之外状态不回退；`COMPLETED` 是终态。
+
+        同一微信身份重复扫码不产生新接收方（去重合并）。**会话取不到 / 跨商户一律 404**（归一，不泄露会话是否存在——同本面其余读接口的反枚举口径）；
+        404 表达的是「你取不到这个会话」、**不是会话态、也不代表绑定未成立**——前端应停止本次轮询并按上条 ③ 处置。
       parameters:
         - name: sessionId
           in: path
@@ -529,7 +588,12 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     NotificationChannelState:
       type: object
@@ -659,7 +723,12 @@ components:
           description: 二维码有效期截止（到点即不能再扫；**不是会话的生命周期**——会话仍留存，已确认的绑定不因此作废）
     WechatBindSessionStatus:
       description: |
-        绑定会话状态。本 schema 是**封闭判别联合**（`oneOf` + `status` discriminator）——三态穷举， 由此换得一条 schema 级保证：**`COMPLETED` 必携 `boundRecipient`**（前端不必对「完成但没有接收方」做防御）。 按 status 三态分支： `PENDING` 待扫码（无接收方）/ `COMPLETED` 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、 不重复加入）/ `QR_EXPIRED` **到期派生**（`PENDING 且 now > expiresAt`；用户取消 / 关页只是前端停止轮询）（无接收方）。
+        绑定会话状态。本 schema 是**封闭判别联合**（`oneOf` + `status` discriminator）——三态穷举，
+        由此换得一条 schema 级保证：`COMPLETED` **必携** `boundRecipient`（前端不必对「完成但没有接收方」做防御）。
+
+        **按 status 三态分支**：
+        `PENDING` 待扫码（无接收方）/ `COMPLETED` 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、
+        不重复加入）/ `QR_EXPIRED` **到期派生**（`PENDING 且 now > expiresAt`；用户取消 / 关页只是前端停止轮询）（无接收方）。
       oneOf:
         - $ref: '#/components/schemas/WechatBindSessionPending'
         - $ref: '#/components/schemas/WechatBindSessionCompleted'
@@ -709,7 +778,7 @@ components:
       type: object
       additionalProperties: false
       description: |
-        **不是终态、也不是失败证据**：二维码已不能再扫，但用户若已在微信内完成确认、只是绑定尚未在本侧落地， 本状态仍可能随后转为 `COMPLETED`——**不得据本状态清理本地状态或阻止后续 `COMPLETED`**。 何时停止轮询由前端自行决定；停止不影响绑定成立（已确认的绑定会在有界时延内出现在通知设置页的接收方列表）。
+        **不是终态、也不是失败证据**：二维码已不能再扫，但用户若已在微信内完成确认、只是绑定尚未在本侧落地， 本状态仍可能随后转为 `COMPLETED`——**不得据本状态清理本地状态或阻止后续** `COMPLETED`。 何时停止轮询由前端自行决定；停止不影响绑定成立（已确认的绑定会在有界时延内出现在通知设置页的接收方列表）。
       required:
         - sessionId
         - status
@@ -891,7 +960,17 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+
+        **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
+        **别拿本类型自己推**：两者在跨日边界附近会分属两天。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$
@@ -916,7 +995,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -949,7 +1037,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

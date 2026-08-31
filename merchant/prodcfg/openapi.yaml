@@ -1,11 +1,24 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 — 前端契约面
-  version: 0.32.0
+  version: 0.33.0
   contact:
     name: 商户后台 BFF
   description: |
-    收单配置前端契约：Store QR 展示变体（二维码图形前端渲染）、收款页设置（PaymentPageSettings + TipConfiguration）、 账单码（Invoice，列表 / 详情 / 创建 / 作废 / 已支付隐藏）、支付链接（PaymentLink 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕、创建 / 编辑 / 启停 / 删除 / giftcard 库存只读 / Redemptions 只读 / Transactions 只读）、 设备（列表 / 详情 + 绑定/解绑/启停）、设备日志、商户级订单配置（Order Expiry / Customer Service Fee）、POS 小票内容。 字段类型以本 spec 为准。 merchant scope 从会话取、不信请求体；merchant-current-scoped 读写挂 MerchantContextGuard（stale-tab 守卫）。
+    收单配置前端契约：
+
+    - Store QR 展示变体（二维码图形前端渲染）、
+    - 收款页设置（PaymentPageSettings + TipConfiguration）、
+    - 账单码（Invoice，列表 / 详情 / 创建 / 作废 / 已支付隐藏）、
+    - 支付链接（PaymentLink 全部 per-link 配置〔销售内容/生命周期/Policies/Buyer Info〕、创建 / 编辑 / 启停 / 删除 / giftcard 库存只读 / Redemptions 只读 / Transactions 只读）、
+    - 设备（列表 / 详情 + 绑定/解绑/启停）、
+    - 设备日志、
+    - 商户级订单配置（Order Expiry / Customer Service Fee）、
+    - POS 小票内容。
+
+    字段类型以本 spec 为准。
+
+    merchant scope 从会话取、不信请求体；merchant-current-scoped 读写挂 MerchantContextGuard（stale-tab 守卫）。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -46,6 +59,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/StoreQrVariantList'
+              examples:
+                withVariants:
+                  summary: 有可用变体 —— 第 1 项即主变体，其余进「More」
+                  value:
+                    variants:
+                      - variantId: cad-standard
+                        currency: CAD
+                        qrType: standard
+                        hostedPage: true
+                        qrContent: https://cashier.example.com/s/C3BM68
+                        methods:
+                          - methodId: instore-wechat
+                            family: wechat
+                            acceptanceMode: in_store
+                            displayName: WeChat Pay
+                          - methodId: instore-credit-card
+                            family: credit_card
+                            acceptanceMode: in_store
+                            displayName: Credit Card
+                      - variantId: cad-pre-auth
+                        currency: CAD
+                        qrType: pre_auth
+                        hostedPage: true
+                        qrContent: https://cashier.example.com/s/C3BM68?mode=pre-auth
+                      - variantId: cny-unionpay-qrc
+                        currency: CNY
+                        qrType: unionpay_qrc
+                        hostedPage: false
+                        qrContent: '6236680000000000000'
+                noVariants:
+                  summary: 一个变体都没有 —— 空数组，不展示主位
+                  value:
+                    variants: []
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -106,7 +152,18 @@ paths:
       operationId: savePaymentPageSettings
       summary: 保存收款页设置 + 小费配置（两组共同成功 / 失败）
       description: |
-        保存 PaymentPageSettings + TipConfiguration（两组同一次提交、共同成功 / 失败，不部分生效）。 支付方式集**保存前经受理校验**（须为该商户当前可受理方式）—— 不通过 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE`；空集 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。 Logo 先经 createPaymentPageLogoUploadTarget 取直传目标、由浏览器直传对象存储，再以其 `fileId` 作 `logoRef` 提交；**保存时该文件才正式归属本设置**。 所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**整次保存被拒、两组都不生效**。该码是终态、不可原样重试——须**重新取直传目标**（得到**新 `fileId`**）、重新直传，再用新引用保存；**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。 **暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。 `logoUrl` 只出不入、不要提交。天然幂等 PUT（同 payload 重放一致）。
+        保存 PaymentPageSettings + TipConfiguration（两组同一次提交、共同成功 / 失败，不部分生效）。
+
+        支付方式集**保存前经受理校验**（须为该商户当前可受理方式）——
+        不通过 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE`；空集 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。
+
+        Logo 先经 createPaymentPageLogoUploadTarget 取直传目标、由浏览器直传对象存储，再以其 `fileId` 作 `logoRef` 提交；**保存时该文件才正式归属本设置**。
+
+        - 所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**整次保存被拒、两组都不生效**。
+          该码是终态、不可原样重试——须**重新取直传目标**（得到**新** `fileId`）、重新直传，再用新引用保存；**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。
+        - **暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。
+
+        `logoUrl` 只出不入、不要提交。天然幂等 PUT（同 payload 重放一致）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -136,7 +193,17 @@ paths:
         - payment-page
       operationId: createPaymentPageLogoUploadTarget
       summary: 取得收款页 Logo 直传目标（浏览器据此直传，文件不经本接口）
-      description: 上传分两步。**第一步**调本接口，用**声明值**（用途 / 文件名 / 内容类型 / 大小）换一个直传目标；**第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——换一个合规的文件再申请，同一文件重试无用。返回的 `fileId` 即 savePaymentPageSettings 所用的 `logoRef`——该文件在保存收款页设置时才正式归属它。**非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
+      description: |
+        上传分两步。
+
+        - **第一步**调本接口，用**声明值**（用途 / 文件名 / 内容类型 / 大小）换一个直传目标；
+        - **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。
+
+        允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——换一个合规的文件再申请，同一文件重试无用。
+
+        返回的 `fileId` 即 savePaymentPageSettings 所用的 `logoRef`——该文件在保存收款页设置时才正式归属它。
+
+        **非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -327,7 +394,7 @@ paths:
       operationId: getInvoiceCounts
       summary: 账单列表状态快捷筛选的各项与计数
       description: |
-        账单列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listInvoices` 的 `status`；本端点**不接受 `status`**，其余筛选（搜索 / 创建日期 / 金额区间）与列表一致。 ⚠️ **与页顶汇总卡 `getInvoiceSummary` 是两个量、不要互相核对**：汇总卡恒按商户全量算、不随筛选变； 本端点随筛选走、且与列表同轴。默认不展示的**已隐藏 `PAID`** 两边都不计入。
+        账单列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listInvoices` 的 `status`；本端点**不接受** `status`，其余筛选（搜索 / 创建日期 / 金额区间）与列表一致。 ⚠️ **与页顶汇总卡 `getInvoiceSummary` 是两个量、不要互相核对**：汇总卡恒按商户全量算、不随筛选变； 本端点随筛选走、且与列表同轴。默认不展示的**已隐藏 `PAID`** 两边都不计入。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: keyword
@@ -392,7 +459,16 @@ paths:
       operationId: getInvoiceSummary
       summary: 账单页顶汇总卡
       description: |
-        账单页顶的 Paid / Unpaid / Overdue 三格 + Total Receivables 汇总卡。 **恒按该商户全量 Invoice 统计（排除已隐藏的 PAID），不随账单列表的搜索 / 状态 / 日期 / 金额筛选变化**—— 筛选只作用于列表数据，汇总卡呈现的是商户应收全貌；随 Invoice 创建 / 作废 / 隐藏实时联动，故**与 `listInvoices` 的 `total` 不同轴、不可互相核对**。 币种口径：计数含全部 Invoice（跨标价币种）；Paid 金额按实际结算金额（结算币种）合计； CNY 标价的 Unpaid / Overdue 结算额尚未确定 → CNY 独立小计、不与结算币种金额混加。
+        账单页顶的 Paid / Unpaid / Overdue 三格 + Total Receivables 汇总卡。
+
+        **恒按该商户全量 Invoice 统计（排除已隐藏的 PAID），不随账单列表的搜索 / 状态 / 日期 / 金额筛选变化**——
+        筛选只作用于列表数据，汇总卡呈现的是商户应收全貌；随 Invoice 创建 / 作废 / 隐藏实时联动，故**与 `listInvoices` 的 `total` 不同轴、不可互相核对**。
+
+        **币种口径**：
+
+        - 计数含全部 Invoice（跨标价币种）；
+        - Paid 金额按实际结算金额（结算币种）合计；
+        - CNY 标价的 Unpaid / Overdue 结算额尚未确定 → CNY 独立小计、不与结算币种金额混加。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -614,7 +690,22 @@ paths:
       operationId: createPaymentLink
       summary: 创建支付链接（giftcard/product/ticket）
       description: |
-        创建支付链接（type 判别 giftcard/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL（`paymentUrl`）；收款 QR 图片不在本响应内，走 `downloadPaymentLinkQr` 取 PNG。含 Policies（**继承商户级共享默认**的快照）与 Buyer / Recipient Information（以 `getPaymentLinkCreateConfig` 的 **`default*`〔系统级默认〕** 为起点、固化进本链接自己的快照，**此后改本链接不回写任何共享默认**）。 **currency × methods 组合校验**：校验所选方式均支持该标价币种；方式不在该产品候选集内或不支持该币种 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE (208007)`；空方式 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。 **内容币种一致**：所有内容价格（denomination / product price / ticket tier price）及 bonus 币种须 = 顶层 `currency`，不一致 → `400 CONTENT_CURRENCY_MISMATCH (204006)`（schema 不强约、服务端校验）。 **礼卡内容规则**（type=giftcard）：核销规则仅兑换券模式适用 / 赠卡条款为自定义时赠卡备注必填 / 活动截止日不得早于今天 —— 任一不满足拒绝保存 → `400 GIFTCARD_CONTENT_INVALID (204013)`（逐字段明细走响应体字段错误）。 **素材（Banner / 品牌 Logo）可在本步一并带上**：先调 createPaymentLinkAssetUploadTarget 取目标（**不需要链接已存在**）、浏览器直传，再把得到的 `fileId` 作 `bannerRef` / `brandLogoRef` 随本请求提交；也可以留空、建好后经 updatePaymentLink 再加。 所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**链接不创建**。该码是终态、不可原样重试——须**重新取直传目标**（得到**新 `fileId`**）、重新直传，再用新引用提交；**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。⚠️ **换了 `fileId` 就是换了请求体，必须同时换新 `Idempotency-Key`**；沿用旧键提交新内容 → `409`·208005。 **暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，用**原键原样重试**。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
+        创建支付链接（type 判别 giftcard/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL（`paymentUrl`）；收款 QR 图片不在本响应内，走 `downloadPaymentLinkQr` 取 PNG。
+
+        含 Policies（**继承商户级共享默认**的快照）与 Buyer / Recipient Information（以 `getPaymentLinkCreateConfig` 的 **`default*`〔系统级默认〕** 为起点、固化进本链接自己的快照，**此后改本链接不回写任何共享默认**）。
+
+        - **currency × methods 组合校验**：校验所选方式均支持该标价币种；方式不在该产品候选集内或不支持该币种 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE (208007)`；空方式 → `400 PAYMENT_METHOD_SELECTION_EMPTY`。
+        - **内容币种一致**：所有内容价格（denomination / product price / ticket tier price）及 bonus 币种须 = 顶层 `currency`，不一致 → `400 CONTENT_CURRENCY_MISMATCH (204006)`（schema 不强约、服务端校验）。
+        - **礼卡内容规则**（type=giftcard）：核销规则仅兑换券模式适用 / 赠卡条款为自定义时赠卡备注必填 / 活动截止日不得早于今天 —— 任一不满足拒绝保存 → `400 GIFTCARD_CONTENT_INVALID (204013)`（逐字段明细走响应体字段错误）。
+
+        **素材（Banner / 品牌 Logo）可在本步一并带上**：先调 createPaymentLinkAssetUploadTarget 取目标（**不需要链接已存在**）、浏览器直传，再把得到的 `fileId` 作 `bannerRef` / `brandLogoRef` 随本请求提交；也可以留空、建好后经 updatePaymentLink 再加。
+
+        - 所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**链接不创建**。
+          该码是终态、不可原样重试——须**重新取直传目标**（得到**新** `fileId`）、重新直传，再用新引用提交；**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。
+          ⚠️ **换了 `fileId` 就是换了请求体，必须同时换新** `Idempotency-Key`；沿用旧键提交新内容 → `409`·208005。
+        - **暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，用**原键原样重试**。
+
+        幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -724,7 +815,7 @@ paths:
       operationId: getPaymentLinkCounts
       summary: 支付链接列表类型快捷筛选的各项与计数
       description: |
-        支付链接列表顶部类型快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listPaymentLinks` 的 `type`；本端点**不接受 `type`**，其余筛选（按 Name / ID 搜索）与列表一致。
+        支付链接列表顶部类型快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listPaymentLinks` 的 `type`；本端点**不接受** `type`，其余筛选（按 Name / ID 搜索）与列表一致。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: keyword
@@ -841,7 +932,30 @@ paths:
       operationId: updatePaymentLink
       summary: 编辑支付链接配置
       description: |
-        编辑配置段（Name / Currency / 类型内容 / Payment methods / Buyer Information / Banner / giftcard meta）。 `type` 须与该链接现有类型一致（链接类型创建后不可变更），它只作内容段的判别、不构成改动。 **冻结字段传同值不报错**，只有传入不同值才拒。 已产生订单后**影响已售解释的字段冻结**——冻结集 = `currency` · **已售**面值档的 `amount`（主卡面值）· **已售**商品的 `name` / `price` / 销售窗口 · 票务的 `eventDate` / `venue` · **已售**票档的 `name` / `price` / 销售窗口; 库存 / capacity、**未售**销售项、展示内容、Buyer / Recipient Information、Payment Methods、Policies、启停状态**不冻结**。 触碰冻结字段 → `409`·208025，**响应必带 `details[].field`** 指出是哪几个;**刷新重试无用**，前端把这些字段值改回原样并禁用其输入。 进编辑态时可否**预先**禁用，取决于读侧是否已给出「已售」信号（当前 `getPaymentLink` 未提供逐项已售标记，故本期以提交后的 `409` + `details` 为准）；方式收窄 + **currency × methods 组合校验同 createPaymentLink**——**单改 Currency 校验已有 Methods、单改 Methods 校验现 Currency**（任一不兼容 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE 208007`）；内容币种须 = 顶层 currency（不一致 → `400 CONTENT_CURRENCY_MISMATCH 204006`）。 **礼卡内容规则同 createPaymentLink**（→ `400 GIFTCARD_CONTENT_INVALID 204013`）；**履约模式创建后不可变更**——请求携带与已存实例不同的 `fulfillmentMode` → `409 GIFTCARD_FULFILLMENT_MODE_IMMUTABLE (208017)`（该字段本就不应可编辑，前端不提供入口）。 **素材引用在本步生效**（`bannerRef` / `brandLogoRef`，取自 createPaymentLinkAssetUploadTarget）：所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**整次编辑不生效**。该码是终态、不可原样重试——须**重新取直传目标**（得到**新 `fileId`**）、重新直传，再用新引用提交；**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。**暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。 天然幂等 PUT（同 payload 重放一致），不挂 Idempotency-Key。
+        编辑配置段（Name / Currency / 类型内容 / Payment methods / Buyer Information / Banner / giftcard meta）。
+
+        `type` 须与该链接现有类型一致（链接类型创建后不可变更），它只作内容段的判别、不构成改动。
+
+        **冻结字段传同值不报错**，只有传入不同值才拒。
+
+        - 已产生订单后**影响已售解释的字段冻结**——冻结集 = `currency` · **已售**面值档的 `amount`（主卡面值）· **已售**商品的 `name` / `price` / 销售窗口 · 票务的 `eventDate` / `venue` · **已售**票档的 `name` / `price` / 销售窗口;
+        - 库存 / capacity、**未售**销售项、展示内容、Buyer / Recipient Information、Payment Methods、Policies、启停状态**不冻结**。
+
+        触碰冻结字段 → `409`·208025，**响应必带 `details[].field`** 指出是哪几个;**刷新重试无用**，前端把这些字段值改回原样并禁用其输入。
+
+        进编辑态时可否**预先**禁用，取决于读侧是否已给出「已售」信号（当前 `getPaymentLink` 未提供逐项已售标记，故本期以提交后的 `409` + `details` 为准）；
+
+        - 方式收窄 + **currency × methods 组合校验同 createPaymentLink**——**单改 Currency 校验已有 Methods、单改 Methods 校验现 Currency**（任一不兼容 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE 208007`）；
+        - 内容币种须 = 顶层 currency（不一致 → `400 CONTENT_CURRENCY_MISMATCH 204006`）。
+
+        **礼卡内容规则同 createPaymentLink**（→ `400 GIFTCARD_CONTENT_INVALID 204013`）；**履约模式创建后不可变更**——请求携带与已存实例不同的 `fulfillmentMode` → `409 GIFTCARD_FULFILLMENT_MODE_IMMUTABLE (208017)`（该字段本就不应可编辑，前端不提供入口）。
+
+        **素材引用在本步生效**（`bannerRef` / `brandLogoRef`，取自 createPaymentLinkAssetUploadTarget）：所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**整次编辑不生效**。
+        该码是终态、不可原样重试——须**重新取直传目标**（得到**新** `fileId`）、重新直传，再用新引用提交；**不要向原目标补传**（直传目标是一次性的，提交失败即作废）。
+
+        **暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。
+
+        天然幂等 PUT（同 payload 重放一致），不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1025,7 +1139,19 @@ paths:
         - payment-links
       operationId: createPaymentLinkAssetUploadTarget
       summary: 取得链接素材直传目标（Banner / 品牌 Logo；浏览器据此直传）
-      description: 上传分两步。**第一步**调本接口，用**声明值**（用途 / 文件名 / 内容类型 / 大小）换一个直传目标；**第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——换一个合规的文件再申请，同一文件重试无用。返回的 `fileId` 按 `purpose` 作 `bannerRef` 或 `brandLogoRef` 引用——**该文件在携带该引用的那次写生效时才正式归属对应链接**，`createPaymentLink`（创建即带图）与 `updatePaymentLink`（建好后再加 / 换图）两条都可以。**本端点不需要链接已存在**，故创建向导里也能先传图。**非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
+      description: |
+        上传分两步。
+
+        - **第一步**调本接口，用**声明值**（用途 / 文件名 / 内容类型 / 大小）换一个直传目标；
+        - **第二步**由浏览器把文件连同目标中的 `fields` 一起提交到 `action`，**文件字节不经过本接口**。
+
+        允许的格式与大小上限见 `purpose` 的用途表；声明值不合规 → `400 FILE_DECLARATION_REJECTED (204015)` 且**不签发目标**——换一个合规的文件再申请，同一文件重试无用。
+
+        返回的 `fileId` 按 `purpose` 作 `bannerRef` 或 `brandLogoRef` 引用——**该文件在携带该引用的那次写生效时才正式归属对应链接**，`createPaymentLink`（创建即带图）与 `updatePaymentLink`（建好后再加 / 换图）两条都可以。
+
+        **本端点不需要链接已存在**，故创建向导里也能先传图。
+
+        **非幂等**：每次调用产生新 fileId、重试不复用；不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1072,7 +1198,15 @@ paths:
       operationId: getPaymentLinkTransactions
       summary: Transactions tab（该链接的交易只读列表）
       description: |
-        Payment Link 详情 Transactions tab：按**本 link 实例归因**过滤的支付交易只读分页列表。 **字段 / 状态 / 可退性 / 操作可见性与交易管理的交易列表逐字段相同**，行组件可直接复用。 **scope 双重收窄**：当前商户 + 该 `linkId`；非本商户或不属该 link 的交易不返回。 **按交易时间倒序**返回（固定序、本端点不提供排序参数），分页稳定。 **本端点只读、不承载退款**——行内退款是**两跳、都在交易管理契约里**：先按 `orderId` 调 `getPaymentDetail` 做可退额预检（行里的 `refundable` 只表示入口可见,**不含可退金额上限**），再调 `createRefund` 提交;退款规则 / PIN / 幂等口径全在那边,本域不重复定义。 空结果返回空态（`total: 0` + 空 `data`）、不报错。跨 scope `linkId` 统一 `404` 防枚举。
+        Payment Link 详情 Transactions tab：按**本 link 实例归因**过滤的支付交易只读分页列表。
+
+        - **字段 / 状态 / 可退性 / 操作可见性与交易管理的交易列表逐字段相同**，行组件可直接复用。
+        - **scope 双重收窄**：当前商户 + 该 `linkId`；非本商户或不属该 link 的交易不返回。
+        - **按交易时间倒序**返回（固定序、本端点不提供排序参数），分页稳定。
+
+        **本端点只读、不承载退款**——行内退款是**两跳、都在交易管理契约里**：先按 `orderId` 调 `getPaymentDetail` 做可退额预检（行里的 `refundable` 只表示入口可见,**不含可退金额上限**），再调 `createRefund` 提交;退款规则 / PIN / 幂等口径全在那边,本域不重复定义。
+
+        空结果返回空态（`total: 0` + 空 `data`）、不报错。跨 scope `linkId` 统一 `404` 防枚举。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: linkId
@@ -1123,7 +1257,15 @@ paths:
       operationId: getPaymentLinkRedemptions
       summary: Redemptions 只读呈现（核销记录）
       description: |
-        按 link scope 展示只读**核销**记录（分页 / 搜索 / 过滤）：product / ticket = 到店自提 / 入场核销； **giftcard 仅 Voucher Mode** = 门店核销记录（券号 / 门店 / 终端 / 操作人 / 核销时间 / 状态）。 ⚠️ **giftcard Inventory Mode 无平台核销**——本 tab 置灰不可点击、`total` 恒 0； 其发卡 / 投递情况在**订单详情**呈现（交易管理的 `getPaymentDetail` 的 `giftCard` 段），不走本端点。 核销为整单一次性，**不含已用金额 / 剩余余额**（非储值）。只读呈现、不在此创建 / 发起核销。
+        按 link scope 展示只读**核销**记录（分页 / 搜索 / 过滤）：
+
+        - product / ticket = 到店自提 / 入场核销；
+        - **giftcard 仅 Voucher Mode** = 门店核销记录（券号 / 门店 / 终端 / 操作人 / 核销时间 / 状态）。
+
+        ⚠️ **giftcard Inventory Mode 无平台核销**——本 tab 置灰不可点击、`total` 恒 0；
+        其发卡 / 投递情况在**订单详情**呈现（交易管理的 `getPaymentDetail` 的 `giftCard` 段），不走本端点。
+
+        核销为整单一次性，**不含已用金额 / 剩余余额**（非储值）。只读呈现、不在此创建 / 发起核销。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/PageNum'
@@ -1260,7 +1402,16 @@ paths:
       operationId: bindDevice
       summary: 绑定新设备
       description: |
-        **预登记**设备（Device Model / 收款端家族 / Serial Number / Source / Store Name）→ 建 `PENDING_ACTIVATION` 设备、定商户 / 店铺归属。**不生成 QR、不签发凭据**——设备须**自己首次登录并匹配到本条预登记**才会激活，**本接口不会返回已激活的设备**；转 `ACTIVE` 由前端刷新列表读到。 这台设备已被在册设备占用（按 `clientType` + `serialNumber` 决定的身份判，**不是**按序列号串本身）→ `409`·208021：**渲染成 Serial Number 的字段级错误、不创建记录**（刷新重试无用）。本商户已在册就去设备列表看那条；他商户占用须联系平台运营处理。 幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
+        **预登记**设备（Device Model / 收款端家族 / Serial Number / Source / Store Name）→ 建 `PENDING_ACTIVATION` 设备、定商户 / 店铺归属。
+
+        **不生成 QR、不签发凭据**——设备须**自己首次登录并匹配到本条预登记**才会激活，**本接口不会返回已激活的设备**；转 `ACTIVE` 由前端刷新列表读到。
+
+        这台设备已被在册设备占用（按 `clientType` + `serialNumber` 决定的身份判，**不是**按序列号串本身）→ `409`·208021：**渲染成 Serial Number 的字段级错误、不创建记录**（刷新重试无用）。
+
+        - 本商户已在册就去设备列表看那条；
+        - 他商户占用须联系平台运营处理。
+
+        幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1300,7 +1451,7 @@ paths:
       operationId: getDeviceCounts
       summary: 设备列表状态快捷筛选的各项与计数
       description: |
-        设备列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listDevices` 的 `status`；本端点**不接受 `status`**，其余筛选（来源 / 店铺 / 创建日期）与列表一致。
+        设备列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listDevices` 的 `status`；本端点**不接受** `status`，其余筛选（来源 / 店铺 / 创建日期）与列表一致。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: source
@@ -1511,7 +1662,7 @@ paths:
       operationId: getDeviceLogCounts
       summary: 设备日志类型快捷筛选的各项与计数
       description: |
-        某设备日志列表顶部类型快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listDeviceLogs` 的 `type`；本端点**不接受 `type`**，其余筛选（关键词）与列表一致。跨 scope 统一 404。
+        某设备日志列表顶部类型快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listDeviceLogs` 的 `type`；本端点**不接受** `type`，其余筛选（关键词）与列表一致。跨 scope 统一 404。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: deviceId
@@ -1732,7 +1883,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -1777,7 +1937,12 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     AcceptanceMode:
       type: string
@@ -1879,37 +2044,23 @@ components:
           type: array
           uniqueItems: true
           maxItems: 5
-          description: '**新建**链接时 Recipient Information 的初始内容（**与 `defaultBuyerInfo` 是各自独立的一套**）。 **恒返本键**（不是缺键——客户端不必判断键是否存在）：`type=giftcard` 返回其系统配置的默认集、**可为空**；其余类型恒为**空数组**。 **本字段在本响应是顶层，但提交时落在 `giftcard.recipientInformation`**（内容段内）——与顶层提交的 `buyerInformation` 不同层，别照搬层级。'
+          description: '**新建**链接时 Recipient Information 的初始内容（**与 `defaultBuyerInfo` 是各自独立的一套**）。 **恒返本键**（不是缺键——客户端不必判断键是否存在）：`type=giftcard` 返回其系统配置的默认集、**可为空**；其余类型恒为**空数组**。 **本字段在本响应是顶层，但提交时落在** `giftcard.recipientInformation`（内容段内）——与顶层提交的 `buyerInformation` 不同层，别照搬层级。'
           items:
             $ref: '#/components/schemas/InfoFieldLabel'
     StoreQrVariantList:
       type: object
-      description: 店铺码展示变体集。**两种互斥形态**：有变体时必带主变体；一个变体都没有时不带主变体（此时不展示主位）。
-      oneOf:
-        - title: 有可用变体 —— 必带主变体
-          required:
-            - primaryVariantId
-          properties:
-            primaryVariantId:
-              type: string
-              minLength: 1
-            variants:
-              type: array
-              minItems: 1
-        - title: 无可用变体 —— 不带主变体
-          properties:
-            primaryVariantId: false
-            variants:
-              type: array
-              maxItems: 0
+      description: 店铺码展示变体集。
       required:
         - variants
       properties:
-        primaryVariantId:
-          type: string
-          description: '**服务端已选定的主变体**（通常是主结算币种的 Standard 码；该组合不可用时服务端会在可用变体中选一个）。客户端**照它渲染主位即可、不要自己挑**；**也不要假设它一定是 hosted 码**——若它是 UnionPay QRC，则没有收款页可预览（仅云闪付 App 扫）。**一个变体都没有时不返回本键**（此时不展示主位）'
         variants:
           type: array
+          description: |-
+            展示变体，**有序**——**第 1 项就是服务端已选定的主变体**（通常是主结算币种的 Standard 码；
+            该组合不可用时服务端会在可用变体中选一个）。客户端**照第 1 项渲染主位即可、不要自己挑**；
+            **也不要假设它一定是 hosted 码**——若它是 UnionPay QRC，则没有收款页可预览（仅云闪付 App 扫）。
+
+            其余项按返回顺序进「More」入口。**空数组 = 一个变体都没有**，此时不展示主位。
           items:
             $ref: '#/components/schemas/StoreQrVariant'
     StoreQrVariant:
@@ -1942,7 +2093,14 @@ components:
           type: string
           minLength: 1
           readOnly: true
-          description: '**该变体二维码承载的原文**——前端据此自行渲染二维码图形（页内预览大图、下载 PNG 都由前端出图； 服务端不提供图片端点）。下载文件名由前端按 `{merchantCode}-{currency}-{qrType}.png` 拼， 三段分别取当前商户上下文的商户码（见商户实体契约）、本变体的 `currency`、本变体的 `qrType` **字段原值**（如 `pre_auth`，不做大小写或连字符改写）；分辨率自定，不低于 512×512。 本键原样使用、**不要解析或改写**：`hostedPage=true` 时它是一个收款页 URL；`false` 时是银联侧载荷（不是 URL）。'
+          description: |-
+            **该变体二维码承载的原文**——前端据此自行渲染二维码图形（页内预览大图、下载 PNG 都由前端出图；
+            服务端不提供图片端点）。
+
+            下载文件名由前端按 `{merchantCode}-{currency}-{qrType}.png` 拼，
+            三段分别取当前商户上下文的商户码（见商户实体契约）、本变体的 `currency`、本变体的 `qrType` **字段原值**（如 `pre_auth`，不做大小写或连字符改写）；分辨率自定，不低于 512×512。
+
+            本键原样使用、**不要解析或改写**：`hostedPage=true` 时它是一个收款页 URL；`false` 时是银联侧载荷（不是 URL）。
         methods:
           type: array
           description: 该变体收款页展示的支付方式（hosted 主 QR 含信用卡；UnionPay QRC 无）
@@ -2166,7 +2324,7 @@ components:
         totalCount:
           type: integer
           minimum: 0
-          description: '**三格数量占比的分母** = 该商户全部 Invoice 计数（**含 `VOIDED`**、跨标价币种；与三格同样不计已隐藏的 `PAID`）。 **不要用 `paid + unpaid + overdue` 当分母**（那样漏掉 `VOIDED`、占比会偏大），也不要用列表页的 `total`（那个随筛选变，而本汇总不随筛选）。'
+          description: '**三格数量占比的分母** = 该商户全部 Invoice 计数（**含** `VOIDED`、跨标价币种；与三格同样不计已隐藏的 `PAID`）。 **不要用 `paid + unpaid + overdue` 当分母**（那样漏掉 `VOIDED`、占比会偏大），也不要用列表页的 `total`（那个随筛选变，而本汇总不随筛选）。'
         totalReceivables:
           $ref: '#/components/schemas/TotalReceivables'
     InvoiceSummaryCell:
@@ -2249,7 +2407,7 @@ components:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
     SaleWindowRead:
-      description: '`SaleWindow` 的读侧形态：属性定义仍单一来源于 `SaleWindow`，此处只把可清空字段收窄为非空——**响应里未设置的边界不返回本键、不返 `null`**。'
+      description: '`SaleWindow` 的读侧形态：属性定义仍单一来源于 `SaleWindow`，此处只把可清空字段收窄为非空——**响应里未设置的边界不返回本键、不返** `null`。'
       allOf:
         - $ref: '#/components/schemas/SaleWindow'
         - properties:
@@ -2305,7 +2463,7 @@ components:
           minimum: 0
           description: 该面值档销售数量上限（**仅 Voucher Mode**；达上限即该档售罄）
     GiftcardDenominationRead:
-      description: '`GiftcardDenomination` 的读侧形态：只收窄可清空字段——**响应里不适用 / 未设置的一律不返回本键、不返 `null`**（如 `discountAmount` 只在 `promotionType=discount` 时出现）。'
+      description: '`GiftcardDenomination` 的读侧形态：只收窄可清空字段——**响应里不适用 / 未设置的一律不返回本键、不返** `null`（如 `discountAmount` 只在 `promotionType=discount` 时出现）。'
       allOf:
         - $ref: '#/components/schemas/GiftcardDenomination'
         - properties:
@@ -2327,7 +2485,7 @@ components:
               minimum: 0
     GiftcardContent:
       type: object
-      description: 礼卡销售内容。**`fulfillmentMode` 是唯一表达库存与核销业务模式的字段**： Inventory Mode 发预先导入的真品牌卡、无平台核销；Voucher Mode 发系统生成兑换券、门店核销 + 可 Void。 创建后**不可变更**；`redemptionRule` 仅 Voucher Mode 可提交。
+      description: 礼卡销售内容。`fulfillmentMode` **是唯一表达库存与核销业务模式的字段**： Inventory Mode 发预先导入的真品牌卡、无平台核销；Voucher Mode 发系统生成兑换券、门店核销 + 可 Void。 创建后**不可变更**；`redemptionRule` 仅 Voucher Mode 可提交。
       properties:
         giftCardName:
           type: string
@@ -2438,7 +2596,7 @@ components:
           items:
             $ref: '#/components/schemas/InfoFieldLabel'
     GiftcardContentRead:
-      description: '`GiftcardContent` 的读侧形态：属性定义仍单一来源于 `GiftcardContent`，此处只把可清空字段收窄为非空、并把面值档换成读侧变体——**响应里未设置 / 不适用的一律不返回本键、不返 `null`**。'
+      description: '`GiftcardContent` 的读侧形态：属性定义仍单一来源于 `GiftcardContent`，此处只把可清空字段收窄为非空、并把面值档换成读侧变体——**响应里未设置 / 不适用的一律不返回本键、不返** `null`。'
       allOf:
         - $ref: '#/components/schemas/GiftcardContent'
         - properties:
@@ -2471,7 +2629,7 @@ components:
               items:
                 $ref: '#/components/schemas/GiftcardDenominationRead'
     GiftcardContentComplete:
-      description: 礼卡内容的**完整形态**：创建提交时**缺其一即 `400`**；详情响应中这些字段**必返**。 属性集单一来源为 `GiftcardContent`，此处只收紧 `required`（更新提交用裸 `GiftcardContent`，部分更新不设必填）。
+      description: 礼卡内容的**完整形态**：创建提交时**缺其一即** `400`；详情响应中这些字段**必返**。 属性集单一来源为 `GiftcardContent`，此处只收紧 `required`（更新提交用裸 `GiftcardContent`，部分更新不设必填）。
       required:
         - giftCardName
         - brandName
@@ -2508,7 +2666,7 @@ components:
         saleWindow:
           $ref: '#/components/schemas/SaleWindow'
     ProductItemRead:
-      description: '`ProductItem` 的读侧形态：收窄可清空字段 + 销售窗口换读侧变体——**不限量时不返回 `stock` 键、不返 `null`**。'
+      description: '`ProductItem` 的读侧形态：收窄可清空字段 + 销售窗口换读侧变体——**不限量时不返回 `stock` 键、不返** `null`。'
       allOf:
         - $ref: '#/components/schemas/ProductItem'
         - properties:
@@ -2672,7 +2830,7 @@ components:
             - string
             - 'null'
     LocalizedTextRead:
-      description: '`LocalizedText` 的读侧形态：只收窄可清空字段——**响应里未填的语种不返回本键、不返 `null`**。'
+      description: '`LocalizedText` 的读侧形态：只收窄可清空字段——**响应里未填的语种不返回本键、不返** `null`。'
       allOf:
         - $ref: '#/components/schemas/LocalizedText'
         - properties:
@@ -2683,7 +2841,7 @@ components:
             fr:
               type: string
     PaymentLinkCreateRequest:
-      description: 创建请求；按 `type` 判别三类（discriminator），type ↔ content 强绑定互斥（各变体 additionalProperties:false 挡夹带）。FE codegen 可据 type 判别。**所有内容价格 / bonus 币种须 = 顶层 `currency`**（服务端校验、schema 不强约）。
+      description: 创建请求；按 `type` 判别三类（discriminator），type ↔ content 强绑定互斥（各变体 additionalProperties:false 挡夹带）。FE codegen 可据 type 判别。**所有内容价格 / bonus 币种须 = 顶层** `currency`（服务端校验、schema 不强约）。
       oneOf:
         - $ref: '#/components/schemas/GiftcardPaymentLinkCreate'
         - $ref: '#/components/schemas/ProductPaymentLinkCreate'
@@ -3051,7 +3209,7 @@ components:
             $ref: '#/components/schemas/PaymentRow'
     RedemptionListPage:
       type: object
-      description: '核销记录分页。**giftcard Inventory Mode 恒返 `total: 0` + 空 `data`**（无平台核销、tab 置灰）， 其发卡 / 投递情况在订单详情呈现、不在本资源。'
+      description: '核销记录分页。**giftcard Inventory Mode 恒返 `total: 0` + 空** `data`（无平台核销、tab 置灰）， 其发卡 / 投递情况在订单详情呈现、不在本资源。'
       required:
         - total
         - data
@@ -3313,7 +3471,7 @@ components:
             - 'null'
           description: 小票收款码类型
     ReceiptContentRead:
-      description: '`ReceiptContent` 的读侧形态：收窄可清空字段——**未配置的项不返回本键、不返 `null`**。'
+      description: '`ReceiptContent` 的读侧形态：收窄可清空字段——**未配置的项不返回本键、不返** `null`。'
       allOf:
         - $ref: '#/components/schemas/ReceiptContent'
         - properties:
@@ -3436,10 +3594,33 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+
+        **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
+        **别拿本类型自己推**：两者在跨日边界附近会分属两天。
     FileUploadTarget:
       type: object
-      description: '**文件直传目标**。上传分两步:先向业务接口取得本对象,再由客户端把文件连同 `fields` 一起提交到 `action`; 提交成功后回到业务接口完成绑定 —— **未完成绑定的文件不可用**(取不到、无法预览或下载)。 提交方式**固定**:`POST` + `multipart/form-data`,先把 `fields` 逐项追加,**最后**追加名为 `file` 的文件本体 (存储端要求文件是最后一个字段,其后的字段会被忽略)。**不要手设 `Content-Type`** —— 直接提交 `FormData` 让客户端自己带上 `boundary`,手设会丢 `boundary`、导致存储端解析不出表单。 `fields` **必须原样全部提交、不得增删或改写**:签名与签发时的条件(允许的内容类型、大小上限、有效期)绑定,改动会被存储端拒绝。 **成功判据 = HTTP 2xx**(具体码由存储端决定,不要判具体值);失败时返回的是**存储端自己的格式、不是本平台错误体**。 本对象**限时有效、一次性**,且**只能用于其中的那个 `fileId`**——不能拿它上传别的文件。 **提交失败后不要向原目标重试**:重新申请一个目标,会得到**新的 `fileId`**,后续业务提交须改用新引用;过期同理。'
+      description: |
+        **文件直传目标**。上传分两步:先向业务接口取得本对象,再由客户端把文件连同 `fields` 一起提交到 `action`;
+        提交成功后回到业务接口完成绑定 —— **未完成绑定的文件不可用**(取不到、无法预览或下载)。
+
+        提交方式**固定**:`POST` + `multipart/form-data`,先把 `fields` 逐项追加,**最后**追加名为 `file` 的文件本体
+        (存储端要求文件是最后一个字段,其后的字段会被忽略)。
+
+        - **不要手设 `Content-Type`** —— 直接提交 `FormData`
+          让客户端自己带上 `boundary`,手设会丢 `boundary`、导致存储端解析不出表单。
+        - `fields` **必须原样全部提交、不得增删或改写**:签名与签发时的条件(允许的内容类型、大小上限、有效期)绑定,改动会被存储端拒绝。
+        - **成功判据 = HTTP 2xx**(具体码由存储端决定,不要判具体值);失败时返回的是**存储端自己的格式、不是本平台错误体**。
+
+        本对象**限时有效、一次性**,且**只能用于其中的那个** `fileId`——不能拿它上传别的文件。
+        **提交失败后不要向原目标重试**:重新申请一个目标,会得到**新的 `fileId`**,后续业务提交须改用新引用;过期同理。
       required:
         - fileId
         - action
@@ -3535,7 +3716,17 @@ components:
     PaymentStatus:
       type: string
       description: |
-        支付订单**商户可见状态**：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` 三者同属**已收款**、按已落账退款量区分（「已落账」= 通道受理成功；受理后失败会回退，故订单可能从 `PARTIALLY_REFUNDED` 退回 `PAID`）；`REJECTED` 未受理、`FAILED` 收款失败、`PREAUTH_HOLDING` 预授权挂起待放行。收款过程中的中间态不进列表。 **`REJECTED` 与 `FAILED` 不可混用**：`REJECTED` = 平台未受理该笔交易、**支付从未发生**（无支付尝试、不可退款、无收据，`refundable` / `receiptAvailable` 恒 false）；`FAILED` = 已尝试支付但失败。 **计入营收类聚合（收款额 / 净额 / 笔数）的状态白名单（穷举）**：`PAID` · `PARTIALLY_REFUNDED` · `REFUNDED` · `PREAUTH_HOLDING`——哪些页面有这类聚合、聚合字段叫什么，见该页契约。 **不计入聚合 ≠ 不在列表**：本 enum 的每个取值都可能作为列表行出现（`FAILED` / `REJECTED` 亦然）、并可按状态单独筛出——别以为列表只给成功单。 **封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe 处理未识别值（保守对待、不静默丢弃）。
+        支付订单**商户可见状态**：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。
+
+        `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` 三者同属**已收款**、按已落账退款量区分（「已落账」= 通道受理成功；受理后失败会回退，故订单可能从 `PARTIALLY_REFUNDED` 退回 `PAID`）；`REJECTED` 未受理、`FAILED` 收款失败、`PREAUTH_HOLDING` 预授权挂起待放行。收款过程中的中间态不进列表。
+
+        **`REJECTED` 与 `FAILED` 不可混用**：`REJECTED` = 平台未受理该笔交易、**支付从未发生**（无支付尝试、不可退款、无收据，`refundable` / `receiptAvailable` 恒 false）；`FAILED` = 已尝试支付但失败。
+
+        **计入营收类聚合（收款额 / 净额 / 笔数）的状态白名单（穷举）**：`PAID` · `PARTIALLY_REFUNDED` · `REFUNDED` · `PREAUTH_HOLDING`——哪些页面有这类聚合、聚合字段叫什么，见该页契约。
+
+        **不计入聚合 ≠ 不在列表**：本 enum 的每个取值都可能作为列表行出现（`FAILED` / `REJECTED` 亦然）、并可按状态单独筛出——别以为列表只给成功单。
+
+        **封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe 处理未识别值（保守对待、不静默丢弃）。
       enum:
         - PAID
         - PARTIALLY_REFUNDED
@@ -3561,7 +3752,7 @@ components:
           description: 平台订单号（全局唯一；列表 / 详情 / 命令主键；≠ 商户自填订单号）
         paymentMethod:
           type: string
-          description: 支付方式（**稳定 Family code**，如 `wechat`——不是展示名）。**展示名 / 图标 FE 按 code 本地化**；拿不到本地化资源时，用交易管理契约 `getTransactionFilterOptions` 的 `paymentMethods[].displayName` 作 canonical 兜底（该目录是**商户级**、不随页面或筛选条件变，凡呈现本行的页面都可取用）。**`status = REJECTED` 时不返回本键**——平台未受理、从未发生支付尝试，故无支付方式可言；FE 在本键缺席时呈现「—」，不得回退为任意默认方式
+          description: 支付方式（**稳定 Family code**，如 `wechat`——不是展示名）。**展示名 / 图标 FE 按 code 本地化**；拿不到本地化资源时，用交易管理契约 `getTransactionFilterOptions` 的 `paymentMethods[].displayName` 作 canonical 兜底（该目录是**商户级**、不随页面或筛选条件变，凡呈现本行的页面都可取用）。`status = REJECTED` **时不返回本键**——平台未受理、从未发生支付尝试，故无支付方式可言；FE 在本键缺席时呈现「—」，不得回退为任意默认方式
         source:
           type: string
           description: 来源（**稳定 code**，如 `store_qr`，后端动态配置枚举；不是展示名）。展示名同上——按 code 本地化，`getTransactionFilterOptions` 的 `sources[].displayName` 作 canonical 兜底
@@ -3583,7 +3774,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

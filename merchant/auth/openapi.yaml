@@ -1,11 +1,20 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 — 前端契约面
-  version: 0.22.0
+  version: 0.22.2
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台 React SPA 消费的注册 / 登录 / 会话 / 账户安全 / 团队成员 契约。 浏览器持 httpOnly 会话 cookie（登录后 set-cookie），字段类型与校验规则以本 spec 各字段为准。 幂等/CSRF 口径:① **创建类**(注册/建成员)与**非天然幂等 / 有副作用的写**(如改密〔失效会话〕、改成员)挂 Idempotency-Key;**真正天然幂等的纯 PUT/DELETE 可不挂**;**认证类(登录/登出/MFA/扫码)与多步 OTP 挑战类(改邮箱/找回)按流程语义不挂幂等键**(每次都应重新认证/校验);**例外**:找回流程的 `factor-verification` 步骤挂 Idempotency-Key(该步幂等、重放同键返回同一 resetToken,杜绝网络重试因 OTP 已消费假失败)。 ② cookieAuth 的非安全方法一律挂 X-CSRF-Token(double-submit,fail-closed);公开端点(security:[])无会话故无 CSRF。
+    商户后台 React SPA 消费的注册 / 登录 / 会话 / 账户安全 / 团队成员 契约。
+    浏览器持 httpOnly 会话 cookie（登录后 set-cookie），字段类型与校验规则以本 spec 各字段为准。
+
+    **幂等/CSRF 口径**:
+
+    - ① **创建类**(注册/建成员)与**非天然幂等 / 有副作用的写**(如改密〔失效会话〕、改成员)挂 Idempotency-Key;
+      - **真正天然幂等的纯 PUT/DELETE 可不挂**;
+      - **认证类(登录/登出/MFA/扫码)与多步 OTP 挑战类(改邮箱/找回)按流程语义不挂幂等键**(每次都应重新认证/校验);
+      - **例外**:找回流程的 `factor-verification` 步骤挂 Idempotency-Key(该步幂等、重放同键返回同一 resetToken,杜绝网络重试因 OTP 已消费假失败)。
+    - ② cookieAuth 的非安全方法一律挂 X-CSRF-Token(double-submit,fail-closed);公开端点(security:[])无会话故无 CSRF。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
@@ -34,7 +43,17 @@ paths:
       operationId: registerOwner
       summary: Owner 自助注册（创建 PENDING_VERIFICATION 账号 + 发验证邮件）
       description: |
-        提交注册：创建 PENDING_VERIFICATION 账号，并发起 Verify Email 邮件的异步发送（邮件投递失败不阻塞注册、账号仍建成）。 **邮箱已被占用分两种、结果完全不同**： **① 该邮箱已有一个尚未验证的账号** → **`200`**（不是错误）+ 与 `201` 同一个响应体：**不新建账号**， 前端**回到「等待 Email 验证」页**、用响应里的 `maskedEmail` 与 `resendCooldownSeconds` 渲染提示与 Resend 按钮（别提示「换个邮箱」——那正是用户自己的邮箱）。 **② 该邮箱已是一个可登录账号**（已验证 / 已激活）→ `409`·968001，此时才提示换邮箱或去登录。 用 HTTP 状态区分即可，`200` / `201` 对前端是同一段渲染逻辑（要区分「新建了还是本来就有」看 `201` vs `200`）。 幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回同一受理结果、不会重复注册——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        提交注册：创建 PENDING_VERIFICATION 账号，并发起 Verify Email 邮件的异步发送（邮件投递失败不阻塞注册、账号仍建成）。
+
+        **邮箱已被占用分两种、结果完全不同**：
+
+        - **① 该邮箱已有一个尚未验证的账号** → `200`（不是错误）+ 与 `201` 同一个响应体：**不新建账号**，
+          前端**回到「等待 Email 验证」页**、用响应里的 `maskedEmail` 与 `resendCooldownSeconds` 渲染提示与 Resend 按钮（别提示「换个邮箱」——那正是用户自己的邮箱）。
+        - **② 该邮箱已是一个可登录账号**（已验证 / 已激活）→ `409`·968001，此时才提示换邮箱或去登录。
+
+        用 HTTP 状态区分即可，`200` / `201` 对前端是同一段渲染逻辑（要区分「新建了还是本来就有」看 `201` vs `200`）。
+
+        **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返回同一受理结果、不会重复注册——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       security: []
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -85,7 +104,18 @@ paths:
       operationId: verifyRegistrationEmail
       summary: 邮箱激活（确认页主动点击触发的 POST；防扫描器 prefetch）
       description: |
-        校验一次性验证 token（**仅在激活成功时消费;之前失败不消费、可用同 token 重试**,避免卡在待验证但 token 已失效）→ 激活账号 → ACTIVE。 **token 单次有效、消费后绝不再签发会话**（防旧验证链接泄露后被换取会话）。**已使用 token 重试 → `410`,按 `ErrorEnvelope.code` 细分**:已激活 → `AUTH_REGISTRATION_ALREADY_ACTIVATED`（FE 跳登录页、用户仍须**密码登录**）/ token 无效·过期 → `AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED`（FE 引导重发或重新注册）。**两种 410 都不换会话**。验证链接的 GET 确认页是前端路由、不激活账号，故不在本 API。 **激活成立后按会话建立结果分流**：**`sessionEstablished=true` → 已 set-cookie、前端走应用启动链路**（merchantId / 落地页 / 入驻路由经 getCurrentSession + getOnboardingStatus 取，**不在本响应返回**）；**`sessionEstablished=false` → 激活已成立但本次未建会话、前端跳登录页首次密码登录**。
+        校验一次性验证 token（**仅在激活成功时消费;之前失败不消费、可用同 token 重试**,避免卡在待验证但 token 已失效）→ 激活账号 → ACTIVE。
+
+        **token 单次有效、消费后绝不再签发会话**（防旧验证链接泄露后被换取会话）。
+
+        **已使用 token 重试 → `410`,按 `ErrorEnvelope.code` 细分**:已激活 → `AUTH_REGISTRATION_ALREADY_ACTIVATED`（FE 跳登录页、用户仍须**密码登录**）/ token 无效·过期 → `AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED`（FE 引导重发或重新注册）。**两种 410 都不换会话**。
+
+        验证链接的 GET 确认页是前端路由、不激活账号，故不在本 API。
+
+        **激活成立后按会话建立结果分流**：
+
+        - **`sessionEstablished=true` → 已 set-cookie、前端走应用启动链路**（merchantId / 落地页 / 入驻路由经 getCurrentSession + getOnboardingStatus 取，**不在本响应返回**）；
+        - **`sessionEstablished=false` → 激活已成立但本次未建会话、前端跳登录页首次密码登录**。
       security: []
       requestBody:
         required: true
@@ -235,7 +265,22 @@ paths:
       operationId: login
       summary: 密码登录（邮箱或用户名 + 密码；MFA 联动；签发 BFF 会话）
       description: |
-        邮箱 / 用户名 + 密码认证（clientId 由服务端注入、前端不传）。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。 **`200` 只有这两支**;**凭据正确但不签发会话的三种情形一律是 `403` + 各自的码**，三条文案都不同、按码分流： 邮箱未验证（自助注册待验）→ `208029`（跳「等待 Email 验证」页 + Resend 入口;`context.maskedEmail` **只用于页面展示**, 调 `resendVerificationEmail` 要的明文邮箱**用本次登录表单里的 `loginId`**——走到这一支说明它就是该账号的注册邮箱）; 账号被禁用 → `208027`;商户被停用 → `208028`。账号锁定 → `423`·`966001`。 ⚠️ **受邀待设密的员工不在这几支里**——该账号还没有密码，任何专属提示都等于用任意密码就能探出它的状态,故**与凭据错同一外观**走 `400`·`206012`; 他手上的邀请邮件本身就是恢复路径（另可请 Owner Resend）。 **凭据错**（密码错 / 账号不存在，**两者同一码不区分、防枚举**）→ `400`·`206012`：留在登录表单提示「登录凭据错误」、**不要据此推断账号是否存在**; 失败计数与节流由后端控制、**不回前端**（没有剩余次数可显示）——你只按响应处理：被锁定 → `423`·`966001`（等冷却）;被限流 → `429`。
+        邮箱 / 用户名 + 密码认证（clientId 由服务端注入、前端不传）。未启 MFA → 建 BFF 会话（set-cookie）。已启 MFA → 返回 MFA_REQUIRED + 短时 mfaChallenge（不建会话）。
+
+        **`200` 只有这两支**;**凭据正确但不签发会话的三种情形一律是 `403` + 各自的码**，三条文案都不同、按码分流：
+
+        - 邮箱未验证（自助注册待验）→ `208029`（跳「等待 Email 验证」页 + Resend 入口;`context.maskedEmail` **只用于页面展示**,
+          调 `resendVerificationEmail` 要的明文邮箱**用本次登录表单里的** `loginId`——走到这一支说明它就是该账号的注册邮箱）;
+        - 账号被禁用 → `208027`;
+        - 商户被停用 → `208028`。
+
+        账号锁定 → `423`·`966001`。
+
+        ⚠️ **受邀待设密的员工不在这几支里**——该账号还没有密码，任何专属提示都等于用任意密码就能探出它的状态,故**与凭据错同一外观**走 `400`·`206012`;
+        他手上的邀请邮件本身就是恢复路径（另可请 Owner Resend）。
+
+        **凭据错**（密码错 / 账号不存在，**两者同一码不区分、防枚举**）→ `400`·`206012`：留在登录表单提示「登录凭据错误」、**不要据此推断账号是否存在**;
+        失败计数与节流由后端控制、**不回前端**（没有剩余次数可显示）——你只按响应处理：被锁定 → `423`·`966001`（等冷却）;被限流 → `429`。
       security: []
       requestBody:
         required: true
@@ -278,7 +323,22 @@ paths:
         - session
       operationId: completeMfaChallenge
       summary: 登录二次校验（提交 TOTP，通过则签发 BFF 会话）
-      description: 登录第二步：提交 TOTP，通过则签发会话。**失败按 `code` 分流**—— TOTP 错 → `400`·`206012`（**留在 TOTP 输入框重输**、**不跳回登录第一步**、不要清空已填状态; 失败计数与节流由后端执行、**不回前端**，故**没有剩余次数可显示**——别做计数 UI）; 账号因连续登录失败被锁 → `423`·`966001`（等冷却，文案按该码取）; 挑战句柄**过期 / 已消费 / 无效** → `410`·`966002`（回登录第一步重新认证，重输 TOTP 无用）。 **签发资格在本步重新裁决、不沿用第一步的结论**——账号 / 商户可能在你输 TOTP 这段时间里被停： 账号被禁用 → `403`·`208027`;商户被停用 → `403`·`208028`（与第一步同码同处置）。 故 TOTP 正确 ≠ 一定建会话;拿到 `403` 就按码提示、回登录页，别当成「验证码错」重输。
+      description: |-
+        登录第二步：提交 TOTP，通过则签发会话。
+
+        **失败按 `code` 分流**——
+
+        - TOTP 错 → `400`·`206012`（**留在 TOTP 输入框重输**、**不跳回登录第一步**、不要清空已填状态;
+          失败计数与节流由后端执行、**不回前端**，故**没有剩余次数可显示**——别做计数 UI）;
+        - 账号因连续登录失败被锁 → `423`·`966001`（等冷却，文案按该码取）;
+        - 挑战句柄**过期 / 已消费 / 无效** → `410`·`966002`（回登录第一步重新认证，重输 TOTP 无用）。
+
+        **签发资格在本步重新裁决、不沿用第一步的结论**——账号 / 商户可能在你输 TOTP 这段时间里被停：
+
+        - 账号被禁用 → `403`·`208027`;
+        - 商户被停用 → `403`·`208028`（与第一步同码同处置）。
+
+        故 TOTP 正确 ≠ 一定建会话;拿到 `403` 就按码提示、回登录页，别当成「验证码错」重输。
       security: []
       requestBody:
         required: true
@@ -357,7 +417,14 @@ paths:
       operationId: pollWechatLogin
       summary: WeChat 扫码登录 — 轮询（确认成功则签发 BFF 会话）
       description: |
-        被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。 ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。 非法 / 过期票据归一为 EXPIRED，与「未扫」WAITING 反枚举一致（轮询恒 200 的通用口径见 `status` 字段说明）。 **本入口的 EXPIRED 是真终态**——登录结果须交付给发起它的这个页面才算数，二维码过期即本次什么都没发生，重新发起即可。 （对比：通知接收方绑定入口的 `QR_EXPIRED` **不是**终态。）
+        被动等待「已绑定用户在微信内确认」。未绑定 / 未扫 / 未确认对前端表现一致（WAITING）。
+
+        ESTABLISHED 时已 set-cookie（会话有效期按未勾 Remember Me）；账号禁用 / 商户 suspended → REJECTED + reason。扫码登录不追加 MFA。
+
+        非法 / 过期票据归一为 EXPIRED，与「未扫」WAITING 反枚举一致（轮询恒 200 的通用口径见 `status` 字段说明）。
+
+        **本入口的 EXPIRED 是真终态**——登录结果须交付给发起它的这个页面才算数，二维码过期即本次什么都没发生，重新发起即可。
+        （对比：通知接收方绑定入口的 `QR_EXPIRED` **不是**终态。）
       security: []
       parameters:
         - name: qrTicket
@@ -492,7 +559,7 @@ paths:
         - account-security
       operationId: enrollMfa
       summary: 启用 MFA — 发起（输当前密码 → 返回 provisioning，待 activation）
-      description: 输当前密码换取 TOTP provisioning（otpauth URI），待 activation 激活；**当前密码错 → `403`·`206011`**——会话仍有效，留在当前弹窗提示重输、**不要跳登录页**（不计入登录锁定）。
+      description: 输当前密码换取 TOTP provisioning（otpauth URI），待 activation 激活；**当前密码错 →** `403`·`206011`——会话仍有效，留在当前弹窗提示重输、**不要跳登录页**（不计入登录锁定）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -531,7 +598,7 @@ paths:
         - account-security
       operationId: activateMfa
       summary: 启用 MFA — 确认（输 TOTP 激活，状态 → ENABLED）
-      description: 用 `enrollMfa` 拿到的 provisioning 扫码后，输一次 TOTP 完成激活。 **TOTP 错 → `403`·`206011`**（会话仍有效，留在当前弹窗重输、**不要跳登录页**；不计入登录锁定）; **enrollment 已失效**（`MFA_PENDING` 超时未确认 / 已被取消）→ `410`·`966002`——重输无用， 须**回第一步重新 `enrollMfa`** 取新的 provisioning 再扫码。
+      description: 用 `enrollMfa` 拿到的 provisioning 扫码后，输一次 TOTP 完成激活。 **TOTP 错 →** `403`·`206011`（会话仍有效，留在当前弹窗重输、**不要跳登录页**；不计入登录锁定）; **enrollment 已失效**（`MFA_PENDING` 超时未确认 / 已被取消）→ `410`·`966002`——重输无用， 须**回第一步重新 `enrollMfa`** 取新的 provisioning 再扫码。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -561,7 +628,7 @@ paths:
         - account-security
       operationId: disableMfa
       summary: 禁用 MFA（输 TOTP 验证，状态 → DISABLED）
-      description: 输 TOTP 校验后禁用 MFA（关 MFA = 降级，须 step-up 校验当前 TOTP）；**TOTP 错 → `403`·`206011`**，保持 ENABLED、留在弹窗重输、**不要跳登录页**（不计入登录锁定）。
+      description: 输 TOTP 校验后禁用 MFA（关 MFA = 降级，须 step-up 校验当前 TOTP）；**TOTP 错 →** `403`·`206011`，保持 ENABLED、留在弹窗重输、**不要跳登录页**（不计入登录锁定）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -590,7 +657,7 @@ paths:
         - account-security
       operationId: changeOwnPassword
       summary: 登录态改密（Owner + 员工统一用旧密码；其他会话失效、当前保留）
-      description: '**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**;**旧密码错 → `403`·`206011`**——会话仍有效,留在当前弹窗提示重输、**不要跳登录页**(不计入登录锁定);忘记旧密码 → 前端「Forgot your password?」走自助重置。幂等：必带 `Idempotency-Key`;同键 + 同请求体重发 → 一致返 `204`(网络重试请复用同一个键);改了请求体就必须换新键,沿用旧键改内容 → `409`·208005。'
+      description: '**统一用旧密码校验,不接受 TOTP / 邮箱 OTP 替代**;**旧密码错 →** `403`·`206011`——会话仍有效,留在当前弹窗提示重输、**不要跳登录页**(不计入登录锁定);忘记旧密码 → 前端「Forgot your password?」走自助重置。幂等：必带 `Idempotency-Key`;同键 + 同请求体重发 → 一致返 `204`(网络重试请复用同一个键);改了请求体就必须换新键,沿用旧键改内容 → `409`·208005。'
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -666,7 +733,13 @@ paths:
         - my-profile
       operationId: verifyLoginEmailChangeIdentity
       summary: 改登录邮箱 — 第 1 步身份校验（MFA TOTP 或旧邮箱 OTP）
-      description: '**失败按 `code` 分流，且因子不同码不同**：走 **TOTP** 时验错 → `403`·`206011`（**本步不为 TOTP 计次**,没有剩余次数可显示;会话仍有效，留在弹窗重输、**不跳登录页**）; 走**旧邮箱 OTP** 时输错但**尚有尝试次数** → `400`·`204010`（同样留在弹窗重输;剩余次数见 `context.attemptsRemaining`）,**错到超限** → `423`·`966003`（该挑战已作废，回第一步重新发起改邮箱）; 该挑战**过期 / 已消费** → `410`·`206006`（重输无用，回第一步重新发起改邮箱）; **不是发起该挑战的那个会话 / 发起者** → `403`·`206005`（须重走一次挑战，不是重输因子）。'
+      description: |-
+        **失败按 `code` 分流，且因子不同码不同**：
+
+        - 走 **TOTP** 时验错 → `403`·`206011`（**本步不为 TOTP 计次**,没有剩余次数可显示;会话仍有效，留在弹窗重输、**不跳登录页**）;
+        - 走**旧邮箱 OTP** 时输错但**尚有尝试次数** → `400`·`204010`（同样留在弹窗重输;剩余次数见 `context.attemptsRemaining`）,**错到超限** → `423`·`966003`（该挑战已作废，回第一步重新发起改邮箱）;
+        - 该挑战**过期 / 已消费** → `410`·`206006`（重输无用，回第一步重新发起改邮箱）;
+        - **不是发起该挑战的那个会话 / 发起者** → `403`·`206005`（须重走一次挑战，不是重输因子）。
       parameters:
         - name: challengeId
           in: path
@@ -745,7 +818,15 @@ paths:
         - my-profile
       operationId: confirmLoginEmailChange
       summary: 改登录邮箱 — 确认（新邮箱 OTP → 替换登录邮箱 + 旧邮箱安全通知）
-      description: 凭 change-request 的新邮箱 OTP 完成替换（一次性 OTP、非幂等）。更新不影响会话。Owner 变更同步商户主联系邮箱、旧邮箱通知无 Reset password CTA;员工仅个人安全通知。 **失败按 `code` 分流**：新邮箱 OTP 是服务端签发的一次性验证码,**计次**——输错但尚有次数 → `400`·`204010`（留在弹窗重输,剩余次数见 `context.attemptsRemaining`）; **错到超限** → `423`·`966003`（该挑战作废,回第一步重新发起改邮箱）;该 OTP / change-request **过期或已消费** → `410`·`206006`（重输无用,同样回第一步）; **不是发起该变更的那个会话 / 发起者** → `403`·`206005`（须重走一次流程）。
+      description: |-
+        凭 change-request 的新邮箱 OTP 完成替换（一次性 OTP、非幂等）。更新不影响会话。Owner 变更同步商户主联系邮箱、旧邮箱通知无 Reset password CTA;员工仅个人安全通知。
+
+        **失败按 `code` 分流**：新邮箱 OTP 是服务端签发的一次性验证码,**计次**——
+
+        - 输错但尚有次数 → `400`·`204010`（留在弹窗重输,剩余次数见 `context.attemptsRemaining`）;
+        - **错到超限** → `423`·`966003`（该挑战作废,回第一步重新发起改邮箱）;
+        - 该 OTP / change-request **过期或已消费** → `410`·`206006`（重输无用,同样回第一步）;
+        - **不是发起该变更的那个会话 / 发起者** → `403`·`206005`（须重走一次流程）。
       parameters:
         - name: challengeId
           in: path
@@ -912,7 +993,15 @@ paths:
       operationId: initiateOwnerPrimaryEmailChange
       summary: 改 Owner Primary Email — 发起（严格两步验证；返回身份校验方式）
       description: |
-        Contact email 编辑（= Owner Primary Email = 登录邮箱，三合一同一字段）。写 = 联系人编辑权限、默认 Owner。 凭据强度靠**该 Owner 身份因子**（MFA→TOTP / 无 MFA→旧邮箱 OTP）+ 新邮箱 OTP。 **后续每步须来自同一商户 / 同一会话 / 同一发起者、且针对同一 Owner**——切商户 → `409`·`208001`（stale-tab 守卫）;**换会话 / 异发起者 → `403`·`206005`**（须重走一次挑战，不是重输因子）。 具备权限的授权者亦可代该 Owner 完成（校验目标 Owner 因子 + 替换其登录邮箱）。
+        Contact email 编辑（= Owner Primary Email = 登录邮箱，三合一同一字段）。写 = 联系人编辑权限、默认 Owner。
+        凭据强度靠**该 Owner 身份因子**（MFA→TOTP / 无 MFA→旧邮箱 OTP）+ 新邮箱 OTP。
+
+        **后续每步须来自同一商户 / 同一会话 / 同一发起者、且针对同一 Owner**——
+
+        - 切商户 → `409`·`208001`（stale-tab 守卫）;
+        - **换会话 / 异发起者 →** `403`·`206005`（须重走一次挑战，不是重输因子）。
+
+        具备权限的授权者亦可代该 Owner 完成（校验目标 Owner 因子 + 替换其登录邮箱）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -947,7 +1036,16 @@ paths:
         - owner-contact
       operationId: verifyOwnerPrimaryEmailChangeIdentity
       summary: 改 Primary Email — 身份校验（该 Owner 的 MFA TOTP 或旧邮箱 OTP）
-      description: 先校验请求来自同一商户 / 同一会话 / 同一发起者，再验该 Owner 因子。**失败按 `code` 分流**： **因子不同码不同**：TOTP 验错 → `403`·`206011`（无剩余次数可显示;会话仍有效，留在弹窗重输、**不跳登录页**）;旧邮箱 OTP 输错但**尚有尝试次数** → `400`·`204010`（剩余次数见 `context.attemptsRemaining`）,**错到超限** → `423`·`966003`（挑战作废,回第一步重新发起）;挑战过期 / 已消费 → `410`·`206006`（回第一步重新发起）; 换会话 / 异发起者 → `403`·`206005`（重走一次挑战）;切商户 → `409`·`208001`。
+      description: |-
+        先校验请求来自同一商户 / 同一会话 / 同一发起者，再验该 Owner 因子。
+
+        **失败按 `code` 分流**：**因子不同码不同**：
+
+        - TOTP 验错 → `403`·`206011`（无剩余次数可显示;会话仍有效，留在弹窗重输、**不跳登录页**）;
+        - 旧邮箱 OTP 输错但**尚有尝试次数** → `400`·`204010`（剩余次数见 `context.attemptsRemaining`）,**错到超限** → `423`·`966003`（挑战作废,回第一步重新发起）;
+        - 挑战过期 / 已消费 → `410`·`206006`（回第一步重新发起）;
+        - 换会话 / 异发起者 → `403`·`206005`（重走一次挑战）;
+        - 切商户 → `409`·`208001`。
       parameters:
         - name: challengeId
           in: path
@@ -1032,7 +1130,16 @@ paths:
         - owner-contact
       operationId: confirmOwnerPrimaryEmailChange
       summary: 改 Primary Email — 确认（新邮箱 OTP → 替换 Primary Email + 旧邮箱变更通知）
-      description: 凭 change-request 新邮箱 OTP 完成替换（一次性 OTP、非幂等）。Primary Email = 登录邮箱 = Contact email 三合一同步更新；旧邮箱收 Registration Email Changed 通知（无 Reset password CTA、非本人救济经 Contact us）。不影响会话。 **失败按 `code` 分流**：新邮箱 OTP 是服务端签发的一次性验证码,**计次**——输错但尚有次数 → `400`·`204010`（留在弹窗重输,剩余次数见 `context.attemptsRemaining`）; **错到超限** → `423`·`966003`（该挑战作废,回第一步重新发起）;该 OTP / change-request **过期或已消费** → `410`·`206006`（重输无用,同样回第一步）; **不是发起该变更的那个会话 / 发起者** → `403`·`206005`;**切了商户上下文** → `409`·`208001`。
+      description: |-
+        凭 change-request 新邮箱 OTP 完成替换（一次性 OTP、非幂等）。Primary Email = 登录邮箱 = Contact email 三合一同步更新；旧邮箱收 Registration Email Changed 通知（无 Reset password CTA、非本人救济经 Contact us）。不影响会话。
+
+        **失败按 `code` 分流**：新邮箱 OTP 是服务端签发的一次性验证码,**计次**——
+
+        - 输错但尚有次数 → `400`·`204010`（留在弹窗重输,剩余次数见 `context.attemptsRemaining`）;
+        - **错到超限** → `423`·`966003`（该挑战作废,回第一步重新发起）;
+        - 该 OTP / change-request **过期或已消费** → `410`·`206006`（重输无用,同样回第一步）;
+        - **不是发起该变更的那个会话 / 发起者** → `403`·`206005`;
+        - **切了商户上下文** → `409`·`208001`。
       parameters:
         - name: challengeId
           in: path
@@ -1073,9 +1180,21 @@ paths:
       tags:
         - password-reset
       operationId: requestPasswordReset
-      summary: 商户用户自助重置 — 发起（**恒 202 反枚举**;因子由服务端判定,不在响应泄露）
+      summary: 商户用户自助重置 — 发起（恒 202 反枚举;因子由服务端判定,不在响应泄露）
       description: |
-        前端只传 loginId。**恒返 202、不在响应体暴露因子/账号存在性**。服务端按可用因子处理:已绑 MFA → 后续要 TOTP(不发邮箱 OTP,闭合 MFA 降级);未绑 MFA 的邮箱格式 → 发邮箱 OTP;用户名格式+无 TOTP → 不发(联系 Owner)。**重发 = 重复调用本端点**:冷却后重复调用产生**新 challenge + 新 OTP**、**同一账号的旧 challenge / 旧 OTP 立即失效**(单一在途、避免多 OTP 并存)。 可从无会话(登录页)或登录态(My Profile)发起;用户名格式「联系 Owner」提示由前端按 loginId 格式通用展示(不依赖账号存在性)。**`429` = 端点级 / IP 级防刷限流(仅按调用频率、不区分账号存在性,enum-safe;FE 据此退避);账号级冷却服务端静默、响应恒 202、剩余秒数前端本地计时(绝不以账号级 429 暴露存在性)**。
+        前端只传 loginId。**恒返 202、不在响应体暴露因子/账号存在性**。
+
+        服务端按可用因子处理:
+
+        - 已绑 MFA → 后续要 TOTP(不发邮箱 OTP,闭合 MFA 降级);
+        - 未绑 MFA 的邮箱格式 → 发邮箱 OTP;
+        - 用户名格式+无 TOTP → 不发(联系 Owner)。
+
+        **重发 = 重复调用本端点**:冷却后重复调用产生**新 challenge + 新 OTP**、**同一账号的旧 challenge / 旧 OTP 立即失效**(单一在途、避免多 OTP 并存)。
+
+        可从无会话(登录页)或登录态(My Profile)发起;用户名格式「联系 Owner」提示由前端按 loginId 格式通用展示(不依赖账号存在性)。
+
+        `429` **= 端点级 / IP 级防刷限流(仅按调用频率、不区分账号存在性,enum-safe;FE 据此退避);账号级冷却服务端静默、响应恒 202、剩余秒数前端本地计时(绝不以账号级 429 暴露存在性**)。
       security: []
       requestBody:
         required: true
@@ -1110,7 +1229,11 @@ paths:
       operationId: verifyPasswordResetFactor
       summary: 自助重置 — 因子验证（邮箱 OTP / TOTP → resetToken）
       description: |
-        因子验证（**该步强制挂 Idempotency-Key**：重放同键返回同一 resetToken——杜绝网络重试因 OTP 已消费而假失败）。challengeId 不泄露账号存在性；因子错误 / 过期 → `410`、锁定 → `423`、限流 → `429`（共享错误模型）。`400` = 入参校验失败（如缺字段）。验证成功才签发单次 resetToken,供 confirmation 步骤设置新密码。 **幂等**：必带 `Idempotency-Key`。因子只能被消费一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**同一个 resetToken**（不会因「因子已用过」而假失败）；换新键重发会按已消费处理 → `410`。同键但请求体不同 → `409`·208005。
+        因子验证（**该步强制挂 Idempotency-Key**：重放同键返回同一 resetToken——杜绝网络重试因 OTP 已消费而假失败）。
+
+        challengeId 不泄露账号存在性；因子错误 / 过期 → `410`、锁定 → `423`、限流 → `429`（共享错误模型）。`400` = 入参校验失败（如缺字段）。验证成功才签发单次 resetToken,供 confirmation 步骤设置新密码。
+
+        **幂等**：必带 `Idempotency-Key`。因子只能被消费一次，**网络重试务必复用同一个键**——同键 + 同请求体重发返回**同一个 resetToken**（不会因「因子已用过」而假失败）；换新键重发会按已消费处理 → `410`。同键但请求体不同 → `409`·208005。
       security: []
       parameters:
         - name: challengeId
@@ -1154,7 +1277,7 @@ paths:
       tags:
         - password-reset
       operationId: confirmPasswordReset
-      summary: 自助重置 — 确认（因子 + 新密码 → 全会话失效;**MFA 绑定不变、不绕过 MFA**;不签发新会话）
+      summary: 自助重置 — 确认（因子 + 新密码 → 全会话失效;MFA 绑定不变、不绕过 MFA;不签发新会话）
       description: '**重置只改密码、不改 MFA 绑定**——下次登录仍强制 TOTP(闭合 MFA 降级)。'
       security: []
       parameters:
@@ -1198,7 +1321,13 @@ paths:
       operationId: listAssignableRoles
       summary: 读可分配角色候选集（管理后台预定义）
       description: |
-        可分配角色候选集（管理后台预定义、**随部署而异**；**非前端 hardcode**）。驱动新建 / 编辑成员的 Role 选择项与成员列表的角色筛选项。 **`roleId` 是稳定标识**——写成员（`roleId` 字段）、按角色筛选（`roleId` 入参）一律传它； `name` 只供展示，管理后台改名后同一 `roleId` 的展示名随之变化，已保存的成员数据与筛选条件不受影响。 **不含当前商户 Owner 所持的角色**（Owner 唯一、不可分配也不可改）——该角色由服务端据本商户 Owner 身份排除，不靠前端按名字或标识猜； 成员列表里 Owner 行的角色名由 `TeamMember.roleName` 直接给出，不需要回本集合查。
+        可分配角色候选集（管理后台预定义、**随部署而异**；**非前端 hardcode**）。驱动新建 / 编辑成员的 Role 选择项与成员列表的角色筛选项。
+
+        **`roleId` 是稳定标识**——写成员（`roleId` 字段）、按角色筛选（`roleId` 入参）一律传它；
+        `name` 只供展示，管理后台改名后同一 `roleId` 的展示名随之变化，已保存的成员数据与筛选条件不受影响。
+
+        **不含当前商户 Owner 所持的角色**（Owner 唯一、不可分配也不可改）——该角色由服务端据本商户 Owner 身份排除，不靠前端按名字或标识猜；
+        成员列表里 Owner 行的角色名由 `TeamMember.roleName` 直接给出，不需要回本集合查。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -1244,7 +1373,7 @@ paths:
       operationId: getTeamMemberCounts
       summary: 成员列表角色快捷筛选的各项与计数
       description: |
-        成员列表顶部角色快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listTeamMembers` 的 `roleId`；本端点**不接受 `roleId`**，其余筛选（按显示名 / 邮箱搜索）与列表一致。 项集覆盖该商户可分配的角色**以及 Owner**（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行）， 某角色当期无成员时**仍返回该项、`count` 为 `0`**。`label` 是角色名，随管理后台维护的角色配置走。
+        成员列表顶部角色快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listTeamMembers` 的 `roleId`；本端点**不接受** `roleId`，其余筛选（按显示名 / 邮箱搜索）与列表一致。 项集覆盖该商户可分配的角色**以及 Owner**（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行）， 某角色当期无成员时**仍返回该项、**`count` 为 `0`。`label` 是角色名，随管理后台维护的角色配置走。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: search
@@ -1418,7 +1547,23 @@ paths:
       operationId: updateTeamMember
       summary: 编辑员工（Nick Name / Role / 用户名直接改 / 填 newPassword 重置 / ACTIVE 邮箱改走确认链接）
       description: |
-        一次提交更新成员字段（Role + 用户名 loginId〔不含 @〕+ newPassword + Nick Name）。**同步字段（Role / loginId / newPassword）原子生效**:要么全成功、要么全失败（无部分成功、无字段级结果体）;**Nick Name 可能后台补齐**（见下 `202`），不阻塞同步字段生效。副作用逐字段:`newPassword`→失效该员工全会话 / `loginId`(用户名)→登录域内唯一、直接生效 / `Role`→重算该商户权限。**启停走独立端点**（setMemberEnablement、非本端点）。同步字段生效后若显示名(Nick Name)仍在后台补齐 → `202`(处理中、status=PROCESSING),**同 `Idempotency-Key` 重试返当前结果、完成后收敛 `204`**——不返回整体失败。 **ACTIVE 邮箱格式员工改登录邮箱**:Owner 无需额外自证,但**不直接生效**——校验新邮箱格式/唯一(含 pending 占用)后向**新邮箱发确认链接**,确认前旧邮箱仍有效、pending 新邮箱不可登录/不可 Forgot;员工经 `/team/login-email-confirmations` 确认后切换。`INVITED` 员工改邮箱 → 重发邀请。 Owner row：仅 Nick Name 可改、Role 不可改、不经此重置 Owner 密码(改密走 changeOwnPassword、改邮箱走 owner-contact primary-email)。改 loginId/Role 不失效会话；填 newPassword → 该员工全会话失效。 **幂等**：必带 `Idempotency-Key`；**同键 + 同请求体重发不会重复施加任何副作用**（不重复失效会话、不重复改权限）， 但**返回的是当前进度而非首次快照**——显示名仍在后台补齐时返 `202` + `status=PROCESSING`，补齐后同一个键再发即返 `204`。 **轮询方式就是拿同一个键重发本请求**（本域不另设查询端点）。同键但请求体不同（改了字段值）→ `409`·208005，此时应换新键提交。
+        一次提交更新成员字段（Role + 用户名 loginId〔不含 @〕+ newPassword + Nick Name）。
+
+        **同步字段（Role / loginId / newPassword）原子生效**:要么全成功、要么全失败（无部分成功、无字段级结果体）;**Nick Name 可能后台补齐**（见下 `202`），不阻塞同步字段生效。
+
+        副作用逐字段:`newPassword`→失效该员工全会话 / `loginId`(用户名)→登录域内唯一、直接生效 / `Role`→重算该商户权限。
+
+        **启停走独立端点**（setMemberEnablement、非本端点）。
+
+        同步字段生效后若显示名(Nick Name)仍在后台补齐 → `202`(处理中、status=PROCESSING),**同 `Idempotency-Key` 重试返当前结果、完成后收敛** `204`——不返回整体失败。
+
+        **ACTIVE 邮箱格式员工改登录邮箱**:Owner 无需额外自证,但**不直接生效**——校验新邮箱格式/唯一(含 pending 占用)后向**新邮箱发确认链接**,确认前旧邮箱仍有效、pending 新邮箱不可登录/不可 Forgot;员工经 `/team/login-email-confirmations` 确认后切换。`INVITED` 员工改邮箱 → 重发邀请。
+
+        **Owner row**：仅 Nick Name 可改、Role 不可改、不经此重置 Owner 密码(改密走 changeOwnPassword、改邮箱走 owner-contact primary-email)。改 loginId/Role 不失效会话；填 newPassword → 该员工全会话失效。
+
+        **幂等**：必带 `Idempotency-Key`；**同键 + 同请求体重发不会重复施加任何副作用**（不重复失效会话、不重复改权限），
+        但**返回的是当前进度而非首次快照**——显示名仍在后台补齐时返 `202` + `status=PROCESSING`，补齐后同一个键再发即返 `204`。
+        **轮询方式就是拿同一个键重发本请求**（本域不另设查询端点）。同键但请求体不同（改了字段值）→ `409`·208005，此时应换新键提交。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -1616,7 +1761,14 @@ paths:
       operationId: pollMemberWechatBinding
       summary: WeChat 绑定 — 结果轮询（闭环结果腿；对称 pollWechatLogin）
       description: |
-        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。 未扫 / 未确认统一 PENDING；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。 非法 / 过期票据归一为 EXPIRED（轮询恒 200 的通用口径见 `status` 字段说明）。 **本入口的 EXPIRED 是真终态**——被绑定本人在微信内确认的那一刻绑定就已写入，确认过就会直接读到 BOUND，不存在「已确认但仍显示过期」。 （对比：通知接收方绑定入口的 `QR_EXPIRED` **不是**终态。）
+        被绑定本人在微信内确认后回告发起端（异设备:Owner 发起 / 成员扫码,无此腿则 Owner 零回告）。
+
+        未扫 / 未确认统一 PENDING；占用冲突只能扫码确认后判定，扫码本人微信内可见具体原因，发起方只获得粗粒度 FAILED；二维码过期 → EXPIRED。终态在短时保留期内幂等可查。
+
+        非法 / 过期票据归一为 EXPIRED（轮询恒 200 的通用口径见 `status` 字段说明）。
+
+        **本入口的 EXPIRED 是真终态**——被绑定本人在微信内确认的那一刻绑定就已写入，确认过就会直接读到 BOUND，不存在「已确认但仍显示过期」。
+        （对比：通知接收方绑定入口的 `QR_EXPIRED` **不是**终态。）
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: operatorId
@@ -1669,12 +1821,27 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     WechatPollStatus:
       type: string
       description: |
-        两个扫码轮询（扫码登录 / 成员登录绑定）的状态口径。两者取值不同、含义不同，**不要互相复用判断逻辑**； 具体取值与终态说明见各自 `enum` 描述。 **消费方按 unknown-safe 处理**：遇到未列出的取值一律视同"仍在进行中"并继续轮询，不报错、不中断。 **状态查询恒返回 `200` + 状态**——票据不存在 / 非法 / 已过期一律归一为过期态、不用 `4xx` 表达； 前端轮询循环因此**只需按状态分支、不必为「票据本身有问题」另开一路**。 `4xx` 表示调用方自身问题（未登录 / 无权限 / 请求过频 / 商户上下文已变），按基础约定的通用策略处理。 **两个入口的访问控制各不相同**（一个是无鉴权公开面、一个要有效会话 + 商户上下文）， 以各 op 的 `security` 与参数为准——本 schema 只统一「票据态怎么表达」，不表达「谁能查」。
+        两个扫码轮询（扫码登录 / 成员登录绑定）的状态口径。两者取值不同、含义不同，**不要互相复用判断逻辑**；
+        具体取值与终态说明见各自 `enum` 描述。
+
+        **消费方按 unknown-safe 处理**：遇到未列出的取值一律视同"仍在进行中"并继续轮询，不报错、不中断。
+
+        **状态查询恒返回 `200` + 状态**——票据不存在 / 非法 / 已过期一律归一为过期态、不用 `4xx` 表达；
+        前端轮询循环因此**只需按状态分支、不必为「票据本身有问题」另开一路**。
+        `4xx` 表示调用方自身问题（未登录 / 无权限 / 请求过频 / 商户上下文已变），按基础约定的通用策略处理。
+
+        **两个入口的访问控制各不相同**（一个是无鉴权公开面、一个要有效会话 + 商户上下文），
+        以各 op 的 `security` 与参数为准——本 schema 只统一「票据态怎么表达」，不表达「谁能查」。
     RegistrationRequest:
       type: object
       description: 注册字段（各字段校验见 schema）
@@ -1701,7 +1868,7 @@ components:
           type: string
         phone:
           type: string
-          description: 区号 / 号码位数的白名单与长度规则部署可配；**`+1` / 10 位只是空白表单的初始值**，已有值时回显其自身取值
+          description: 区号 / 号码位数的白名单与长度规则部署可配；`+1` / **10 位只是空白表单的初始值**，已有值时回显其自身取值
         businessTitle:
           type: string
           description: Business Owner / Manager / Employee / Other（Other 可自定义）；仅信息收集
@@ -1886,7 +2053,7 @@ components:
           type: string
         phone:
           type: string
-          description: 区号 / 号码位数的白名单与长度规则部署可配；**`+1` / 10 位只是空白表单的初始值**，已有值时回显其自身取值
+          description: 区号 / 号码位数的白名单与长度规则部署可配；`+1` / **10 位只是空白表单的初始值**，已有值时回显其自身取值
         primaryEmail:
           type: string
           format: email
@@ -1911,7 +2078,7 @@ components:
           type:
             - string
             - 'null'
-          description: 区号 / 号码位数的白名单与长度规则部署可配；**`+1` / 10 位只是空白表单的初始值**，已有值时回显其自身取值
+          description: 区号 / 号码位数的白名单与长度规则部署可配；`+1` / **10 位只是空白表单的初始值**，已有值时回显其自身取值
     TeamMember:
       type: object
       description: 团队成员列表行
@@ -2108,7 +2275,17 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+
+        **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
+        **别拿本类型自己推**：两者在跨日边界附近会分属两天。
     WechatQrExpiresAt:
       allOf:
         - $ref: '#/components/schemas/Timestamp'
@@ -2178,7 +2355,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -2202,7 +2388,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

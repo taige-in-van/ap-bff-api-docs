@@ -1,11 +1,22 @@
 openapi: 3.1.0
 info:
   title: 商户后台 交易管理 — 前端契约面
-  version: 0.23.0
+  version: 0.23.2
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台交易域的**读 + 命令**窗口：统一支付交易查询表（多维过滤 + 汇总卡）· 交易详情（含回调技术细节 + 换汇呈现）· 统一退款查询表 · 退款详情 · 支付 / 退款收据（PDF）· 数据导出（Excel）· 发起退款（凭 Refund PIN）· 撤销待处理退款 · 预授权完成（Release）。 交易 / 退款 / 预授权的状态机、清结算、Fee、通道交互归支付核心系统，本域只提供「可见 + 可操作」窗口。 金额一律最小币种单位整数 + currency；列表行不同标价币种不混算，汇总卡单一结算币种（把每笔**实际结算到商户结算币种的金额**相加，不按标价币种分组）；换汇信息在**支付渠道给出了汇率或换算说明时**有条件展示——标价 ≠ 结算币种为典型场景、非判定条件。 字段类型以本 spec 为准。 **幂等**：所有命令类端点必带 `Idempotency-Key`（缺失 → `400`）。同键 + 同请求体重发返首次结果、不重复执行——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+    商户后台交易域的**读 + 命令**窗口：统一支付交易查询表（多维过滤 + 汇总卡）· 交易详情（含回调技术细节 + 换汇呈现）·
+    统一退款查询表 · 退款详情 · 支付 / 退款收据（PDF）· 数据导出（Excel）· 发起退款（凭 Refund PIN）· 撤销待处理退款 · 预授权完成（Release）。
+
+    交易 / 退款 / 预授权的状态机、清结算、Fee、通道交互归支付核心系统，本域只提供「可见 + 可操作」窗口。
+
+    金额一律最小币种单位整数 + currency；列表行不同标价币种不混算，汇总卡单一结算币种（把每笔**实际结算到商户结算币种的金额**相加，不按标价币种分组）；
+    换汇信息在**支付渠道给出了汇率或换算说明时**有条件展示——标价 ≠ 结算币种为典型场景、非判定条件。
+
+    字段类型以本 spec 为准。
+
+    **幂等**：所有命令类端点必带 `Idempotency-Key`（缺失 → `400`）。
+    同键 + 同请求体重发返首次结果、不重复执行——网络重试请复用同一个键；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（兼前端 BFF）面；浏览器 cookieAuth，非外部面。
@@ -98,7 +109,20 @@ paths:
       operationId: getPaymentSummary
       summary: 交易页头汇总卡（随筛选、单一结算币种）
       description: |
-        返回与 `listPayments` 同筛选上下文的汇总卡：交易笔数（币种无关计数）+ **单一结算币种**（把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**）的 Gross Sales / Refund Amount / Net Sales + To Settle。 **与列表同轴**：Gross Sales / `transactions` 与 `listPayments` 用同一组筛选参数、**同一批交易进这两个数**， 但**汇总卡只统计白名单四态**——计入的状态是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`（穷举）， `FAILED` / `REJECTED` 不计入（钱从未收到）；而列表把这两态也一并列出，故**汇总卡笔数通常小于列表行数**。 **金额不要靠加总列表行来核对**——行金额是该笔的**标价币种**（同一商户可同时有不同标价币种的收款码）， Gross Sales 是**结算币种**合计；可核对的是「哪些行计入了汇总」与**笔数**。 **`refundAmount` / `netSales` 是本页专有量**——分别为**筛选退款额**（按退款当前状态投影）与**筛选净收款额**（= Gross − 筛选退款额）， **与 Dashboard 的 Refund Amount / Net Sales 口径不同、两者不可互推**（别跨页对数）； 其中筛选净收款额的两个分量口径不同，**不参与逐行核对承诺**。 To Settle 为账户账务的资金派生值、**不由交易筛选条件重算**（结算币种口径）。
+        返回与 `listPayments` 同筛选上下文的汇总卡：交易笔数（币种无关计数）+ **单一结算币种**（把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**）的 Gross Sales / Refund Amount / Net Sales + To Settle。
+
+        **与列表同轴**：Gross Sales / `transactions` 与 `listPayments` 用同一组筛选参数、**同一批交易进这两个数**，
+        但**汇总卡只统计白名单四态**——计入的状态是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`（穷举），
+        `FAILED` / `REJECTED` 不计入（钱从未收到）；而列表把这两态也一并列出，故**汇总卡笔数通常小于列表行数**。
+
+        **金额不要靠加总列表行来核对**——行金额是该笔的**标价币种**（同一商户可同时有不同标价币种的收款码），
+        Gross Sales 是**结算币种**合计；可核对的是「哪些行计入了汇总」与**笔数**。
+
+        **`refundAmount` / `netSales` 是本页专有量**——分别为**筛选退款额**（按退款当前状态投影）与**筛选净收款额**（= Gross − 筛选退款额），
+        **与 Dashboard 的 Refund Amount / Net Sales 口径不同、两者不可互推**（别跨页对数）；
+        其中筛选净收款额的两个分量口径不同，**不参与逐行核对承诺**。
+
+        To Settle 为账户账务的资金派生值、**不由交易筛选条件重算**（结算币种口径）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -146,7 +170,7 @@ paths:
       operationId: getPaymentCounts
       summary: 交易列表状态快捷筛选的各项与计数
       description: |
-        交易列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listPayments` 的 `status`；本端点**不接受 `status`**，其余筛选（时间窗 / 支付方式 / 来源 / 关键词）与列表一致。
+        交易列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listPayments` 的 `status`；本端点**不接受** `status`，其余筛选（时间窗 / 支付方式 / 来源 / 关键词）与列表一致。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -192,7 +216,7 @@ paths:
       operationId: exportPayments
       summary: 导出支付交易（按当前筛选全集 Excel）
       description: |
-        按当前筛选 / 搜索 / 排序条件命中的**全集**（非当前分页）导出当前商户支付交易 Excel。列头 / 枚举 / 金额 / 日期按 locale 本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回 `Content-Language`**）、金额带币种。 导出结果集上限为业务参数（部署可配置）；**超过上限 → `400`·204009 拒绝 + 提示缩小筛选范围（不截断、不异步、非上传体过大 413）**，商户收窄条件后重导。
+        按当前筛选 / 搜索 / 排序条件命中的**全集**（非当前分页）导出当前商户支付交易 Excel。列头 / 枚举 / 金额 / 日期按 locale 本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回** `Content-Language`）、金额带币种。 导出结果集上限为业务参数（部署可配置）；**超过上限 → `400`·204009 拒绝 + 提示缩小筛选范围（不截断、不异步、非上传体过大 413）**，商户收窄条件后重导。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -326,7 +350,7 @@ paths:
       operationId: getPaymentReceipt
       summary: 支付收据（PDF，可打印）
       description: |
-        为**已收款交易**（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）生成可打印支付收据 PDF。 含商户抬头 / 订单号 / 时间 / 金额明细（含退款行 + 净额）/ 状态 / 换汇说明（涉换汇时）；文案按 locale 本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回 `Content-Language`**）。 非已收款交易 / `PREAUTH_HOLDING` 挂起单 → 404（无收据）。
+        为**已收款交易**（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）生成可打印支付收据 PDF。 含商户抬头 / 订单号 / 时间 / 金额明细（含退款行 + 净额）/ 状态 / 换汇说明（涉换汇时）；文案按 locale 本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回** `Content-Language`）。 非已收款交易 / `PREAUTH_HOLDING` 挂起单 → 404（无收据）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: orderId
@@ -366,7 +390,25 @@ paths:
       operationId: createRefund
       summary: 发起退款（全 / 部分 + Refund PIN）
       description: |
-        对**可退订单**发起全额 / 部分退款——可退资格 = **后端权威结果**（`PAID` / `PARTIALLY_REFUNDED` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；**不要按 status 自行判定能否退款**——一律以 `refundable` / 可退摘要为准，且发起时仍可能被拒（见下方错误分支）。金额以成交结果金额币种为准、须 ∈ (0, 剩余可发起额]（= 成交 − 已落账 − 未落账在途占用）。 凭商户级 Refund PIN 授权，PIN 校验结果映射为响应：通过 → 继续；不匹配 / 不可校验 → `403`·206003（反枚举同响应、不披露是否匹配）；连续失败锁定 → `423`·206004（防爆破）；数据完整性故障 → `5xx`（**不创建退款单**；资金路径不做即时重试恢复，提示稍后再试 / 联系支持）。原始 PIN 仅入参、绝不回显。建单后由平台审核规则判定 `REVIEWING` / `CHANNEL_PROCESSING`（`SUBMITTED` 仅建单阶段瞬态、不回显）。 允许与未终态退款并发（各占用其额）。退款原因系统默认 `customer_request`、无商户 picker。 **幂等**：同 `Idempotency-Key` + 同 payload → 返冻结的首次结果、不重复创建退款单；同键异 payload → `409`（208005）；**处理中 → `409`·208011（FE 以同键同 payload 重发 `createRefund` 轮询、无独立查询端点）**。退款单已创建即回 `refundNo` + `status`（**首次受理为非终态**；**一经成功即冻结**、后续同键重发返冻结结果），终态经后续刷新收敛（FE 勿误读为最终成功）。**可退额校验权威在后端**：BFF 侧剩余可发起额仅 UX 预检（可能陈旧）；后端在受理时原子重验资格 / 币种 / 剩余额并占用——并发两请求之和超限时仅可容纳部分成功、其余以 **`400`·`204008`** 拒绝（可退不足 / 能力关闭 / 产品已核销 / 挂起受理面未开启 均 `400`、**非 `409`**；`204007` 仅 BFF 的 `amount` 格式预检），杜绝并发超退资损。
+        对**可退订单**发起全额 / 部分退款——可退资格 = **后端权威结果**（`PAID` / `PARTIALLY_REFUNDED` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；
+        **不要按 status 自行判定能否退款**——一律以 `refundable` / 可退摘要为准，且发起时仍可能被拒（见下方错误分支）。
+        金额以成交结果金额币种为准、须 ∈ (0, 剩余可发起额]（= 成交 − 已落账 − 未落账在途占用）。
+
+        凭商户级 Refund PIN 授权，PIN 校验结果映射为响应：
+
+        - 通过 → 继续；
+        - 不匹配 / 不可校验 → `403`·206003（反枚举同响应、不披露是否匹配）；
+        - 连续失败锁定 → `423`·206004（防爆破）；
+        - 数据完整性故障 → `5xx`（**不创建退款单**；资金路径不做即时重试恢复，提示稍后再试 / 联系支持）。
+
+        原始 PIN 仅入参、绝不回显。建单后由平台审核规则判定 `REVIEWING` / `CHANNEL_PROCESSING`（`SUBMITTED` 仅建单阶段瞬态、不回显）。
+
+        允许与未终态退款并发（各占用其额）。退款原因系统默认 `customer_request`、无商户 picker。
+
+        **幂等**：同 `Idempotency-Key` + 同 payload → 返冻结的首次结果、不重复创建退款单；同键异 payload → `409`（208005）；**处理中 → `409`·208011（FE 以同键同 payload 重发 `createRefund` 轮询、无独立查询端点）**。
+        退款单已创建即回 `refundNo` + `status`（**首次受理为非终态**；**一经成功即冻结**、后续同键重发返冻结结果），终态经后续刷新收敛（FE 勿误读为最终成功）。
+
+        **可退额校验权威在后端**：BFF 侧剩余可发起额仅 UX 预检（可能陈旧）；后端在受理时原子重验资格 / 币种 / 剩余额并占用——并发两请求之和超限时仅可容纳部分成功、其余以 **`400`·`204008`** 拒绝（可退不足 / 能力关闭 / 产品已核销 / 挂起受理面未开启 均 `400`、**非** `409`；`204007` 仅 BFF 的 `amount` 格式预检），杜绝并发超退资损。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -422,7 +464,13 @@ paths:
       operationId: releasePreAuth
       summary: 预授权完成（Release：PREAUTH_HOLDING → PAID）
       description: |
-        对平台挂起型预授权挂起单（订单状态 `PREAUTH_HOLDING`）执行完成（Release）：订单转 `PAID` 并进入下批清结算。 完成是商户后台**唯一**的预授权操作（作废 / 超时归支付核心）。非 `PREAUTH_HOLDING` → 409。**幂等**：必带 `Idempotency-Key`；**本端点无请求体，幂等键作用域 = 该键 + 路径资源 `{orderId}`**——同键重发同一订单 → 返首次结果、不重复完成；**同键用于不同 `{orderId}` → `409`（208005）**（网络重试请复用同一个键，换订单必须换新键）。失败停留 `PREAUTH_HOLDING` 可重试。
+        对平台挂起型预授权挂起单（订单状态 `PREAUTH_HOLDING`）执行完成（Release）：订单转 `PAID` 并进入下批清结算。
+
+        完成是商户后台**唯一**的预授权操作（作废 / 超时归支付核心）。非 `PREAUTH_HOLDING` → 409。
+
+        **幂等**：必带 `Idempotency-Key`；**本端点无请求体，幂等键作用域 = 该键 + 路径资源** `{orderId}`——同键重发同一订单 → 返首次结果、不重复完成；**同键用于不同 `{orderId}` → `409`（208005）**（网络重试请复用同一个键，换订单必须换新键）。
+
+        失败停留 `PREAUTH_HOLDING` 可重试。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -459,7 +507,15 @@ paths:
       operationId: resendGiftCardCredential
       summary: 重发礼卡凭证邮件（可改收件邮箱）
       description: |
-        按所填邮箱重发凭证邮件并写入订单日志；**不改变订单状态与凭证内容**。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发**不会再投递一封邮件**，直接返首次结果——网络重试请复用同一个键。 换收件邮箱要重发时**必须换新键**；沿用旧键改邮箱 → `409`·208005。 仅当详情返回 `giftCard.actions.canResendEmail=true` 时可用——凭证已转 `CANCELED`（退款成功 / Void / **订单**关闭且未交付）或处于**退款冻结**（存在未终态退款）时后端拒绝。 ⚠️ PaymentLink 停用 / 删除**不**使已售凭证失效，不影响本操作。 非礼卡订单 404。
+        按所填邮箱重发凭证邮件并写入订单日志；**不改变订单状态与凭证内容**。
+
+        **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发**不会再投递一封邮件**，直接返首次结果——网络重试请复用同一个键。
+        换收件邮箱要重发时**必须换新键**；沿用旧键改邮箱 → `409`·208005。
+
+        仅当详情返回 `giftCard.actions.canResendEmail=true` 时可用——凭证已转 `CANCELED`（退款成功 / Void / **订单**关闭且未交付）或处于**退款冻结**（存在未终态退款）时后端拒绝。
+
+        ⚠️ PaymentLink 停用 / 删除**不**使已售凭证失效，不影响本操作。
+        非礼卡订单 404。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -499,7 +555,17 @@ paths:
       operationId: voidGiftCardVoucher
       summary: 作废礼卡兑换券（Void）
       description: |
-        **仅 Voucher Mode、已付款、未核销且无未终态退款**时可用；作废后该券不可继续核销、**不可退款**。作废结果不在支付状态上体现（`status` 保持原值）——看 `credentialState=CANCELED` / `invalidation.cause=voucher_voided` / `refundable=false`。 已核销的券不得作废；退款冻结期（存在未终态退款）不得作废（处置交退款流程收敛）；Inventory Mode 不提供本操作（`actions.canVoid` 恒 false）。 前端须走站内确认弹窗（展示礼卡订单号 / 券号 / 券 PIN + 风险提示 + 原因备注），不使用浏览器原生确认框。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复作废——网络重试请复用同一个键。 同键但请求体不同 → `409`·208005。**换新键再作废已作废的券 → `409`·208018**（当前状态不可执行），不会当成重放。
+        **仅 Voucher Mode、已付款、未核销且无未终态退款**时可用；作废后该券不可继续核销、**不可退款**。
+        作废结果不在支付状态上体现（`status` 保持原值）——看 `credentialState=CANCELED` / `invalidation.cause=voucher_voided` / `refundable=false`。
+
+        - 已核销的券不得作废；
+        - 退款冻结期（存在未终态退款）不得作废（处置交退款流程收敛）；
+        - Inventory Mode 不提供本操作（`actions.canVoid` 恒 false）。
+
+        前端须走站内确认弹窗（展示礼卡订单号 / 券号 / 券 PIN + 风险提示 + 原因备注），不使用浏览器原生确认框。
+
+        **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复作废——网络重试请复用同一个键。
+        同键但请求体不同 → `409`·208005。**换新键再作废已作废的券 → `409`·208018**（当前状态不可执行），不会当成重放。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -539,7 +605,19 @@ paths:
       operationId: disposeGiftCardOrderRisk
       summary: 礼卡订单风控人工处置
       description: |
-        对中 / 高风险礼卡订单执行人工处置：medium 可 `escalate`（升为高风险）/ `blacklist`（加入礼卡客户风险名单）； high 可 `approve`（放行发放）/ `remove_blacklist`（移出）。可执行集合读详情的 `giftCard.actions.riskDispositions`。 ⚠️ 此处「黑名单」是**礼卡客户风险资料**（按「客户标识 + 支付渠道」维度、仅影响该客户后续礼卡交易）， **不是**平台级风控准入名单，不影响商品码 / 票务、不阻断其他支付。 中风险订单凭证多已交付，升为高风险**不撤回已交付凭证**。 **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复处置——网络重试请复用同一个键。 改处置动作要重提**必须换新键**；沿用旧键改动作 → `409`·208005。换新键提交时若风险等级已被他人改变、该处置不再可执行 → `409`·208020。
+        对中 / 高风险礼卡订单执行人工处置：
+
+        - medium 可 `escalate`（升为高风险）/ `blacklist`（加入礼卡客户风险名单）；
+        - high 可 `approve`（放行发放）/ `remove_blacklist`（移出）。
+
+        可执行集合读详情的 `giftCard.actions.riskDispositions`。
+
+        ⚠️ 此处「黑名单」是**礼卡客户风险资料**（按「客户标识 + 支付渠道」维度、仅影响该客户后续礼卡交易），
+        **不是**平台级风控准入名单，不影响商品码 / 票务、不阻断其他支付。
+        中风险订单凭证多已交付，升为高风险**不撤回已交付凭证**。
+
+        **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不重复处置——网络重试请复用同一个键。
+        改处置动作要重提**必须换新键**；沿用旧键改动作 → `409`·208005。换新键提交时若风险等级已被他人改变、该处置不再可执行 → `409`·208020。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -587,7 +665,11 @@ paths:
       operationId: listRefunds
       summary: 统一退款查询表（过滤 + 回溯原交易）
       description: |
-        返回当前商户**发起**退款列表（**服务端不设默认时间窗**——页面默认近 30 天由客户端决定并作为普通日期范围发出；**排除 `refundSource=system_auto`**〔≠ 下方 query/response `source` = 原支付来源〕——系统自动退款不进商户列表 / 状态计数 / 导出，经原支付详情关联退款可追溯）。过滤（时间 / 支付方式 / 来源 / 退款状态）+ 关键词（退款号 / 原订单号 / 金额 / 备注）+ 排序 + 分页。 支付方式 / 来源筛选选项**从原支付集合推导**（与 `listPayments` 一致、非仅退款已有值）；每行含「原交易」引用可回链。行操作可见性（撤销 / 收据）由后端返回。
+        返回当前商户**发起**退款列表（**服务端不设默认时间窗**——页面默认近 30 天由客户端决定并作为普通日期范围发出；**排除** `refundSource=system_auto`〔≠ 下方 query/response `source` = 原支付来源〕——系统自动退款不进商户列表 / 状态计数 / 导出，经原支付详情关联退款可追溯）。
+
+        过滤（时间 / 支付方式 / 来源 / 退款状态）+ 关键词（退款号 / 原订单号 / 金额 / 备注）+ 排序 + 分页。
+
+        支付方式 / 来源筛选选项**从原支付集合推导**（与 `listPayments` 一致、非仅退款已有值）；每行含「原交易」引用可回链。行操作可见性（撤销 / 收据）由后端返回。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -646,7 +728,7 @@ paths:
       operationId: getRefundCounts
       summary: 退款列表状态快捷筛选的各项与计数
       description: |
-        退款列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。口径同 `listRefunds`——同样**排除 `refundSource=system_auto`**。 `value` 原样回传给 `listRefunds` 的 `status`；本端点**不接受 `status`**，其余筛选与列表一致。
+        退款列表顶部状态快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。口径同 `listRefunds`——同样**排除** `refundSource=system_auto`。 `value` 原样回传给 `listRefunds` 的 `status`；本端点**不接受** `status`，其余筛选与列表一致。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -722,7 +804,10 @@ paths:
       operationId: exportRefunds
       summary: 导出退款（按当前筛选全集 Excel）
       description: |
-        按当前筛选 / 搜索 / 排序命中的**全集**导出当前商户**发起**退款 Excel（**排除 `refundSource=system_auto`**，同 `listRefunds`；含退款号 / 原交易 / 支付方式 / 来源 / 退款金额 / 退款状态 / 申请时间等）。本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回 `Content-Language`**）+ 金额带币种；结果集上限为业务参数（部署可配置），**超限 → `400`·204009 拒绝 + 提示缩小筛选（不截断、不异步、非上传体过大 413）**。
+        按当前筛选 / 搜索 / 排序命中的**全集**导出当前商户**发起**退款 Excel（**排除** `refundSource=system_auto`，同 `listRefunds`；含退款号 / 原交易 / 支付方式 / 来源 / 退款金额 / 退款状态 / 申请时间等）。
+
+        本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回** `Content-Language`）+ 金额带币种；
+        结果集上限为业务参数（部署可配置），**超限 → `400`·204009 拒绝 + 提示缩小筛选（不截断、不异步、非上传体过大 413）**。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/FromDate'
@@ -825,7 +910,7 @@ paths:
       operationId: getRefundReceipt
       summary: 退款收据（PDF，仅成功退款）
       description: |
-        为**成功退款**（`SUCCESS`）生成可打印退款收据 PDF。含退款号 / 退款金额 / 原订单引用 / 退回支付方式 / 原订单金额 / 退款完成时间 / 备注 / 状态；**涉换汇时展示付款人扣款币种 / 商户结算币种 / 汇率换算说明**；本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回 `Content-Language`**）。 非成功退款（处理中 / 审核中 / 失败 / 已拒绝 / 已撤销）→ 404（无收据）。
+        为**成功退款**（`SUCCESS`）生成可打印退款收据 PDF。含退款号 / 退款金额 / 原订单引用 / 退回支付方式 / 原订单金额 / 退款完成时间 / 备注 / 状态；**涉换汇时展示付款人扣款币种 / 商户结算币种 / 汇率换算说明**；本地化（**locale 来源 = `Accept-Language`（BCP-47）→ 回退会话 locale → 商户默认；响应回** `Content-Language`）。 非成功退款（处理中 / 审核中 / 失败 / 已拒绝 / 已撤销）→ 404（无收据）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: refundNo
@@ -865,7 +950,11 @@ paths:
       operationId: voidRefund
       summary: 撤销待处理退款（仅 REVIEWING）
       description: |
-        撤销当前商户仍在审核中（未进通道：`REVIEWING`）的退款：退款单转 `CANCELLED`、不退款、**仅释放该笔可退额度占用**（其他未终态退款占用不受影响）、剩余可发起额回升。（`SUBMITTED` 不会出现在响应里，也不作可撤入口。） `CHANNEL_PROCESSING` / `SUCCESS` / `FAILED` / `REJECTED` 不可撤 → `409`（208009）；**已 `CANCELLED` 再撤 → 幂等 `200`**（天然幂等、无副作用——已达目标终态）。**幂等**：必带 `Idempotency-Key`；**本端点无请求体，幂等键作用域 = 该键 + 路径资源 `{refundNo}`**——同键重发同一退款 → 返首次结果、不重复撤销；**同键用于不同 `{refundNo}` → `409`（208005）**（网络重试请复用同一个键，换退款单必须换新键）；对已撤单的新撤销请求天然幂等（无副作用）。
+        撤销当前商户仍在审核中（未进通道：`REVIEWING`）的退款：退款单转 `CANCELLED`、不退款、**仅释放该笔可退额度占用**（其他未终态退款占用不受影响）、剩余可发起额回升。（`SUBMITTED` 不会出现在响应里，也不作可撤入口。）
+
+        `CHANNEL_PROCESSING` / `SUCCESS` / `FAILED` / `REJECTED` 不可撤 → `409`（208009）；**已 `CANCELLED` 再撤 → 幂等** `200`（天然幂等、无副作用——已达目标终态）。
+
+        **幂等**：必带 `Idempotency-Key`；**本端点无请求体，幂等键作用域 = 该键 + 路径资源** `{refundNo}`——同键重发同一退款 → 返首次结果、不重复撤销；**同键用于不同 `{refundNo}` → `409`（208005）**（网络重试请复用同一个键，换退款单必须换新键）；对已撤单的新撤销请求天然幂等（无副作用）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -951,7 +1040,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -996,12 +1094,27 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     PaymentStatus:
       type: string
       description: |
-        支付订单**商户可见状态**：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` 三者同属**已收款**、按已落账退款量区分（「已落账」= 通道受理成功；受理后失败会回退，故订单可能从 `PARTIALLY_REFUNDED` 退回 `PAID`）；`REJECTED` 未受理、`FAILED` 收款失败、`PREAUTH_HOLDING` 预授权挂起待放行。收款过程中的中间态不进列表。 **`REJECTED` 与 `FAILED` 不可混用**：`REJECTED` = 平台未受理该笔交易、**支付从未发生**（无支付尝试、不可退款、无收据，`refundable` / `receiptAvailable` 恒 false）；`FAILED` = 已尝试支付但失败。 **计入营收类聚合（收款额 / 净额 / 笔数）的状态白名单（穷举）**：`PAID` · `PARTIALLY_REFUNDED` · `REFUNDED` · `PREAUTH_HOLDING`——哪些页面有这类聚合、聚合字段叫什么，见该页契约。 **不计入聚合 ≠ 不在列表**：本 enum 的每个取值都可能作为列表行出现（`FAILED` / `REJECTED` 亦然）、并可按状态单独筛出——别以为列表只给成功单。 **封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe 处理未识别值（保守对待、不静默丢弃）。
+        支付订单**商户可见状态**：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。
+
+        `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` 三者同属**已收款**、按已落账退款量区分（「已落账」= 通道受理成功；受理后失败会回退，故订单可能从 `PARTIALLY_REFUNDED` 退回 `PAID`）；`REJECTED` 未受理、`FAILED` 收款失败、`PREAUTH_HOLDING` 预授权挂起待放行。收款过程中的中间态不进列表。
+
+        **`REJECTED` 与 `FAILED` 不可混用**：`REJECTED` = 平台未受理该笔交易、**支付从未发生**（无支付尝试、不可退款、无收据，`refundable` / `receiptAvailable` 恒 false）；`FAILED` = 已尝试支付但失败。
+
+        **计入营收类聚合（收款额 / 净额 / 笔数）的状态白名单（穷举）**：`PAID` · `PARTIALLY_REFUNDED` · `REFUNDED` · `PREAUTH_HOLDING`——哪些页面有这类聚合、聚合字段叫什么，见该页契约。
+
+        **不计入聚合 ≠ 不在列表**：本 enum 的每个取值都可能作为列表行出现（`FAILED` / `REJECTED` 亦然）、并可按状态单独筛出——别以为列表只给成功单。
+
+        **封闭 enum**（取值集固定、可穷举分支）；仍须 unknown-safe 处理未识别值（保守对待、不静默丢弃）。
       enum:
         - PAID
         - PARTIALLY_REFUNDED
@@ -1038,7 +1151,14 @@ components:
         - amount_asc
     FxInfo:
       type: object
-      description: 换汇呈现（**present 条件 = 支付渠道给出了汇率或换算说明**——标价 ≠ 结算币种为典型场景、非判定条件）：付款人扣款币种 / 商户结算币种 / 汇率 / 换算说明。汇率与换算说明的**数值均来自支付渠道回报**，平台不自行推算（不拿平台牌价充当成交汇率）；汇率仅做方向 / 标度的**等价归一**（见 `exchangeRate`）。有的渠道只给结算金额、不给汇率，此时**整体不返回 `fx` 本键**（**不存在「空 fx」**，N/A 呈现归 FE）。**present 时 `exchangeRate` 与 `note` 至少一个非空**。**仅供展示**：本块只用于告诉商户「这笔发生过换汇、渠道给的汇率/说明是什么」，**请勿用 `exchangeRate` 反算任何金额**，也不作退款校验币种。
+      description: |
+        换汇呈现（**present 条件 = 支付渠道给出了汇率或换算说明**——标价 ≠ 结算币种为典型场景、非判定条件）：付款人扣款币种 / 商户结算币种 / 汇率 / 换算说明。
+
+        汇率与换算说明的**数值均来自支付渠道回报**，平台不自行推算（不拿平台牌价充当成交汇率）；汇率仅做方向 / 标度的**等价归一**（见 `exchangeRate`）。
+
+        有的渠道只给结算金额、不给汇率，此时**整体不返回 `fx` 本键**（**不存在「空 fx」**，N/A 呈现归 FE）。**present 时 `exchangeRate` 与 `note` 至少一个非空**。
+
+        **仅供展示**：本块只用于告诉商户「这笔发生过换汇、渠道给的汇率/说明是什么」，**请勿用 `exchangeRate` 反算任何金额**，也不作退款校验币种。
       required:
         - payerCurrency
         - settlementCurrency
@@ -1049,7 +1169,7 @@ components:
           $ref: '#/components/schemas/Currency'
         exchangeRate:
           type: string
-          description: 汇率（十进制字符串；**方向：1 单位 `settlementCurrency` = `exchangeRate` 单位 `payerCurrency`**——如结算 CAD、付款 CNY 时形如 `5.2`。**方向由平台统一归一**（数值取自渠道回报，平台只做方向与标度的等价换算、不自行定价也不重算金额）；**渠道未给汇率则不返回本键**）
+          description: 汇率（十进制字符串；**方向：1 单位 `settlementCurrency` = `exchangeRate` 单位** `payerCurrency`——如结算 CAD、付款 CNY 时形如 `5.2`。**方向由平台统一归一**（数值取自渠道回报，平台只做方向与标度的等价换算、不自行定价也不重算金额）；**渠道未给汇率则不返回本键**）
         note:
           type: string
           description: 换算说明（**通道原文——原样展示、不保证本地化**；事实数据、非平台生成文案）；**渠道未给说明则不返回本键**
@@ -1084,7 +1204,7 @@ components:
           description: 平台订单号（全局唯一；列表 / 详情 / 命令主键；≠ 商户自填订单号）
         paymentMethod:
           type: string
-          description: 支付方式（**稳定 Family code**，如 `wechat`——不是展示名）。**展示名 / 图标 FE 按 code 本地化**；拿不到本地化资源时，用交易管理契约 `getTransactionFilterOptions` 的 `paymentMethods[].displayName` 作 canonical 兜底（该目录是**商户级**、不随页面或筛选条件变，凡呈现本行的页面都可取用）。**`status = REJECTED` 时不返回本键**——平台未受理、从未发生支付尝试，故无支付方式可言；FE 在本键缺席时呈现「—」，不得回退为任意默认方式
+          description: 支付方式（**稳定 Family code**，如 `wechat`——不是展示名）。**展示名 / 图标 FE 按 code 本地化**；拿不到本地化资源时，用交易管理契约 `getTransactionFilterOptions` 的 `paymentMethods[].displayName` 作 canonical 兜底（该目录是**商户级**、不随页面或筛选条件变，凡呈现本行的页面都可取用）。`status = REJECTED` **时不返回本键**——平台未受理、从未发生支付尝试，故无支付方式可言；FE 在本键缺席时呈现「—」，不得回退为任意默认方式
         source:
           type: string
           description: 来源（**稳定 code**，如 `store_qr`，后端动态配置枚举；不是展示名）。展示名同上——按 code 本地化，`getTransactionFilterOptions` 的 `sources[].displayName` 作 canonical 兜底
@@ -1158,7 +1278,14 @@ components:
             $ref: '#/components/schemas/PaymentRow'
     PaymentSummary:
       type: object
-      description: 交易页头汇总卡（随筛选，**单一结算币种口径**；把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**——「不混算」管列表行、非汇总卡）。**只有 `grossSales` / `transactions` 与列表同轴**（同一组筛选参数、**同一批交易进这两个数**，可判定某行是否计入汇总、笔数可直接核对；但**行金额是该笔标价币种、`grossSales` 是结算币种合计，不要靠加总行金额来核对**）；`refundAmount` 是**筛选退款额**（按退款当前状态投影），`netSales` 是**筛选净收款额**（= Gross − 筛选退款额）的**混口径派生量**——**不参与逐行核对承诺、不得用 `transactions` 对其取平均**。各字段状态范围另见各字段说明。
+      description: |
+        交易页头汇总卡（随筛选，**单一结算币种口径**；把每笔**实际结算到商户结算币种的金额**相加得出，**不按标价币种分组**——「不混算」管列表行、非汇总卡）。
+
+        **只有 `grossSales` / `transactions` 与列表同轴**（同一组筛选参数、**同一批交易进这两个数**，可判定某行是否计入汇总、笔数可直接核对；但**行金额是该笔标价币种、`grossSales` 是结算币种合计，不要靠加总行金额来核对**）；
+
+        `refundAmount` 是**筛选退款额**（按退款当前状态投影），`netSales` 是**筛选净收款额**（= Gross − 筛选退款额）的**混口径派生量**——**不参与逐行核对承诺、不得用 `transactions` 对其取平均**。
+
+        各字段状态范围另见各字段说明。
       required:
         - transactions
         - grossSales
@@ -1176,7 +1303,7 @@ components:
         refundAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: '**筛选退款额**（结算币种）—— 本页专有量、**非 Dashboard 的 Refund Amount 指标**：按退款**当前状态**投影（仅计 `CHANNEL_PROCESSING` + `SUCCESS`，故受理后失败的退款会退出本汇总）；**排除 `refundSource=system_auto`**，同退款列表 / 导出口径。Dashboard 的 Refund Amount 是另一套口径（有符号、可为负），两者**不可互推**'
+          description: '**筛选退款额**（结算币种）—— 本页专有量、**非 Dashboard 的 Refund Amount 指标**：按退款**当前状态**投影（仅计 `CHANNEL_PROCESSING` + `SUCCESS`，故受理后失败的退款会退出本汇总）；**排除** `refundSource=system_auto`，同退款列表 / 导出口径。Dashboard 的 Refund Amount 是另一套口径（有符号、可为负），两者**不可互推**'
         netSales:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1251,7 +1378,12 @@ components:
           description: 剩余可发起额 = 成交 − 已落账 − 未落账在途占用；> 0 才可发起退款
     PaymentDetail:
       type: object
-      description: 支付交易详情。可选字段（不适用时不返回本键）：merchantOrderNo / confirmedAt / refundedAmount / fx / giftCard / paymentMethod / paymentMethodDisplayName / platformTxnNo——FE 逐键判断有无，缺席 = 不适用。**后三者在 `status = REJECTED` 时不返回本键**：平台未受理、从未产生支付尝试，无支付方式与平台交易号可言。FE 在这些键缺席时呈现「—」，**不得编造交易号或回退为任意默认支付方式**。（`refundability` 该态**仍恒 present**、四个金额位为 0，见其自身说明。）
+      description: |
+        支付交易详情。
+        可选字段（不适用时不返回本键）：merchantOrderNo / confirmedAt / refundedAmount / fx / giftCard / paymentMethod / paymentMethodDisplayName / platformTxnNo——FE 逐键判断有无，缺席 = 不适用。
+
+        **后三者在 `status = REJECTED` 时不返回本键**：平台未受理、从未产生支付尝试，无支付方式与平台交易号可言。
+        FE 在这些键缺席时呈现「—」，**不得编造交易号或回退为任意默认支付方式**。（`refundability` 该态**仍恒 present**、四个金额位为 0，见其自身说明。）
       required:
         - orderId
         - amount
@@ -1328,7 +1460,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/FxInfo'
         refundability:
-          description: '可退摘要（**恒返非空**）：`refundable: true/false` = 后端 gate 结果、FE 据此判入口、**不按 null 推断**；不可退时 `refundable=false` + `remainingRefundable=0`。**`status = REJECTED` 时四个金额位一律为 0**（该单从未成交，故成交额 / 已落账退款 / 在途占用 / 剩余可退**均确为零**——不是缺失、更不是占位），`refundable=false`；币种取该单标价币种。如此保持本块恒非空，FE 无需为该态分叉。'
+          description: '可退摘要（**恒返非空**）：`refundable: true/false` = 后端 gate 结果、FE 据此判入口、**不按 null 推断**；不可退时 `refundable=false` + `remainingRefundable=0`。`status = REJECTED` **时四个金额位一律为 0**（该单从未成交，故成交额 / 已落账退款 / 在途占用 / 剩余可退**均确为零**——不是缺失、更不是占位），`refundable=false`；币种取该单标价币种。如此保持本块恒非空，FE 无需为该态分叉。'
           allOf:
             - $ref: '#/components/schemas/Refundability'
         giftCard:
@@ -1426,7 +1558,7 @@ components:
             $ref: '#/components/schemas/GiftCardLogEntry'
     GiftCardInvalidation:
       type: object
-      description: 凭证失效详情。**`stockOutcome` 是 FE 分流呈现的判别位**： `returned_to_pool` → 显示「整组卡条目已回库」；`offline_voidance_required` → 显示「请在线下作废全部已交付品牌卡」 （该线下动作**不作为退款前置、不做系统联动**）；`not_applicable` → Voucher Mode，券由平台直接置为不可核销。
+      description: 凭证失效详情。`stockOutcome` **是 FE 分流呈现的判别位**： `returned_to_pool` → 显示「整组卡条目已回库」；`offline_voidance_required` → 显示「请在线下作废全部已交付品牌卡」 （该线下动作**不作为退款前置、不做系统联动**）；`not_applicable` → Voucher Mode，券由平台直接置为不可核销。
       required:
         - cause
         - stockOutcome
@@ -1458,7 +1590,7 @@ components:
           type: string
           description: 送礼留言（仅 recipient；自购时不返回本键）
     GiftCardCredential:
-      description: 凭证信息，**按 `fulfillmentMode` 判别两种形状**——两支各自只带自己那套字段，不再互相占位。 **PIN 单独看 `pinVisibility`**：凭证正文经邮件交付、后台不作为分发渠道，所以「有权看且凭证有效」时才给 PIN 值； 其余情形只说明原因、不给值（这与「本模式没有这个字段」是两回事，勿混）。
+      description: 凭证信息，**按 `fulfillmentMode` 判别两种形状**——两支各自只带自己那套字段，不再互相占位。 **PIN 单独看** `pinVisibility`：凭证正文经邮件交付、后台不作为分发渠道，所以「有权看且凭证有效」时才给 PIN 值； 其余情形只说明原因、不给值（这与「本模式没有这个字段」是两回事，勿混）。
       oneOf:
         - $ref: '#/components/schemas/GiftCardInventoryCredential'
         - $ref: '#/components/schemas/GiftCardVoucherCredential'
@@ -1826,7 +1958,7 @@ components:
             - PAID
             - PARTIALLY_REFUNDED
             - REFUNDED
-          description: 完成后订单**商户状态**（后端派生、**非固定 `PAID`**；**成功响应值域收窄** `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`，不含 `FAILED` / `PREAUTH_HOLDING`——非成功走非 200）：无挂起期退 = `PAID`；挂起期已直退过 = `PARTIALLY_REFUNDED` / `REFUNDED`（退款度派生）。FE 可据此更新或重读交易。
+          description: 完成后订单**商户状态**（后端派生、**非固定** `PAID`；**成功响应值域收窄** `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`，不含 `FAILED` / `PREAUTH_HOLDING`——非成功走非 200）：无挂起期退 = `PAID`；挂起期已直退过 = `PARTIALLY_REFUNDED` / `REFUNDED`（退款度派生）。FE 可据此更新或重读交易。
     LocalDate:
       type: string
       format: date
@@ -1913,7 +2045,17 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+
+        **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
+        **别拿本类型自己推**：两者在跨日边界附近会分属两天。
     QuickFilterItem:
       type: object
       additionalProperties: false
@@ -1971,7 +2113,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

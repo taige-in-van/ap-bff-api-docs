@@ -1,11 +1,18 @@
 openapi: 3.1.0
 info:
   title: 商户后台 开发者 — 前端契约面
-  version: 0.6.4
+  version: 0.6.6
   contact:
     name: 商户后台 BFF
   description: |
-    开发者前端契约：API 凭据区（Merchant Code 明文 + Gateway Credential 默认脱敏 / 按需授权 reveal 完整值 / 复制）+ 集成参数区（Gateway URL + Verification Type=RSA2 只读）+ 签名密钥区（商户 RSA2 公钥登记 / 替换 / 查看 / 复制 + 平台公钥查看 / 复制）。 merchant scope 从会话取、不信请求体；全部 op merchant-current-scoped，均挂 MerchantContextGuard（stale-tab 守卫，无豁免）。 **接入文档外链无端点**：开发者页的文档入口由前端按当前 locale 选址、缺失回退默认地址，**本契约不提供取址接口**——⚠️ 前端不要假设已有接口。 字段类型以本 spec 为准。
+    开发者前端契约：API 凭据区（Merchant Code 明文 + Gateway Credential 默认脱敏 / 按需授权 reveal 完整值 / 复制）+
+    集成参数区（Gateway URL + Verification Type=RSA2 只读）+ 签名密钥区（商户 RSA2 公钥登记 / 替换 / 查看 / 复制 + 平台公钥查看 / 复制）。
+
+    merchant scope 从会话取、不信请求体；全部 op merchant-current-scoped，均挂 MerchantContextGuard（stale-tab 守卫，无豁免）。
+
+    **接入文档外链无端点**：开发者页的文档入口由前端按当前 locale 选址、缺失回退默认地址，**本契约不提供取址接口**——⚠️ 前端不要假设已有接口。
+
+    字段类型以本 spec 为准。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -24,7 +31,19 @@ paths:
       operationId: getDeveloperOverview
       summary: 读开发者页聚合（凭据 + 集成参数 + 签名密钥态 + 平台公钥）
       description: |
-        返回当前商户开发者页聚合：Merchant Code（明文公开标识）、Gateway Credential **默认脱敏** （末 4 位；展示**不触发**访问审计；未签发 / 已吊销 → status=unavailable）、 Gateway URL + Verification Type=RSA2（只读集成参数）、商户签名公钥态（registered 携公钥 PEM + keyVersion，或 unset）、 平台公钥（current PEM + keyVersion；未发布则不返回该键）。 **完整 Gateway Credential 不在本聚合返回**——按需走 revealGatewayCredential（受审计）。 Merchant Code / 平台公钥 / 已登记的商户公钥均非秘密、直接明文返回供 Copy。 **聚合任一来源加载失败 → 整体 500、绝不返回部分凭据**（前端据此走占位 / 错误态）。
+        返回当前商户开发者页聚合：
+
+        - Merchant Code（明文公开标识）、
+        - Gateway Credential **默认脱敏**（末 4 位；展示**不触发**访问审计；未签发 / 已吊销 → status=unavailable）、
+        - Gateway URL + Verification Type=RSA2（只读集成参数）、
+        - 商户签名公钥态（registered 携公钥 PEM + keyVersion，或 unset）、
+        - 平台公钥（current PEM + keyVersion；未发布则不返回该键）。
+
+        **完整 Gateway Credential 不在本聚合返回**——按需走 revealGatewayCredential（受审计）。
+
+        Merchant Code / 平台公钥 / 已登记的商户公钥均非秘密、直接明文返回供 Copy。
+
+        **聚合任一来源加载失败 → 整体 500、绝不返回部分凭据**（前端据此走占位 / 错误态）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -66,7 +85,17 @@ paths:
       operationId: revealGatewayCredential
       summary: 授权披露 Gateway Credential 完整值（reveal / copy；受审计）
       description: |
-        按需返回当前商户 Gateway Credential **完整明文**（仅当前有效值；历史 / 上一版本值不返回）——**受审计**。 **每次披露均记录访问审计**（accessType=reveal|copy）——**copy 亦经本端点**（避免「已显示明文后再在客户端 copy」的审计盲区）。 每次披露都受审计；**审计未能落地时不披露 → 500**（可重试，重试成功即正常返回完整值）。 响应 `Cache-Control: no-store`；完整值全链路禁记录（不进日志 / trace / 缓存）。 credential 未签发 / 已吊销 → 409 208014（无明文；overview 已标 unavailable，此为竞态兜底）； 凭据服务暂不可用 → 502/504（fail-closed，不返回部分值）。 非幂等（每次披露刻意各自留痕），不挂幂等键。
+        按需返回当前商户 Gateway Credential **完整明文**（仅当前有效值；历史 / 上一版本值不返回）——**受审计**。
+
+        **每次披露均记录访问审计**（accessType=reveal|copy）——**copy 亦经本端点**（避免「已显示明文后再在客户端 copy」的审计盲区）。
+        每次披露都受审计；**审计未能落地时不披露 → 500**（可重试，重试成功即正常返回完整值）。
+
+        响应 `Cache-Control: no-store`；完整值全链路禁记录（不进日志 / trace / 缓存）。
+
+        - credential 未签发 / 已吊销 → 409 208014（无明文；overview 已标 unavailable，此为竞态兜底）；
+        - 凭据服务暂不可用 → 502/504（fail-closed，不返回部分值）。
+
+        非幂等（每次披露刻意各自留痕），不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -116,7 +145,29 @@ paths:
       operationId: replaceMerchantSigningKey
       summary: 登记 / 替换商户签名公钥（RSA2 PEM；替换即触发轮换宽限期）
       description: |
-        登记或替换当前商户的 RSA2 签名公钥（PEM）——供开放 API 验证商户**入站**请求签名。**登记 = 替换** （覆盖当前唯一一把公钥）。**请求体即目标本身**：`publicKeyPem` 全量覆盖、缺省不代表「保持原样」;`expectedKeyVersion` 是前置校验、不是目标的一部分（两个字段均必传）。 **上游不可用（`502` / `504`）时「是否已写入」不确定**——`504` 尤其可能发生在写提交之后,**不要向用户断言「未写入」**;正确动作是重载最新公钥态确认后再决定要不要重发（同一 PEM 重提交是幂等 no-op,见下）。 **并发 / 幂等（判定顺序）**：① 提交的公钥**与当前公钥相同** → **幂等 no-op 成功**（不新 `keyVersion` / 不重启轮换宽限期 / 不重复审计，与 `expectedKeyVersion` 无关）；② **与当前公钥不同** → 按 `expectedKeyVersion` 版本校验：与当前版本一致才替换（落新 `keyVersion`；公钥由商户提交，平台不生成密钥），不一致（旧页 / 他人已改）→ **409 208004**、前端重载重试。**相同公钥重复提交在效果上幂等；不同公钥替换对提交顺序敏感。** 服务端先校验可解析为 RSA2 公钥（空 / 非 PEM / 非 RSA2 → 400 204011， 直接拒绝、不产生任何变更）；合法 → 替换生效并 **触发轮换宽限期**（新旧公钥并验、宽限期后仅新钥），并留密钥变更审计。 **活跃轮换宽限期内不接受再次替换**（上次替换的旧钥仍在宽限期内 → **409 208015**、须待宽限结束；当前公钥与宽限期不受影响；应急强制轮换由平台侧处理、不在本端点）。 **判定顺序**：与当前公钥相同 → no-op；不同 → 先版本校验（不一致 → 208004）→ 通过后再判活跃宽限期（活跃 → 208015，否则替换）。 本端点只管商户自有公钥（非秘密、可回显）；不提供清除 / 解绑。 **不挂幂等键、客户端不应盲目自动重试**：对较旧的不同公钥盲目重试会覆盖较新公钥，由 `expectedKeyVersion` 版本前置校验拦截（不一致 → **409 208004**），失败应由用户重新发起。
+        登记或替换当前商户的 RSA2 签名公钥（PEM）——供开放 API 验证商户**入站**请求签名。**登记 = 替换**（覆盖当前唯一一把公钥）。
+
+        **请求体即目标本身**：`publicKeyPem` 全量覆盖、缺省不代表「保持原样」;`expectedKeyVersion` 是前置校验、不是目标的一部分（两个字段均必传）。
+
+        **上游不可用（`502` / `504`）时「是否已写入」不确定**——`504` 尤其可能发生在写提交之后,**不要向用户断言「未写入」**;正确动作是重载最新公钥态确认后再决定要不要重发（同一 PEM 重提交是幂等 no-op,见下）。
+
+        **并发 / 幂等（判定顺序）**：
+
+        ① 提交的公钥**与当前公钥相同** → **幂等 no-op 成功**（不新 `keyVersion` / 不重启轮换宽限期 / 不重复审计，与 `expectedKeyVersion` 无关）；
+
+        ② **与当前公钥不同** → 按 `expectedKeyVersion` 版本校验：与当前版本一致才替换（落新 `keyVersion`；公钥由商户提交，平台不生成密钥），不一致（旧页 / 他人已改）→ **409 208004**、前端重载重试。
+
+        **相同公钥重复提交在效果上幂等；不同公钥替换对提交顺序敏感。**
+
+        服务端先校验可解析为 RSA2 公钥（空 / 非 PEM / 非 RSA2 → 400 204011，直接拒绝、不产生任何变更）；合法 → 替换生效并 **触发轮换宽限期**（新旧公钥并验、宽限期后仅新钥），并留密钥变更审计。
+
+        **活跃轮换宽限期内不接受再次替换**（上次替换的旧钥仍在宽限期内 → **409 208015**、须待宽限结束；当前公钥与宽限期不受影响；应急强制轮换由平台侧处理、不在本端点）。
+
+        **判定顺序**：与当前公钥相同 → no-op；不同 → 先版本校验（不一致 → 208004）→ 通过后再判活跃宽限期（活跃 → 208015，否则替换）。
+
+        本端点只管商户自有公钥（非秘密、可回显）；不提供清除 / 解绑。
+
+        **不挂幂等键、客户端不应盲目自动重试**：对较旧的不同公钥盲目重试会覆盖较新公钥，由 `expectedKeyVersion` 版本前置校验拦截（不一致 → **409 208004**），失败应由用户重新发起。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -141,7 +192,7 @@ paths:
                     - 'null'
                   minimum: 1
                   description: |
-                    提交时所依据的基线版本（防旧页 / 多操作员互相覆盖）：**null = 首次登记（期望当前未登记）**、 **N = 替换（期望当前 keyVersion = N）**。⚠️ 这里的 `null` 是**前置条件取值**、**不是公共约定里「要清空某个字段就显式传 `null`」那个 `null`**—— 已登记状态下传 `null` 会被判为基线不符而拒绝,不是「跳过版本校验」。与当前公钥版本不符（已被他人登记 / 替换）→ 409 208004、 前端重载最新公钥态后再试。
+                    提交时所依据的基线版本（防旧页 / 多操作员互相覆盖）：**null = 首次登记（期望当前未登记）**、 **N = 替换（期望当前 keyVersion = N）**。⚠️ 这里的 `null` 是**前置条件取值**、**不是公共约定里「要清空某个字段就显式传 `null`」那个** `null`—— 已登记状态下传 `null` 会被判为基线不符而拒绝,不是「跳过版本校验」。与当前公钥版本不符（已被他人登记 / 替换）→ 409 208004、 前端重载最新公钥态后再试。
             example:
               publicKeyPem: |-
                 -----BEGIN PUBLIC KEY-----
@@ -177,7 +228,12 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     DeveloperOverview:
       type: object
@@ -384,7 +440,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -400,7 +465,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:

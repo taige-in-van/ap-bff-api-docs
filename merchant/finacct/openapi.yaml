@@ -1,11 +1,25 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 — 前端契约面
-  version: 0.20.0
+  version: 0.20.2
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台 React SPA 消费的资金概览 / 账户流水 / 结算单 / 月度账单 / 退款预留金管理 / 数据导出 契约。 资金概览 / 流水 / 结算单 / 月度账单为**只读**；结算金额由平台资金能力产出，本面只展示、不二次计算。 储备金 Top Up / Withdraw 为**资金动作**，会影响后续结算；auto-replenish 的自动补足由平台触发、不在本面发起；储备金 funding（Top Up / auto-replenish 配置）经 Owner email OTP 二次验证;Withdraw 与导出不要求 OTP。 金额一律商户唯一结算币种（单商户单结算币种）；金额最小币种单位整数字符串（components Money）。字段类型以本 spec 为准。 幂等 / CSRF 口径:① **有副作用的写**（储备金 funding / withdrawal、导出创建）挂 Idempotency-Key（资金路径强一致，重投返原结果）;OTP 挑战类按流程语义不挂幂等键。 ② cookieAuth 的非安全方法一律挂 X-CSRF-Token（double-submit，fail-closed）;无公开端点（资金面全程受 RBAC + 会话）。 鉴权 / 行级授权:所有读写均限会话当前 merchant scope（merchant 上下文从会话取、不信请求体）;储备金 funding（Top Up / auto-replenish）经 Owner email OTP（身份验证能力，资金动作二次验证）放行,Withdraw 不要求 OTP（仅内部回 Account Balance、不外流）。 状态码与错误分流一律见「API 基础约定」,本面不另立口径（**按 `code` 分流、不按状态码**;含跨 scope 资源统一 `404` 反枚举那条）。
+    商户后台 React SPA 消费的资金概览 / 账户流水 / 结算单 / 月度账单 / 退款预留金管理 / 数据导出 契约。
+
+    资金概览 / 流水 / 结算单 / 月度账单为**只读**；结算金额由平台资金能力产出，本面只展示、不二次计算。
+    储备金 Top Up / Withdraw 为**资金动作**，会影响后续结算；auto-replenish 的自动补足由平台触发、不在本面发起；储备金 funding（Top Up / auto-replenish 配置）经 Owner email OTP 二次验证;Withdraw 与导出不要求 OTP。
+
+    金额一律商户唯一结算币种（单商户单结算币种）；金额最小币种单位整数字符串（components Money）。字段类型以本 spec 为准。
+
+    **幂等 / CSRF 口径**:
+
+    - ① **有副作用的写**（储备金 funding / withdrawal、导出创建）挂 Idempotency-Key（资金路径强一致，重投返原结果）;OTP 挑战类按流程语义不挂幂等键。
+    - ② cookieAuth 的非安全方法一律挂 X-CSRF-Token（double-submit，fail-closed）;无公开端点（资金面全程受 RBAC + 会话）。
+
+    **鉴权 / 行级授权**:所有读写均限会话当前 merchant scope（merchant 上下文从会话取、不信请求体）;储备金 funding（Top Up / auto-replenish）经 Owner email OTP（身份验证能力，资金动作二次验证）放行,Withdraw 不要求 OTP（仅内部回 Account Balance、不外流）。
+
+    状态码与错误分流一律见「API 基础约定」,本面不另立口径（**按 `code` 分流、不按状态码**;含跨 scope 资源统一 `404` 反枚举那条）。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（经边缘网关；浏览器 ↔ BFF 用会话 cookie）
@@ -32,7 +46,13 @@ paths:
       operationId: getAccountOverview
       summary: 资金概览（Account Balance / To Settle / Refund Reserve / 可用额）
       description: |
-        资金概览（商户 scope）：Account Balance（账本值恒 ≥ 0）、To Settle（按手续费结算模式派生、本面不二次计算）、Refund Reserve、可用额（= Account Balance − 应收商户款,可呈负,纯展示）。 Account Balance 卡片展示值是否并入平台侧预授权挂起额由**管理后台设置的 per-商户展示配置**控制（默认并入,本面只展示、不改账本值）。上游账务查询超时 → degraded=true 降级展示"暂不可用"、不伪造资金,不阻塞页面。 ⚠️ **储备金写操作成功后本卡片有追赶窗口**：Top Up / Withdraw 返回成功即表示资金动作已受理并有权威结果（凭响应里的操作标识）， 但概览与账户流水是**另一次取数**、可能短暂看不到这笔。**按最终一致处理**——刷新后没看到不代表失败， **不要提示失败、更不要诱导用户再提一次**（重复提交资金动作的代价是真金白银）。要确认结果就凭该操作标识重查，别靠列表有没有出现来判断。
+        资金概览（商户 scope）：Account Balance（账本值恒 ≥ 0）、To Settle（按手续费结算模式派生、本面不二次计算）、Refund Reserve、可用额（= Account Balance − 应收商户款,可呈负,纯展示）。
+
+        Account Balance 卡片展示值是否并入平台侧预授权挂起额由**管理后台设置的 per-商户展示配置**控制（默认并入,本面只展示、不改账本值）。
+
+        上游账务查询超时 → degraded=true 降级展示"暂不可用"、不伪造资金,不阻塞页面。
+
+        ⚠️ **储备金写操作成功后本卡片有追赶窗口**：Top Up / Withdraw 返回成功即表示资金动作已受理并有权威结果（凭响应里的操作标识），但概览与账户流水是**另一次取数**、可能短暂看不到这笔。**按最终一致处理**——刷新后没看到不代表失败，**不要提示失败、更不要诱导用户再提一次**（重复提交资金动作的代价是真金白银）。要确认结果就凭该操作标识重查，别靠列表有没有出现来判断。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -75,7 +95,13 @@ paths:
       operationId: listAccountLedger
       summary: 账户流水查询（过滤 + 搜索 + 分页，只读）
       description: |
-        账户流水（商户 scope）：按 `postedAt` 倒序稳定分页（**不要按 `occurredAt` 重排**，会打乱余额顺序）;`postedAt` 相同的行按 `entryId` 倒序,以此保证翻页不重不漏。 ⚠️ **`balanceAfter` 只在同一资金池内逐行衔接**——`pool` 缺省时两池分录交错返回，相邻两行往往属不同池，**跨行相减必然对不上**（Top Up / Withdraw / auto-replenish 每笔都同时产两池各一行、`postedAt` 常完全相同）。要连续的余额走势就**带 `pool` 筛**或按池分组渲染;不要把「上一行余额 = 本行 `balanceAfter` − `amount`」写成客户端校验。每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。**不传日期参数 = 不按日期筛**（返回全部流水，无默认时间窗）。
+        账户流水（商户 scope）：按 `postedAt` 倒序稳定分页（**不要按 `occurredAt` 重排**，会打乱余额顺序）;`postedAt` 相同的行按 `entryId` 倒序,以此保证翻页不重不漏。
+
+        ⚠️ **`balanceAfter` 只在同一资金池内逐行衔接**——`pool` 缺省时两池分录交错返回，相邻两行往往属不同池，**跨行相减必然对不上**（Top Up / Withdraw / auto-replenish 每笔都同时产两池各一行、`postedAt` 常完全相同）。要连续的余额走势就**带 `pool` 筛**或按池分组渲染;不要把「上一行余额 = 本行 `balanceAfter` − `amount`」写成客户端校验。
+
+        每行含资金池 / 类型 / 带符号金额 / 对应资金池变动后余额 / 关联单据或操作记录。空结果返回空态、不报错。
+
+        **不传日期参数 = 不按日期筛**（返回全部流水，无默认时间窗）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: from
@@ -365,7 +391,7 @@ paths:
       operationId: getStatementCounts
       summary: 账单列表年份快捷筛选的各项与计数
       description: |
-        账单列表顶部年份快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listStatements` 的 `year`；本端点**不接受 `year`**。 项集 = 该商户**有账单的年份**（按手续费服务期间年，倒序）——**别在前端按当前年份往回推算年份区间**， 没有账单的年份不会出现。商户一张账单都没有时 `items` 为空数组。
+        账单列表顶部年份快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listStatements` 的 `year`；本端点**不接受** `year`。 项集 = 该商户**有账单的年份**（按手续费服务期间年，倒序）——**别在前端按当前年份往回推算年份区间**， 没有账单的年份不会出现。商户一张账单都没有时 `items` 为空数组。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -546,7 +572,13 @@ paths:
       operationId: requestRefundReserveOtp
       summary: 发起 Owner email OTP 挑战（绑定本次操作摘要）
       description: |
-        向该商户 Owner 的已验证邮箱发起一次性 email OTP。挑战**绑定本次操作摘要**（Top Up 金额 + auto-replenish 配置的开关 / 阈值 + 字段存在性）与发起会话——提交 funding 时须摘要一致、同会话提交,否则 → 403（防串改金额 / 币种 / 夹带配置）。操作上下文（商户 / Owner）取会话 scope、不信请求体（无有效 scope → 403 不发起）。返回 challengeId + 脱敏投递目标 + 冷却。展示摘要与绑定摘要同源（防 Owner 看小额、放大额）。OTP 有效期 / 冷却 / 错误尝试上限为业务参数（默认可配）。挑战类不挂幂等键（每次重新发起）。Top Up 与 auto-replenish 同次共用一次 OTP（摘要含配置全字段,Owner 知悉同时变更自动补足规则）。
+        向该商户 Owner 的已验证邮箱发起一次性 email OTP。
+
+        挑战**绑定本次操作摘要**（Top Up 金额 + auto-replenish 配置的开关 / 阈值 + 字段存在性）与发起会话——提交 funding 时须摘要一致、同会话提交,否则 → 403（防串改金额 / 币种 / 夹带配置）。操作上下文（商户 / Owner）取会话 scope、不信请求体（无有效 scope → 403 不发起）。
+
+        返回 challengeId + 脱敏投递目标 + 冷却。展示摘要与绑定摘要同源（防 Owner 看小额、放大额）。
+
+        OTP 有效期 / 冷却 / 错误尝试上限为业务参数（默认可配）。挑战类不挂幂等键（每次重新发起）。Top Up 与 auto-replenish 同次共用一次 OTP（摘要含配置全字段,Owner 知悉同时变更自动补足规则）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -591,11 +623,48 @@ paths:
       operationId: submitRefundReserveFunding
       summary: 储备金充值 + auto-replenish 配置（单次 Owner email OTP；二者至少其一）
       description: |
-        合并入口：Top Up 与 auto-replenish 配置可单独或同次提交,共用一次 OTP。 提交须携带发起时拿到的 OTP challengeId + 验证码。**失败一律按 `code` 分流**（不按状态码；本 op 承诺的码见 `x-error-codes`，逐个含义查随包码表）： 验证码错、但仍有剩余次数 → `400`·`204010`（剩余次数在 `context.attemptsRemaining`,留在弹窗重输）; 尝试超限锁定 → `423`; **提交摘要与该 challenge 绑定的摘要不一致、或不是发起该挑战的那个会话** → `403`·`206005`（防串改金额 / 夹带配置——须**重走一次 OTP**,不是重输验证码）; 无权限 → `403`、无业务码。 以上任一失败,**Top Up 与配置两者都不生效**。限流 → `429`（**发码冷却**是 `requestRefundReserveOtp` 的事,不在本 op）。 **两条线分开看**——上方那串 4xx 是**受理前**就被拒（参数 / OTP / 幂等 / 限流），什么都没发生；受理之后的执行结果一律 `200` + 子项 `status`，包括执行期失败（如 Account Balance 余额不足）——由 `topUpResult.status=FAILED` + `failureReason` 表达,**按 `failureReason` 取值分支,别假定只有余额不足一种**。 余额是活值、只能在执行时判，所以它落在受理后这条线上；**别把它接到 error 分支**，否则余额不足时前端什么都不提示。 **执行顺序固定：先 Top Up、再存 auto-replenish 配置**，因此终态只有三种—— 〔1〕Top Up 成功 + 配置成功;〔2〕Top Up 成功 + **配置失败**（部分失败）;〔3〕**Top Up 失败 → 配置不执行**（`autoReplenishResult.status=NOT_EXECUTED`）。 「Top Up 失败而配置成功」不会出现。未达终态时子项为 `PENDING`,凭 operationId 轮询收敛。 auto-replenish 只是保存配置（其自动补足执行由平台在 Refund Reserve 低于阈值时触发,不在本次写内）。 **幂等**：必带 `Idempotency-Key`。**本 op 的幂等指纹只覆盖操作摘要（`topUpAmount` + `autoReplenish`），不含 `otp`**——这是对公共约定「改了请求体就必须换新键」的**显式例外**，因为验证码错时的规定动作就是原地重输。 据此,**两种重试都复用同一个键**，但走向不同、别混。**怎么判自己在哪支**：只有**收到 4xx 响应体**才是 ①；**其余一切**——超时 / 没收到响应 / `5xx` / 已拿到过 `200`——都走 ②。 **① 受理前被拒**（任何 4xx——验证码错、摘要或会话不符、挑战过期、尝试超限、参数被拒——此时什么都没发生）：按该码的规定动作处置后**复用原键重投**（哪怕规定动作是「回第一步重走 OTP」,那仍是同一次提交意图、**不换键**）;本 op 会重新校验新验证码、不因幂等键相同而跳过。 **② 受理与否不确定 / 已受理**（网络超时、响应丢失、`5xx`、或已拿到过 `200`）：**复用原键重投**——已受理则直接返首次结果、**不会重复划转**,也**不会**再去校验验证码（故**不应**因此收到 `410`）;未受理则正常受理。 `5xx` 明确归这一支：它**不是**「没发生」的证据，写有可能已经落下。**别向用户断言「未划转」**，也别指望 `getReserveOperation` 兜底——`5xx` 响应里没有 `operationId`，此时唯一可靠的退路就是同键重投。 ⚠️ **最危险的误判**：受理前失败里有几种的规定动作是「回第一步重新发起」,重走一遍 OTP 弹窗看起来很像「新意图」——**它不是**。只要金额与配置没改,就仍用原键;因为「验证码已消费 / 挑战过期」而换新键重发,才是真正的重复划转风险。 **改了金额或配置就必须换新键**,沿用旧键改摘要 → `409`·208005、且不推进。 正面判据：**一次提交意图一个键**——用户重开弹窗 / 重新确认即换新键（同额再充一笔也要换,否则会命中首次结果、第二笔实际没发生）;同一意图内的重试（验证码重输、网络重试）复用同键。 金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0。
+        合并入口：Top Up 与 auto-replenish 配置可单独或同次提交,共用一次 OTP。
+        提交须携带发起时拿到的 OTP challengeId + 验证码。
+
+        **失败一律按 `code` 分流**（不按状态码；本 op 承诺的码见 `x-error-codes`，逐个含义查随包码表）：
+
+        - 验证码错、但仍有剩余次数 → `400`·`204010`（剩余次数在 `context.attemptsRemaining`,留在弹窗重输）;
+        - 尝试超限锁定 → `423`;
+        - **提交摘要与该 challenge 绑定的摘要不一致、或不是发起该挑战的那个会话** → `403`·`206005`（防串改金额 / 夹带配置——须**重走一次 OTP**,不是重输验证码）;
+        - 无权限 → `403`、无业务码。
+
+        以上任一失败,**Top Up 与配置两者都不生效**。限流 → `429`（**发码冷却**是 `requestRefundReserveOtp` 的事,不在本 op）。
+
+        **两条线分开看**——上方那串 4xx 是**受理前**就被拒（参数 / OTP / 幂等 / 限流），什么都没发生；受理之后的执行结果一律 `200` + 子项 `status`，包括执行期失败（如 Account Balance 余额不足）——由 `topUpResult.status=FAILED` + `failureReason` 表达,**按 `failureReason` 取值分支,别假定只有余额不足一种**。
+        余额是活值、只能在执行时判，所以它落在受理后这条线上；**别把它接到 error 分支**，否则余额不足时前端什么都不提示。
+
+        **执行顺序固定：先 Top Up、再存 auto-replenish 配置**，因此终态只有三种——
+
+        - 〔1〕Top Up 成功 + 配置成功;
+        - 〔2〕Top Up 成功 + **配置失败**（部分失败）;
+        - 〔3〕**Top Up 失败 → 配置不执行**（`autoReplenishResult.status=NOT_EXECUTED`）。
+
+        「Top Up 失败而配置成功」不会出现。未达终态时子项为 `PENDING`,凭 operationId 轮询收敛。
+        auto-replenish 只是保存配置（其自动补足执行由平台在 Refund Reserve 低于阈值时触发,不在本次写内）。
+
+        **幂等**：必带 `Idempotency-Key`。**本 op 的幂等指纹只覆盖操作摘要（`topUpAmount` + `autoReplenish`），不含** `otp`——这是对公共约定「改了请求体就必须换新键」的**显式例外**，因为验证码错时的规定动作就是原地重输。
+        据此,**两种重试都复用同一个键**，但走向不同、别混。**怎么判自己在哪支**：只有**收到 4xx 响应体**才是 ①；**其余一切**——超时 / 没收到响应 / `5xx` / 已拿到过 `200`——都走 ②。
+
+        - **① 受理前被拒**（任何 4xx——验证码错、摘要或会话不符、挑战过期、尝试超限、参数被拒——此时什么都没发生）：按该码的规定动作处置后**复用原键重投**（哪怕规定动作是「回第一步重走 OTP」,那仍是同一次提交意图、**不换键**）;本 op 会重新校验新验证码、不因幂等键相同而跳过。
+        - **② 受理与否不确定 / 已受理**（网络超时、响应丢失、`5xx`、或已拿到过 `200`）：**复用原键重投**——已受理则直接返首次结果、**不会重复划转**,也**不会**再去校验验证码（故**不应**因此收到 `410`）;未受理则正常受理。
+
+        `5xx` 明确归这一支：它**不是**「没发生」的证据，写有可能已经落下。**别向用户断言「未划转」**，也别指望 `getReserveOperation` 兜底——`5xx` 响应里没有 `operationId`，此时唯一可靠的退路就是同键重投。
+
+        ⚠️ **最危险的误判**：受理前失败里有几种的规定动作是「回第一步重新发起」,重走一遍 OTP 弹窗看起来很像「新意图」——**它不是**。只要金额与配置没改,就仍用原键;因为「验证码已消费 / 挑战过期」而换新键重发,才是真正的重复划转风险。
+
+        **改了金额或配置就必须换新键**,沿用旧键改摘要 → `409`·208005、且不推进。
+        正面判据：**一次提交意图一个键**——用户重开弹窗 / 重新确认即换新键（同额再充一笔也要换,否则会命中首次结果、第二笔实际没发生）;同一意图内的重试（验证码重输、网络重试）复用同键。
+
+        金额 > 0 由 PositiveMoney schema 守;auto-replenish 开启时 accountLimit 必填且 > 0。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
-          description: 幂等键，**必带**（缺失 → `400`，请求不会推进）。**本 op 的指纹只取操作摘要（`topUpAmount` + `autoReplenish`）、不含 `otp`**（公共约定「改了请求体就必须换新键」在此有例外）——网络重试、以及验证码错后重输，**都复用同一个键**;只有改了金额或配置才换新键。同键同摘要重投返首次结果、**不会重复划转**。
+          description: 幂等键，**必带**（缺失 → `400`，请求不会推进）。**本 op 的指纹只取操作摘要（`topUpAmount` + `autoReplenish`）、不含** `otp`（公共约定「改了请求体就必须换新键」在此有例外）——网络重试、以及验证码错后重输，**都复用同一个键**;只有改了金额或配置才换新键。同键同摘要重投返首次结果、**不会重复划转**。
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
@@ -655,7 +724,19 @@ paths:
       operationId: submitRefundReserveWithdrawal
       summary: 储备金取回 Account Balance（无 OTP）
       description: |
-        把 Refund Reserve 取回到 Account Balance（守 Refund Reserve 足额）。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP。 应收抵扣在平台账本内部完成、本面不可见不编排。`max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 走 amount。 **两条线分开看**（同 Top Up 侧）：金额 ≤ 0 / 二选一未满足等**受理前**被拒 → `400`、什么都没发生; **执行期失败**（如 Refund Reserve 不足 → `INSUFFICIENT_FUNDS`）属**受理后**的结果 → 仍返 `200`,由 `status=FAILED` + `failureReason` 表达、不划转（**按 `failureReason` 取值分支,别假定只有余额不足一种**）, **别把它接到 error 分支**,否则不足时前端什么都不提示。**幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次结果**、**不会重复划转**——网络重试请复用同一个键;改了 amount / max 就必须换新键,沿用旧键改内容 → `409`·208005。 **超时 / 没收到响应 / `5xx` 一律同键重投**：它们**不是**「没划转」的证据（写可能已落下）,**别向用户断言未划转**。
+        把 Refund Reserve 取回到 Account Balance（守 Refund Reserve 足额）。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP。
+        应收抵扣在平台账本内部完成、本面不可见不编排。
+
+        `max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 走 amount。
+
+        **两条线分开看**（同 Top Up 侧）：
+
+        - 金额 ≤ 0 / 二选一未满足等**受理前**被拒 → `400`、什么都没发生;
+        - **执行期失败**（如 Refund Reserve 不足 → `INSUFFICIENT_FUNDS`）属**受理后**的结果 → 仍返 `200`,由 `status=FAILED` + `failureReason` 表达、不划转（**按 `failureReason` 取值分支,别假定只有余额不足一种**）,**别把它接到 error 分支**,否则不足时前端什么都不提示。
+
+        **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次结果**、**不会重复划转**——网络重试请复用同一个键;改了 amount / max 就必须换新键,沿用旧键改内容 → `409`·208005。
+
+        **超时 / 没收到响应 / `5xx` 一律同键重投**：它们**不是**「没划转」的证据（写可能已落下）,**别向用户断言未划转**。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -750,7 +831,16 @@ paths:
       operationId: createExport
       summary: 创建导出任务（结算单 / 流水 XLSX；异步。月度账单 PDF 走同步 getStatementPdf、不经此路径）
       description: |
-        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页。导出范围固定为发起时的当前商户,filters 只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。**本端点恒异步**（返 `202` + `exportJobId`,凭它轮询）。两种非成功终态都走 `status=FAILED` + `failureReason`、**不静默丢弃、也不产出文件**：命中数超上限 → `RESULT_SET_TOO_LARGE`（提示缩小范围重导）;命中数为 0 → `EMPTY_RESULT`（提示无数据,**不产出只有表头的空文件**）。**幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次创建的任务**、不重复建任务——网络重试请复用同一个键;改了筛选条件 / 范围就必须换新键,沿用旧键改内容 → `409`·208005。
+        按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页。
+
+        导出范围固定为发起时的当前商户,filters 只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。
+
+        **本端点恒异步**（返 `202` + `exportJobId`,凭它轮询）。两种非成功终态都走 `status=FAILED` + `failureReason`、**不静默丢弃、也不产出文件**：
+
+        - 命中数超上限 → `RESULT_SET_TOO_LARGE`（提示缩小范围重导）;
+        - 命中数为 0 → `EMPTY_RESULT`（提示无数据,**不产出只有表头的空文件**）。
+
+        **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次创建的任务**、不重复建任务——网络重试请复用同一个键;改了筛选条件 / 范围就必须换新键,沿用旧键改内容 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/AcceptLanguage'
@@ -867,7 +957,16 @@ components:
       in: header
       required: true
       description: |
-        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分： **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync； **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。 挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。 **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。 某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
+        stale-tab 一致性守卫（读写统一）：页面预期的当前商户 ID。与会话当前商户比对，一致才执行；不一致时**读不返回错商户数据、写不执行**，并按下面两种情形二分：
+
+        - **① 会话有当前商户、只是与 expected 不同 → `409` · `208001`（`MERCHANT_CONTEXT_CHANGED`）**，响应 `context.currentMerchantId` 回显服务端当前商户供前端直接 re-sync；
+        - **② 会话没有当前商户（无可回显者）→ `409` · `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，前端重跑启动链路按 `routeTo` 分流（见 API 基础约定「merchant scope + stale-tab 守卫」）。
+
+        挂在所有依赖当前商户的读 + 写接口；前端统一 interceptor 发送 + 处理 409（提示并刷新当前商户）。
+
+        **豁免**：不依赖「当前商户」的接口——当前商户的 re-sync / 切换入口本身，以及目标由 path 直接指定、与当前商户无关的接口。
+
+        某个接口挂没挂本 header，**看该接口的 `parameters` 即可**（挂了就是必带）。
       schema:
         type: string
         minLength: 1
@@ -912,7 +1011,12 @@ components:
       in: cookie
       name: __Host-msession
       description: |
-        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。 浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）； 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
+        商户后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain，杜绝子域注入）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
+        - 商户级读写另挂 MerchantContextGuard 守卫（见下方 parameters）。
   schemas:
     FundPool:
       type: string
@@ -1394,7 +1498,14 @@ components:
               description: 关闭时可选;不传 = 保留已保存阈值,传了 = 关闭并同时改成该值。
     RefundReserveOperationSummary:
       type: object
-      description: 储备金 funding 操作摘要（**topUpAmount / autoReplenish 至少其一**,anyOf 守;空 `{}` 非法）。 **币种须 == 商户结算币种**（单商户单结算币种,取值以概览返回的为准）——失配是**入参问题** → `400`,两步（发码 / 提交）都一样。 OTP challenge 绑定此摘要（含金额 + 币种 + 字段存在性）,funding 提交时摘要须与 challenge 绑定一致——**不一致 → `403`·`206005`**（防串改金额 / 改币种 / 夹带配置,须重走一次 OTP）。两者别混：前者是这次就填错了、改对再发；后者是发码与提交之间被改过。
+      description: |-
+        储备金 funding 操作摘要（**topUpAmount / autoReplenish 至少其一**,anyOf 守;空 `{}` 非法）。
+
+        **币种须 == 商户结算币种**（单商户单结算币种,取值以概览返回的为准）——失配是**入参问题** → `400`,两步（发码 / 提交）都一样。
+
+        OTP challenge 绑定此摘要（含金额 + 币种 + 字段存在性）,funding 提交时摘要须与 challenge 绑定一致——**不一致 →** `403`·`206005`（防串改金额 / 改币种 / 夹带配置,须重走一次 OTP）。
+
+        两者别混：前者是这次就填错了、改对再发；后者是发码与提交之间被改过。
       anyOf:
         - required:
             - topUpAmount
@@ -1450,7 +1561,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/Money'
           readOnly: true
-          description: 本次操作的金额。**`max=true` 的取回在 `PENDING` 时可能不返回本键**——全部金额由服务端在执行时定额,未执行就还没有值; 此时金额位渲染占位、别显示 0。达终态或固定额提交必返。
+          description: 本次操作的金额。`max=true` **的取回在 `PENDING` 时可能不返回本键**——全部金额由服务端在执行时定额,未执行就还没有值; 此时金额位渲染占位、别显示 0。达终态或固定额提交必返。
         fundEventId:
           type: string
           readOnly: true
@@ -1459,7 +1570,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/ReserveFailureReason'
           readOnly: true
-          description: '**`status=FAILED` 时必返**，其余状态不返回本键。用户可见文案按本取值取 i18n 文案，**不要展示 `resultDetail`**。'
+          description: '**`status=FAILED` 时必返**，其余状态不返回本键。用户可见文案按本取值取 i18n 文案，**不要展示** `resultDetail`。'
         resultDetail:
           allOf:
             - $ref: '#/components/schemas/DiagnosticDetail'
@@ -1492,7 +1603,15 @@ components:
       enum:
         - INSUFFICIENT_FUNDS
         - INTERNAL
-      description: 储备金操作**受理后执行失败**的原因。它不是错误码——错误码只用于失败响应（4xx / 5xx）， 而这里是 `200` 响应体里的执行结果。**取值本身即 i18n key**，前端按它取本地化文案渲染。 `INSUFFICIENT_FUNDS` = Top Up 时 Account Balance 不足、Withdraw 时 Refund Reserve 不足，均不划转 （余额是活值、受理前查了也可能变，故只在执行时判）;`INTERNAL` = 平台侧问题导致的划转被拒， 商户无法自行处置、按通用「操作失败，请稍后重试」呈现并可联系客服（凭操作标识）。 **后续增补取值不视为破坏性变更**—— 请留兜底分支，**遇未知取值展示通用「操作失败，请稍后重试」**，不要展示 `resultDetail`。 **仅用于划转结果**（`ReserveOperationResult`）；配置写失败不用本枚举。
+      description: |-
+        储备金操作**受理后执行失败**的原因。它不是错误码——错误码只用于失败响应（4xx / 5xx），而这里是 `200` 响应体里的执行结果。**取值本身即 i18n key**，前端按它取本地化文案渲染。
+
+        - `INSUFFICIENT_FUNDS` = Top Up 时 Account Balance 不足、Withdraw 时 Refund Reserve 不足，均不划转（余额是活值、受理前查了也可能变，故只在执行时判）;
+        - `INTERNAL` = 平台侧问题导致的划转被拒，商户无法自行处置、按通用「操作失败，请稍后重试」呈现并可联系客服（凭操作标识）。
+
+        **后续增补取值不视为破坏性变更**——请留兜底分支，**遇未知取值展示通用「操作失败，请稍后重试」**，不要展示 `resultDetail`。
+
+        **仅用于划转结果**（`ReserveOperationResult`）；配置写失败不用本枚举。
     ConfigResult:
       type: object
       required:
@@ -1550,7 +1669,16 @@ components:
       required:
         - operationId
         - opType
-      description: 储备金**商户发起**操作（funding / withdrawal）全部子写状态（GET /operations 返回;含 config 子写,供 PENDING 收敛轮询）。 auto-replenish **系统触发**操作不经此查询——经账户流水 AUTO_REPLENISH + 站内事件可见。 **哪个子项在，由 `opType` 定**（见下方分支）：`FUNDING` 只出 `topUpResult` / `autoReplenishResult`（按当初提交了哪几项,至少其一）,`WITHDRAW` 只出 `withdrawResult`。 ⚠️ `opType` 与 `ReserveOperationResult.kind` **不是一回事、别互相映射**：前者分**这次提交走的哪个端点**（funding 提交 / 取回提交）, 后者分**子项里那笔资金动作**——`FUNDING` 操作里的 `topUpResult.kind` 恒为 `TOP_UP`。
+      description: |-
+        储备金**商户发起**操作（funding / withdrawal）全部子写状态（GET /operations 返回;含 config 子写,供 PENDING 收敛轮询）。
+        auto-replenish **系统触发**操作不经此查询——经账户流水 AUTO_REPLENISH + 站内事件可见。
+
+        **哪个子项在，由 `opType` 定**（见下方分支）：
+
+        - `FUNDING` 只出 `topUpResult` / `autoReplenishResult`（按当初提交了哪几项,至少其一）,
+        - `WITHDRAW` 只出 `withdrawResult`。
+
+        ⚠️ `opType` 与 `ReserveOperationResult.kind` **不是一回事、别互相映射**：前者分**这次提交走的哪个端点**（funding 提交 / 取回提交）,后者分**子项里那笔资金动作**——`FUNDING` 操作里的 `topUpResult.kind` 恒为 `TOP_UP`。
       properties:
         operationId:
           type: string
@@ -1897,7 +2025,17 @@ components:
     Timestamp:
       type: string
       format: date-time
-      description: '**瞬时时刻**(RFC 3339 date-time)。in/out 非对称:**响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z); **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset, 「出参 Z」是约定、非 schema 可强制)。展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。 **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`), **别拿本类型自己推**：两者在跨日边界附近会分属两天。'
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+
+        **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
+        **别拿本类型自己推**：两者在跨日边界附近会分属两天。
     QuickFilterItem:
       type: object
       additionalProperties: false
@@ -1950,7 +2088,15 @@ components:
   responses:
     MerchantBffDefaultError:
       description: |
-        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。 HTTP status 只表达大类，**具体子因看响应体的整数 `code`**：该 op 承诺的业务码见其 `x-error-codes`， 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**； **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。 部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）—— 哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
+        非 2xx 统一错误响应——覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类，**具体子因看响应体的整数** `code`：
+
+        - 该 op 承诺的业务码见其 `x-error-codes`，
+        - 码的**固有属性**（`name` / `httpStatus` / `retryable` / 必带 context 字段）见**随包错误码表**；
+        - **该码在本接口下意味着什么、你该怎么处理，见本接口自己的说明**（怎么读见 API 基础约定「错误响应体」）。
+
+        部分码另带 `context` 结构化上下文（如 stale-tab 守卫 `208001` 必携 `context.currentMerchantId` 供前端 re-sync 当前商户）——哪些码必携哪些字段，以码表的 `requiredContextFields` 为准，**不要按状态码猜**。
       content:
         application/json:
           schema:
