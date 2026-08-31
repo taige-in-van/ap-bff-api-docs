@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 注册登录与认证 — 前端契约面
-  version: 0.22.2
+  version: 0.22.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -1589,6 +1589,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UpdateTeamMemberProcessing'
+              example:
+                status: PROCESSING
         '204':
           description: 已更新（同步字段全部生效；ACTIVE 邮箱改邮箱为受理:确认链接已发新邮箱,待员工确认）
         default:

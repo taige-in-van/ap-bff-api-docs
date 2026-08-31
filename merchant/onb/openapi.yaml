@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户入驻 — 前端契约面
-  version: 0.15.2
+  version: 0.15.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -395,6 +395,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileUploadTarget'
+              example:
+                fileId: 9a17be40d5c34f28b6e1027c9df3a85b
+                action: https://uploads.example.com/merchant-files
+                fields:
+                  key: onboarding/documents/9a17be40d5c34f28b6e1027c9df3a85b
+                  Content-Type: image/jpeg
+                  policy: eyJleHBpcmF0aW9uIjoiMjAyNi0wNi0yMFQwOToxNTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJhbHBoYXBheS1tZXJjaGFudC1maWxlcyJ9LFsiZXEiLCIka2V5Iiwib25ib2FyZGluZy9kb2N1bWVudHMvOWExN2JlNDBkNWMzNGYyOGI2ZTEwMjdjOWRmM2E4NWIiXSxbImVxIiwiJENvbnRlbnQtVHlwZSIsImltYWdlL2pwZWciXSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDUyNDI4ODBdXX0=
+                  x-amz-algorithm: AWS4-HMAC-SHA256
+                  x-amz-credential: AKIAIOSFODNN7EXAMPLE/20260620/ca-central-1/s3/aws4_request
+                  x-amz-date: 20260620T090000Z
+                  x-amz-signature: 6f1c0b2d9a4e7385c1f0d6ba39e2478c5b013da76e4f8092c3a15d6e8b479f20
+                expiresAt: '2026-06-20T09:15:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:

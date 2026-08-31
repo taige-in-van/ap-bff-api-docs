@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 — 前端契约面
-  version: 0.33.0
+  version: 0.33.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -180,6 +180,40 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentPageSettings'
+              examples:
+                saved:
+                  summary: 保存后回显 —— 换了 Logo（logoUrl 由服务端换出）、启用 3 种方式
+                  value:
+                    logoRef: 9c1d5f7a3e2b48c6b0f4a8d29e631b57
+                    logoUrl: https://files.example.com/o/9c1d5f7a?exp=1755331200&sig=REDACTED&disp=inline
+                    notesEnabled: true
+                    notes:
+                      - title: 门店说明
+                      - title: 取餐号
+                    description: 欢迎光临
+                    availableMethods:
+                      - methodId: instore-wechat
+                        family: wechat
+                        acceptanceMode: in_store
+                        displayName: WeChat Pay
+                      - methodId: instore-alipay
+                        family: alipay
+                        acceptanceMode: in_store
+                        displayName: Alipay
+                      - methodId: instore-credit_card
+                        family: credit_card
+                        acceptanceMode: in_store
+                        displayName: Credit Card
+                    selectedMethodIds:
+                      - instore-wechat
+                      - instore-alipay
+                      - instore-credit_card
+                    tips:
+                      enabled: true
+                      presets:
+                        - 10
+                        - 15
+                        - 20
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -237,6 +271,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileUploadTarget'
+              examples:
+                issued:
+                  summary: 已签发 —— fields 原样全部提交，文件本体以 file 为名放最后
+                  value:
+                    fileId: 9c1d5f7a3e2b48c6b0f4a8d29e631b57
+                    action: https://files.example.com/direct-upload
+                    fields:
+                      key: merchant/1000024/payment-page-logo/9c1d5f7a3e2b48c6b0f4a8d29e631b57
+                      Content-Type: image/png
+                      policy: REDACTED-BASE64-POLICY
+                      signature: REDACTED-SIGNATURE
+                    expiresAt: '2026-08-17T10:30:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -575,6 +621,34 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvoiceDetail'
+              examples:
+                unpaid:
+                  summary: 未支付 —— 无 Payment Order ID，不可跳转交易管理
+                  value:
+                    invoiceId: inv_1000024_2001
+                    amount:
+                      amount: '10500'
+                      currency: CAD
+                    status: UNPAID
+                    dueDate: '2026-08-01'
+                    createdAt: '2026-07-04T10:00:00Z'
+                    description: 8 月服务费
+                    paymentUrl: https://cashier.example.com/inv/inv_1000024_2001
+                    hidden: false
+                paid:
+                  summary: 已支付 —— 含 Payment Order ID，可跳转交易管理
+                  value:
+                    invoiceId: inv_1000024_2002
+                    amount:
+                      amount: '20000'
+                      currency: CAD
+                    status: PAID
+                    dueDate: '2026-07-20'
+                    createdAt: '2026-07-02T09:15:00Z'
+                    description: 7 月服务费
+                    paymentUrl: https://cashier.example.com/inv/inv_1000024_2002
+                    paidOrderId: P100240011
+                    hidden: false
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -602,6 +676,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/InvoiceDetail'
+              examples:
+                voided:
+                  summary: UNPAID 被作废 —— 进 VOIDED，付款链接失效故不再返回
+                  value:
+                    invoiceId: inv_1000024_2001
+                    amount:
+                      amount: '10500'
+                      currency: CAD
+                    status: VOIDED
+                    dueDate: '2026-08-01'
+                    createdAt: '2026-07-04T10:00:00Z'
+                    description: 8 月服务费
+                    hidden: false
+                hidden:
+                  summary: PAID 被隐藏 —— 仍是 PAID，只是列表默认不再展示
+                  value:
+                    invoiceId: inv_1000024_2002
+                    amount:
+                      amount: '20000'
+                      currency: CAD
+                    status: PAID
+                    dueDate: '2026-07-20'
+                    createdAt: '2026-07-02T09:15:00Z'
+                    description: 7 月服务费
+                    paymentUrl: https://cashier.example.com/inv/inv_1000024_2002
+                    paidOrderId: P100240011
+                    hidden: true
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -680,6 +781,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentLinkListPage'
+              examples:
+                mixedTypes:
+                  summary: 三类链接统一列表（giftcard / product / ticket），含一条已停用
+                  value:
+                    total: 3
+                    data:
+                      - linkId: pl_1000024_3001
+                        type: giftcard
+                        name: 节日礼卡（升级）
+                        currency: CAD
+                        amountSummary: CA$25.00 – CA$50.00
+                        status: ACTIVE
+                        createdAt: '2026-07-10T10:00:00Z'
+                      - linkId: pl_1000024_3002
+                        type: product
+                        name: 门店周边商品
+                        currency: CAD
+                        amountSummary: CA$18.00+
+                        status: ACTIVE
+                        createdAt: '2026-07-12T09:30:00Z'
+                      - linkId: pl_1000024_3003
+                        type: ticket
+                        name: 秋季品鉴会门票
+                        currency: CAD
+                        amountSummary: CA$30.00 – CA$80.00
+                        status: DISABLED
+                        createdAt: '2026-07-15T14:20:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -922,6 +1050,122 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentLinkDetail'
+              examples:
+                giftcard:
+                  summary: 礼卡链接（Inventory Mode：面值档带只读 stock、无核销规则）
+                  value:
+                    linkId: pl_1000024_3001
+                    type: giftcard
+                    name: 节日礼卡（升级）
+                    currency: CAD
+                    status: ACTIVE
+                    createdAt: '2026-07-10T10:00:00Z'
+                    methods:
+                      - methodId: online-wechat
+                        family: wechat
+                        acceptanceMode: online
+                        displayName: WeChat Pay
+                      - methodId: online-credit_card
+                        family: credit_card
+                        acceptanceMode: online
+                        displayName: Credit Card
+                    buyerInformation:
+                      - Name
+                      - Email
+                    policies:
+                      faq:
+                        en: How do I redeem the card?
+                        zh: 如何兑换礼卡？
+                        fr: Comment échanger la carte?
+                      customerService:
+                        en: support@merchant.com
+                        zh: support@merchant.com
+                        fr: support@merchant.com
+                    paymentUrl: https://cashier.example.com/pl/pl_1000024_3001
+                    giftcard:
+                      giftCardName: lululemon Gift Card
+                      brandName: lululemon
+                      brandLogoRef: 3b6d9e07f4a24c1e8b52d079c6134ae8
+                      brandLogoUrl: https://files.example.com/o/3b6d9e07?exp=1755331200&sig=REDACTED&disp=inline
+                      campaignName: 2026 Christmas Promotion
+                      promotionType: discount
+                      fulfillmentMode: inventory
+                      emailLanguage: en
+                      maxPurchaseQuantity: 2
+                      maximumPurchaseAmount:
+                        amount: '10000'
+                        currency: CAD
+                      purchaseLimitCycle: biweekly
+                      orderRiskReview: true
+                      campaignEndDate: '2026-12-31'
+                      slogan: 送礼首选
+                      bannerRef: 5a2c84f1d09b4e73ac16f8b3e047d92c
+                      bannerUrl: https://files.example.com/o/5a2c84f1?exp=1755331200&sig=REDACTED&disp=inline
+                      denominations:
+                        - amount:
+                            amount: '2500'
+                            currency: CAD
+                          price:
+                            amount: '2500'
+                            currency: CAD
+                          discountAmount:
+                            amount: '250'
+                            currency: CAD
+                          stock: 120
+                        - amount:
+                            amount: '5000'
+                            currency: CAD
+                          price:
+                            amount: '5000'
+                            currency: CAD
+                          discountAmount:
+                            amount: '500'
+                            currency: CAD
+                          stock: 80
+                      recipientInformation:
+                        - Recipient Name
+                        - Recipient Email
+                ticket:
+                  summary: 票务链接（已停用；活动日期纯描述、不作销售 gate）
+                  value:
+                    linkId: pl_1000024_3003
+                    type: ticket
+                    name: 秋季品鉴会门票
+                    currency: CAD
+                    status: DISABLED
+                    createdAt: '2026-07-15T14:20:00Z'
+                    methods:
+                      - methodId: online-credit_card
+                        family: credit_card
+                        acceptanceMode: online
+                        displayName: Credit Card
+                    buyerInformation:
+                      - Name
+                      - Email
+                      - Phone
+                    policies:
+                      customerService:
+                        en: support@merchant.com
+                    paymentUrl: https://cashier.example.com/pl/pl_1000024_3003
+                    ticket:
+                      eventDate: '2026-10-18'
+                      venue: 88 King St W, Toronto
+                      bannerRef: 7e0b21c53fa84d69915cbd8e2740f3a1
+                      bannerUrl: https://files.example.com/o/7e0b21c5?exp=1755331200&sig=REDACTED&disp=inline
+                      tiers:
+                        - name: Early Bird
+                          price:
+                            amount: '3000'
+                            currency: CAD
+                          capacity: 100
+                          saleWindow:
+                            start: '2026-08-01T00:00:00Z'
+                            end: '2026-09-15T23:59:59Z'
+                        - name: Regular
+                          price:
+                            amount: '8000'
+                            currency: CAD
+                          capacity: 200
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1011,6 +1255,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentLinkDetail'
+              examples:
+                giftcardUpdated:
+                  summary: 改名 + 加一档面值后的详情（未传的 currency / methodIds 保持原值）
+                  value:
+                    linkId: pl_1000024_3001
+                    type: giftcard
+                    name: 节日礼卡（升级）
+                    currency: CAD
+                    status: ACTIVE
+                    createdAt: '2026-07-10T10:00:00Z'
+                    methods:
+                      - methodId: online-wechat
+                        family: wechat
+                        acceptanceMode: online
+                        displayName: WeChat Pay
+                      - methodId: online-credit_card
+                        family: credit_card
+                        acceptanceMode: online
+                        displayName: Credit Card
+                    buyerInformation:
+                      - Name
+                      - Email
+                    policies:
+                      faq:
+                        en: How do I redeem the card?
+                        zh: 如何兑换礼卡？
+                        fr: Comment échanger la carte?
+                      customerService:
+                        en: support@merchant.com
+                        zh: support@merchant.com
+                        fr: support@merchant.com
+                    paymentUrl: https://cashier.example.com/pl/pl_1000024_3001
+                    giftcard:
+                      giftCardName: lululemon Gift Card
+                      brandName: lululemon
+                      campaignName: 2026 Christmas Promotion
+                      promotionType: discount
+                      fulfillmentMode: inventory
+                      emailLanguage: en
+                      campaignEndDate: '2026-12-31'
+                      denominations:
+                        - amount:
+                            amount: '2500'
+                            currency: CAD
+                          price:
+                            amount: '2500'
+                            currency: CAD
+                          discountAmount:
+                            amount: '250'
+                            currency: CAD
+                          stock: 120
+                        - amount:
+                            amount: '5000'
+                            currency: CAD
+                          price:
+                            amount: '5000'
+                            currency: CAD
+                          discountAmount:
+                            amount: '500'
+                            currency: CAD
+                          stock: 80
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1083,6 +1388,61 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentLinkDetail'
+              examples:
+                disabled:
+                  summary: 切到 DISABLED —— 礼卡活动即随之关闭，该周期限购计数被重置
+                  value:
+                    linkId: pl_1000024_3001
+                    type: giftcard
+                    name: 节日礼卡（升级）
+                    currency: CAD
+                    status: DISABLED
+                    createdAt: '2026-07-10T10:00:00Z'
+                    methods:
+                      - methodId: online-wechat
+                        family: wechat
+                        acceptanceMode: online
+                        displayName: WeChat Pay
+                      - methodId: online-credit_card
+                        family: credit_card
+                        acceptanceMode: online
+                        displayName: Credit Card
+                    buyerInformation:
+                      - Name
+                      - Email
+                    policies:
+                      customerService:
+                        en: support@merchant.com
+                    paymentUrl: https://cashier.example.com/pl/pl_1000024_3001
+                    giftcard:
+                      giftCardName: lululemon Gift Card
+                      brandName: lululemon
+                      campaignName: 2026 Christmas Promotion
+                      promotionType: discount
+                      fulfillmentMode: inventory
+                      emailLanguage: en
+                      campaignEndDate: '2026-12-31'
+                      denominations:
+                        - amount:
+                            amount: '2500'
+                            currency: CAD
+                          price:
+                            amount: '2500'
+                            currency: CAD
+                          discountAmount:
+                            amount: '250'
+                            currency: CAD
+                          stock: 120
+                        - amount:
+                            amount: '5000'
+                            currency: CAD
+                          price:
+                            amount: '5000'
+                            currency: CAD
+                          discountAmount:
+                            amount: '500'
+                            currency: CAD
+                          stock: 80
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1129,6 +1489,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PoliciesAndSupportRead'
+              examples:
+                triLang:
+                  summary: 保存后回显 —— 本次未提交的三项与未填语种都不返回
+                  value:
+                    faq:
+                      en: How to redeem?
+                      zh: 如何兑换？
+                      fr: Comment échanger?
+                    customerService:
+                      en: support@merchant.com
+                      zh: support@merchant.com
+                      fr: support@merchant.com
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1186,6 +1558,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileUploadTarget'
+              examples:
+                issued:
+                  summary: Banner 直传目标 —— fields 原样全部提交，文件本体以 file 为名放最后
+                  value:
+                    fileId: 5a2c84f1d09b4e73ac16f8b3e047d92c
+                    action: https://files.example.com/direct-upload
+                    fields:
+                      key: merchant/1000024/payment-link-banner/5a2c84f1d09b4e73ac16f8b3e047d92c
+                      Content-Type: image/jpeg
+                      policy: REDACTED-BASE64-POLICY
+                      signature: REDACTED-SIGNATURE
+                    expiresAt: '2026-07-10T09:45:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1295,6 +1679,29 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RedemptionListPage'
+              examples:
+                voucherMode:
+                  summary: 礼卡 Voucher Mode 门店核销记录（状态取值不由本契约固定，勿 hardcode 下拉）
+                  value:
+                    total: 2
+                    data:
+                      - recordId: rd_1000024_5001
+                        recordKind: redemption
+                        code: VC-8842-1907
+                        redeemedAt: '2026-08-02T15:24:00Z'
+                        store: downtown-store
+                        terminal: SN-2026-0001
+                        operator: cashier01@merchant.com
+                        status: REDEEMED
+                      - recordId: rd_1000024_5002
+                        recordKind: redemption
+                        code: VC-8842-1908
+                        status: ISSUED
+                inventoryMode:
+                  summary: 礼卡 Inventory Mode —— 无平台核销，恒 0 条（本 tab 置灰）
+                  value:
+                    total: 0
+                    data: []
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1392,6 +1799,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeviceListPage'
+              examples:
+                mixed:
+                  summary: 待激活 / 在线 / 离线 / 已停用四种行；无连接态可言时不返回 connection
+                  value:
+                    total: 4
+                    data:
+                      - deviceId: dev_1000024_0001
+                        model: Sunmi V2 Pro
+                        source: Platform
+                        serialNumber: SN-2026-0001
+                        boundStore: downtown-store
+                        lifecycleStatus: PENDING_ACTIVATION
+                        createdAt: '2026-08-10T09:00:00Z'
+                      - deviceId: dev_1000024_0002
+                        model: Clover Flex
+                        source: Clover
+                        serialNumber: C032UQ52640073
+                        boundStore: downtown-store
+                        operatorEmail: cashier01@merchant.com
+                        firmwareOsVersion: Android 11 / 1.4.2
+                        appVersion: 3.8.0
+                        lifecycleStatus: ACTIVE
+                        connection: online
+                        lastActiveAt: '2026-08-17T09:52:00Z'
+                        createdAt: '2026-06-02T11:20:00Z'
+                      - deviceId: dev_1000024_0003
+                        model: 收银 App（softPOS）
+                        source: Platform
+                        serialNumber: APP-9F3C21A8
+                        boundStore: uptown-store
+                        operatorEmail: cashier02@merchant.com
+                        appVersion: 2.1.4
+                        lifecycleStatus: ACTIVE
+                        connection: offline
+                        lastActiveAt: '2026-08-16T20:11:00Z'
+                        createdAt: '2026-07-01T08:00:00Z'
+                      - deviceId: dev_1000024_0004
+                        model: PAX A920
+                        source: Unknown
+                        serialNumber: SN-2025-8813
+                        boundStore: uptown-store
+                        lifecycleStatus: DISABLED
+                        createdAt: '2026-03-14T13:45:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1438,6 +1888,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeviceDetail'
+              examples:
+                preRegistered:
+                  summary: 已预登记 —— 尚未激活，故不返回连接态 / 最近活跃时间 / 版本
+                  value:
+                    deviceId: dev_1000024_0001
+                    model: Sunmi V2 Pro
+                    source: Platform
+                    serialNumber: SN-2026-0001
+                    boundStore: downtown-store
+                    lifecycleStatus: PENDING_ACTIVATION
+                    createdAt: '2026-08-10T09:00:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1525,6 +1986,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeviceDetail'
+              examples:
+                activeOnline:
+                  summary: 已激活且在线 —— 两维状态（lifecycleStatus + connection）分开返回
+                  value:
+                    deviceId: dev_1000024_0002
+                    model: Clover Flex
+                    source: Clover
+                    serialNumber: C032UQ52640073
+                    boundStore: downtown-store
+                    operatorEmail: cashier01@merchant.com
+                    firmwareOsVersion: Android 11 / 1.4.2
+                    appVersion: 3.8.0
+                    lifecycleStatus: ACTIVE
+                    connection: online
+                    lastActiveAt: '2026-08-17T09:52:00Z'
+                    createdAt: '2026-06-02T11:20:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1589,6 +2066,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeviceDetail'
+              examples:
+                disabled:
+                  summary: 停用后 —— 无连接态可言，故不返回 connection
+                  value:
+                    deviceId: dev_1000024_0002
+                    model: Clover Flex
+                    source: Clover
+                    serialNumber: C032UQ52640073
+                    boundStore: downtown-store
+                    operatorEmail: cashier01@merchant.com
+                    firmwareOsVersion: Android 11 / 1.4.2
+                    appVersion: 3.8.0
+                    lifecycleStatus: DISABLED
+                    lastActiveAt: '2026-08-17T09:52:00Z'
+                    createdAt: '2026-06-02T11:20:00Z'
+                enabledStillOffline:
+                  summary: 启用后 —— 无人登录期间仍是 offline，这不是启用失败
+                  value:
+                    deviceId: dev_1000024_0002
+                    model: Clover Flex
+                    source: Clover
+                    serialNumber: C032UQ52640073
+                    boundStore: downtown-store
+                    operatorEmail: cashier01@merchant.com
+                    firmwareOsVersion: Android 11 / 1.4.2
+                    appVersion: 3.8.0
+                    lifecycleStatus: ACTIVE
+                    connection: offline
+                    lastActiveAt: '2026-08-17T09:52:00Z'
+                    createdAt: '2026-06-02T11:20:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1647,6 +2154,25 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeviceLogListPage'
+              examples:
+                mixed:
+                  summary: 首期 3 类日志混排，按时间倒序；无备注 / 无归属操作方的键不返回
+                  value:
+                    total: 3
+                    data:
+                      - type: transaction
+                        event: Payment captured
+                        notes: Order P100240021 · CA$48.50 · WeChat Pay
+                        actor: cashier01@merchant.com
+                        timestamp: '2026-08-17T09:52:00Z'
+                      - type: connection
+                        event: Device online
+                        actor: system
+                        timestamp: '2026-08-17T08:30:00Z'
+                      - type: auth
+                        event: Operator signed in
+                        actor: cashier01@merchant.com
+                        timestamp: '2026-08-17T08:29:00Z'
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema:
                 type: string
@@ -1715,6 +2241,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GeneralSettings'
+              examples:
+                current:
+                  summary: 当前生效值 —— orderExpiryMinutes 恒有值，前端按分钟数自行格式化展示
+                  value:
+                    orderExpiryMinutes: 15
+                    customerServiceFeeEnabled: false
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1787,6 +2319,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GeneralSettings'
+              examples:
+                saved:
+                  summary: 改为 30 分钟后的整组配置（Service Fee 开关不受本次影响）
+                  value:
+                    orderExpiryMinutes: 30
+                    customerServiceFeeEnabled: false
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1819,6 +2357,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/GeneralSettings'
+              examples:
+                enabled:
+                  summary: 已开启客户服务费（总开关，无费率字段）
+                  value:
+                    orderExpiryMinutes: 30
+                    customerServiceFeeEnabled: true
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1839,6 +2383,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReceiptContentRead'
+              examples:
+                configured:
+                  summary: 已配置打印 logo 与附加内容（logoPrintUrl 由服务端换出，供预览）
+                  value:
+                    logoPrint: 7d41b0e9c8524a1fb63e05d7a92c8f16
+                    logoPrintUrl: https://files.example.com/o/7d41b0e9?exp=1755331200&sig=REDACTED&disp=inline
+                    additionalContent: Maple Bistro · 88 King St W, Toronto · Thanks for your visit!
+                    receiptQrType: standard
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1865,6 +2417,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReceiptContentRead'
+              examples:
+                saved:
+                  summary: 保存后回显 —— 本次只改附加内容，打印 logo 保持原样
+                  value:
+                    logoPrint: 7d41b0e9c8524a1fb63e05d7a92c8f16
+                    logoPrintUrl: https://files.example.com/o/7d41b0e9?exp=1755331200&sig=REDACTED&disp=inline
+                    additionalContent: Maple Bistro · Follow us @maplebistro for weekly specials
+                    receiptQrType: standard
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:

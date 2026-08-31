@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户实体 — 前端契约面
-  version: 0.23.4
+  version: 0.23.5
   contact:
     name: 商户后台 BFF
   description: |
@@ -303,6 +303,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileUploadTarget'
+              example:
+                fileId: 2b6e0a94c73f41d5891ae4f0c62d7b18
+                action: https://uploads.example.com/merchant-files
+                fields:
+                  key: merchants/1000023/logo/2b6e0a94c73f41d5891ae4f0c62d7b18
+                  Content-Type: image/png
+                  policy: eyJleHBpcmF0aW9uIjoiMjAyNi0wNi0yMlQxMDoxNTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJhbHBoYXBheS1tZXJjaGFudC1maWxlcyJ9LFsiZXEiLCIka2V5IiwibWVyY2hhbnRzLzEwMDAwMjMvbG9nby8yYjZlMGE5NGM3M2Y0MWQ1ODkxYWU0ZjBjNjJkN2IxOCJdLFsiZXEiLCIkQ29udGVudC1UeXBlIiwiaW1hZ2UvcG5nIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwyMDk3MTUyXV19
+                  x-amz-algorithm: AWS4-HMAC-SHA256
+                  x-amz-credential: AKIAIOSFODNN7EXAMPLE/20260622/ca-central-1/s3/aws4_request
+                  x-amz-date: 20260622T100000Z
+                  x-amz-signature: b48f2c7e05a1d963c8027fb4e15a3d6087c92f40be1d7a35c604e829f7b1d052
+                expiresAt: '2026-06-22T10:15:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -453,6 +465,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileUploadTarget'
+              example:
+                fileId: 7d41b9c05e2a48f3ab6c1d802f5e9a37
+                action: https://uploads.example.com/merchant-files
+                fields:
+                  key: merchants/1000023/settlement/7d41b9c05e2a48f3ab6c1d802f5e9a37
+                  Content-Type: application/pdf
+                  policy: eyJleHBpcmF0aW9uIjoiMjAyNi0wNi0yMlQxNToxMDowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJhbHBoYXBheS1tZXJjaGFudC1maWxlcyJ9LFsiZXEiLCIka2V5IiwibWVyY2hhbnRzLzEwMDAwMjMvc2V0dGxlbWVudC83ZDQxYjljMDVlMmE0OGYzYWI2YzFkODAyZjVlOWEzNyJdLFsiZXEiLCIkQ29udGVudC1UeXBlIiwiYXBwbGljYXRpb24vcGRmIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSw1MjQyODgwXV19
+                  x-amz-algorithm: AWS4-HMAC-SHA256
+                  x-amz-credential: AKIAIOSFODNN7EXAMPLE/20260622/ca-central-1/s3/aws4_request
+                  x-amz-date: 20260622T145500Z
+                  x-amz-signature: 3c90a7e14bd25f08a6c31e97fb420d85a7e6c193f024b8d5710ea936c48f2b71
+                expiresAt: '2026-06-22T15:10:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1292,6 +1316,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/FileUploadTarget'
+              example:
+                fileId: e903c15b7a2d4e6fb81c30947da5f2e6
+                action: https://uploads.example.com/merchant-files
+                fields:
+                  key: merchants/1000023/store-photo/e903c15b7a2d4e6fb81c30947da5f2e6
+                  Content-Type: image/jpeg
+                  policy: eyJleHBpcmF0aW9uIjoiMjAyNi0wNi0yNFQwOTo0NTowMFoiLCJjb25kaXRpb25zIjpbeyJidWNrZXQiOiJhbHBoYXBheS1tZXJjaGFudC1maWxlcyJ9LFsiZXEiLCIka2V5IiwibWVyY2hhbnRzLzEwMDAwMjMvc3RvcmUtcGhvdG8vZTkwM2MxNWI3YTJkNGU2ZmI4MWMzMDk0N2RhNWYyZTYiXSxbImVxIiwiJENvbnRlbnQtVHlwZSIsImltYWdlL2pwZWciXSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTJdXX0=
+                  x-amz-algorithm: AWS4-HMAC-SHA256
+                  x-amz-credential: AKIAIOSFODNN7EXAMPLE/20260624/ca-central-1/s3/aws4_request
+                  x-amz-date: 20260624T093000Z
+                  x-amz-signature: df205e83a94c176b0e3f8a52dc61947b03e5f81a7c2d940b6e18f35a2c079d64
+                expiresAt: '2026-06-24T09:45:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
