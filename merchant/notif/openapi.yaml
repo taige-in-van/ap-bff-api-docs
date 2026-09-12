@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 通知 — 前端契约面
-  version: 0.8.6
+  version: 1.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -712,36 +712,36 @@ components:
           description: |
             绑定会话 id：轮询本次绑定进度用；**二维码到期后仍然可用**（不是一次性查询票）。 二维码过期后 `sessionId` **仍可继续轮询**——用户已在微信内确认但尚未落地时，绑定会经由本次扫码完成，因此它不是「用完即弃的查询票」； 跨商户 / 不存在一律 404。
         status:
-          type: string
-          const: PENDING
-          description: 创建即 PENDING（待扫码）
+          allOf:
+            - $ref: '#/components/schemas/WechatBindSessionState'
+          description: 会话状态。创建即 `PENDING`（待扫码）——**本端点恒为** `PENDING`，后续变化经 getWechatBindSession 轮询可见
         qrContent:
           $ref: '#/components/schemas/WechatQrContent'
         expiresAt:
           allOf:
             - $ref: '#/components/schemas/WechatQrExpiresAt'
           description: 二维码有效期截止（到点即不能再扫；**不是会话的生命周期**——会话仍留存，已确认的绑定不因此作废）
-    WechatBindSessionStatus:
+    WechatBindSessionState:
+      type: string
+      enum:
+        - PENDING
+        - COMPLETED
+        - QR_EXPIRED
       description: |
-        绑定会话状态。本 schema 是**封闭判别联合**（`oneOf` + `status` discriminator）——三态穷举，
-        由此换得一条 schema 级保证：`COMPLETED` **必携** `boundRecipient`（前端不必对「完成但没有接收方」做防御）。
+        绑定会话状态（封闭枚举，取值集固定、可穷举分支）：
 
-        **按 status 三态分支**：
-        `PENDING` 待扫码（无接收方）/ `COMPLETED` 绑定完成（**必携 boundRecipient**；同一微信身份重复扫码返回既有接收方、
-        不重复加入）/ `QR_EXPIRED` **到期派生**（`PENDING 且 now > expiresAt`；用户取消 / 关页只是前端停止轮询）（无接收方）。
-      oneOf:
-        - $ref: '#/components/schemas/WechatBindSessionPending'
-        - $ref: '#/components/schemas/WechatBindSessionCompleted'
-        - $ref: '#/components/schemas/WechatBindSessionQrExpired'
-      discriminator:
-        propertyName: status
-        mapping:
-          PENDING: '#/components/schemas/WechatBindSessionPending'
-          COMPLETED: '#/components/schemas/WechatBindSessionCompleted'
-          QR_EXPIRED: '#/components/schemas/WechatBindSessionQrExpired'
-    WechatBindSessionPending:
+        - `PENDING` —— 待扫码 / 已扫未确认 / 已确认但结果尚未落地（**三者对前端表现一致**）；
+        - `COMPLETED` —— 绑定完成（终态，状态不回退）；
+        - `QR_EXPIRED` —— **到期派生**（`PENDING 且 now > expiresAt`）：二维码已不能再扫，但**不是终态、也不是失败证据**——用户若已在微信内完成确认、只是绑定尚未在本侧落地，仍可能随后转为 `COMPLETED`，**不得据本状态清理本地状态或阻止后续** `COMPLETED`。
+
+        枚举里没有「已取消」——用户取消 / 关页只是前端停止轮询；何时停止轮询由前端自行决定，停止不影响绑定成立（已确认的绑定会在有界时延内出现在通知设置页的接收方列表）。
+    WechatBindSessionStatus:
       type: object
       additionalProperties: false
+      description: |
+        绑定会话状态（轮询响应）。随 `status` 出现的键只有一个：`COMPLETED` **必携** `boundRecipient`（同一微信身份重复扫码返回既有接收方、不重复加入），其余状态不返回本键。
+
+        `expiresAt` 恒在——到期只表示这张二维码不能再扫，不是会话的生命周期。
       required:
         - sessionId
         - status
@@ -750,48 +750,14 @@ components:
         sessionId:
           type: string
         status:
-          type: string
-          const: PENDING
-        expiresAt:
-          allOf:
-            - $ref: '#/components/schemas/WechatQrExpiresAt'
-    WechatBindSessionCompleted:
-      type: object
-      additionalProperties: false
-      required:
-        - sessionId
-        - status
-        - expiresAt
-        - boundRecipient
-      properties:
-        sessionId:
-          type: string
-        status:
-          type: string
-          const: COMPLETED
+          $ref: '#/components/schemas/WechatBindSessionState'
         expiresAt:
           allOf:
             - $ref: '#/components/schemas/WechatQrExpiresAt'
         boundRecipient:
-          $ref: '#/components/schemas/WechatNotifyRecipient'
-    WechatBindSessionQrExpired:
-      type: object
-      additionalProperties: false
-      description: |
-        **不是终态、也不是失败证据**：二维码已不能再扫，但用户若已在微信内完成确认、只是绑定尚未在本侧落地， 本状态仍可能随后转为 `COMPLETED`——**不得据本状态清理本地状态或阻止后续** `COMPLETED`。 何时停止轮询由前端自行决定；停止不影响绑定成立（已确认的绑定会在有界时延内出现在通知设置页的接收方列表）。
-      required:
-        - sessionId
-        - status
-        - expiresAt
-      properties:
-        sessionId:
-          type: string
-        status:
-          type: string
-          const: QR_EXPIRED
-        expiresAt:
           allOf:
-            - $ref: '#/components/schemas/WechatQrExpiresAt'
+            - $ref: '#/components/schemas/WechatNotifyRecipient'
+          description: 绑定成功的接收方。**仅 `status=COMPLETED` 时返回本键**（此时必返）
     NoticeStyle:
       type: string
       enum:
@@ -894,9 +860,9 @@ components:
         noticeId:
           type: string
         status:
-          type: string
-          const: READ
-          description: 已读回执成功后恒为 READ（READ 为终态、单向不回退）
+          allOf:
+            - $ref: '#/components/schemas/NoticeStatus'
+          description: 回执后的已读态——**本端点恒为** `READ`（已读回执成功即 READ；READ 为终态、单向不回退）
         unreadCount:
           type: integer
           minimum: 0
@@ -904,6 +870,27 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -954,9 +941,22 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
     Timestamp:
       type: string
       format: date-time
@@ -967,7 +967,7 @@ components:
         - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
           「出参 Z」是约定、非 schema 可强制)。
 
-        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+        展示由消费方按**本地时区**换算(浏览器端即浏览器时区);商户配置的 IANA 时区是**服务端固化日期字段**时用的,不用于展示换算。
 
         **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
         **别拿本类型自己推**：两者在跨日边界附近会分属两天。

@@ -43,7 +43,7 @@
 | 币种 / 时区 | `currency` / `timeZone` | 金额按 `currency` 展示；`timeZone` 仅作商户上下文标注，**不得用于日期换算** |
 | KPI 三项组 | `kpi.grossSales` / `kpi.refundAmount` / `kpi.netSales` | **三项同进同出**：要么都 `available`（各带 `amount`）、要么都 `unavailable` |
 | KPI 独立项 | `kpi.toSettle` | **独立**：可与上面三项状态不同；反映当前待结算，**不随时间窗变化**，与账户账务与清结算页口径一致 |
-| 分布 | `distribution.slices[]`（`paymentMethod.code` / `paymentMethod.displayName` / `amount` / `aggregated`）| **独立**块；占比由前端从各分片 `amount` 派生（合计 100%）；`aggregated=true` 的分片是归并「其他」（`code` 为 `_other`，**至多一片**）；**按返回顺序渲染、不要自行排序**（非聚合片已按金额降序，聚合片恒置末位——它的金额可能大于某个上榜方式，位置由规则定不由金额定；照序渲染图例配色才稳定），`code` 在同一响应内唯一、可直接作渲染 key；`slices: []` = 空态 |
+| 分布 | `distribution.slices[]`（`paymentMethod.code` / `paymentMethod.displayName` / `amount`）| **独立**块；占比由前端从各分片 `amount` 派生（合计 100%）；`code` 为 `_other` 的分片是归并「其他」（**至多一片**）；**按返回顺序渲染、不要自行排序**（非聚合片已按金额降序，聚合片恒置末位——它的金额可能大于某个上榜方式，位置由规则定不由金额定；照序渲染图例配色才稳定），`code` 在同一响应内唯一、可直接作渲染 key；`slices: []` = 空态 |
 
 - 每块按各自 `status` 渲染：`available` 展示值（含 `"0"` 空态）、`unavailable` 展示「暂不可用」（**不以 0 冒充**）。
 - **两个字段可能为负，成因各不相同**：`refundAmount` 为负 = 该窗回冲多于已落账退款（净退款为负）；`netSales` 为负 = 该窗退款大于收款。**别把后者的成因套到前者上**。一律按**有符号金额原样渲染**，**不得 `Math.max(0, x)` / 取绝对值**；负号按当前 locale 呈现。

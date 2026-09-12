@@ -88,6 +88,16 @@
       "name": "SETTLEMENT_FIELD_INVALID",
       "retryable": false
     },
+    "204018": {
+      "httpStatus": 400,
+      "name": "WITHDRAWAL_BELOW_MINIMUM",
+      "retryable": false
+    },
+    "204019": {
+      "httpStatus": 400,
+      "name": "ORDER_EXPIRY_NOT_IN_OPTIONS",
+      "retryable": false
+    },
     "206001": {
       "httpStatus": 410,
       "name": "AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED",
@@ -269,11 +279,6 @@
       "name": "ONBOARDING_WITHDRAWAL_NOT_APPLICABLE",
       "retryable": false
     },
-    "208025": {
-      "httpStatus": 409,
-      "name": "PAYMENT_LINK_FIELD_FROZEN_AFTER_SALE",
-      "retryable": false
-    },
     "208026": {
       "httpStatus": 409,
       "name": "ACCEPTANCE_MODE_ALREADY_ACTIVE",
@@ -295,6 +300,24 @@
       "requiredContextFields": [
         "maskedEmail"
       ],
+      "retryable": false
+    },
+    "208030": {
+      "httpStatus": 409,
+      "name": "PRODCFG_INFO_FIELDS_INVALID",
+      "retryable": false
+    },
+    "208031": {
+      "httpStatus": 409,
+      "name": "PRODCFG_ITEM_LIMIT_BELOW_COMMITTED",
+      "requiredContextFields": [
+        "committedQuantity"
+      ],
+      "retryable": false
+    },
+    "208032": {
+      "httpStatus": 409,
+      "name": "PRODCFG_ITEM_UNKNOWN",
       "retryable": false
     },
     "966001": {

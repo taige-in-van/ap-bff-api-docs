@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户实体 — 前端契约面
-  version: 0.23.5
+  version: 2.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -118,23 +118,25 @@ paths:
                   postalCode: V6B1A1
                   country: CA
                   timeZone: America/Vancouver
-                  businessPhone: '6045550123'
+                  businessPhone: '+16045550123'
                 settlement:
                   legalBusinessName: Jane Coffee Inc.
                   bankName: RBC
-                  transitNumber: '12345'
-                  institutionNumber: '003'
-                  accountNumberMasked: •••• 5678
+                  bankAccount:
+                    type: ca_local
+                    transitNumber: '12345'
+                    institutionNumber: '003'
+                    accountNumberMasked: •••• 5678
+                    accountNumberSet: true
                   settlementSchedule: t2
                   storeId: STORE-01
                   pendingReview: false
                 contactInformation:
                   contactName: Jane Merchant
                   contactTitle: Manager
-                  phone: '6045550123'
+                  phone: '+16045550123'
                   email: jane@example.com
                 funds:
-                  available: true
                   accountBalance:
                     amount: '1250000'
                     currency: CAD
@@ -185,7 +187,7 @@ paths:
               postalCode: V6B1A1
               country: CA
               timeZone: America/Toronto
-              businessPhone: '6045550199'
+              businessPhone: '+16045550199'
       responses:
         '204':
           description: 已保存（新值直接生效）
@@ -202,7 +204,14 @@ paths:
       operationId: getBusinessInformationOptions
       summary: Business Information 可选值域（表单候选集）
       description: |
-        下发 Business Information section 中**取值域由后端动态配置**的字段候选集，供前端渲染选项。 当前仅 `timeZone`（IANA tz 白名单，与商户 country 联动）——**契约不写死候选集**， 运营 / 部署可调整；该 section 后续若有其他动态值域，同址扩展。 只读、无副作用；不含任何商户可编辑值本身（当前值取 `getAccountProfile`）。
+        下发 Business Information section 中**取值域由后端动态配置**的字段候选集，供前端渲染选项：
+
+        - `countryOptions` —— 可选国家；每国带自己的省 / 州候选、邮编规则与时区候选。`country` 是可编辑字段，**改国家即切换这三组**；
+        - `phoneCountryCodes` —— 电话区号白名单。**本页 Contact section 的联系人电话编辑**（写走认证契约的 `updateOwnerContact`）**复用这一份**，不另取。
+
+        **契约不写死候选集**，运营 / 部署可调整；该 section 后续若有其他动态值域，同址扩展。
+
+        只读、无副作用；不含任何商户可编辑值本身（当前值取 `getAccountProfile`）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -213,12 +222,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/BusinessInformationOptions'
               example:
-                timeZoneOptions:
-                  - America/Vancouver
-                  - America/Edmonton
-                  - America/Winnipeg
-                  - America/Toronto
-                  - America/Halifax
+                countryOptions:
+                  - code: CA
+                    provinces:
+                      - code: BC
+                        displayName: British Columbia
+                      - code: 'ON'
+                        displayName: Ontario
+                    postalCode:
+                      pattern: ^[A-Z]\d[A-Z] ?\d[A-Z]\d$
+                      example: V6B 1A1
+                    timeZones:
+                      - America/Vancouver
+                      - America/Edmonton
+                      - America/Winnipeg
+                      - America/Toronto
+                      - America/Halifax
+                  - code: US
+                    provinces:
+                      - code: WA
+                        displayName: Washington
+                      - code: NY
+                        displayName: New York
+                    postalCode:
+                      pattern: ^\d{5}(-\d{4})?$
+                      example: '98101'
+                    timeZones:
+                      - America/Los_Angeles
+                      - America/Denver
+                      - America/Chicago
+                      - America/New_York
+                phoneCountryCodes:
+                  - code: CA
+                    dialCode: '+1'
+                  - code: HK
+                    dialCode: '+852'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -230,7 +268,7 @@ paths:
       operationId: getSettlementOptions
       summary: Settlement section 可选值域（表单候选集）
       description: |
-        下发 Settlement section 中**取值域由后端动态配置**的字段候选集，供前端渲染选项。 当前仅 `settlementCycleOptions`——**契约不写死候选集**，运营 / 部署可调整； 该 section 后续若有其他动态值域，同址扩展。 只读、无副作用；不含任何商户当前值（当前值取 `getAccountProfile`）。
+        下发 Settlement section 中**取值域由后端动态配置**的字段候选集，供前端渲染选项。 含 `settlementCycleOptions`（结算周期档位）与 `bankAccountTypes`（结算币种 → 允许的银行账户制式集）——**契约不写死候选集**，运营 / 部署可调整； 该 section 后续若有其他动态值域，同址扩展。 只读、无副作用；不含任何商户当前值（当前值取 `getAccountProfile`）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -241,6 +279,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/SettlementOptions'
               example:
+                bankAccountTypes:
+                  - currency: CAD
+                    types:
+                      - ca_local
+                  - currency: USD
+                    types:
+                      - ca_local
+                      - us_local
                 settlementCycleOptions:
                   - code: t2
                     displayName: T+2 Business Days
@@ -285,8 +331,7 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      enum:
-                        - merchant_logo
+                      description: 本端点固定传 `merchant_logo`；其他用途 → 400
                     contentType:
                       enum:
                         - image/png
@@ -404,9 +449,12 @@ paths:
               example:
                 legalBusinessName: Jane Coffee Inc.
                 bankName: RBC
-                transitNumber: '12345'
-                institutionNumber: '003'
-                accountNumberMasked: •••• 5678
+                bankAccount:
+                  type: ca_local
+                  transitNumber: '12345'
+                  institutionNumber: '003'
+                  accountNumberMasked: •••• 5678
+                  accountNumberSet: true
                 settlementSchedule: t2
                 storeId: STORE-01
                 pendingReview: false
@@ -446,8 +494,7 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      enum:
-                        - settlement_void_cheque
+                      description: 本端点固定传 `settlement_void_cheque`；其他用途 → 400
                     contentType:
                       enum:
                         - image/png
@@ -504,24 +551,24 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - changes
-              description: OTP 绑定的变更意图：服务端把 changes 锚定到本次挑战
-              properties:
-                changes:
-                  $ref: '#/components/schemas/SettlementChanges'
-                voidChequeRef:
-                  type: string
-                  description: bank-related 变更：绑定的 Void cheque 引用（须与最终 create 一致）
-            example:
-              changes:
-                bankName: TD
-                transitNumber: '54321'
-                institutionNumber: '004'
-                accountNumber: '12345678'
-              voidChequeRef: 7d41b9c05e2a48f3ab6c1d802f5e9a37
+              $ref: '#/components/schemas/SettlementOtpRequest'
+            examples:
+              bank:
+                summary: bank 变更（Void cheque 之后发码）
+                value:
+                  changes:
+                    bankName: TD
+                    bankAccount:
+                      type: ca_local
+                      transitNumber: '54321'
+                      institutionNumber: '004'
+                      accountNumber: '12345678'
+                  voidChequeRef: 7d41b9c05e2a48f3ab6c1d802f5e9a37
+              nonBank:
+                summary: 非 bank 变更（唯一前置）
+                value:
+                  changes:
+                    settlementSchedule: t3
       responses:
         '202':
           description: OTP 已发送（展示脱敏 Owner email）
@@ -639,9 +686,11 @@ paths:
                   voidChequeRef: 7d41b9c05e2a48f3ab6c1d802f5e9a37
                   changes:
                     bankName: TD
-                    transitNumber: '54321'
-                    institutionNumber: '004'
-                    accountNumber: '12345678'
+                    bankAccount:
+                      type: ca_local
+                      transitNumber: '54321'
+                      institutionNumber: '004'
+                      accountNumber: '12345678'
               nonBank:
                 summary: 非 bank-related 变更（仅 storeId / schedule）
                 value:
@@ -673,12 +722,12 @@ paths:
       tags:
         - refund-pin
       operationId: setRefundPin
-      summary: 设置 Refund PIN（oneOf 授权：旧 PIN 改 / Forgot PIN reset-challenge OTP）
+      summary: 设置 Refund PIN（二选一授权：旧 PIN 改 / Forgot PIN reset-challenge OTP）
       description: |
-        两种授权方式设新 PIN（oneOf 二选一），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。
+        两种授权方式设新 PIN（二选一：传 `currentPin`，或传 `challengeId` + `code`），共同：new == confirm + 记录审计 + 触发 PIN-changed 通知邮件 + 旧 PIN 失效。
 
-        - ① **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400。成功后未完成的 Forgot PIN reset challenge 失效。
-        - ② **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 是通用校验失败、**不声明** `204010`（即不承诺结构化剩余次数——区别于纯 OTP verify 端点）。OTP 一次性消费。
+        - **改（currentPin 授权）**：校验 current PIN → 写 new PIN（new ≠ current）。current 不匹配 / new == current / 格式非法 → 400；**current PIN 连续错误达上限 → `423`·206004（临时锁定，`context.cooldownSeconds` 给剩余秒数；锁定期间不校验、不改 PIN，前端据此提示等待、勿引导原地重输）**。成功后未完成的 Forgot PIN reset challenge 失效。
+        - **Forgot 重置（reset-challenge OTP 授权）**：先 POST /account/refund-pin/reset-challenges 发 Owner email OTP，再凭 challengeId + code 授权 → 写 new PIN。OTP 错误可重试 400 / 超限锁定 423 / 过期已消费 410（均不持久化）。本 op 为 PIN 设置端点、OTP 校验内联，400 是通用校验失败、**不声明** `204010`（即不承诺结构化剩余次数——区别于纯 OTP verify 端点）。OTP 一次性消费。
 
         幂等：必带 `Idempotency-Key`。授权凭据校验一次即失效，**网络重试务必复用同一个键**——同键 + 同请求体重发返首次结果（`204`），不会因「凭据已用过」而假失败；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
       parameters:
@@ -690,51 +739,38 @@ paths:
         content:
           application/json:
             schema:
-              oneOf:
-                - title: ChangeByCurrentPin
-                  type: object
-                  additionalProperties: false
-                  required:
-                    - currentPin
-                    - newPin
-                    - confirmPin
-                  properties:
-                    currentPin:
-                      allOf:
-                        - $ref: '#/components/schemas/RefundPin'
-                      description: 当前 Refund PIN（须匹配）
-                    newPin:
-                      allOf:
-                        - $ref: '#/components/schemas/RefundPin'
-                      description: 新 PIN；不可与 `currentPin` 相同
-                    confirmPin:
-                      allOf:
-                        - $ref: '#/components/schemas/RefundPin'
-                      description: 须与 `newPin` 一致
-                - title: ResetByChallenge
-                  type: object
-                  additionalProperties: false
-                  required:
-                    - challengeId
-                    - code
-                    - newPin
-                    - confirmPin
-                  properties:
-                    challengeId:
-                      type: string
-                      description: reset-challenge 实例 id
-                    code:
-                      allOf:
-                        - $ref: '#/components/schemas/OtpCode'
-                      description: Owner email 重置 OTP
-                    newPin:
-                      allOf:
-                        - $ref: '#/components/schemas/RefundPin'
-                      description: 新 PIN
-                    confirmPin:
-                      allOf:
-                        - $ref: '#/components/schemas/RefundPin'
-                      description: 须与 `newPin` 一致
+              type: object
+              additionalProperties: false
+              description: |
+                两条授权路径、**同一个请求体**，恰选其一（服务端校验，不满足 → 400）：
+
+                - **改 PIN**：传 `currentPin`（当前 PIN 授权），不带 `challengeId` / `code`；
+                - **Forgot PIN 重置**：传 `challengeId` + `code`（reset-challenge OTP 授权，两者同进同出），不带 `currentPin`。
+
+                `newPin` / `confirmPin` 两条路径都必填。
+              required:
+                - newPin
+                - confirmPin
+              properties:
+                currentPin:
+                  allOf:
+                    - $ref: '#/components/schemas/RefundPin'
+                  description: 改 PIN 路径：当前 Refund PIN（须匹配）
+                challengeId:
+                  type: string
+                  description: Forgot PIN 路径：reset-challenge 实例 id（与 `code` 同进同出）
+                code:
+                  allOf:
+                    - $ref: '#/components/schemas/OtpCode'
+                  description: Forgot PIN 路径：Owner email 重置 OTP（与 `challengeId` 同进同出）
+                newPin:
+                  allOf:
+                    - $ref: '#/components/schemas/RefundPin'
+                  description: 新 PIN；改 PIN 路径下不可与 `currentPin` 相同
+                confirmPin:
+                  allOf:
+                    - $ref: '#/components/schemas/RefundPin'
+                  description: 须与 `newPin` 一致
             examples:
               change:
                 summary: 旧 PIN 授权改
@@ -755,6 +791,7 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
+        - 206004
         - 206006
         - 206007
         - 208001
@@ -787,6 +824,49 @@ paths:
       x-error-codes:
         - 208001
         - 208013
+  /merchants/options:
+    get:
+      tags:
+        - merchants
+      operationId: getMerchantCreationOptions
+      summary: Add Merchant 表单可选值域（有效 Currency × Country 组合）
+      description: |
+        Add Merchant 弹窗渲染所需的候选值集。**组合由后端配置决定、契约不写死**——客户端从本端点渲染国别与币种下拉、并按所选项联动，**不要 hardcode 组合表**。
+
+        提交 `addMerchant` 时 `country` 与 `currency` 必须取自本端点返回的某一条组合；服务端在提交面重校，非法组合 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: OK（Add Merchant 可选值域）
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - currencyCountries
+                properties:
+                  currencyCountries:
+                    type: array
+                    readOnly: true
+                    minItems: 1
+                    description: 有效 Currency × Country 组合（部署配置驱动）。
+                    items:
+                      $ref: '#/components/schemas/CurrencyCountry'
+              example:
+                currencyCountries:
+                  - currency: CAD
+                    countries:
+                      - CA
+                  - currency: USD
+                    countries:
+                      - CA
+                      - US
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
   /merchants:
     get:
       tags:
@@ -794,7 +874,7 @@ paths:
       operationId: listMerchants
       summary: switcher 商户列表（仅 ACTIVE / INCOMPLETE / PENDING_REVIEW；REJECTED 不显）
       description: |
-        返回当前用户可访问的关联商户，**仅 ACTIVE / INCOMPLETE / PENDING_REVIEW 三类状态**（REJECTED 不在 switcher 展示，其拒绝展示归入驻流程）+ 当前选中标识。 INCOMPLETE / PENDING_REVIEW 商户的撤回入驻入口、Add Merchant 入口是否展示由 RBAC 决定（前端按权限渲染）。
+        返回当前用户可访问的关联商户，**仅 ACTIVE / INCOMPLETE / PENDING_REVIEW 三类状态**（REJECTED 不在 switcher 展示，其拒绝展示归入驻流程）+ 当前选中标识。 INCOMPLETE / PENDING_REVIEW 商户的撤回入驻入口、Add Merchant 入口**按 `getCurrentSession` 的 `privileges` 渲染**——集合里有对应权限点才显示，没有就不显示（别按角色或 `isOwner` 判）。
       responses:
         '200':
           description: OK（switcher 列表）
@@ -819,10 +899,12 @@ paths:
                   - merchantId: '1000023'
                     merchantCode: C3BM68
                     tradeName: Jane's Coffee
+                    currency: CAD
                     status: ACTIVE
                   - merchantId: '1000024'
                     merchantCode: C3BM72
                     tradeName: Jane's Coffee Downtown
+                    currency: CAD
                     status: INCOMPLETE
                     relationType: branch
         default:
@@ -877,9 +959,9 @@ paths:
                     type: string
                     description: Merchant ID（对外展示；创建商户时分配）
                   status:
-                    type: string
-                    enum:
-                      - INCOMPLETE
+                    allOf:
+                      - $ref: '#/components/schemas/MerchantStatus'
+                    description: 商户状态；本端点恒为 `INCOMPLETE`（新建关联商户尚未完成入驻）
               example:
                 merchantId: '1000042'
                 merchantCode: C3BM90
@@ -1005,7 +1087,6 @@ paths:
                 acceptanceModes:
                   - mode: in_store
                     status: ACTIVE
-                    pendingUrlChange: false
                     paymentMethods:
                       - methodId: instore-wechat
                         displayName: WeChat Pay
@@ -1020,8 +1101,8 @@ paths:
                         enabled: false
                   - mode: online
                     status: ACTIVE
+                    onlineServiceType: Website
                     websiteUrl: https://shop.example.com
-                    pendingUrlChange: false
                     paymentMethods:
                       - methodId: online-wechat
                         displayName: WeChat Pay
@@ -1035,10 +1116,10 @@ paths:
                         enabled: false
                 integrations:
                   terminal:
-                    connected: true
-                    activeProvider: moneris
-                    threedsEnabled: true
-                    credentialSummary: Store ID ••• 4321
+                    active:
+                      provider: moneris
+                      threedsEnabled: true
+                      credentialSummary: Store ID ••• 4321
                     retained:
                       - provider: clover
                         threedsEnabled: false
@@ -1048,7 +1129,6 @@ paths:
                       provider: shopify
                       status: ACTIVE
                       websiteUrl: https://shop.example.com
-                      pendingUrlChange: false
                       paymentMethodConfig:
                         - online-wechat
                         - online-alipay
@@ -1172,9 +1252,9 @@ paths:
                   mode:
                     $ref: '#/components/schemas/AcceptanceModeType'
                   status:
-                    type: string
-                    enum:
-                      - PENDING_REVIEW
+                    allOf:
+                      - $ref: '#/components/schemas/AcceptanceModeStatus'
+                    description: 开通态；本端点恒为 `PENDING_REVIEW`（刚创建、待审核）
               example:
                 enrollmentId: aenr_5b2f9c10
                 mode: online
@@ -1223,7 +1303,7 @@ paths:
                 websiteUrl:
                   type: string
                   format: uri
-                  description: 新 website URL（https，合法 host）
+                  description: 新 website URL（合法 URL，http / https 均可）
             example:
               websiteUrl: https://newshop.example.com
       responses:
@@ -1238,27 +1318,21 @@ paths:
                   - changeRequestId
                   - mode
                   - status
-                  - pendingUrlChange
                 properties:
                   changeRequestId:
                     type: string
                     readOnly: true
-                    description: URL 重审变更请求 ID（独立审批对象；主 AcceptanceMode 仍 ACTIVE）
+                    description: URL 重审变更请求 ID（独立审批对象；主 AcceptanceMode 仍 ACTIVE、原 URL 继续生效）。`getServicePage` 该 mode 的 `pendingUrlChange.requestId` 即此值
                   mode:
                     $ref: '#/components/schemas/AcceptanceModeType'
                   status:
-                    type: string
-                    enum:
-                      - ACTIVE
-                    description: 主状态仍 ACTIVE（待审核变更不改主状态）
-                  pendingUrlChange:
-                    type: boolean
-                    description: true = 有待审核 URL 变更（原 URL 继续生效）
+                    allOf:
+                      - $ref: '#/components/schemas/AcceptanceModeStatus'
+                    description: 主状态；本端点恒为 `ACTIVE`（待审核变更不改主状态）
               example:
                 changeRequestId: aucr_5f1a2b
                 mode: online
                 status: ACTIVE
-                pendingUrlChange: true
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1298,8 +1372,7 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      enum:
-                        - store_photo
+                      description: 本端点固定传 `store_photo`；其他用途 → 400
                     contentType:
                       enum:
                         - image/png
@@ -1342,9 +1415,11 @@ paths:
       description: |
         连接或切换 POS provider（Moneris / Clover），即时生效无审核;互斥 —— 同 Merchant 至多 1 个 active provider，切换时旧 provider 凭据保留但不生效。
 
-        3DS 开关（用于线上交易 3DS 验证）**每次必传**——本端点全量覆盖，缺省不代表保持原样；表单初始值**按目标 provider 是不是当前生效者分两支取**：
+        **凭据子对象可省略 = 保持当前生效凭据**：目标 provider 就是读面的 `terminal.active.provider` 时，可不带对应的凭据子对象（`moneris` / `clover`），服务端沿用已存凭据（只改 3DS 开关不必重敲密钥）；带了子对象则其内两项都必填。目标 ≠ 当前生效者（首次连接 / 切换 / 停用后重连）时对应子对象必传 → 缺失 400。
 
-        - 目标 = 读面的 `activeProvider`（即**更新在用凭据**）→ 取 `terminal.threedsEnabled`（当前生效值）;
+        3DS 开关（用于线上交易 3DS 验证）**每次必传**——缺省不代表保持原样；表单初始值**按目标 provider 是不是当前生效者分两支取**：
+
+        - 目标 = 读面的 `terminal.active.provider`（即**更新在用凭据**）→ 取 `terminal.active.threedsEnabled`（当前生效值）;
         - 目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;
 
         两处都没有才关闭。
@@ -1366,15 +1441,17 @@ paths:
                 summary: Moneris（Store ID + API Token）
                 value:
                   provider: moneris
-                  storeId: monstore01
-                  apiToken: mtok_secret_xxxxxxxx
+                  moneris:
+                    storeId: monstore01
+                    apiToken: mtok_secret_xxxxxxxx
                   threedsEnabled: false
               clover:
                 summary: Clover（Public + Private Token）
                 value:
                   provider: clover
-                  publicToken: clpub_xxxxxxxx
-                  privateToken: clpriv_secret_xxxxxxxx
+                  clover:
+                    publicToken: clpub_xxxxxxxx
+                    privateToken: clpriv_secret_xxxxxxxx
                   threedsEnabled: true
       responses:
         '200':
@@ -1384,10 +1461,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/TerminalIntegrationView'
               example:
-                connected: true
-                activeProvider: moneris
-                threedsEnabled: false
-                credentialSummary: Store ID ••• 4321
+                active:
+                  provider: moneris
+                  threedsEnabled: false
+                  credentialSummary: Store ID ••• 4321
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1398,7 +1475,7 @@ paths:
       operationId: disableTerminalIntegration
       summary: 停用 TerminalIntegration（清当前生效 provider；凭据保留以便再连）
       description: |
-        商户后台自助停用：清除当前生效 TerminalIntegration（activeProvider 置空）+ **凭据与 3DS 开关一并保留**以便再次连接（保留内容见读面 `getServicePage` 的 `terminal.retained`）;即时生效无审核。 停用后该 Merchant 无生效 provider（彻底清除已存凭据走客服 / 运营）。幂等：DELETE 天然幂等（已无 active 时仍 204）。
+        商户后台自助停用：清除当前生效 TerminalIntegration（读面 `terminal.active` 不再返回）+ **凭据与 3DS 开关一并保留**以便再次连接（保留内容见读面 `getServicePage` 的 `terminal.retained`）;即时生效无审核。 停用后该 Merchant 无生效 provider（彻底清除已存凭据走客服 / 运营）。幂等：DELETE 天然幂等（已无 active 时仍 204）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1420,6 +1497,7 @@ paths:
         审核结果异步生效（不在本 BFF）。
 
         - 同平台审核中重复提交 → 409;
+        - **同平台 `REJECTED` 后可再次 POST 重新提交**：创建**新的** `EcommerceIntegration{PENDING_REVIEW}`（新 `integrationId`），前次 `REJECTED` 记录归档、**不再出现在服务开通页列表**；前端在 REJECTED 卡上给「重新提交」入口即调本端点，**不要调** `manageEcommerceIntegration`（那只管 ACTIVE 的）;
         - URL / 配置校验失败 → 400。
 
         Integration 连接不要求对应 online AcceptanceMode 已 ACTIVE、也不自动开通 mode。
@@ -1461,9 +1539,9 @@ paths:
                   provider:
                     $ref: '#/components/schemas/EcommerceProvider'
                   status:
-                    type: string
-                    enum:
-                      - PENDING_REVIEW
+                    allOf:
+                      - $ref: '#/components/schemas/EcommerceIntegrationStatus'
+                    description: 集成态；本端点恒为 `PENDING_REVIEW`（刚创建、待审核）
               example:
                 integrationId: eint_7c3a91f0
                 provider: shopify
@@ -1528,8 +1606,8 @@ paths:
                 provider: shopify
                 status: ACTIVE
                 websiteUrl: https://shop.example.com
-                pendingUrlChange: true
-                urlChangeRequestId: eurc_9f2a
+                pendingUrlChange:
+                  requestId: eurc_9f2a
                 paymentMethodConfig:
                   - online-wechat
                   - online-alipay
@@ -1546,7 +1624,7 @@ paths:
       operationId: getDocuments
       summary: Documents 只读展示（5 必传 + 2 可选；未上传必传项显示缺失占位）
       description: |
-        只读返回入驻上传的文档：5 必传（Void Cheque / Owner ID / Certificate of Incorporation / Store Inside / Store Outside） + 2 可选 Other（仅已上传时返回）。已上传项含**内联展示**与**下载**两个短时效引用 + 文件类型；未上传必传项 `present: false`（缺失占位）。 两个引用指向同一份文件、只是交付方式不同；**均短时效且不可持久化**（这类文档含身份与银行资料）。 无自助上传 / 替换 / 删除入口（续期 / 替换走客服 / 管理后台）。
+        只读返回入驻上传的文档：5 必传（Void Cheque / Owner ID / Certificate of Incorporation / Store Inside / Store Outside） + 2 可选 Other（仅已上传时返回）。已上传项的 `file` 含**内联展示**与**下载**两个短时效引用 + 文件类型；未上传必传项不带 `file`（缺失占位）。 两个引用指向同一份文件、只是交付方式不同；**均短时效且不可持久化**（这类文档含身份与银行资料）。 无自助上传 / 替换 / 删除入口（续期 / 替换走客服 / 管理后台）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -1559,31 +1637,30 @@ paths:
               example:
                 required:
                   - docType: VOID_CHEQUE
-                    present: true
-                    fileName: void-cheque.pdf
-                    fileType: application/pdf
-                    previewUrl: https://files.example.com/o/8f1c2a6e?exp=1755331200&sig=REDACTED&disp=inline
-                    downloadUrl: https://files.example.com/o/8f1c2a6e?exp=1755331200&sig=REDACTED&disp=attachment
+                    file:
+                      fileName: void-cheque.pdf
+                      fileType: application/pdf
+                      previewUrl: https://files.example.com/o/8f1c2a6e?exp=1755331200&sig=REDACTED&disp=inline
+                      downloadUrl: https://files.example.com/o/8f1c2a6e?exp=1755331200&sig=REDACTED&disp=attachment
                   - docType: OWNER_ID
-                    present: false
                   - docType: CERTIFICATE_OF_INCORPORATION
-                    present: true
-                    fileName: coi.pdf
-                    fileType: application/pdf
-                    previewUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=inline
-                    downloadUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=attachment
+                    file:
+                      fileName: coi.pdf
+                      fileType: application/pdf
+                      previewUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=inline
+                      downloadUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=attachment
                   - docType: STORE_INSIDE
-                    present: true
-                    fileName: inside.jpg
-                    fileType: image/jpeg
-                    previewUrl: https://files.example.com/o/c41e6b28?exp=1755331200&sig=REDACTED&disp=inline
-                    downloadUrl: https://files.example.com/o/c41e6b28?exp=1755331200&sig=REDACTED&disp=attachment
+                    file:
+                      fileName: inside.jpg
+                      fileType: image/jpeg
+                      previewUrl: https://files.example.com/o/c41e6b28?exp=1755331200&sig=REDACTED&disp=inline
+                      downloadUrl: https://files.example.com/o/c41e6b28?exp=1755331200&sig=REDACTED&disp=attachment
                   - docType: STORE_OUTSIDE
-                    present: true
-                    fileName: outside.jpg
-                    fileType: image/jpeg
-                    previewUrl: https://files.example.com/o/5a92f0d7?exp=1755331200&sig=REDACTED&disp=inline
-                    downloadUrl: https://files.example.com/o/5a92f0d7?exp=1755331200&sig=REDACTED&disp=attachment
+                    file:
+                      fileName: outside.jpg
+                      fileType: image/jpeg
+                      previewUrl: https://files.example.com/o/5a92f0d7?exp=1755331200&sig=REDACTED&disp=inline
+                      downloadUrl: https://files.example.com/o/5a92f0d7?exp=1755331200&sig=REDACTED&disp=attachment
                 optional: []
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -1636,14 +1713,45 @@ components:
         - shopify
         - allvalue
       description: 电商平台 provider（不互斥）
+    MerchantStatus:
+      type: string
+      enum:
+        - INCOMPLETE
+        - PENDING_REVIEW
+        - ACTIVE
+        - REJECTED
+        - WITHDRAWN
+      description: 商户状态（由入驻申请状态派生）：`INCOMPLETE` 入驻未完成 / `PENDING_REVIEW` 审核中 / `ACTIVE` 已激活 / `REJECTED` 已拒绝 / `WITHDRAWN` 已撤回（不再于任何列表展示）。各端点实际会返回哪些值见该端点的字段说明；前端 unknown-safe。
+    OnlineServiceType:
+      type: string
+      enum:
+        - Website
+        - App
+        - MiniProgram
+        - Other
+      description: online 模式的线上服务类型。只有 `Website` 采集 / 展示生效 URL 与「修改 URL」入口；其余类型无 URL 属正常。
+    EcommerceIntegrationStatus:
+      type: string
+      enum:
+        - PENDING_REVIEW
+        - ACTIVE
+        - REJECTED
+      description: EcommerceIntegration 审核态机（review-gated）：`PENDING_REVIEW` 待审核 / `ACTIVE` 已连接生效 / `REJECTED` 已拒绝（可重新提交）。
     SettlementOptions:
       type: object
       additionalProperties: false
       required:
         - settlementCycleOptions
+        - bankAccountTypes
       description: |
         Settlement section 的**动态值域**。示例值仅为当前实例的一种可能取值， **不构成契约承诺**——实际候选集由后端配置决定。
       properties:
+        bankAccountTypes:
+          type: array
+          minItems: 1
+          description: 结算币种 → 允许的结算银行账户制式集（与入驻配置同一份部署配置）。结算编辑面按**商户结算币种**取候选：单一制式直接渲染该表单，多个则让 Owner 选收款银行所在国后按 `type` 渲染；与营业地址 Country 无关。
+          items:
+            $ref: '#/components/schemas/CurrencyBankAccountTypes'
         settlementCycleOptions:
           type: array
           minItems: 1
@@ -1655,16 +1763,23 @@ components:
       type: object
       additionalProperties: false
       required:
-        - timeZoneOptions
+        - countryOptions
+        - phoneCountryCodes
       description: |
-        Business Information section 的**动态值域**。示例值仅为当前实例的一种可能取值， **不构成契约承诺**——实际候选集由后端配置决定（与商户 country 联动）。
+        Business Information section 的**动态值域**。示例值仅为当前实例的一种可能取值， **不构成契约承诺**——实际候选集由后端配置决定（与商户 country 联动）。 本页 Contact section 的联系人电话编辑（写走 `updateOwnerContact`）**复用同一份** `phoneCountryCodes`，不另取。
       properties:
-        timeZoneOptions:
+        countryOptions:
           type: array
           minItems: 1
           items:
-            $ref: '#/components/schemas/TimeZone'
-          description: 当前商户可选的 IANA 时区白名单（顺序即建议展示顺序）。
+            $ref: '#/components/schemas/CountryOption'
+          description: 可选国家及其下属省 / 州候选、邮编规则与时区候选（顺序即展示顺序）。`country` 是可编辑字段，**改国家即切换这三组候选**，前端须重选省 / 州与时区。国家集与 Currency 的有效组合一致。
+        phoneCountryCodes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/PhoneCountryCode'
+          description: 电话区号候选（部署可配）；渲染 Business Phone 与 Contact Phone 的区号下拉、以及回显时拆分整串用。
     TimeZone:
       type: string
       minLength: 1
@@ -1703,13 +1818,30 @@ components:
       type: object
       additionalProperties: false
       description: Business Information section 展示（7 Locked 字段含 locked 标识 + 7 可编辑字段当前值）
+      required:
+        - legalBusinessName
+        - tradeName
+        - ownershipType
+        - registrationNumber
+        - referredBy
+        - industryCategory
+        - mcc
+        - address
+        - city
+        - province
+        - postalCode
+        - country
+        - timeZone
+        - businessPhone
       properties:
         legalBusinessName:
           $ref: '#/components/schemas/LockedField'
         tradeName:
           $ref: '#/components/schemas/LockedField'
         ownershipType:
-          $ref: '#/components/schemas/LockedField'
+          allOf:
+            - $ref: '#/components/schemas/LockedField'
+          description: Locked 展示项；其 `value` 是企业类型**展示名**（服务端从入驻时的同一份配置解析后给出），**不是入驻提交用的稳定标识**——本域没有该配置的读取面，拿到标识也无从解析成人读文案。只读、只供展示，前端不要解析它、也不要拿它做分支。
         registrationNumber:
           $ref: '#/components/schemas/LockedField'
         referredBy:
@@ -1726,14 +1858,19 @@ components:
           type: string
         province:
           type: string
+          description: ISO 3166-2 的地区部分（如 `BC`）；展示名取 `getBusinessInformationOptions` 里同 `code` 项的 `displayName`
         postalCode:
           type: string
+          description: 按所在国规则的邮编（规则见 `getBusinessInformationOptions` 里该国的 `postalCode`）
         country:
           type: string
+          description: ISO 3166-1 alpha-2；展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）
         timeZone:
           $ref: '#/components/schemas/TimeZone'
         businessPhone:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 区号候选见 `getBusinessInformationOptions.phoneCountryCodes`（白名单部署可配）；`+1` / 10 位只是空白表单初始值，编辑已有商户时回显其当前取值
     ProfileHeader:
       type: object
       additionalProperties: false
@@ -1742,6 +1879,8 @@ components:
         - merchantCode
         - tradeName
         - legalBusinessName
+        - industryCategoryDisplayName
+        - mcc
       properties:
         merchantCode:
           type: string
@@ -1770,41 +1909,25 @@ components:
         contactTitle:
           type: string
         phone:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 联系人电话；编辑走认证契约的 `updateOwnerContact`，区号候选复用本页 `getBusinessInformationOptions.phoneCountryCodes`
         email:
           type: string
           format: email
           description: '= Owner Primary Email = 登录邮箱（三合一）'
     ProfileFunds:
-      description: |
-        资金字段（只读展示，无修改入口）。Profile 固定展示区块。 **降级**：资金数据不可用时 `available=false` + 金额省略（区块仍在、标注暂不可用），不阻断 Profile 其余区块。
-      oneOf:
-        - title: FundsAvailable
-          type: object
-          additionalProperties: false
-          required:
-            - available
-            - accountBalance
-            - refundReserved
-          properties:
-            available:
-              type: boolean
-              const: true
-              description: 资金数据可用
-            accountBalance:
-              $ref: '#/components/schemas/Money'
-            refundReserved:
-              $ref: '#/components/schemas/Money'
-        - title: FundsUnavailable
-          type: object
-          additionalProperties: false
-          required:
-            - available
-          properties:
-            available:
-              type: boolean
-              const: false
-              description: 资金数据不可用；金额省略
+      type: object
+      additionalProperties: false
+      description: 资金字段（只读展示，无修改入口）。Profile 固定展示区块的数据；数据不可用时的降级见 `AccountProfile.funds`。
+      required:
+        - accountBalance
+        - refundReserved
+      properties:
+        accountBalance:
+          $ref: '#/components/schemas/Money'
+        refundReserved:
+          $ref: '#/components/schemas/Money'
     DocumentsSummary:
       type: object
       additionalProperties: false
@@ -1827,17 +1950,16 @@ components:
         - businessInformation
         - settlement
         - contactInformation
-        - funds
         - documentsSummary
       properties:
         merchantId:
           type: string
           readOnly: true
         status:
-          type: string
-          const: ACTIVE
+          allOf:
+            - $ref: '#/components/schemas/MerchantStatus'
           readOnly: true
-          description: 恒为 `ACTIVE`——本响应只在商户已激活时产生，故该字段无其他取值
+          description: 商户状态；本端点恒为 `ACTIVE`——本响应只在商户已激活时产生
         header:
           $ref: '#/components/schemas/ProfileHeader'
         businessInformation:
@@ -1847,7 +1969,9 @@ components:
         contactInformation:
           $ref: '#/components/schemas/ContactInformationView'
         funds:
-          $ref: '#/components/schemas/ProfileFunds'
+          allOf:
+            - $ref: '#/components/schemas/ProfileFunds'
+          description: 资金区块数据。**降级**：资金数据不可用时**不返回本键**（区块仍渲染、标注暂不可用），不阻断 Profile 其余区块。
         documentsSummary:
           $ref: '#/components/schemas/DocumentsSummary'
     BusinessInformationUpdate:
@@ -1855,23 +1979,40 @@ components:
       additionalProperties: false
       minProperties: 1
       description: |
-        编辑请求：7 项可编辑字段 + 7 项 Locked 字段（Locked 字段为合法槽位以便服务端兑现 403）。 Locked 字段是合法属性（不作未知属性打成 400）；任一 Locked 字段出现在请求体 → 服务端拒绝 → **403 + 审计**； 真正未知属性 → 400；空提交（no-op）→ 400。 校验：postalCode 按国家格式、phone 按区号白名单与对应长度规则（部署可配；`+1` / 10 位只是空白表单初始值、编辑时回显当前值）、Province × Country 联动（可选项后端配置驱动）。
+        编辑请求：7 项可编辑字段 + 7 项 Locked 字段（Locked 字段为合法槽位以便服务端兑现 403）。
+
+        Locked 字段是合法属性（不作未知属性打成 400）；任一 Locked 字段出现在请求体 → 服务端拒绝 → **403 + 审计**；真正未知属性 → 400；空提交（no-op）→ 400。
+
+        **校验**——候选与规则一律取自 `getBusinessInformationOptions`，由后端配置驱动、契约不写死：
+
+        - `postalCode` 按所选国家的 `postalCode.pattern`；
+        - `province` 须属所选国家的 `provinces`；
+        - `businessPhone` 按 `Phone` 的通用格式与上界 + 区号在白名单内（`+1` / 10 位只是空白表单初始值、编辑时回显当前值）。
       properties:
         address:
           type: string
+          minLength: 1
         city:
           type: string
+          minLength: 1
         province:
           type: string
+          minLength: 1
+          description: 取自 `getBusinessInformationOptions` 里所选国家的 `provinces[].code`（ISO 3166-2 地区部分），不要自行拼；改 `country` 后须重选
         postalCode:
           type: string
+          minLength: 1
+          description: 按所选国家的 `postalCode.pattern` 校验——**规则由后端配置下发、契约不写死**；前端据它预校，服务端在提交面重校，不符 → `400` 字段级错误
         country:
           type: string
-          description: ISO 3166-1 alpha-2（CA / US）；展示名可本地化
+          minLength: 1
+          description: 取自 `getBusinessInformationOptions` 的 `countryOptions[].code`（ISO 3166-1 alpha-2）；展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）
         timeZone:
           $ref: '#/components/schemas/TimeZone'
         businessPhone:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 区号候选见 `getBusinessInformationOptions.phoneCountryCodes`（白名单部署可配）；`+1` / 10 位只是空白表单初始值，编辑已有商户时回显其当前取值
         legalBusinessName:
           type: string
           description: Locked：出现即 403 + 审计
@@ -1909,7 +2050,9 @@ components:
       additionalProperties: false
       description: 结算字段展示（account_number 掩码仅末 4 位；Legal Business Name 只读同步 Locked）
       required:
-        - accountNumberMasked
+        - legalBusinessName
+        - bankName
+        - bankAccount
         - settlementSchedule
         - pendingReview
       properties:
@@ -1919,16 +2062,14 @@ components:
           description: 本 section 只读展示，同步 Locked
         bankName:
           type: string
-        transitNumber:
-          type: string
-          description: 5 位数字
-        institutionNumber:
-          type: string
-          description: 3 位数字
-        accountNumberMasked:
-          type: string
-          readOnly: true
-          description: account_number 仅末 4 位（`•••• 5678`；明文不返回）
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+            - type: object
+              required:
+                - accountNumberMasked
+                - accountNumberSet
+          description: 当前生效结算银行账户（制式按收款银行所在国；读侧账号只给掩码 + 已填标志、**任何面都不回明文**）。编辑面按其 `type` 渲染对应表单，账号框用 `accountNumberMasked` 作提示文案、空着 = 不改；结算币种允许的制式集取 `getSettlementOptions.bankAccountTypes`。
         settlementSchedule:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
@@ -1941,126 +2082,64 @@ components:
           readOnly: true
           description: 存在 PENDING_REVIEW 变更请求 → true（前端隐 Edit 入口 + 审核中提示）
     OtpChallenge:
-      type: object
-      additionalProperties: false
-      description: Owner email OTP 挑战句柄（结算变更 / Forgot PIN；一次性凭据，过期 / 已用 → 410、冷却中 → 429）。FE 用 cooldownSeconds 启动重发倒计时、用 expiresAt 判断挑战是否仍有效。
-      required:
-        - challengeId
-        - deliveredTo
-        - cooldownSeconds
-        - expiresAt
-      properties:
-        challengeId:
-          type: string
-          readOnly: true
-        deliveredTo:
-          type: string
-          readOnly: true
-          description: 脱敏投递目标（Owner email，如 o***@e***.com）。
-        cooldownSeconds:
-          type: integer
-          readOnly: true
-          description: 重发冷却秒数（业务参数）。
-        expiresAt:
-          allOf:
-            - $ref: '#/components/schemas/Timestamp'
-          readOnly: true
-    SettlementChangeRequestInput:
-      description: |
-        创建结算变更（多态二选一）：NonBank（仅 storeId / settlementSchedule、无 voidChequeRef）或 Bank（含 bank 字段 → voidChequeRef **必填**）。 otpToken 绑定本次变更内容 + voidChequeRef；提交 changes ≠ 绑定内容 → 403（意图不符）。**含 bank 字段但缺 voidChequeRef → 400**。
-      oneOf:
-        - $ref: '#/components/schemas/NonBankSettlementChange'
-        - $ref: '#/components/schemas/BankSettlementChange'
-    NonBankSettlementChange:
-      type: object
-      additionalProperties: false
-      required:
-        - otpToken
-        - changes
-      properties:
-        otpToken:
-          type: string
-          description: verifySettlementOtp 签发的单次 token
-        changes:
-          $ref: '#/components/schemas/NonBankSettlementChanges'
-    BankSettlementChange:
-      type: object
-      additionalProperties: false
-      required:
-        - otpToken
-        - voidChequeRef
-        - changes
-      properties:
-        otpToken:
-          type: string
-          description: verifySettlementOtp 签发的单次 token
-        voidChequeRef:
-          type: string
-          description: bank-related 变更必带（createSettlementVoidChequeUploadTarget 返回的 fileId）；须与 otpToken 绑定值一致。创建本请求时该文件才正式归属它——文件未就位则拒绝创建
-        changes:
-          $ref: '#/components/schemas/BankSettlementChanges'
-    NonBankSettlementChanges:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      description: 非 bank 变更：仅 storeId / settlementSchedule（不含 bank 字段、不需 voidChequeRef）
-      properties:
-        storeId:
-          type: string
-        settlementSchedule:
-          $ref: '#/components/schemas/SettlementCycleCode'
-    BankSettlementChanges:
-      type: object
-      additionalProperties: false
-      minProperties: 1
-      description: bank 变更：含 bank 字段（可同时改 storeId / schedule）；触发 voidChequeRef 必填
-      properties:
-        bankName:
-          type: string
-        transitNumber:
-          type: string
-          pattern: ^[0-9]{5}$
-          description: 5 位数字
-        institutionNumber:
-          type: string
-          pattern: ^[0-9]{3}$
-          description: 3 位数字
-        accountNumber:
-          type: string
-          pattern: ^[0-9]{6,12}$
-          description: 6-12 位数字（明文输入，read 视图掩码）
-        storeId:
-          type: string
-        settlementSchedule:
-          $ref: '#/components/schemas/SettlementCycleCode'
+      description: Owner email OTP 挑战句柄（结算变更 / Forgot PIN 两处发码入口共用）。形状是本 BFF 的共享件；投递目标恒为 Owner email。
+      allOf:
+        - $ref: '#/components/schemas/OtpChallenge-2'
     SettlementChanges:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: 本次变更的 Settlement 字段（仅含改动字段；`minProperties:1` 拒空变更 no-op）
+      description: |
+        本次结算变更内容（至少一项；发码请求与最终创建请求共用同一形状，两处提交须一致）。
+
+        - **银行组（`bankName` + `bankAccount`）整组同进同出**——组内任一字段要改就两键都给、账号重新输入（服务端不回明文、不能只改一个字段），只给其中一键 → 400；银行账户不变的变更不带这两键；
+        - 含银行组 = **bank-related** 变更：须先上传 Void cheque，发码与创建时 `voidChequeRef` 必填；
+        - 仅 `storeId` / `settlementSchedule` = 非 bank-related 变更：不带 `voidChequeRef`。
       properties:
         storeId:
           type: string
-          description: 非 bank-related
         settlementSchedule:
-          allOf:
-            - $ref: '#/components/schemas/SettlementCycleCode'
-          description: 非 bank-related
+          $ref: '#/components/schemas/SettlementCycleCode'
         bankName:
           type: string
-          description: bank-related
-        transitNumber:
+          description: 与 `bankAccount` 同进同出
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+            - type: object
+              required:
+                - accountNumber
+          description: 新的结算银行账户（整组提交、**账号必填**；`type` 须 ∈ 商户结算币种允许的制式集；账号明文 write-only）。与 `bankName` 同进同出。
+    SettlementOtpRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        OTP 绑定的变更意图（`changes` 与最终创建请求同一形状）：服务端把 `changes` + `voidChequeRef` 锚定到本次挑战，最终 create 提交的内容须与之一致。 `changes` 含银行组 → `voidChequeRef` **必填**（缺 → 400）；不含 → 不带。
+      required:
+        - changes
+      properties:
+        changes:
+          $ref: '#/components/schemas/SettlementChanges'
+        voidChequeRef:
           type: string
-          pattern: ^[0-9]{5}$
-          description: bank-related；5 位数字
-        institutionNumber:
+          description: bank-related 变更**必填**：绑定的 Void cheque 引用（`createSettlementVoidChequeUploadTarget` 返回的 fileId；须与最终 create 一致）。非 bank-related 变更不带。
+    SettlementChangeRequestInput:
+      type: object
+      additionalProperties: false
+      description: |
+        创建结算变更。`changes` 含银行组（bank-related）→ `voidChequeRef` **必填**（缺 → 400）；仅 `storeId` / `settlementSchedule`（非 bank-related）→ 不带 `voidChequeRef`。 `otpToken` 绑定本次变更内容 + `voidChequeRef`；提交 `changes` ≠ 绑定内容 → 403（意图不符）。
+      required:
+        - otpToken
+        - changes
+      properties:
+        otpToken:
           type: string
-          pattern: ^[0-9]{3}$
-          description: bank-related；3 位数字
-        accountNumber:
+          description: verifySettlementOtp 签发的单次 token
+        changes:
+          $ref: '#/components/schemas/SettlementChanges'
+        voidChequeRef:
           type: string
-          pattern: ^[0-9]{6,12}$
-          description: bank-related；6-12 位数字（明文输入，read 视图掩码）
+          description: bank-related 变更**必填**（createSettlementVoidChequeUploadTarget 返回的 fileId）；须与 otpToken 绑定值一致。创建本请求时该文件才正式归属它——文件未就位则拒绝创建。非 bank-related 变更不带。
     SettlementChangeRequestCreated:
       type: object
       additionalProperties: false
@@ -2075,7 +2154,10 @@ components:
           type: string
           enum:
             - PENDING_REVIEW
+            - APPROVED
+            - REJECTED
           readOnly: true
+          description: 变更请求审核态；本端点恒为 `PENDING_REVIEW`（刚创建、待审核；审核结果异步落到 `getSettlement.pendingReview` 与通知邮件）
     MerchantListItem:
       type: object
       additionalProperties: false
@@ -2085,6 +2167,7 @@ components:
         - merchantCode
         - tradeName
         - status
+        - currency
       properties:
         merchantId:
           type: string
@@ -2095,6 +2178,10 @@ components:
           description: Merchant ID（对外展示）
         tradeName:
           type: string
+        currency:
+          allOf:
+            - $ref: '#/components/schemas/Currency'
+          description: 该商户的结算币种。switcher 触发器恒展示当前商户的币种徽标；列表行右侧徽标**按 `status` 互斥**——`ACTIVE` 显示币种、`INCOMPLETE` / `PENDING_REVIEW` 显示状态（草稿 / 审核中），不同时显示状态与币种。
         status:
           type: string
           enum:
@@ -2105,7 +2192,7 @@ components:
         relationType:
           allOf:
             - $ref: '#/components/schemas/RelationType'
-          description: 关联关系；**root 商户不返回本键**
+          description: 关联关系；**root 商户不返回本键**。不返回本键的行**不显示撤回入驻入口**（root 的在途申请不支持撤回，`withdrawOnboardingApplication` 会以 409 拒绝）。
     AddMerchantRequest:
       type: object
       additionalProperties: false
@@ -2118,12 +2205,16 @@ components:
       properties:
         tradeName:
           type: string
+          minLength: 1
           description: 允许与现有商户同名（靠 Merchant ID 区分）
         country:
           type: string
-          description: ISO 3166-1 alpha-2（CA / US）;Country × Currency 须有效组合（CAD→CA / USD→CA·US）
+          minLength: 1
+          description: ISO 3166-1 alpha-2。**与 `currency` 须构成有效组合**——组合集由后端配置决定，取自 `getMerchantCreationOptions`、不要自行拼；非法组合 → `400`
         currency:
-          $ref: '#/components/schemas/Currency'
+          allOf:
+            - $ref: '#/components/schemas/Currency'
+          description: '**本端点的合法取值窄于本枚举的取值域**——枚举是平台支持的币种全集，本部署实际可用的币种由 `getMerchantCreationOptions` 的组合决定（契约不写死），提交前从候选里取'
         relationType:
           $ref: '#/components/schemas/RelationType'
     PaymentMethodState:
@@ -2152,77 +2243,65 @@ components:
         enabled:
           type: boolean
           description: 该方式当前是否已在本 mode 启用
+        rate:
+          type: string
+          pattern: ^[0-9]+\.[0-9]{2}$
+          description: 该方式在本 mode 下当前生效的商户比例费率，百分数数值字符串、固定两位小数（`"2.30"` = 2.30%），只读展示；百分号由页面按 locale 格式化。**仅当当前生效费率是纯比例时返回**——含固定单笔费 / 混合附加率 / 单笔上下限或商户启用阶梯费率时不返回本键、页面不显示费率（一个百分数表达不了）。电商集成连接弹窗逐方式展示的就是它。
+    PendingUrlChange:
+      type: object
+      additionalProperties: false
+      description: 待审核的 URL 变更（独立审批对象；主实体仍 ACTIVE、原 URL 继续生效）。
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+          readOnly: true
+          description: 待审核 URL 变更请求 ID
     AcceptanceModeView:
-      description: AcceptanceMode 分组（开通/审核状态 + 该 mode 支付方式候选全集〔含未启用项〕 + online 当前 URL）
-      oneOf:
-        - title: AcceptanceModeWithPendingUrlChange
-          type: object
-          additionalProperties: false
-          required:
-            - mode
-            - status
-            - pendingUrlChange
-            - urlChangeRequestId
-            - paymentMethods
-          properties:
-            mode:
-              $ref: '#/components/schemas/AcceptanceModeType'
-            status:
-              $ref: '#/components/schemas/AcceptanceModeStatus'
-            websiteUrl:
-              type: string
-              format: uri
-              description: online 当前生效 URL（原 URL 继续生效）；**无生效 URL 则不返回本键**
-            pendingUrlChange:
-              type: boolean
-              const: true
-            urlChangeRequestId:
-              type: string
-              description: 待审核 URL 变更请求 ID
-            paymentMethods:
-              type: array
-              items:
-                $ref: '#/components/schemas/PaymentMethodState'
-        - title: AcceptanceModeWithoutPendingUrlChange
-          type: object
-          additionalProperties: false
-          required:
-            - mode
-            - status
-            - pendingUrlChange
-            - paymentMethods
-          properties:
-            mode:
-              $ref: '#/components/schemas/AcceptanceModeType'
-            status:
-              $ref: '#/components/schemas/AcceptanceModeStatus'
-            websiteUrl:
-              type: string
-              format: uri
-              description: online 当前生效 URL；**in_store 无 URL，不返回本键**
-            pendingUrlChange:
-              type: boolean
-              const: false
-            paymentMethods:
-              type: array
-              items:
-                $ref: '#/components/schemas/PaymentMethodState'
+      type: object
+      additionalProperties: false
+      description: AcceptanceMode 分组（开通/审核状态 + 该 mode 支付方式候选全集〔含未启用项〕 + online 当前 URL + 待审核 URL 变更）
+      required:
+        - mode
+        - status
+        - paymentMethods
+      properties:
+        mode:
+          $ref: '#/components/schemas/AcceptanceModeType'
+        status:
+          $ref: '#/components/schemas/AcceptanceModeStatus'
+        onlineServiceType:
+          allOf:
+            - $ref: '#/components/schemas/OnlineServiceType'
+          description: 线上服务类型（mode 为 **online 时必返**；in_store 不返回本键）。只有 `Website` 有生效 URL 与「修改 URL」入口；其余类型无 URL 属正常，不显示 URL 与修改入口。
+        websiteUrl:
+          type: string
+          format: uri
+          description: online 当前生效 URL（有待审核变更时原 URL 继续生效）；**in_store 无 URL、online 非 Website 类型无 URL，均不返回本键**
+        pendingUrlChange:
+          allOf:
+            - $ref: '#/components/schemas/PendingUrlChange'
+          description: '**有待审核的 URL 变更时返回本键**（原 URL 继续生效、隐藏「修改 URL」入口）；没有则不返回。'
+        paymentMethods:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentMethodState'
     TerminalIntegrationView:
-      description: TerminalIntegration 摘要（凭据掩码）。按 `connected` 判别：已连接分支带生效 provider，未连接分支不带。
-      oneOf:
-        - title: ActiveTerminalIntegration
+      type: object
+      additionalProperties: false
+      description: TerminalIntegration 摘要（凭据掩码）。`active` 在 = 有生效 provider；不在 = 当前未连接（可能仍有 `retained` 保留配置）。
+      properties:
+        active:
           type: object
           additionalProperties: false
+          description: 当前生效的 POS provider 及其配置；**无生效 provider 时不返回本键**。
           required:
-            - connected
-            - activeProvider
+            - provider
             - threedsEnabled
             - credentialSummary
           properties:
-            connected:
-              type: boolean
-              const: true
-            activeProvider:
+            provider:
               $ref: '#/components/schemas/TerminalProvider'
             threedsEnabled:
               type: boolean
@@ -2231,28 +2310,12 @@ components:
               type: string
               readOnly: true
               description: 凭据掩码摘要（明文 token / secret 不返回）
-            retained:
-              type: array
-              uniqueItems: true
-              description: '**另一个** provider 的保留配置（切换走的那个；没有则不返回本键）。用于「切回去」时预填，语义同未连接分支的 `retained`'
-              items:
-                $ref: '#/components/schemas/RetainedTerminalConfig'
-        - title: InactiveTerminalIntegration
-          type: object
-          additionalProperties: false
-          required:
-            - connected
-          properties:
-            connected:
-              type: boolean
-              const: false
-              description: 当前无生效 provider——本分支不返回 `activeProvider`
-            retained:
-              type: array
-              uniqueItems: true
-              description: 已保留凭据的 provider 配置；**从未连接过任何 provider 时不返回本键**。两个 provider 都有保留配置时本数组两项，各自归属由项内 `provider` 指明
-              items:
-                $ref: '#/components/schemas/RetainedTerminalConfig'
+        retained:
+          type: array
+          uniqueItems: true
+          description: '**当前不生效** provider 的保留配置（切换走或停用的那个），用于再次连接时预填；**没有则不返回本键**（从未连接过任何 provider 时亦然）。有 `active` 时最多一项（另一个 provider）；无 `active` 时两个 provider 都有保留配置则两项，各自归属由项内 `provider` 指明。'
+          items:
+            $ref: '#/components/schemas/RetainedTerminalConfig'
     RetainedTerminalConfig:
       type: object
       additionalProperties: false
@@ -2271,80 +2334,35 @@ components:
           readOnly: true
           description: 该 provider 保留凭据的掩码摘要（明文不返回）
     EcommerceIntegrationView:
+      type: object
+      additionalProperties: false
       description: EcommerceIntegration 摘要（不互斥）
-      oneOf:
-        - title: EcommerceIntegrationWithPendingUrlChange
-          type: object
-          additionalProperties: false
-          required:
-            - integrationId
-            - provider
-            - status
-            - pendingUrlChange
-            - urlChangeRequestId
-            - paymentMethodConfig
-          properties:
-            integrationId:
-              type: string
-              readOnly: true
-            provider:
-              $ref: '#/components/schemas/EcommerceProvider'
-            status:
-              type: string
-              enum:
-                - PENDING_REVIEW
-                - ACTIVE
-                - REJECTED
-              description: review-gated 态机
-            websiteUrl:
-              type: string
-              format: uri
-              description: 当前生效 URL；**无生效 URL 则不返回本键**
-            pendingUrlChange:
-              type: boolean
-              const: true
-            urlChangeRequestId:
-              type: string
-              description: 待审核 URL 变更请求 ID
-            paymentMethodConfig:
-              type: array
-              description: 当前已关联的支付方式（methodId 集）。`manageEcommerceIntegration` 的方式配置分支是**覆盖式**提交，编辑弹窗用本字段预填当前值——漏传即等于取消关联。
-              items:
-                type: string
-        - title: EcommerceIntegrationWithoutPendingUrlChange
-          type: object
-          additionalProperties: false
-          required:
-            - integrationId
-            - provider
-            - status
-            - pendingUrlChange
-            - paymentMethodConfig
-          properties:
-            integrationId:
-              type: string
-              readOnly: true
-            provider:
-              $ref: '#/components/schemas/EcommerceProvider'
-            status:
-              type: string
-              enum:
-                - PENDING_REVIEW
-                - ACTIVE
-                - REJECTED
-              description: review-gated 态机
-            websiteUrl:
-              type: string
-              format: uri
-              description: 当前生效 URL；**无生效 URL 则不返回本键**
-            pendingUrlChange:
-              type: boolean
-              const: false
-            paymentMethodConfig:
-              type: array
-              description: 当前已关联的支付方式（methodId 集）。`manageEcommerceIntegration` 的方式配置分支是**覆盖式**提交，编辑弹窗用本字段预填当前值——漏传即等于取消关联。
-              items:
-                type: string
+      required:
+        - integrationId
+        - provider
+        - status
+        - paymentMethodConfig
+      properties:
+        integrationId:
+          type: string
+          readOnly: true
+        provider:
+          $ref: '#/components/schemas/EcommerceProvider'
+        status:
+          $ref: '#/components/schemas/EcommerceIntegrationStatus'
+        websiteUrl:
+          type: string
+          format: uri
+          description: 当前生效 URL（有待审核变更时原 URL 继续生效）；**无生效 URL 则不返回本键**
+        pendingUrlChange:
+          allOf:
+            - $ref: '#/components/schemas/PendingUrlChange'
+          description: '**有待审核的 URL 变更时返回本键**（原 URL / 原配置继续生效）；没有则不返回。'
+        paymentMethodConfig:
+          type: array
+          description: 当前已关联的支付方式（methodId 集）。`manageEcommerceIntegration` 的方式配置是**覆盖式**提交，编辑弹窗用本字段预填当前值——漏传即等于取消关联。
+          items:
+            type: string
     IntegrationsView:
       type: object
       additionalProperties: false
@@ -2374,95 +2392,48 @@ components:
         integrations:
           $ref: '#/components/schemas/IntegrationsView'
     ConnectAcceptanceModeRequest:
-      description: |
-        Connect AcceptanceMode 申请（多态）：in_store→InStoreConnect；online+Website→WebsiteOnlineConnect（websiteUrl **必填**）；online+非Website→NonWebsiteOnlineConnect。 凭证缺失 / 格式非法 → 400;同 mode 已 PENDING_REVIEW 或 ACTIVE → 409。
-      oneOf:
-        - $ref: '#/components/schemas/InStoreConnect'
-        - $ref: '#/components/schemas/WebsiteOnlineConnect'
-        - $ref: '#/components/schemas/NonWebsiteOnlineConnect'
-    InStoreConnect:
       type: object
       additionalProperties: false
+      description: |
+        Connect AcceptanceMode 申请。**同一个请求体**，按 `mode` 决定要带的凭证（服务端校验，缺失 / 多余 / 格式非法 → 400）：
+
+        - `in_store` → `storePhotoFileId` **必填**；不带 `onlineServiceType` / `websiteUrl`；
+        - `online` → `onlineServiceType` **必填**；其中 `Website` 类型 `websiteUrl` **必填**，`App` / `MiniProgram` / `Other` 不采集 `websiteUrl`（平台标识激活后人工补）。
+
+        同 mode 已 PENDING_REVIEW 或 ACTIVE → 409。
       required:
         - mode
-        - storePhotoFileId
       properties:
         mode:
-          type: string
-          enum:
-            - in_store
+          $ref: '#/components/schemas/AcceptanceModeType'
         storePhotoFileId:
           type: string
-          description: in_store 必填：store photo 文件 id（createStorePhotoUploadTarget 返回；PNG / JPEG，默认 ≤ 2MB 可配置）。Connect 时该文件才正式归属本次受理开通——文件未就位则拒绝 Connect
-    WebsiteOnlineConnect:
-      type: object
-      additionalProperties: false
-      required:
-        - mode
-        - onlineServiceType
-        - websiteUrl
-      description: online + Website：websiteUrl 必填
-      properties:
-        mode:
-          type: string
-          enum:
-            - online
+          description: '`in_store` **必填**：store photo 文件 id（createStorePhotoUploadTarget 返回；PNG / JPEG，默认 ≤ 2MB 可配置）。Connect 时该文件才正式归属本次受理开通——文件未就位则拒绝 Connect。`online` 不带'
         onlineServiceType:
-          type: string
-          enum:
-            - Website
+          allOf:
+            - $ref: '#/components/schemas/OnlineServiceType'
+          description: '`online` **必填**：线上服务类型。`in_store` 不带'
         websiteUrl:
           type: string
           format: uri
-          description: https，合法 host
-    NonWebsiteOnlineConnect:
-      type: object
-      additionalProperties: false
-      required:
-        - mode
-        - onlineServiceType
-      description: online + App / MiniProgram / Other：不采集 websiteUrl（平台标识激活后人工补）
-      properties:
-        mode:
-          type: string
-          enum:
-            - online
-        onlineServiceType:
-          type: string
-          enum:
-            - App
-            - MiniProgram
-            - Other
+          description: '`online` + `Website` **必填**：合法 URL，http / https 均可。其他类型 / `in_store` 不带'
     TerminalIntegrationInput:
       type: object
+      additionalProperties: false
       description: |
-        连接 / 切换 Terminal provider（多态，按 provider 判别）。凭据保存后仅掩码回显，明文不二次回显。 `threedsEnabled` **每次必传**（两个变体均 required）；表单初始值取法见 `connectTerminalIntegration` 说明（按目标 provider 是不是当前生效者分两支，**不要一律从 `retained` 取**），两支都取不到才为 `false`。
-      oneOf:
-        - $ref: '#/components/schemas/MonerisTerminalInput'
-        - $ref: '#/components/schemas/CloverTerminalInput'
-      discriminator:
-        propertyName: provider
-        mapping:
-          moneris: '#/components/schemas/MonerisTerminalInput'
-          clover: '#/components/schemas/CloverTerminalInput'
-    MonerisTerminalInput:
-      type: object
-      additionalProperties: false
+        连接 / 切换 Terminal provider。**同一个请求体**，`provider` 决定要带哪个凭据子对象（`moneris` / `clover`）：
+
+        - 目标 ≠ 当前生效者（首次连接 / 切换 / 停用后重连）→ **对应子对象必填**；
+        - 目标 = 当前生效 provider → 可省略（保持已存凭据，只改 3DS 不必重敲）；
+        - 带了与 `provider` 不对应的子对象 → 400（服务端校验）。
+
+        凭据保存后仅掩码回显，明文不二次回显。`threedsEnabled` **每次必传**；表单初始值取法见 `connectTerminalIntegration` 说明（按目标 provider 是不是当前生效者分两支，**不要一律从 `retained` 取**），两支都取不到才为 `false`。
       required:
         - provider
-        - storeId
-        - apiToken
         - threedsEnabled
       properties:
         provider:
-          type: string
-          enum:
-            - moneris
-        storeId:
-          type: string
-        apiToken:
-          type: string
-          description: 明文输入（保存后掩码回显）
+          $ref: '#/components/schemas/TerminalProvider'
         threedsEnabled:
           type: boolean
           description: |
@@ -2470,39 +2441,40 @@ components:
 
             **表单初始值按目标 provider 是不是当前生效者分两支取**：
 
-            - 目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;
+            - 目标 = 读面 `terminal.active.provider`（更新在用凭据）→ 取 `terminal.active.threedsEnabled`;
             - 目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;
 
             两支都取不到才 `false`
-    CloverTerminalInput:
-      type: object
-      additionalProperties: false
-      required:
-        - provider
-        - publicToken
-        - privateToken
-        - threedsEnabled
-      properties:
-        provider:
-          type: string
-          enum:
-            - clover
-        publicToken:
-          type: string
-        privateToken:
-          type: string
-          description: 明文输入（保存后掩码回显）
-        threedsEnabled:
-          type: boolean
-          description: |
-            3DS 开关（线上交易 3DS 验证）。**必填**——本端点是全量覆盖 PUT，缺省不代表「保持原样」；前端提交时须回传当前表单值,否则会把已开启的 3DS 静默关掉。
-
-            **表单初始值按目标 provider 是不是当前生效者分两支取**：
-
-            - 目标 = 读面 `activeProvider`（更新在用凭据）→ 取 `terminal.threedsEnabled`;
-            - 目标 ≠ 当前生效者（切换 / 停用后重连）→ 取 `retained` 里同 provider 那项（`retained` **按定义只含非生效 provider**,更新在用凭据时那里查不到它,**别据此当成未配置**）;
-
-            两支都取不到才 `false`
+        moneris:
+          type: object
+          additionalProperties: false
+          description: '`provider = moneris` 的凭据（Store ID + API Token，两项同进同出）。省略规则见本 schema 说明。'
+          required:
+            - storeId
+            - apiToken
+          properties:
+            storeId:
+              type: string
+              minLength: 1
+            apiToken:
+              type: string
+              minLength: 1
+              description: 明文输入（保存后掩码回显）。
+        clover:
+          type: object
+          additionalProperties: false
+          description: '`provider = clover` 的凭据（Public + Private Token，两项同进同出）。省略规则见本 schema 说明。'
+          required:
+            - publicToken
+            - privateToken
+          properties:
+            publicToken:
+              type: string
+              minLength: 1
+            privateToken:
+              type: string
+              minLength: 1
+              description: 明文输入（保存后掩码回显）。
     EcommerceIntegrationInput:
       type: object
       additionalProperties: false
@@ -2517,7 +2489,7 @@ components:
         websiteUrl:
           type: string
           format: uri
-          description: https，合法 host
+          description: 合法 URL，http / https 均可
         paymentMethodConfig:
           type: array
           minItems: 1
@@ -2526,58 +2498,48 @@ components:
             type: string
     EcommerceIntegrationManage:
       description: |
-        管理 ACTIVE Ecommerce（多态，互斥二选一）：UrlChange（websiteUrl 必填 → 触发重审、原 URL / 原配置继续生效） 或 MethodConfigChange（paymentMethodConfig 必填 → 不重审、立即生效）。空 body / 同时传两者 → 400;已有待审核 URL 变更时再改 URL → 409。
-      oneOf:
-        - $ref: '#/components/schemas/EcommerceUrlChange'
-        - $ref: '#/components/schemas/EcommerceMethodConfigChange'
-    EcommerceUrlChange:
+        管理 ACTIVE Ecommerce：`websiteUrl` / `paymentMethodConfig` **至少传一项、可同时传**（弹窗一次 Save 即一次提交）。 服务端按各自生命周期分别处置：方式配置 → 不重审、立即生效；URL → 创建待审核变更、原 URL / 原配置继续生效。 两者同传时方式配置先生效，URL 撞「已有待审核变更」→ 整次 `409`·208002、方式配置**也不生效**（不做部分成功）。空 body → 400。
       type: object
       additionalProperties: false
-      required:
-        - websiteUrl
+      minProperties: 1
       properties:
         websiteUrl:
           type: string
           format: uri
           description: 改 URL → 触发重审（原 URL / 原配置继续生效）
-    EcommerceMethodConfigChange:
-      type: object
-      additionalProperties: false
-      required:
-        - paymentMethodConfig
-      properties:
         paymentMethodConfig:
           type: array
           minItems: 1
-          description: 仅改方式配置 → 不重审、立即生效
+          description: 改方式配置 → 不重审、立即生效。**覆盖式**提交：漏传即等于取消关联。
           items:
             type: string
+            minLength: 1
     DocumentItem:
-      description: 文档项（只读；未上传必传项 present=false 缺失占位）
-      oneOf:
-        - title: PresentDocument
+      type: object
+      additionalProperties: false
+      description: 文档项（只读）。`file` 在 = 已上传；未上传的必传项只有 `docType`（缺失占位）。
+      required:
+        - docType
+      properties:
+        docType:
+          type: string
+          enum:
+            - VOID_CHEQUE
+            - OWNER_ID
+            - CERTIFICATE_OF_INCORPORATION
+            - STORE_INSIDE
+            - STORE_OUTSIDE
+            - OTHER
+        file:
           type: object
           additionalProperties: false
+          description: 已上传的文件；**未上传则不返回本键**。
           required:
-            - docType
-            - present
             - fileName
             - fileType
             - previewUrl
             - downloadUrl
           properties:
-            docType:
-              type: string
-              enum:
-                - VOID_CHEQUE
-                - OWNER_ID
-                - CERTIFICATE_OF_INCORPORATION
-                - STORE_INSIDE
-                - STORE_OUTSIDE
-                - OTHER
-            present:
-              type: boolean
-              const: true
             fileName:
               type: string
               description: 文件名
@@ -2594,26 +2556,6 @@ components:
               format: uri
               readOnly: true
               description: '**下载**用引用（浏览器另存为文件）。与 `previewUrl` 指向同一份文件、只是交付方式不同。 **短时效**、过期后重新调本接口取新值；**不要持久化、不要分享**。'
-        - title: MissingDocument
-          type: object
-          additionalProperties: false
-          required:
-            - docType
-            - present
-          properties:
-            docType:
-              type: string
-              enum:
-                - VOID_CHEQUE
-                - OWNER_ID
-                - CERTIFICATE_OF_INCORPORATION
-                - STORE_INSIDE
-                - STORE_OUTSIDE
-                - OTHER
-            present:
-              type: boolean
-              const: false
-              description: 缺失占位
     DocumentsView:
       type: object
       additionalProperties: false
@@ -2624,7 +2566,7 @@ components:
       properties:
         required:
           type: array
-          description: 5 必传文档项（未上传 present=false）
+          description: 5 必传文档项（未上传的项不带 `file`）
           items:
             $ref: '#/components/schemas/DocumentItem'
         optional:
@@ -2635,6 +2577,27 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -2685,34 +2648,188 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
+    Phone:
+      type: string
+      pattern: ^\+[1-9]\d{1,14}$
+      maxLength: 16
+      description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用区号候选集（`PhoneCountryCode.dialCode`）做**最长前缀匹配**拆分本串。
+    BankAccountIdentification:
+      type: object
+      additionalProperties: false
+      description: |
+        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+
+        - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
+        - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
+
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 见入驻配置 / 结算 options 的 `bankAccountTypes`（按结算币种）。
+
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - ca_local
+            - us_local
+          description: 结算银行账户制式（`ca_local` 加拿大 EFT / `us_local` 美国 ACH）。**封闭 enum**——新增国家 = 契约加取值与对应字段 + 前端加表单组件 + 出款适配器，不是纯配置。
+        transitNumber:
+          type: string
+          pattern: ^[0-9]{5}$
+          description: Transit Number，5 位数字（分行）。只属 `type=ca_local`（**此时必填**）。
+        institutionNumber:
+          type: string
+          pattern: ^[0-9]{3}$
+          description: Institution Number，3 位数字（银行）。只属 `type=ca_local`（**此时必填**）。
+        routingNumber:
+          type: string
+          pattern: ^[0-9]{9}$
+          description: ABA Routing Number，9 位数字。只属 `type=us_local`（**此时必填**）。
+        accountType:
+          type: string
+          enum:
+            - checking
+            - savings
+          description: 账户类型（ACH 必需）。只属 `type=us_local`（**此时必填**）。
+        accountNumber:
+          type: string
+          writeOnly: true
+          pattern: ^[0-9]{4,17}$
+          description: 银行账号（write-only 输入；read 走 accountNumberMasked，明文不回显）。位数随制式：`ca_local` 6-12 位、`us_local` 4-17 位——schema 只守两制式的并集，精确位数由服务端按 `type` 校验。
+        accountNumberMasked:
+          type: string
+          readOnly: true
+          description: 账号末 4 位掩码回显（如 `•••• 5678`）。
+        accountNumberSet:
+          type: boolean
+          readOnly: true
+          description: 是否已填 accountNumber（跨设备恢复 / 草稿完整性判定用）。
     SettlementCycleCode:
       type: string
       minLength: 1
       description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（`400`·`204017` + `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
-    Currency:
-      type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
-    Money:
+    ProvinceOption:
       type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      additionalProperties: false
+      description: 省 / 州候选项。`code` 是 ISO 3166-2 的地区部分（如 `BC`）；**本项带展示名**——标准本地化能力不解析行政区划，客户端拿不到名字。
       required:
-        - amount
-        - currency
+        - code
+        - displayName
       properties:
-        amount:
+        code:
           type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+          minLength: 1
+          examples:
+            - BC
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 展示名（**非本地化**、不随 locale 变）；客户端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+          examples:
+            - British Columbia
+    PostalCodeRule:
+      type: object
+      additionalProperties: false
+      description: 该国的邮编格式规则（部署可配）。客户端据此做输入预校与占位提示；**服务端在提交面重校**，两侧不一致时以服务端为准。
+      required:
+        - pattern
+      properties:
+        pattern:
+          type: string
+          minLength: 1
+          description: ECMA-262 正则（整串匹配）。
+          examples:
+            - ^[A-Z]\d[A-Z] ?\d[A-Z]\d$
+        example:
+          type: string
+          description: 该国合法邮编样例，供占位符 / 错误提示用。
+          examples:
+            - V6B 1A1
+    CountryOption:
+      type: object
+      additionalProperties: false
+      description: 一个可选国家及其下属候选与规则（入驻向导 Step 3 与商户资料 Business Information 编辑面共用同一形状）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。**选定国家即切换本项下的三组候选**——改国家后须重选省 / 州与时区、并按新的邮编规则重校。
+      required:
+        - code
+        - provinces
+        - postalCode
+        - timeZones
+      properties:
+        code:
+          type: string
+          minLength: 1
+          examples:
+            - CA
+        provinces:
+          type: array
+          minItems: 1
+          description: 该国的省 / 州候选（顺序即展示顺序）。
+          items:
+            $ref: '#/components/schemas/ProvinceOption'
+        postalCode:
+          $ref: '#/components/schemas/PostalCodeRule'
+        timeZones:
+          type: array
+          minItems: 1
+          description: 该国可选的 **IANA tz 标识**（如 `America/Toronto`）——**不用 PT / ET 缩写**（缩写表达不了夏令时）。顺序即展示顺序；**下拉直接展示标识本身**，浏览器没有时区展示名的标准解析器（`Intl.DisplayNames` 无此类型），也不要自行拼一张缩写表。
+          items:
+            type: string
+            minLength: 1
+    PhoneCountryCode:
+      type: object
+      additionalProperties: false
+      description: 电话区号候选项（注册面 / 入驻向导 / 商户资料三处共用同一形状）。同一 `dialCode` 可对应多个国家（如 `+1` = CA·US），故 `code` 与 `dialCode` 都给。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。
+      required:
+        - code
+        - dialCode
+      properties:
+        code:
+          type: string
+          description: ISO 3166-1 alpha-2 国家码
+          examples:
+            - CA
+        dialCode:
+          type: string
+          description: 国际拨号前缀（含 `+`）
+          examples:
+            - '+1'
+    CurrencyBankAccountTypes:
+      type: object
+      additionalProperties: false
+      description: 结算币种 → 允许的结算银行账户制式集（部署配置驱动，随出款执行方接入扩展）。制式由**收款银行账户所在国**决定、受结算币种约束，**与商户营业地址 Country 无关**（改地址国家不触碰结算账户）。前端按商户结算币种取本项：只有一个制式就直接渲染该表单，多于一个让商户选账户所在国后按 `type` 查表选表单组件，**不按 currency / country 写 if / else**；写侧提交的 `bankAccount.type` 须 ∈ 该币种的 `types`，否则 400。
+      required:
+        - currency
+        - types
+      properties:
         currency:
           $ref: '#/components/schemas/Currency'
+        types:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - ca_local
+              - us_local
+            description: 结算银行账户制式；**封闭 enum**——新增国家 = 契约加取值与对应字段 + 前端加表单组件 + 出款适配器，不是纯配置。
     SettlementCycleOption:
       type: object
       description: 结算周期档位的一个候选项（入驻向导与商户资料的 Settlement 编辑面共用同一形状）。
@@ -2763,7 +2880,7 @@ components:
         | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
         | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
         | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
-        | `merchant_logo` | PNG / JPEG | 默认 512KB（可配置） | 长效稳定的公开地址（要展示给外部访客） |
+        | `merchant_logo` | PNG / JPEG | **512KB（固定上限）** | 长效稳定的公开地址（要展示给外部访客） |
         | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
         | `payment_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
         | `payment_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
@@ -2787,7 +2904,7 @@ components:
         - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
           「出参 Z」是约定、非 schema 可强制)。
 
-        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+        展示由消费方按**本地时区**换算(浏览器端即浏览器时区);商户配置的 IANA 时区是**服务端固化日期字段**时用的,不用于展示换算。
 
         **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
         **别拿本类型自己推**：两者在跨日边界附近会分属两天。
@@ -2831,6 +2948,34 @@ components:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
           description: 本目标的失效时刻。**过了这个点提交会被存储端拒绝**,须重新申请一个目标。 用户选好文件后放置较久、或准备提交大文件时,可据此提前判断要不要先换一个新目标, 不必等提交失败再回退。
+    OtpChallenge-2:
+      type: object
+      additionalProperties: false
+      description: 一次性验证码挑战句柄 = `OtpDelivery` 的三件事 + 本挑战自己的 id（供后续校验步骤引用）。 用于**挑战自带 id** 的入口；若 id 已由所在流程的资源提供（如 change-request），那里直接用 `OtpDelivery`、不重复给 id。 **各入口的绑定语义与失效细则不同**（是否绑操作摘要 / 发起会话、幂等重投是否受时限约束等），见各自端点说明。
+      required:
+        - challengeId
+        - deliveredTo
+        - cooldownSeconds
+        - expiresAt
+      properties:
+        challengeId:
+          type: string
+          readOnly: true
+          description: 挑战实例 id，串起后续校验步骤。
+        deliveredTo:
+          type: string
+          readOnly: true
+          description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
+        cooldownSeconds:
+          type: integer
+          readOnly: true
+          minimum: 0
+          description: 重发冷却秒数（部署可配）。
+        expiresAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 该码的失效时间（部署可配）。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$
@@ -2845,6 +2990,23 @@ components:
       writeOnly: true
       pattern: ^[0-9]{6}$
       description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
+    CurrencyCountry:
+      type: object
+      additionalProperties: false
+      description: 一条**有效 Currency × Country 组合**（入驻向导 Step 3 与 Add Merchant 弹窗共用同一形状）。组合集**由后端配置决定、契约不写死**——当前部署为 `CAD→CA` / `USD→CA·US`，但不要把它当固定值：客户端一律从候选集渲染，不自行拼组合。`currency` 与 `countries` 都是 ISO 标准码（4217 / 3166），币种与国家的展示名由客户端按它们解析（浏览器内置 `Intl.DisplayNames` 即可）。
+      required:
+        - currency
+        - countries
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        countries:
+          type: array
+          minItems: 1
+          description: 该币种下可选的国家（ISO 3166-1 alpha-2）。
+          items:
+            type: string
+            minLength: 1
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context

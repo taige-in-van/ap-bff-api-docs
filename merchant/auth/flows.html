@@ -100,17 +100,18 @@ sequenceDiagram
     and 前端轮询
         loop 直到非 WAITING
             B->>A: [pollWechatLogin] GET /sessions/wechat/{qrTicket}
-            A-->>B: 200 { status, reason? }
+            A-->>B: 200 { status }
         end
     end
-    Note over B,A: WAITING：继续轮询<br/>EXPIRED：重新 initiateWechatLogin 换码<br/>ESTABLISHED：已 Set-Cookie(按未勾 Remember Me)<br/>REJECTED：展示 reason(账号禁用 / 商户异常)<br/>CANCELLED：用户微信内取消
+    Note over B,A: WAITING：继续轮询<br/>EXPIRED：重新 initiateWechatLogin 换码<br/>ESTABLISHED：已 Set-Cookie(按未勾 Remember Me)<br/>CANCELLED：用户微信内取消
 ```
 
 - `EXPIRED`(二维码默认 5 分钟,可配置)→ 前端重新发起换新码继续等。
 - 未绑定 / 未扫 / 未确认对前端表现一致(`WAITING`),不区分以防枚举。
 - 微信内须用户**显式确认**才登录(扫码本身不构成认证);确认前对前端仍是 `WAITING`。
 - 二维码请求时已带业务端(商户后台),微信内**不选业务端 / 商户**;同一身份跨多商户的切换在门户内完成,不在微信里。
-- `REJECTED` / `CANCELLED` 是用户**确认后**的裁决结果(`REJECTED`=无有效的商户后台访问资格 / 账号或商户不可用;`CANCELLED`=用户在微信内取消);确认前一律 `WAITING`(反枚举)。
+- **拒绝原因在微信侧给扫码本人,不回本响应**:平台在用户扫码后、渲染确认按钮**之前**先判一次(未绑定 / 账号已禁用 / 商户停用 / 本端微信登录未启用),判死就直接在微信里说清、不让用户白点一次确认。这一段前端全程只见 `WAITING`,直到二维码过期。原因交给能处置它的人(扫码本人),不交给持这个页面的人——**二维码可被转发诱扫,轮询页面的未必是账号本人**。
+- **本面没有「被拒」终态**:成因既然都在微信侧说了,再给前端一个 `REJECTED` 只会诱使它去猜为什么。极罕见的残余拒绝(判过之后、用户确认时状态又变)投影为 `EXPIRED` —— 前端对 `EXPIRED` / `CANCELLED` 的动作本来就一样(提示重新发起)。`CANCELLED` = 用户在微信内取消。
 
 ---
 
@@ -134,11 +135,12 @@ sequenceDiagram
             A-->>B: 200 { status, reason? }
         end
     end
-    Note over B,A: PENDING：继续轮询<br/>BOUND：已绑(绑定成功后更新页面状态，后续刷新团队列表可取得最新 wechatBound)<br/>FAILED：粗粒度(占用细节不回泄 Owner，reason 仅 TARGET_GONE)<br/>CANCELLED：成员取消<br/>EXPIRED：换码重发
+    Note over B,A: PENDING：继续轮询<br/>BOUND：已绑(绑定成功后更新页面状态，后续刷新团队列表可取得最新 wechatBound)<br/>FAILED：粗粒度(reason 至多 TARGET_GONE，占用原因不回本面)<br/>CANCELLED：成员取消<br/>EXPIRED：换码重发
 ```
 
 - **异设备是关键**:Owner 在商户后台(PC)发起、被绑定成员在自己微信(手机)扫码确认;无结果腿则 Owner 零回告,故 `pollMemberWechatBinding` 必备。
-- **占用冲突不回泄 Owner**:成员微信已绑别的账号 → Owner 轮询只得粗粒度 `FAILED`(`reason` 仅 `TARGET_GONE`),精确「已被占用」仅成员微信内可见;杜绝 Owner 借代绑刺探成员微信是否在平台用过。
+- **占用与目标失效在确认前就拦掉,而且不回本面**:平台在成员扫码后、渲染确认按钮之前判一次(占用 / 目标是否还在),判死就当场在他的微信里说清、不让他白点确认。**这时发起页面既拿不到原因、也拿不到失败**——它一直显示「等待扫码确认」,直到二维码 `EXPIRED`。给页面一个即时 `FAILED` 就等于告诉持页面的人「有人扫了且被拒」,那是反枚举要防的(`XCUT-AUTH-INV-16`)。
+- **`FAILED` 只出现在确认之后**:预检过了、用户也确认了,写入时才落败——**并发抢绑**(占用在写入时原子复判,仅一胜出)或**预检后目标才失效**(`reason: TARGET_GONE`)。两者都罕见,占用类一律不带原因。
 - **绑定 = 启用商户后台微信登录**:成功即该成员可在商户后台扫码登录;解绑([`unbindMemberWechat`](index.html#tag/team/operation/unbindMemberWechat))仅停用该成员的商户后台 WeChat 登录,不删平台级 WeChat 绑定、不影响其他业务端。
 - `wechatBound`(team 列表)= 商户后台启用状态；绑定成功后更新页面状态,后续刷新团队列表可取得最新 wechatBound。
 
@@ -267,7 +269,7 @@ sequenceDiagram
 
 ## 编辑员工:显示名后台补齐时的 202 轮询
 
-`updateTeamMember` 的同步字段(Role / 用户名 / 密码)**原子生效**后,若显示名(Nick Name)仍在后台补齐,返回 `202` + `status=PROCESSING`;**轮询方式 = 拿同一个 `Idempotency-Key` 重发同一请求**(本域不另设查询端点),补齐后同一个键返 `204` 收敛。
+`updateTeamMember` 的同步字段(Role / 用户名 / 密码)**原子生效**后,若显示名(Nick Name)仍在后台补齐,返回 `202`(处理中、无响应体);**轮询方式 = 拿同一个 `Idempotency-Key` 重发同一请求**(本域不另设查询端点),补齐后同一个键返 `204` 收敛。
 
 ```mermaid
 sequenceDiagram
@@ -277,7 +279,7 @@ sequenceDiagram
     alt 同步字段生效 + 显示名已就绪
         A-->>O: 204(全部完成)
     else 显示名后台补齐中
-        A-->>O: 202 status=PROCESSING(同步字段已原子生效)
+        A-->>O: 202 处理中、无响应体(同步字段已原子生效)
         Note over O,A: 保留同一个 Idempotency-Key
         O->>A: [updateTeamMember] 同键 + 同请求体重发
         A-->>O: 204(补齐完成，收敛)
@@ -324,7 +326,7 @@ sequenceDiagram
     Note over E,B: 用户点邮件链接 → 打开确认页(GET 只展示，不消费 token)
     B->>A: [verifyRegistrationEmail] POST /registrations/verification { token }(用户在确认页主动点 Verify)
     A-->>B: 200 ACTIVE + set-cookie 建会话(→ 走启动链路 getCurrentSession → getOnboardingStatus，见 API 基础约定)
-    Note over B,A: 已激活(已用)→410 AUTH_REGISTRATION_ALREADY_ACTIVATED 跳登录<br/>无效/过期→410 AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED 重发或重注册<br/>激活前任一步失败留 PENDING、可重试、不展示成功<br/>200 且 sessionEstablished=false→激活成立但未建会话、跳登录页首次密码登录
+    Note over B,A: 已激活(已用)→410 AUTH_REGISTRATION_ALREADY_ACTIVATED 跳登录<br/>无效/过期→410 AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED 重发或重注册<br/>激活前任一步失败留 PENDING、可重试、不展示成功<br/>激活已提交但建会话失败→返错误、不回退，再次点击链接命中 410 已激活后密码登录
 ```
 
 - 重发验证邮件:[`resendVerificationEmail`](index.html#tag/registration/operation/resendVerificationEmail)(`POST /registrations/verification-email`,**恒 202 反枚举**〔存在 / 不存在同一外观、不回显账号存在性〕;冷却剩余秒数前端本地计时〔`resendCooldownSeconds` 来自响应、部署可配、非 hardcode〕;冷却后重复调用即重发、新链接生效旧链接失效)。

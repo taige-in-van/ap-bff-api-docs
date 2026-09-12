@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 — 前端契约面
-  version: 0.33.1
+  version: 1.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -49,7 +49,7 @@ paths:
       operationId: listStoreQrVariants
       summary: 读店铺码展示变体（主 QR + 可用变体）
       description: |
-        返回当前商户店铺码可展示变体集（默认主结算币种 Standard 码 + 其余按已开通币种 / QR type / 通道条件显隐； UnionPay QRC 变体需 UPI 通道启用）。 展示变体随商户可受理方式集变化。
+        返回当前商户店铺码可展示的变体集（按已开通币种 / QR type / 通道条件显隐；UnionPay QRC 变体需 UPI 通道启用）。 **第 1 项就是服务端已选定的主变体**——通常是主结算币种的 Standard 码，该组合不可用时服务端会另选一个； 照第 1 项渲染主位即可、不要自己挑，其余按序进「More」。 展示变体随商户可受理方式集变化。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -117,8 +117,24 @@ paths:
                   summary: 候选 3 方式、启用 2
                   value:
                     logoRef: 4e7a2c18b93d40f5a06c8b1e57d29f43
-                    notes:
-                      - title: 门店说明
+                    logoUrl: https://cdn.example.com/paymentpage/4e7a2c18b93d40f5a06c8b1e57d29f43.png
+                    notesEnabled: true
+                    payerInputs:
+                      - key: sys:name
+                        label: 姓名
+                        system: true
+                        mandatory: false
+                        type: text
+                      - key: sys:phone
+                        label: 手机号
+                        system: true
+                        mandatory: false
+                        type: tel
+                      - key: 门店说明
+                        label: 门店说明
+                        system: false
+                        mandatory: false
+                        type: textarea
                     description: 欢迎光临
                     availableMethods:
                       - methodId: instore-wechat
@@ -164,6 +180,11 @@ paths:
         - **暂时判不出**（上游不可达 / 超时）→ `502` / `504`：**不必重传**，原样重试本请求。
 
         `logoUrl` 只出不入、不要提交。天然幂等 PUT（同 payload 重放一致）。
+
+        **采集项提交的是保留下来的完整键列表**（`payerInputKeys`）——见该字段说明。
+        缺必填项或自撰标题撞上系统项的键 → `409 PRODCFG_PAYMENT_PAGE_INPUTS_INVALID (208030)`，整次保存被拒。
+        **本商户第一次保存本设置时**，服务端会把该收的系统项（姓名 / 手机号一类）填进配置里；
+        此后系统侧新增的项**不会追加进已有配置**，这份列表就是这个商户收款页的真相。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -187,9 +208,27 @@ paths:
                     logoRef: 9c1d5f7a3e2b48c6b0f4a8d29e631b57
                     logoUrl: https://files.example.com/o/9c1d5f7a?exp=1755331200&sig=REDACTED&disp=inline
                     notesEnabled: true
-                    notes:
-                      - title: 门店说明
-                      - title: 取餐号
+                    payerInputs:
+                      - key: sys:name
+                        label: 姓名
+                        system: true
+                        mandatory: false
+                        type: text
+                      - key: sys:phone
+                        label: 手机号
+                        system: true
+                        mandatory: false
+                        type: tel
+                      - key: 门店说明
+                        label: 门店说明
+                        system: false
+                        mandatory: false
+                        type: textarea
+                      - key: 取餐号
+                        label: 取餐号
+                        system: false
+                        mandatory: false
+                        type: text
                     description: 欢迎光临
                     availableMethods:
                       - methodId: instore-wechat
@@ -221,6 +260,7 @@ paths:
         - 204014
         - 208001
         - 208007
+        - 208030
   /payment-page/files/upload-targets:
     post:
       tags:
@@ -253,8 +293,7 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      enum:
-                        - payment_page_logo
+                      description: 本端点固定传 `payment_page_logo`（收款页 Logo）；传其他用途 → 400。
                     contentType:
                       enum:
                         - image/png
@@ -313,13 +352,13 @@ paths:
         - name: from
           in: query
           required: false
-          description: 创建日期范围起（含当日）。
+          description: 创建日期范围起（含当日）。筛的是记录上的 `createdDate`、按字面匹配。
           schema:
             $ref: '#/components/schemas/LocalDate'
         - name: to
           in: query
           required: false
-          description: 创建日期范围止（含当日）。
+          description: 创建日期范围止（含当日）。口径同 `from`。
           schema:
             $ref: '#/components/schemas/LocalDate'
         - name: amountMin
@@ -334,18 +373,16 @@ paths:
           description: 金额范围上限
           schema:
             type: string
-        - name: sort
+        - name: sortField
           in: query
           required: false
-          description: 排序（Newest / Oldest / Amount 高→低 / Amount 低→高）
+          description: 排序字段。不传 = 不排序；页面默认顺序（最新创建在前）由前端显式传 `createdAt` + `descend`。`amount` 按数值比较、不分币种。
           schema:
             type: string
             enum:
-              - newest
-              - oldest
-              - amount_desc
-              - amount_asc
-            default: newest
+              - createdAt
+              - amount
+        - $ref: '#/components/parameters/SortOrder'
       responses:
         '200':
           description: 账单列表
@@ -366,6 +403,7 @@ paths:
                         status: UNPAID
                         dueDate: '2026-08-01'
                         createdAt: '2026-07-10T10:00:00Z'
+                        createdDate: '2026-07-10'
                       - invoiceId: inv_2
                         amount:
                           amount: '20000'
@@ -373,6 +411,7 @@ paths:
                         status: OVERDUE
                         dueDate: '2026-07-01'
                         createdAt: '2026-06-10T10:00:00Z'
+                        createdDate: '2026-06-10'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -423,6 +462,7 @@ paths:
                     status: UNPAID
                     dueDate: '2026-08-01'
                     createdAt: '2026-07-04T10:00:00Z'
+                    createdDate: '2026-07-04'
                     description: 8 月服务费
                     paymentUrl: https://cashier.example.com/inv/inv_1000024_2001
                     hidden: false
@@ -452,13 +492,13 @@ paths:
         - name: from
           in: query
           required: false
-          description: 创建日期范围起（含当日）。
+          description: 创建日期范围起（含当日）。筛的是记录上的 `createdDate`、按字面匹配。
           schema:
             $ref: '#/components/schemas/LocalDate'
         - name: to
           in: query
           required: false
-          description: 创建日期范围止（含当日）。
+          description: 创建日期范围止（含当日）。口径同 `from`。
           schema:
             $ref: '#/components/schemas/LocalDate'
         - name: amountMin
@@ -632,6 +672,7 @@ paths:
                     status: UNPAID
                     dueDate: '2026-08-01'
                     createdAt: '2026-07-04T10:00:00Z'
+                    createdDate: '2026-07-04'
                     description: 8 月服务费
                     paymentUrl: https://cashier.example.com/inv/inv_1000024_2001
                     hidden: false
@@ -645,6 +686,7 @@ paths:
                     status: PAID
                     dueDate: '2026-07-20'
                     createdAt: '2026-07-02T09:15:00Z'
+                    createdDate: '2026-07-02'
                     description: 7 月服务费
                     paymentUrl: https://cashier.example.com/inv/inv_1000024_2002
                     paidOrderId: P100240011
@@ -687,6 +729,7 @@ paths:
                     status: VOIDED
                     dueDate: '2026-08-01'
                     createdAt: '2026-07-04T10:00:00Z'
+                    createdDate: '2026-07-04'
                     description: 8 月服务费
                     hidden: false
                 hidden:
@@ -699,6 +742,7 @@ paths:
                     status: PAID
                     dueDate: '2026-07-20'
                     createdAt: '2026-07-02T09:15:00Z'
+                    createdDate: '2026-07-02'
                     description: 7 月服务费
                     paymentUrl: https://cashier.example.com/inv/inv_1000024_2002
                     paidOrderId: P100240011
@@ -762,18 +806,16 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/PaymentLinkType'
-        - name: sort
+        - name: sortField
           in: query
           required: false
-          description: 排序（默认 created_desc）
+          description: 排序字段。不传 = 不排序；页面默认顺序（最新创建在前）由前端显式传 `createdAt` + `descend`。
           schema:
             type: string
             enum:
-              - created_desc
-              - created_asc
-              - name_asc
-              - name_desc
-            default: created_desc
+              - createdAt
+              - name
+        - $ref: '#/components/parameters/SortOrder'
       responses:
         '200':
           description: 支付链接列表
@@ -818,7 +860,7 @@ paths:
       operationId: createPaymentLink
       summary: 创建支付链接（giftcard/product/ticket）
       description: |
-        创建支付链接（type 判别 giftcard/product/ticket）→ 建销售实例（status=ACTIVE）+ 返回链接 URL（`paymentUrl`）；收款 QR 图片不在本响应内，走 `downloadPaymentLinkQr` 取 PNG。
+        创建支付链接（按 `type` 选定 giftcard / product / ticket 之一，并携带对应的内容子对象）→ 建销售实例（status=ACTIVE）+ 返回链接 URL（`paymentUrl`）；收款 QR 图片不在本响应内，走 `downloadPaymentLinkQr` 取 PNG。
 
         含 Policies（**继承商户级共享默认**的快照）与 Buyer / Recipient Information（以 `getPaymentLinkCreateConfig` 的 **`default*`〔系统级默认〕** 为起点、固化进本链接自己的快照，**此后改本链接不回写任何共享默认**）。
 
@@ -855,8 +897,9 @@ paths:
                     - online-wechat
                     - online-credit_card
                   buyerInformation:
-                    - Name
-                    - Email
+                    - sys:name
+                    - sys:email
+                    - 公司抬头
                   giftcard:
                     giftCardName: lululemon $25 CAD Gift Card
                     brandName: lululemon
@@ -904,8 +947,32 @@ paths:
                         acceptanceMode: online
                         displayName: WeChat Pay
                     buyerInformation:
-                      - Name
-                      - Email
+                      - key: sys:name
+                        label: Name
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: Email
+                        system: true
+                        mandatory: true
+                        type: email
+                        needConfirm: true
+                      - key: 公司抬头
+                        label: 公司抬头
+                        system: false
+                        mandatory: false
+                    recipientInformation:
+                      - key: sys:name
+                        label: Recipient Name
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: Recipient Email
+                        system: true
+                        mandatory: true
+                        type: email
                     policies: {}
                     paymentUrl: https://cashier.example.com/pl/pl_1000024_3001
                     giftcard:
@@ -917,7 +984,9 @@ paths:
                       emailLanguage: en
                       campaignEndDate: '2026-12-31'
                       denominations:
-                        - amount:
+                        - itemId: dn_7Q2M8XZ4
+                          committedQuantity: 0
+                          amount:
                             amount: '2500'
                             currency: CAD
                           price:
@@ -936,6 +1005,7 @@ paths:
         - 208001
         - 208005
         - 208007
+        - 208030
   /products/payment-links/counts:
     get:
       tags:
@@ -981,7 +1051,15 @@ paths:
       operationId: getPaymentLinkCreateConfig
       summary: 读支付链接创建候选配置
       description: |
-        创建 / 编辑向导所需候选：候选支付方式（该商户对该链接类型的当前可受理集、后端返回，**含线上与线下方式**）+ 可选标价币种（结算币种 ∪ CNY-if-通道支持；取值以后端返回为准；最终受理〔含金额/汇率〕在下单时完成）+ Buyer / Recipient Information 的**新建默认集**（采集项标题由商户自撰、无候选目录）。 FE 据此渲染创建向导、提交的 methodIds / currency 须 ⊆ 本候选。 **候选按链接类型给**：礼卡 / 商品码 / 票务的可用方式可不同，故 `type` 必填、须先选类型再取候选（编辑场景传该链接自身的类型）。
+        创建 / 编辑向导所需的三组候选：
+
+        - **候选支付方式** —— 该商户对该链接类型的当前可受理集，后端返回，**含线上与线下方式**；
+        - **可选标价币种** —— 结算币种 ∪ CNY-if-通道支持；取值以后端返回为准，最终受理（含金额 / 汇率）在下单时完成；
+        - **Buyer / Recipient Information 的新建默认集** —— 含系统给出的项与其属性；商户自撰项的标题由商户自己打、无候选目录。
+
+        FE 据此渲染创建向导，提交的 `methodIds` / `currency` 须 ⊆ 本候选。
+
+        **候选按链接类型给**：礼卡 / 商品码 / 票务的可用方式可不同，故 `type` 必填、须先选类型再取候选（编辑场景传该链接自身的类型）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: type
@@ -1018,12 +1096,28 @@ paths:
                         pricingCurrencies:
                           - CAD
                     defaultBuyerInfo:
-                      - Name
-                      - Email
-                      - Confirm Email
+                      - key: sys:name
+                        label: Name
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: Email
+                        system: true
+                        mandatory: true
+                        type: email
+                        needConfirm: true
                     defaultRecipientInfo:
-                      - Recipient Name
-                      - Recipient Email
+                      - key: sys:name
+                        label: Recipient Name
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: Recipient Email
+                        system: true
+                        mandatory: true
+                        type: email
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1070,8 +1164,25 @@ paths:
                         acceptanceMode: online
                         displayName: Credit Card
                     buyerInformation:
-                      - Name
-                      - Email
+                      - key: sys:name
+                        label: 姓名
+                        system: true
+                        mandatory: false
+                      - key: sys:email
+                        label: 邮箱
+                        system: true
+                        mandatory: true
+                    recipientInformation:
+                      - key: sys:name
+                        label: 收件人姓名
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: 收件人邮箱
+                        system: true
+                        mandatory: true
+                        type: email
                     policies:
                       faq:
                         en: How do I redeem the card?
@@ -1096,13 +1207,15 @@ paths:
                         amount: '10000'
                         currency: CAD
                       purchaseLimitCycle: biweekly
+                      purchaseCounterResetAt: '2026-08-20T14:02:11Z'
                       orderRiskReview: true
                       campaignEndDate: '2026-12-31'
                       slogan: 送礼首选
                       bannerRef: 5a2c84f1d09b4e73ac16f8b3e047d92c
                       bannerUrl: https://files.example.com/o/5a2c84f1?exp=1755331200&sig=REDACTED&disp=inline
                       denominations:
-                        - amount:
+                        - itemId: dn_7Q2M8XZ4
+                          amount:
                             amount: '2500'
                             currency: CAD
                           price:
@@ -1112,7 +1225,9 @@ paths:
                             amount: '250'
                             currency: CAD
                           stock: 120
-                        - amount:
+                          committedQuantity: 34
+                        - itemId: dn_K3P9L1WD
+                          amount:
                             amount: '5000'
                             currency: CAD
                           price:
@@ -1122,9 +1237,7 @@ paths:
                             amount: '500'
                             currency: CAD
                           stock: 80
-                      recipientInformation:
-                        - Recipient Name
-                        - Recipient Email
+                          committedQuantity: 12
                 ticket:
                   summary: 票务链接（已停用；活动日期纯描述、不作销售 gate）
                   value:
@@ -1140,9 +1253,18 @@ paths:
                         acceptanceMode: online
                         displayName: Credit Card
                     buyerInformation:
-                      - Name
-                      - Email
-                      - Phone
+                      - key: sys:name
+                        label: 姓名
+                        system: true
+                        mandatory: false
+                      - key: sys:email
+                        label: 邮箱
+                        system: true
+                        mandatory: true
+                      - key: sys:phone
+                        label: 手机号
+                        system: true
+                        mandatory: false
                     policies:
                       customerService:
                         en: support@merchant.com
@@ -1153,19 +1275,23 @@ paths:
                       bannerRef: 7e0b21c53fa84d69915cbd8e2740f3a1
                       bannerUrl: https://files.example.com/o/7e0b21c5?exp=1755331200&sig=REDACTED&disp=inline
                       tiers:
-                        - name: Early Bird
+                        - itemId: tr_5H8N2VQC
+                          name: Early Bird
                           price:
                             amount: '3000'
                             currency: CAD
                           capacity: 100
+                          committedQuantity: 63
                           saleWindow:
                             start: '2026-08-01T00:00:00Z'
                             end: '2026-09-15T23:59:59Z'
-                        - name: Regular
+                        - itemId: tr_9B4T6RXK
+                          name: Regular
                           price:
                             amount: '8000'
                             currency: CAD
                           capacity: 200
+                          committedQuantity: 8
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1178,20 +1304,21 @@ paths:
       description: |
         编辑配置段（Name / Currency / 类型内容 / Payment methods / Buyer Information / Banner / giftcard meta）。
 
-        `type` 须与该链接现有类型一致（链接类型创建后不可变更），它只作内容段的判别、不构成改动。
+        `type` 须与该链接现有类型一致（链接类型创建后不可变更），它只用于选定内容子对象、不构成改动。
 
-        **冻结字段传同值不报错**，只有传入不同值才拒。
+        **卖出去之后照样能改**——名称、售价、销售窗口、活动信息、币种都可以改，**不会因为这条链接已经有订单就锁住**。
+        已成交的订单不受影响：它在下单那一刻就把自己买的东西（名称 / 单价 / 数量 / 金额 / 币种 / 活动与品牌信息）
+        抄了一份存着，之后链接怎么改都不动它。所以卖出一单后发现标题有错别字，直接改就行。
+        **唯一改不了的是礼卡的履约模式**，那是创建时就定死的、跟卖没卖过无关（见下）。
 
-        - 已产生订单后**影响已售解释的字段冻结**——冻结集 = `currency` · **已售**面值档的 `amount`（主卡面值）· **已售**商品的 `name` / `price` / 销售窗口 · 票务的 `eventDate` / `venue` · **已售**票档的 `name` / `price` / 销售窗口;
-        - 库存 / capacity、**未售**销售项、展示内容、Buyer / Recipient Information、Payment Methods、Policies、启停状态**不冻结**。
+        ⚠️ **改商品 / 票档 / 面值档时，每一项要把详情里读到的 `itemId` 原样带回**——带回 = 改这一项，
+        不带 = 新增一项，**没带回的既有项按下架处理**。漏带 `itemId` 不会报错，但会被当成
+        「下架旧的、另加一个新的」：新项从零开始卖，旧项的销量与在途订单留在下架的那一项上。
+        改可售上限还有个下界——不能低于该项的 `committedQuantity`
+        （`409 PRODCFG_ITEM_LIMIT_BELOW_COMMITTED 208031`，响应里带上那个数）；
+        带了不属于本链接的 `itemId` → `409 PRODCFG_ITEM_UNKNOWN 208032`，整次保存被拒。
 
-        触碰冻结字段 → `409`·208025，**响应必带 `details[].field`** 指出是哪几个;**刷新重试无用**，前端把这些字段值改回原样并禁用其输入。
-
-        进编辑态时可否**预先**禁用，取决于读侧是否已给出「已售」信号（当前 `getPaymentLink` 未提供逐项已售标记，故本期以提交后的 `409` + `details` 为准）；
-
-        - 方式收窄 + **currency × methods 组合校验同 createPaymentLink**——**单改 Currency 校验已有 Methods、单改 Methods 校验现 Currency**（任一不兼容 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE 208007`）；
-        - 内容币种须 = 顶层 currency（不一致 → `400 CONTENT_CURRENCY_MISMATCH 204006`）。
-
+        方式收窄 + **currency × methods 组合校验同 createPaymentLink**——**单改 Currency 校验已有 Methods、单改 Methods 校验现 Currency**（任一不兼容 → `409 PAYMENT_METHOD_NOT_ACCEPTABLE 208007`）；内容币种须 = 顶层 currency（不一致 → `400 CONTENT_CURRENCY_MISMATCH 204006`）。
         **礼卡内容规则同 createPaymentLink**（→ `400 GIFTCARD_CONTENT_INVALID 204013`）；**履约模式创建后不可变更**——请求携带与已存实例不同的 `fulfillmentMode` → `409 GIFTCARD_FULFILLMENT_MODE_IMMUTABLE (208017)`（该字段本就不应可编辑，前端不提供入口）。
 
         **素材引用在本步生效**（`bannerRef` / `brandLogoRef`，取自 createPaymentLinkAssetUploadTarget）：所引文件**确定未就位**（直传未完成 / 被存储端拒收）→ `400 FILE_NOT_IN_PLACE (204014)`，**整次编辑不生效**。
@@ -1217,7 +1344,7 @@ paths:
               $ref: '#/components/schemas/PaymentLinkUpdateRequest'
             examples:
               editGiftcard:
-                summary: giftcard 链接改名 + 加一档面值（只传 name 与 giftcard 段；currency / methodIds 未传故不变）
+                summary: giftcard 链接改名 + 保留原有两档（带 itemId）+ 加一档新面值（不带 itemId）
                 value:
                   type: giftcard
                   name: 节日礼卡（升级）
@@ -1230,7 +1357,8 @@ paths:
                     emailLanguage: en
                     campaignEndDate: '2026-12-31'
                     denominations:
-                      - amount:
+                      - itemId: dn_7Q2M8XZ4
+                        amount:
                           amount: '2500'
                           currency: CAD
                         price:
@@ -1239,7 +1367,8 @@ paths:
                         discountAmount:
                           amount: '250'
                           currency: CAD
-                      - amount:
+                      - itemId: dn_K3P9L1WD
+                        amount:
                           amount: '5000'
                           currency: CAD
                         price:
@@ -1247,6 +1376,15 @@ paths:
                           currency: CAD
                         discountAmount:
                           amount: '500'
+                          currency: CAD
+                      - amount:
+                          amount: '10000'
+                          currency: CAD
+                        price:
+                          amount: '10000'
+                          currency: CAD
+                        discountAmount:
+                          amount: '1200'
                           currency: CAD
       responses:
         '200':
@@ -1275,8 +1413,25 @@ paths:
                         acceptanceMode: online
                         displayName: Credit Card
                     buyerInformation:
-                      - Name
-                      - Email
+                      - key: sys:name
+                        label: 姓名
+                        system: true
+                        mandatory: false
+                      - key: sys:email
+                        label: 邮箱
+                        system: true
+                        mandatory: true
+                    recipientInformation:
+                      - key: sys:name
+                        label: 收件人姓名
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: 收件人邮箱
+                        system: true
+                        mandatory: true
+                        type: email
                     policies:
                       faq:
                         en: How do I redeem the card?
@@ -1296,7 +1451,8 @@ paths:
                       emailLanguage: en
                       campaignEndDate: '2026-12-31'
                       denominations:
-                        - amount:
+                        - itemId: dn_7Q2M8XZ4
+                          amount:
                             amount: '2500'
                             currency: CAD
                           price:
@@ -1306,7 +1462,9 @@ paths:
                             amount: '250'
                             currency: CAD
                           stock: 120
-                        - amount:
+                          committedQuantity: 34
+                        - itemId: dn_K3P9L1WD
+                          amount:
                             amount: '5000'
                             currency: CAD
                           price:
@@ -1316,6 +1474,7 @@ paths:
                             amount: '500'
                             currency: CAD
                           stock: 80
+                          committedQuantity: 12
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1326,7 +1485,9 @@ paths:
         - 208001
         - 208007
         - 208017
-        - 208025
+        - 208030
+        - 208031
+        - 208032
     delete:
       tags:
         - payment-links
@@ -1408,8 +1569,25 @@ paths:
                         acceptanceMode: online
                         displayName: Credit Card
                     buyerInformation:
-                      - Name
-                      - Email
+                      - key: sys:name
+                        label: 姓名
+                        system: true
+                        mandatory: false
+                      - key: sys:email
+                        label: 邮箱
+                        system: true
+                        mandatory: true
+                    recipientInformation:
+                      - key: sys:name
+                        label: 收件人姓名
+                        system: true
+                        mandatory: true
+                        type: text
+                      - key: sys:email
+                        label: 收件人邮箱
+                        system: true
+                        mandatory: true
+                        type: email
                     policies:
                       customerService:
                         en: support@merchant.com
@@ -1422,8 +1600,10 @@ paths:
                       fulfillmentMode: inventory
                       emailLanguage: en
                       campaignEndDate: '2026-12-31'
+                      purchaseCounterResetAt: '2026-09-11T03:20:45Z'
                       denominations:
-                        - amount:
+                        - itemId: dn_7Q2M8XZ4
+                          amount:
                             amount: '2500'
                             currency: CAD
                           price:
@@ -1433,7 +1613,9 @@ paths:
                             amount: '250'
                             currency: CAD
                           stock: 120
-                        - amount:
+                          committedQuantity: 34
+                        - itemId: dn_K3P9L1WD
+                          amount:
                             amount: '5000'
                             currency: CAD
                           price:
@@ -1443,6 +1625,7 @@ paths:
                             amount: '500'
                             currency: CAD
                           stock: 80
+                          committedQuantity: 12
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1454,7 +1637,7 @@ paths:
         - payment-links
       operationId: savePaymentLinkPolicies
       summary: 保存 Policies & Support（三语，同步商户级默认）
-      description: 保存**五项** × 三语（EN/中/FR）：FAQ / Customer Service / Privacy Policy / Terms of Use（使用说明）/ Terms & Conditions（正式条款全文）；同步更新商户级默认（后续新建继承、已存在其他链接不追溯）。天然幂等 PUT。
+      description: 保存**五项** × 三语（EN/中/FR）：FAQ / Customer Service / Privacy Policy / Terms of Use（使用说明）/ Terms & Conditions（正式条款全文）；同步更新商户级默认（后续新建继承、已存在其他链接不追溯）。**本端点整份覆盖、缺省不代表保持原样**（不适用通用的部分更新口径）：请求里的五项 × 三语就是保存后的全部内容，某项或某语种不给即被清空，商户级默认同样整份随之覆盖——只改一项时请把其余四项按读到的原样带回。天然幂等 PUT。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -1586,9 +1769,9 @@ paths:
 
         - **字段 / 状态 / 可退性 / 操作可见性与交易管理的交易列表逐字段相同**，行组件可直接复用。
         - **scope 双重收窄**：当前商户 + 该 `linkId`；非本商户或不属该 link 的交易不返回。
-        - **按交易时间倒序**返回（固定序、本端点不提供排序参数），分页稳定。
+        - 排序同交易列表（`sortField` + `sortOrder`；页面默认最新交易在前由前端显式传），分页稳定。
 
-        **本端点只读、不承载退款**——行内退款是**两跳、都在交易管理契约里**：先按 `orderId` 调 `getPaymentDetail` 做可退额预检（行里的 `refundable` 只表示入口可见,**不含可退金额上限**），再调 `createRefund` 提交;退款规则 / PIN / 幂等口径全在那边,本域不重复定义。
+        **本端点只读、不承载退款**——行内退款是**两跳、都在交易管理契约里**：先按 `orderId` 调 `getPaymentDetail` 做可退额预检（行里的 `refundable` / `remainingRefundable` 只供入口可见与提示,**提交前仍以详情的可退摘要为准**——可能已陈旧），再调 `createRefund` 提交;退款规则 / PIN / 幂等口径全在那边,本域不重复定义。
 
         空结果返回空态（`total: 0` + 空 `data`）、不报错。跨 scope `linkId` 统一 `404` 防枚举。
       parameters:
@@ -1599,6 +1782,51 @@ paths:
           schema:
             type: string
             minLength: 1
+        - name: keyword
+          in: query
+          required: false
+          description: 关键词：订单号 / 备注模糊；giftcard 链接另匹配收件人姓名 / 邮箱 / 凭证号。纯数值按金额精确匹配、不分币种。
+          schema:
+            type: string
+            maxLength: 128
+        - name: status
+          in: query
+          required: false
+          description: 按支付状态过滤（取值同交易列表）。
+          schema:
+            $ref: '#/components/schemas/PaymentStatus'
+        - name: riskLevel
+          in: query
+          required: false
+          description: 按风险等级过滤（仅 giftcard 链接有效、与 `status` 可叠加；非 giftcard 链接传了忽略）。
+          schema:
+            type: string
+            enum:
+              - normal
+              - medium
+              - high
+        - name: from
+          in: query
+          required: false
+          description: 交易发生营业日范围起（含当日），按字面匹配；与 `to` 可只传一端。
+          schema:
+            $ref: '#/components/schemas/LocalDate'
+        - name: to
+          in: query
+          required: false
+          description: 交易发生营业日范围止（含当日）。口径同 `from`。
+          schema:
+            $ref: '#/components/schemas/LocalDate'
+        - name: sortField
+          in: query
+          required: false
+          description: 排序字段。不传 = 不排序；页面默认顺序（最新交易在前）由前端显式传 `transactionTime` + `descend`。`amount` 按数值比较、不分币种。
+          schema:
+            type: string
+            enum:
+              - transactionTime
+              - amount
+        - $ref: '#/components/parameters/SortOrder'
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -1620,6 +1848,9 @@ paths:
                     status: PAID
                     transactionTime: '2026-05-18T11:02:00Z'
                     refundable: true
+                    remainingRefundable:
+                      amount: '20000'
+                      currency: CAD
                     receiptAvailable: true
                   - orderId: P100240002
                     source: payment_link
@@ -1650,6 +1881,8 @@ paths:
         其发卡 / 投递情况在**订单详情**呈现（交易管理的 `getPaymentDetail` 的 `giftCard` 段），不走本端点。
 
         核销为整单一次性，**不含已用金额 / 剩余余额**（非储值）。只读呈现、不在此创建 / 发起核销。
+
+        排序键固定为核销时间（本端点不设排序字段参数）：`sortOrder=descend` = 最近核销在前（页面默认顺序，由前端显式传）、`ascend` = 反向、不传 = 不排序；尚未核销的记录恒在末尾、升降序都一样。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/PageNum'
@@ -1666,27 +1899,32 @@ paths:
           description: 按核销码 / 券号 / 门店 / 操作人搜索
           schema:
             type: string
+        - $ref: '#/components/parameters/SortOrder'
         - name: status
           in: query
           required: false
-          description: 按核销态过滤（取值同 `VoucherRedemptionRecord.status`——取值集不由本契约定义，见该字段说明）
+          description: 按核销态过滤（取值同 `VoucherRedemptionRecord.status`）
           schema:
             type: string
+            enum:
+              - ISSUED
+              - REDEEMED
+              - VOID
+              - CANCELED
       responses:
         '200':
-          description: Redemptions 记录（按 type 多态）
+          description: Redemptions 记录（核销记录）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RedemptionListPage'
               examples:
                 voucherMode:
-                  summary: 礼卡 Voucher Mode 门店核销记录（状态取值不由本契约固定，勿 hardcode 下拉）
+                  summary: 礼卡 Voucher Mode 门店核销记录
                   value:
                     total: 2
                     data:
                       - recordId: rd_1000024_5001
-                        recordKind: redemption
                         code: VC-8842-1907
                         redeemedAt: '2026-08-02T15:24:00Z'
                         store: downtown-store
@@ -1694,7 +1932,6 @@ paths:
                         operator: cashier01@merchant.com
                         status: REDEEMED
                       - recordId: rd_1000024_5002
-                        recordKind: redemption
                         code: VC-8842-1908
                         status: ISSUED
                 inventoryMode:
@@ -1752,7 +1989,7 @@ paths:
         - name: source
           in: query
           required: false
-          description: 按设备来源过滤
+          description: 按设备来源过滤；候选取 `getDeviceFilterOptions.sources[].code`
           schema:
             type: string
         - name: status
@@ -1764,34 +2001,41 @@ paths:
         - name: store
           in: query
           required: false
-          description: 按绑定店铺过滤
+          description: 按绑定店铺过滤；候选取 `getDeviceFilterOptions.stores`（商户级、不随分页变）
           schema:
             type: string
+        - name: keyword
+          in: query
+          required: false
+          description: 关键词：设备标识 / 序列号 / 型号 / 店铺 / 操作员邮箱模糊匹配。
+          schema:
+            type: string
+            maxLength: 128
         - name: from
           in: query
           required: false
-          description: 创建日期范围起（含当日）。
+          description: 创建日期范围起（含当日）。筛的是记录上的 `createdDate`、按字面匹配。
           schema:
             $ref: '#/components/schemas/LocalDate'
         - name: to
           in: query
           required: false
-          description: 创建日期范围止（含当日）。
+          description: 创建日期范围止（含当日）。口径同 `from`。
           schema:
             $ref: '#/components/schemas/LocalDate'
-        - name: sort
+        - name: sortField
           in: query
           required: false
-          description: 排序（默认 last_active_desc）
+          description: 排序字段。不传 = 不排序；页面默认顺序（最近活跃在前）由前端显式传 `lastActiveAt` + `descend`。按 `lastActiveAt` / `activatedAt` 排序时从未活跃 / 尚未激活的设备恒在末尾、升降序都一样。
           schema:
             type: string
             enum:
-              - last_active_desc
-              - created_desc
-              - created_asc
-              - model_asc
-              - serial_asc
-            default: last_active_desc
+              - lastActiveAt
+              - createdAt
+              - activatedAt
+              - model
+              - serialNumber
+        - $ref: '#/components/parameters/SortOrder'
       responses:
         '200':
           description: 设备列表
@@ -1812,6 +2056,7 @@ paths:
                         boundStore: downtown-store
                         lifecycleStatus: PENDING_ACTIVATION
                         createdAt: '2026-08-10T09:00:00Z'
+                        createdDate: '2026-08-10'
                       - deviceId: dev_1000024_0002
                         model: Clover Flex
                         source: Clover
@@ -1824,6 +2069,7 @@ paths:
                         connection: online
                         lastActiveAt: '2026-08-17T09:52:00Z'
                         createdAt: '2026-06-02T11:20:00Z'
+                        createdDate: '2026-06-02'
                       - deviceId: dev_1000024_0003
                         model: 收银 App（softPOS）
                         source: Platform
@@ -1835,6 +2081,7 @@ paths:
                         connection: offline
                         lastActiveAt: '2026-08-16T20:11:00Z'
                         createdAt: '2026-07-01T08:00:00Z'
+                        createdDate: '2026-07-01'
                       - deviceId: dev_1000024_0004
                         model: PAX A920
                         source: Unknown
@@ -1842,6 +2089,7 @@ paths:
                         boundStore: uptown-store
                         lifecycleStatus: DISABLED
                         createdAt: '2026-03-14T13:45:00Z'
+                        createdDate: '2026-03-14'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1852,14 +2100,14 @@ paths:
       operationId: bindDevice
       summary: 绑定新设备
       description: |
-        **预登记**设备（Device Model / 收款端家族 / Serial Number / Source / Store Name）→ 建 `PENDING_ACTIVATION` 设备、定商户 / 店铺归属。
+        **预登记**设备（Source / Device Model / Serial Number / Store Name 四项，与绑定表单逐字段对齐）→ 建 `PENDING_ACTIVATION` 设备、定商户 / 店铺归属。
 
         **不生成 QR、不签发凭据**——设备须**自己首次登录并匹配到本条预登记**才会激活，**本接口不会返回已激活的设备**；转 `ACTIVE` 由前端刷新列表读到。
 
-        这台设备已被在册设备占用（按 `clientType` + `serialNumber` 决定的身份判，**不是**按序列号串本身）→ `409`·208021：**渲染成 Serial Number 的字段级错误、不创建记录**（刷新重试无用）。
+        **您名下已有同一 Serial Number 的设备** → `409`·208021：**渲染成 Serial Number 的字段级错误、不创建记录**（刷新重试无用），引导商户去设备列表看既有那条。
 
-        - 本商户已在册就去设备列表看那条；
-        - 他商户占用须联系平台运营处理。
+        判重只在**本商户名下**做——同一串序列号在不同厂商下本就是两台不同设备，绑定时拿不到厂商信息、无从分辨，
+        所以**别家商户用过同一串不会在这里被拦下**；那种冲突要等该设备真正首次登录、报出自己的完整身份时才裁决，届时这条记录会激活失败。
 
         幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409 IDEMPOTENCY_PAYLOAD_CONFLICT (208005)`。
       parameters:
@@ -1877,9 +2125,8 @@ paths:
                 summary: 绑定一台平台自有设备
                 value:
                   model: Sunmi V2 Pro
-                  clientType: sunmi
                   serialNumber: SN-2026-0001
-                  source: Platform
+                  source: platform
                   storeName: downtown-store
       responses:
         '201':
@@ -1899,12 +2146,144 @@ paths:
                     boundStore: downtown-store
                     lifecycleStatus: PENDING_ACTIVATION
                     createdAt: '2026-08-10T09:00:00Z'
+                    createdDate: '2026-08-10'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208001
         - 208005
         - 208021
+  /devices/filter-options:
+    get:
+      tags:
+        - devices
+      operationId: getDeviceFilterOptions
+      summary: 设备列表 Filters 的候选集（来源 / 绑定店铺 / 状态）
+      description: |
+        设备列表 Filters 下拉三项的候选。**商户级、不随分页也不随其他筛选条件变化**——候选若跟着当前页收窄，翻页后选项就会变、用户也改不回其他取值；整页取一次即可。
+
+        - `sources` —— 该商户设备出现过的来源，取值同 `getDeviceBindOptions.sources`；
+        - `stores` —— 该商户已用过的绑定店铺名。店铺名是商户预登记时自填的自由文本，只有服务端算得全；
+        - `statuses` —— 商户所见状态的可筛项。
+
+        **型号不是筛选维度**（列表按型号只能排序、不能筛）。各项的命中计数走 `getDeviceCounts`，不在本端点。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: OK（设备列表筛选候选）
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - sources
+                  - stores
+                  - statuses
+                properties:
+                  sources:
+                    type: array
+                    readOnly: true
+                    description: 来源候选（顺序即展示顺序）。**恒 present**。
+                    items:
+                      $ref: '#/components/schemas/DeviceSourceOption'
+                  stores:
+                    type: array
+                    readOnly: true
+                    description: 该商户已用过的绑定店铺名（去重，顺序即建议展示顺序）。**恒 present**，一台设备都没绑过时为空数组。
+                    items:
+                      type: string
+                      minLength: 1
+                  statuses:
+                    type: array
+                    readOnly: true
+                    description: 可筛的状态项（顺序即展示顺序）。展示文案归 UI 设计层。
+                    items:
+                      $ref: '#/components/schemas/DeviceStatusFilter'
+              example:
+                sources:
+                  - code: platform
+                    displayName: Platform
+                  - code: moneris
+                    displayName: Moneris
+                  - code: clover
+                    displayName: Clover
+                  - code: unknown
+                    displayName: Unknown
+                stores:
+                  - downtown-store
+                  - uptown-store
+                statuses:
+                  - PENDING_ACTIVATION
+                  - ONLINE
+                  - OFFLINE
+                  - DISABLED
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
+  /devices/bind-options:
+    get:
+      tags:
+        - devices
+      operationId: getDeviceBindOptions
+      summary: 预登记表单的来源与型号目录
+      description: |
+        Bind Device 表单的两级候选：**先选来源（这台 POS 归谁所有），再从该来源名下的型号里选**。
+
+        - `sources[].code` 是提交给 `source` 的值，**取值集封闭**、随新增合作方增长，故由本端点下发、前端不要 hardcode；
+        - `sources[].models` 是**便利清单、不是白名单** —— 商户可以填清单外的自定义型号（`model` 提交不做命中校验），目录没收录新到的机器也不会挡住登记。
+
+        设备身份在该设备首次登录、自己报出完整信息时才由服务端确定，本表单不采集任何分类字段。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: OK（来源 → 型号目录）
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - sources
+                properties:
+                  sources:
+                    type: array
+                    readOnly: true
+                    minItems: 1
+                    description: 来源候选（顺序即展示顺序）；每项带该来源名下的型号清单。
+                    items:
+                      $ref: '#/components/schemas/DeviceBindSourceOption'
+              example:
+                sources:
+                  - code: platform
+                    displayName: Platform
+                    models:
+                      - Sunmi V1
+                      - Sunmi V1s
+                      - Sunmi V2
+                      - Sunmi V2 Pro
+                  - code: moneris
+                    displayName: Moneris
+                    models:
+                      - Ingenico Move 5000
+                      - Ingenico Desk 5000
+                      - Verifone X900
+                  - code: clover
+                    displayName: Clover
+                    models:
+                      - Clover Flex
+                      - Clover Mini 2
+                      - Clover Station Duo
+                  - code: unknown
+                    displayName: Unknown
+                    models: []
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
   /devices/counts:
     get:
       tags:
@@ -1918,25 +2297,32 @@ paths:
         - name: source
           in: query
           required: false
-          description: 按设备来源过滤
+          description: 按设备来源过滤；候选取 `getDeviceFilterOptions.sources[].code`
           schema:
             type: string
         - name: store
           in: query
           required: false
-          description: 按绑定店铺过滤
+          description: 按绑定店铺过滤；候选取 `getDeviceFilterOptions.stores`（商户级、不随分页变）
           schema:
             type: string
+        - name: keyword
+          in: query
+          required: false
+          description: 关键词：设备标识 / 序列号 / 型号 / 店铺 / 操作员邮箱模糊匹配。
+          schema:
+            type: string
+            maxLength: 128
         - name: from
           in: query
           required: false
-          description: 创建日期范围起（含当日）。
+          description: 创建日期范围起（含当日）。筛的是记录上的 `createdDate`、按字面匹配。
           schema:
             $ref: '#/components/schemas/LocalDate'
         - name: to
           in: query
           required: false
-          description: 创建日期范围止（含当日）。
+          description: 创建日期范围止（含当日）。口径同 `from`。
           schema:
             $ref: '#/components/schemas/LocalDate'
       responses:
@@ -2002,6 +2388,7 @@ paths:
                     connection: online
                     lastActiveAt: '2026-08-17T09:52:00Z'
                     createdAt: '2026-06-02T11:20:00Z'
+                    createdDate: '2026-06-02'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -2081,6 +2468,7 @@ paths:
                     lifecycleStatus: DISABLED
                     lastActiveAt: '2026-08-17T09:52:00Z'
                     createdAt: '2026-06-02T11:20:00Z'
+                    createdDate: '2026-06-02'
                 enabledStillOffline:
                   summary: 启用后 —— 无人登录期间仍是 offline，这不是启用失败
                   value:
@@ -2096,6 +2484,7 @@ paths:
                     connection: offline
                     lastActiveAt: '2026-08-17T09:52:00Z'
                     createdAt: '2026-06-02T11:20:00Z'
+                    createdDate: '2026-06-02'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -2133,11 +2522,13 @@ paths:
         - name: format
           in: query
           required: false
-          description: xlsx = 导出当前过滤结果
+          description: 响应格式：json = 日志列表（默认）；xlsx = 导出当前过滤结果
           schema:
             type: string
             enum:
+              - json
               - xlsx
+            default: json
       responses:
         '200':
           description: 日志列表（JSON）或导出文件（xlsx）
@@ -2161,15 +2552,18 @@ paths:
                     total: 3
                     data:
                       - type: transaction
+                        severity: info
                         event: Payment captured
                         notes: Order P100240021 · CA$48.50 · WeChat Pay
                         actor: cashier01@merchant.com
                         timestamp: '2026-08-17T09:52:00Z'
                       - type: connection
-                        event: Device online
+                        severity: warning
+                        event: Device offline
                         actor: system
                         timestamp: '2026-08-17T08:30:00Z'
                       - type: auth
+                        severity: info
                         event: Operator signed in
                         actor: cashier01@merchant.com
                         timestamp: '2026-08-17T08:29:00Z'
@@ -2231,7 +2625,11 @@ paths:
         - settings
       operationId: getGeneralSettings
       summary: 读商户级配置（Order Expiry / Service Fee / Checkout 入口）
-      description: 回显 Order Expiry 当前值 + Customer Service Fee 启用状态。Checkout 快捷入口**恒可用**，无需按条件置灰。
+      description: |
+        回显 Order Expiry 当前值 + Customer Service Fee 启用状态。Checkout 快捷入口**恒可用**，无需按条件置灰。
+
+        **这两行是否可编辑，按 `getCurrentSession` 的 `privileges` 判**：没有对应的编辑权限点就渲染成只读（值照常展示，不是隐藏整行）。
+        本端点是读面、不回权限标记——权限是会话级的、不随被读的资源变，没必要在每个读响应里重复一遍。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -2295,7 +2693,7 @@ paths:
         - settings
       operationId: setOrderExpiry
       summary: 设置 Order Expiry
-      description: 设置商户 Order Expiry（分钟数；对新建订单生效）。取值须 ∈ `listOrderExpiryOptions` 的候选值集，不在其中即拒。天然幂等 PUT。
+      description: 设置商户 Order Expiry（分钟数；对新建订单生效）。取值须 ∈ `listOrderExpiryOptions` 的候选值集，不在其中 → `400`·`204019`（重取候选集、回显原值让用户重选）。天然幂等 PUT。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - $ref: '#/components/parameters/CsrfToken'
@@ -2328,6 +2726,7 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
+        - 204019
         - 208001
   /settings/customer-service-fee:
     put:
@@ -2482,6 +2881,15 @@ components:
         minimum: 1
         maximum: 200
         default: 20
+    SortOrder:
+      name: sortOrder
+      in: query
+      description: 排序方向;与端点自己的 sortField 配对,或作用于端点 description 声明的固定排序键。有排序键、未传本参数 = ascend;端点无排序键且未传 sortField 时本参数无效(不排序)
+      schema:
+        type: string
+        enum:
+          - ascend
+          - descend
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -2597,16 +3005,23 @@ components:
           type: array
           uniqueItems: true
           maxItems: 5
-          description: '**新建**链接时 Buyer Information 的初始内容（系统级默认，部署可配；如 `Name` / `Email`）。 商户可删除其中任意项、也可自撰新项加入——**不存在固定候选目录**，每项就是一个由商户决定的采集项标题。 **只作新建的起点**：编辑已有链接时不要用它（见本 schema 抬头）。'
+          description: '**新建**链接时 Buyer Information 的初始内容（系统级默认，部署可配）。 **`system` 为 `true` 的项文案由系统给出、商户改不了**；**能不能删只看** `mandatory` —— 必填的不给删除按钮，非必填的一律可删（`system: true` 的也一样）。商户还可自撰新项加入（**不存在固定候选目录**）， 自撰项恒为非必填、其标题即数据键、标题不得以 `sys:` 开头。 **只作新建的起点**：编辑已有链接时不要用它（见本 schema 抬头）， 那时取该链接自己保存的那一份（建链接时已冻结，此后系统默认变了也不追溯）。'
           items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+            $ref: '#/components/schemas/InfoFieldEntry'
         defaultRecipientInfo:
           type: array
           uniqueItems: true
           maxItems: 5
-          description: '**新建**链接时 Recipient Information 的初始内容（**与 `defaultBuyerInfo` 是各自独立的一套**）。 **恒返本键**（不是缺键——客户端不必判断键是否存在）：`type=giftcard` 返回其系统配置的默认集、**可为空**；其余类型恒为**空数组**。 **本字段在本响应是顶层，但提交时落在** `giftcard.recipientInformation`（内容段内）——与顶层提交的 `buyerInformation` 不同层，别照搬层级。'
+          description: |
+            **新建**链接时 Recipient Information 的初始内容（**与 `defaultBuyerInfo` 是各自独立的一套**）。属性语义同 `defaultBuyerInfo`。
+
+            **恒返本键**（不是缺键——客户端不必判断键是否存在）：`type=giftcard` 返回其系统项默认集，**其中必含必填的收件人邮箱**（由系统采集项目录保证，不是本响应形状保证）；其余类型恒为**空数组**。
+
+            **本字段在本响应是顶层，但提交时落在** `giftcard.recipientInformation`（内容段内）——与顶层提交的 `buyerInformation` 不同层，别照搬层级。
+
+            ⚠️ **礼卡的收件人邮箱是** `system: true` + `mandatory: true` ——送礼时含密码的凭证要发到它，故渲染为锁定行、不可删也不可改文案。
           items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+            $ref: '#/components/schemas/InfoFieldEntry'
     StoreQrVariantList:
       type: object
       description: 店铺码展示变体集。
@@ -2674,14 +3089,18 @@ components:
           type: boolean
         presets:
           type: array
-          description: 预设小费档（百分比整数）
+          minItems: 3
+          maxItems: 3
+          description: 预设小费档（百分比整数）。**恒 3 档、每档 0–30%（固定约定）**——数量由收款页设置的呈现定，区间是产品约定而非部署旋钮；前端按同一约定预校，服务端兜底拒绝。读面未配置过时返部署默认档位。
           items:
             type: integer
             minimum: 0
+            maximum: 30
     TipConfigurationComplete:
-      description: 读侧完整形态：`enabled` **必返**。属性集单一来源为 `TipConfiguration`，此处只收紧 `required`。
+      description: 读侧完整形态：`enabled` 与 `presets` **均必返**——商户未配置过时 `presets` 返部署默认三档（前端不要 hardcode 默认值）。属性集单一来源为 `TipConfiguration`，此处只收紧 `required`。
       required:
         - enabled
+        - presets
       allOf:
         - $ref: '#/components/schemas/TipConfiguration'
     OrderExpiryMinutes:
@@ -2690,25 +3109,57 @@ components:
       description: 订单未支付的自动过期时长，**单位分钟**。这是业务取值本身、不是展示文案—— 展示文案由前端按分钟数格式化（`60` → `1 hour`、`1440` → `24 hours`），**不要把文案回传**。 **允许取值域 = `listOrderExpiryOptions` 下发的候选值集**（后端配置、部署可调），不在其中的值会被拒；本 schema 的 `integer` 只约束形状、不代表任意正整数都可用。
       examples:
         - 30
-    InfoFieldLabel:
+    InfoFieldKey:
       type: string
       minLength: 1
-      description: 一个**由商户自撰**的采集项标题（收款页 User Notes、支付链接的 Buyer / Recipient Information 共用同一形状）。 **没有固定候选目录、也没有与之配对的稳定 code**——商户在配置时打什么，收款页就原样展示什么，付款人填的值也**以这串标题为键**收集。 故它同时是展示文案与数据键：商户改了标题，此后收集的是新键，**历史订单保留其当时的键**（那是当时问的问题，不是数据漂移）。 同一个列表内标题**去除首尾空格后不得重复**（重复会在收款页出现两个同名输入框、收集结果还会互相覆盖），保存时校验。
-    NoteField:
+      maxLength: 64
+      description: |
+        采集项的**数据键**，写侧用它表示「这一项要留下」（收款页、支付链接的 Buyer / Recipient Information 共用同一形状）。
+
+        两类项的键来路不同：
+
+        - **商户自撰项**——键就是商户打的那串标题：配置时打什么，收款页就原样展示什么，付款人填的值也以这串标题为键收集。改了标题即换了一项，**历史订单保留其当时的键**（那是当时问的问题，不是数据漂移）。
+        - **系统项**——键是稳定值、与展示文案无关（见 `InfoFieldEntry`）。
+        同一个列表内键**去除首尾空格后不得重复**（重复会在收款页出现两个同名输入框、收集结果还会互相覆盖），保存时校验；
+        **商户自撰的标题不得以 `sys:` 开头**（系统项的键一律带该前缀，两类键因此不会相撞），违反时保存被拒。
+    InfoFieldEntry:
       type: object
-      description: 收款页自定义备注字段。
+      description: '采集项的**完整形态**，用于**读侧**：既含商户自己加的项，也含系统给出的项。 两个属性各管一件事，别互相推导—— **`system`** 管「文案能不能改」：`true` 的项文案由系统给出、界面上不提供改文案的入口； **`mandatory`** 管「能不能删」：必填的项界面上不给删除按钮，**非必填的一律可删、`system` 的也不例外** （例如收款页的姓名 / 手机号就是 `system: true` + `mandatory: false`，商户可以删掉不收）。 商户自撰的项恒为 `system: false` + `mandatory: false`。'
       required:
-        - title
+        - key
+        - label
+        - system
+        - mandatory
       properties:
-        title:
+        key:
           allOf:
-            - $ref: '#/components/schemas/InfoFieldLabel'
-          maxLength: 10
-          description: 字段标题，**≤ 10 字符（固定上限）**——由收款页备注区的呈现容量定
+            - $ref: '#/components/schemas/InfoFieldKey'
+          description: 该项的数据键。商户自撰项的 `key` 就是其标题；系统项的 `key` 是稳定值、与文案无关。
+        label:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: '展示标题。`system: true` 时由系统给出、商户改不了。'
+        system:
+          type: boolean
+          description: '`true` = 系统给出的项（文案不可改，后台据其 `key` 取值）；`false` = 商户自撰项。'
+        mandatory:
+          type: boolean
+          description: 是否必填。**必填即不可删、非必填即可删**，与 `system` 无关。**恒返本键**——它决定界面给不给删除按钮，缺省成非必填会让不可删的项显得可删。
+        type:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 收款页的控件与输入限制提示。本面仅透传呈现。
+        needConfirm:
+          type: boolean
+          description: 收款页是否要在这一项下面再渲染一个确认输入框。本面仅透传呈现。
     PaymentPageSettings:
       type: object
       description: 收款页设置（仅静态码作用域）+ 小费配置。方式区分**候选全集**与**已启用子集**，FE 据此可展示未启用但可选择的方式。
       required:
+        - notesEnabled
+        - payerInputs
         - availableMethods
         - selectedMethodIds
         - tips
@@ -2723,20 +3174,25 @@ components:
           description: 收款页 Logo 的**可渲染地址**（读时由服务端换出，**只出不入**；供设置页回显与预览）。未设置 Logo（无 `logoRef`）时不返回本键
         notesEnabled:
           type: boolean
-          description: 客户备注区总开关（对应设置页 Notes 段的 toggle）。`false` 时收款页不展示备注区，`notes` 里已配置的字段保留、不清空
-        notes:
+          description: 客户备注区总开关（对应设置页 Notes 段的 toggle）。`false` 时收款页不展示商户自撰的那几项，已配置的内容保留、不清空。**系统项不受本开关影响**
+        payerInputs:
           type: array
-          maxItems: 3
-          description: 自定义备注字段（标题商户自撰），**最多 3 条（固定上限）**
+          description: 收款页要向付款人收的**全部采集项**，系统给出的与商户自撰的同在一个列表里，各项按 `system` / `mandatory` 区分。 首次保存本设置时服务端会把这个商户该收的系统项填进来（如姓名 / 手机号）；此后这份列表就是这个商户收款页的真相， **系统侧后来新增的项不会追加进已有配置**。 **合计最多 5 项**（固定上限，系统给的和商户自己加的一起数）、**每条自撰标题 ≤ 10 字符**。
+          maxItems: 5
           items:
-            $ref: '#/components/schemas/NoteField'
+            $ref: '#/components/schemas/InfoFieldEntry'
         description:
           type: string
           maxLength: 300
-          description: 收款页描述；未填写时不返回本键。**≤ 300 字符（固定上限）**——由收款页描述区的呈现定，同 `NoteField.title`
+          description: 收款页描述；未填写时不返回本键。**≤ 300 字符（固定上限）**——由收款页描述区的呈现定
         availableMethods:
           type: array
           description: 全部候选支付方式（该商户当前可用集；含未启用但可选择的方式）
+          items:
+            $ref: '#/components/schemas/PaymentMethodRef'
+        unavailableMethods:
+          type: array
+          description: 该商户**尚未开通**、故不可启用的支付方式（与 `availableMethods` 不相交）。页面据此渲染禁用卡片并提示先去服务开通页开通（文案归 UI）；提交的 `methodIds` 里出现它们 → 400。无此类方式时返回空数组。
           items:
             $ref: '#/components/schemas/PaymentMethodRef'
         selectedMethodIds:
@@ -2762,11 +3218,22 @@ components:
         notesEnabled:
           type: boolean
           description: 客户备注区总开关
-        notes:
+        payerInputKeys:
           type: array
-          maxItems: 3
+          uniqueItems: true
+          description: |
+            **保留下来的采集项，按 `key` 给全**——不是「商户新加的那几个」。
+
+            读回来的 `payerInputs` 里哪些项要留下，就把哪些项的 `key` 放进来，删掉的不放；新加的自撰项直接放它的标题。
+
+            **为什么要给全**：系统项现在也能删（非必填的那些），只提交自撰项的话服务端分不清「商户删了姓名」和「商户没动系统项」，编辑一次就会把删除意图丢掉。
+
+            **必填项一个都不能少**——少了整次保存被拒（`409 PRODCFG_INFO_FIELDS_INVALID (208030)`）；自撰的标题不能以 `sys:` 开头。系统项的文案与必填性以服务端已存的为准，这里只表达「留不留」。
+
+            **合计最多 5 项**（系统给的和商户自己加的一起数）。
+          maxItems: 5
           items:
-            $ref: '#/components/schemas/NoteField'
+            $ref: '#/components/schemas/InfoFieldKey'
         description:
           type:
             - string
@@ -2806,7 +3273,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/LocalDate'
             - type: 'null'
-          description: '`kind=custom` 必填。到期日期，**须 ≥ 次日**（「次日」按服务端认定,前端不要自己按浏览器时区判）。 创建后期限即冻结：此后商户改 Time Zone,**既有 Invoice 的期限不漂移**。'
+          description: '`kind=custom` 必填。到期日期，**须 ≥ 次日**（「次日」按服务端认定,前端不要自己按浏览器时区判）。**所选日整日有效**。'
     InvoiceCreateRequest:
       type: object
       required:
@@ -2830,6 +3297,7 @@ components:
         - amount
         - status
         - createdAt
+        - createdDate
       properties:
         invoiceId:
           type: string
@@ -2848,6 +3316,11 @@ components:
           description: 到期日；**无期限时不返回本键**。**所选日整日有效**（当天仍可付）。
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+        createdDate:
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+          readOnly: true
+          description: 创建日（服务端固化）。按创建日期筛选筛的就是它。
     InvoiceDetail:
       allOf:
         - $ref: '#/components/schemas/InvoiceListItem'
@@ -2975,12 +3448,27 @@ components:
               $ref: '#/components/schemas/Timestamp'
             end:
               $ref: '#/components/schemas/Timestamp'
+    SalesItemId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: |-
+        这一项（商品 / 票档 / 面值档）的标识，**服务端签发、内容不透明——不要解析它、不要自己拼**。
+        **编辑时它决定改还是新增**：把详情里读到的 `itemId` 原样带回 = 改这一项； 不带 = 新增一项。**这次没带回的既有项视为下架**，之后不再出现在详情与收款页里。 下架不是删除——已经卖出去的份数、正在支付中的订单仍然算在它头上，退款也照常回补到它。
+        创建链接时**不要带**；带了一个不属于本链接的值 → `409 PRODCFG_ITEM_UNKNOWN (208032)`， 整次保存被拒（多半是页面拿的是过期列表，重新加载再改）。
+    SalesItemCommittedQuantity:
+      type: integer
+      minimum: 0
+      readOnly: true
+      description: 这一项**已经卖掉 + 正被在途订单占着**的份数，也就是可售上限能改到的最小值 （商品的 `stock` / 票档的 `capacity` / 面值档的 `salesLimit`）。**只出不入**。 改上限前用它做本地校验与提示（「不能低于 N」）；服务端也会再查一遍。
     GiftcardDenomination:
       type: object
       description: 面值档。`amount` = 主卡面值（Card Value）；`price` = 对外标价，**不等同支付金额**—— `promotionType=discount` 时支付额 = price − discountAmount，`=bonus_card` 时支付额 = price 且另获赠卡。 库存字段按履约模式二选一：Inventory Mode 用只读 `stock`，Voucher Mode 用可配 `salesLimit`。
       required:
         - amount
       properties:
+        itemId:
+          $ref: '#/components/schemas/SalesItemId'
         amount:
           $ref: '#/components/schemas/PositiveMoney'
         price:
@@ -3021,9 +3509,14 @@ components:
             - integer
             - 'null'
           minimum: 0
-          description: 该面值档销售数量上限（**仅 Voucher Mode**；达上限即该档售罄）
+          description: 该面值档销售数量上限（**仅 Voucher Mode**；达上限即该档售罄）。**改小有下界**：不能低于 `committedQuantity`（见该字段），否则整次保存被拒（`409 PRODCFG_ITEM_LIMIT_BELOW_COMMITTED (208031)`）；清空（不限量）永远可以
+        committedQuantity:
+          $ref: '#/components/schemas/SalesItemCommittedQuantity'
     GiftcardDenominationRead:
-      description: '`GiftcardDenomination` 的读侧形态：只收窄可清空字段——**响应里不适用 / 未设置的一律不返回本键、不返** `null`（如 `discountAmount` 只在 `promotionType=discount` 时出现）。'
+      description: '`GiftcardDenomination` 的读侧形态：只收窄可清空字段——**响应里不适用 / 未设置的一律不返回本键、不返** `null`（如 `discountAmount` 只在 `promotionType=discount` 时出现）。`itemId` 与 `committedQuantity` 详情必返。'
+      required:
+        - itemId
+        - committedQuantity
       allOf:
         - $ref: '#/components/schemas/GiftcardDenomination'
         - properties:
@@ -3116,6 +3609,11 @@ components:
                 - biweekly
                 - monthly
             - type: 'null'
+        purchaseCounterResetAt:
+          readOnly: true
+          description: 最近一次状态切换（ACTIVE ⇄ DISABLED）导致的限购计数重置时点。**只是重置事实的时点**，不等于当前计数窗口的起点（开了滚动周期时窗口起点另受周期回溯约束，由后端判定、本面不算）。**从未切换过则不返回本键**；只读展示，不可提交。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
         orderRiskReview:
           type:
             - boolean
@@ -3124,7 +3622,7 @@ components:
         campaignEndDate:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
-          description: 活动截止日，**须 ≥ 今天**（「今天」按服务端认定,前端不要自己按浏览器时区判）。**所选日整日可售**。 停售时点在保存时即定下：此后商户改 Time Zone,**既有 Campaign 的停售时点不漂移**。
+          description: 活动截止日，**须 ≥ 今天**（「今天」按服务端认定,前端不要自己按浏览器时区判）。**所选日整日可售**。
         slogan:
           type:
             - string
@@ -3152,9 +3650,17 @@ components:
           type: array
           uniqueItems: true
           maxItems: 5
-          description: 收件人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `PaymentLinkCreateConfig.defaultRecipientInfo`（顶层字段，提交时落在本处 `giftcard.recipientInformation`）为起点，编辑时以本链接已存值为起点
+          writeOnly: true
+          description: |
+            **保留下来的收件人信息采集项，按 `key` 给全**（形状与规则同顶层 `buyerInformation`，**最多 5 项、系统项与自撰项合计**）。
+
+            ⚠️ **本字段只用于写侧**——读回来时收件人采集项在**详情顶层**的 `recipientInformation`（`InfoFieldEntry` 完整对象），不在本段内。
+
+            新建时以 `PaymentLinkCreateConfig.defaultRecipientInfo` 为起点，编辑时以 `getPaymentLink` 回显的顶层 `recipientInformation` 为起点。
+
+            ⚠️ **收件人邮箱是必填的系统项、删不掉**——送礼那封含密码的邮件就寄到它，没有它这单交付不出去。
           items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+            $ref: '#/components/schemas/InfoFieldKey'
     GiftcardContentRead:
       description: '`GiftcardContent` 的读侧形态：属性定义仍单一来源于 `GiftcardContent`，此处只把可清空字段收窄为非空、并把面值档换成读侧变体——**响应里未设置 / 不适用的一律不返回本键、不返** `null`。'
       allOf:
@@ -3212,6 +3718,8 @@ components:
         - name
         - price
       properties:
+        itemId:
+          $ref: '#/components/schemas/SalesItemId'
         name:
           type: string
           minLength: 1
@@ -3222,11 +3730,16 @@ components:
             - integer
             - 'null'
           minimum: 0
-          description: 留空 = 不限量
+          description: 留空 = 不限量。**改小有下界**：不能低于 `committedQuantity`（见该字段），否则整次保存被拒（`409 PRODCFG_ITEM_LIMIT_BELOW_COMMITTED (208031)`）；改成不限量永远可以
+        committedQuantity:
+          $ref: '#/components/schemas/SalesItemCommittedQuantity'
         saleWindow:
           $ref: '#/components/schemas/SaleWindow'
     ProductItemRead:
-      description: '`ProductItem` 的读侧形态：收窄可清空字段 + 销售窗口换读侧变体——**不限量时不返回 `stock` 键、不返** `null`。'
+      description: '`ProductItem` 的读侧形态：收窄可清空字段 + 销售窗口换读侧变体——**不限量时不返回 `stock` 键、不返** `null`。`itemId` 与 `committedQuantity` 详情必返。'
+      required:
+        - itemId
+        - committedQuantity
       allOf:
         - $ref: '#/components/schemas/ProductItem'
         - properties:
@@ -3270,23 +3783,35 @@ components:
       required:
         - name
         - price
-        - capacity
       properties:
+        itemId:
+          $ref: '#/components/schemas/SalesItemId'
         name:
           type: string
           minLength: 1
         price:
           $ref: '#/components/schemas/PositiveMoney'
         capacity:
-          type: integer
-          minimum: 1
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          description: 该票档放多少张。**留空 = 不限量**（同商品项的 `stock`）。**改小有下界**：不能低于 `committedQuantity`（见该字段），否则整次保存被拒（`409 PRODCFG_ITEM_LIMIT_BELOW_COMMITTED (208031)`）；改成不限量永远可以
+        committedQuantity:
+          $ref: '#/components/schemas/SalesItemCommittedQuantity'
         saleWindow:
           $ref: '#/components/schemas/SaleWindow'
     TicketTierRead:
-      description: '`TicketTier` 的读侧形态：本身无可清空字段，仅把销售窗口换成读侧变体。'
+      description: '`TicketTier` 的读侧形态：收窄可清空字段 + 销售窗口换读侧变体——**不限量时不返回 `capacity` 键、不返** `null`（同商品项的 `stock`）。`itemId` 与 `committedQuantity` 详情必返。'
+      required:
+        - itemId
+        - committedQuantity
       allOf:
         - $ref: '#/components/schemas/TicketTier'
         - properties:
+            capacity:
+              type: integer
+              minimum: 0
             saleWindow:
               $ref: '#/components/schemas/SaleWindowRead'
     TicketContent:
@@ -3375,7 +3900,7 @@ components:
               $ref: '#/components/schemas/LocalizedTextRead'
     LocalizedText:
       type: object
-      description: 三语文本（EN / 中 / FR）。
+      description: 三语文本（EN / 中 / FR）。Policies & Support 五项的值为**受限 HTML**：允许段落 / 换行 / 粗体 / 斜体 / 标题 / 链接 / 列表 / 表格 / 高亮标签，白名单外标签与脚本保存时被服务端剥除（不报错）；每语种长度上限由后端配置，超限 → `400` 字段级错误；收款页按同一白名单渲染。
       properties:
         en:
           type:
@@ -3401,31 +3926,20 @@ components:
             fr:
               type: string
     PaymentLinkCreateRequest:
-      description: 创建请求；按 `type` 判别三类（discriminator），type ↔ content 强绑定互斥（各变体 additionalProperties:false 挡夹带）。FE codegen 可据 type 判别。**所有内容价格 / bonus 币种须 = 顶层** `currency`（服务端校验、schema 不强约）。
-      oneOf:
-        - $ref: '#/components/schemas/GiftcardPaymentLinkCreate'
-        - $ref: '#/components/schemas/ProductPaymentLinkCreate'
-        - $ref: '#/components/schemas/TicketPaymentLinkCreate'
-      discriminator:
-        propertyName: type
-        mapping:
-          giftcard: '#/components/schemas/GiftcardPaymentLinkCreate'
-          product: '#/components/schemas/ProductPaymentLinkCreate'
-          ticket: '#/components/schemas/TicketPaymentLinkCreate'
-    GiftcardPaymentLinkCreate:
       type: object
       additionalProperties: false
+      description: |
+        创建请求（扁平对象）。`type` 选定链接类型，**对应的内容子对象必填、其余不得携带**：`giftcard` → `giftcard`、`product` → `product`、`ticket` → `ticket`（不匹配 → 400，服务端校验）。
+
+        **所有内容价格 / bonus 币种须 = 顶层** `currency`（服务端校验、schema 不强约）。
       required:
         - type
         - name
         - currency
         - methodIds
-        - giftcard
       properties:
         type:
-          type: string
-          enum:
-            - giftcard
+          $ref: '#/components/schemas/PaymentLinkType'
         name:
           type: string
           minLength: 1
@@ -3442,103 +3956,42 @@ components:
           type: array
           uniqueItems: true
           maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
+          description: |
+            **保留下来的付款人信息采集项，按 `key` 给全**——不是「商户新加的那几个」。
+
+            新建时以 `getPaymentLinkCreateConfig` 的 `defaultBuyerInfo` 为起点、编辑时以 `getPaymentLink` 回显的 `buyerInformation` 为起点；用户删掉哪些就不放哪些，新加的自撰项直接放它的标题。
+
+            **为什么要给全**：系统给出的项现在也能删（非必填的那些），只提交自撰项的话服务端就分不清「用户删了它」和「用户没动它」。
+
+            **必填项一个都不能少**——少了、或自撰标题以 `sys:` 开头 → `409 PRODCFG_INFO_FIELDS_INVALID (208030)`，整次保存被拒。系统项的文案与必填性以服务端已存的为准，这里只表达「留不留」。
+
+            **最多 5 项**（固定上限，系统项与自撰项合计）。
           items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+            $ref: '#/components/schemas/InfoFieldKey'
         giftcard:
-          $ref: '#/components/schemas/GiftcardContentComplete'
-    ProductPaymentLinkCreate:
-      type: object
-      additionalProperties: false
-      required:
-        - type
-        - name
-        - currency
-        - methodIds
-        - product
-      properties:
-        type:
-          type: string
-          enum:
-            - product
-        name:
-          type: string
-          minLength: 1
-        currency:
-          $ref: '#/components/schemas/Currency'
-        methodIds:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-        buyerInformation:
-          type: array
-          uniqueItems: true
-          maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
-          items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+          allOf:
+            - $ref: '#/components/schemas/GiftcardContentComplete'
+          description: 礼卡内容——`type=giftcard` 时必填，其余类型不得携带
         product:
-          $ref: '#/components/schemas/ProductContentComplete'
-    TicketPaymentLinkCreate:
-      type: object
-      additionalProperties: false
-      required:
-        - type
-        - name
-        - currency
-        - methodIds
-        - ticket
-      properties:
-        type:
-          type: string
-          enum:
-            - ticket
-        name:
-          type: string
-          minLength: 1
-        currency:
-          $ref: '#/components/schemas/Currency'
-        methodIds:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-        buyerInformation:
-          type: array
-          uniqueItems: true
-          maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
-          items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+          allOf:
+            - $ref: '#/components/schemas/ProductContentComplete'
+          description: 商品内容——`type=product` 时必填，其余类型不得携带
         ticket:
-          $ref: '#/components/schemas/TicketContentComplete'
+          allOf:
+            - $ref: '#/components/schemas/TicketContentComplete'
+          description: 票务内容——`type=ticket` 时必填，其余类型不得携带
     PaymentLinkUpdateRequest:
-      description: 按 `type` 判别（discriminator），仅本类型内容可改；`currency` 在未产生订单前可改；已售解释字段冻结由服务端校验（传同值不报错）。
-      oneOf:
-        - $ref: '#/components/schemas/GiftcardPaymentLinkUpdate'
-        - $ref: '#/components/schemas/ProductPaymentLinkUpdate'
-        - $ref: '#/components/schemas/TicketPaymentLinkUpdate'
-      discriminator:
-        propertyName: type
-        mapping:
-          giftcard: '#/components/schemas/GiftcardPaymentLinkUpdate'
-          product: '#/components/schemas/ProductPaymentLinkUpdate'
-          ticket: '#/components/schemas/TicketPaymentLinkUpdate'
-    GiftcardPaymentLinkUpdate:
       type: object
       additionalProperties: false
+      description: |
+        编辑请求（扁平对象，部分更新）。`type` 须与该链接现有类型一致，只用于选定内容子对象：**仅本类型的内容子对象可携带**（`giftcard` / `product` / `ticket` 之一，与 `type` 不匹配 → 400，服务端校验）。
+
+        **不因已有订单而锁字段**——已成交订单自持其购买内容，改链接不影响它们；礼卡履约模式创建后即不可改，与是否已售无关。
       required:
         - type
       properties:
         type:
-          type: string
-          enum:
-            - giftcard
+          $ref: '#/components/schemas/PaymentLinkType'
         name:
           type: string
           minLength: 1
@@ -3555,73 +4008,30 @@ components:
           type: array
           uniqueItems: true
           maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
+          description: |
+            **保留下来的付款人信息采集项，按 `key` 给全**——不是「商户新加的那几个」。
+
+            新建时以 `getPaymentLinkCreateConfig` 的 `defaultBuyerInfo` 为起点、编辑时以 `getPaymentLink` 回显的 `buyerInformation` 为起点；用户删掉哪些就不放哪些，新加的自撰项直接放它的标题。
+
+            **为什么要给全**：系统给出的项现在也能删（非必填的那些），只提交自撰项的话服务端就分不清「用户删了它」和「用户没动它」。
+
+            **必填项一个都不能少**——少了、或自撰标题以 `sys:` 开头 → `409 PRODCFG_INFO_FIELDS_INVALID (208030)`，整次保存被拒。系统项的文案与必填性以服务端已存的为准，这里只表达「留不留」。
+
+            **最多 5 项**（固定上限，系统项与自撰项合计）。
           items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+            $ref: '#/components/schemas/InfoFieldKey'
         giftcard:
-          $ref: '#/components/schemas/GiftcardContent'
-    ProductPaymentLinkUpdate:
-      type: object
-      additionalProperties: false
-      required:
-        - type
-      properties:
-        type:
-          type: string
-          enum:
-            - product
-        name:
-          type: string
-          minLength: 1
-        currency:
-          $ref: '#/components/schemas/Currency'
-        methodIds:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-        buyerInformation:
-          type: array
-          uniqueItems: true
-          maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
-          items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+          allOf:
+            - $ref: '#/components/schemas/GiftcardContent'
+          description: 礼卡内容——仅 `type=giftcard` 可携带
         product:
-          $ref: '#/components/schemas/ProductContent'
-    TicketPaymentLinkUpdate:
-      type: object
-      additionalProperties: false
-      required:
-        - type
-      properties:
-        type:
-          type: string
-          enum:
-            - ticket
-        name:
-          type: string
-          minLength: 1
-        currency:
-          $ref: '#/components/schemas/Currency'
-        methodIds:
-          type: array
-          minItems: 1
-          uniqueItems: true
-          items:
-            type: string
-            minLength: 1
-        buyerInformation:
-          type: array
-          uniqueItems: true
-          maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
-          items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+          allOf:
+            - $ref: '#/components/schemas/ProductContent'
+          description: 商品内容——仅 `type=product` 可携带
         ticket:
-          $ref: '#/components/schemas/TicketContent'
+          allOf:
+            - $ref: '#/components/schemas/TicketContent'
+          description: 票务内容——仅 `type=ticket` 可携带
     PaymentLinkListItem:
       type: object
       required:
@@ -3645,12 +4055,27 @@ components:
           type: string
           readOnly: true
           description: 价格摘要（giftcard 面值区间 / product 起价 / ticket 票档区间；含币种、展示用）；无可摘要的价格时不返回本键
+        eventDate:
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+          readOnly: true
+          description: 活动日期（**仅 ticket 返回**，名称下次级行展示）
+        venue:
+          type: string
+          readOnly: true
+          description: 活动场地（**仅 ticket 返回**，名称下次级行展示）；未填不返回本键
+        itemCount:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: 条目数（product = 商品条目数、giftcard = 面值档数；名称下次级行展示）；ticket 不返回本键
         status:
           $ref: '#/components/schemas/PaymentLinkStatus'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
-    PaymentLinkDetailBase:
+    PaymentLinkDetail:
       type: object
+      description: 支付链接详情（扁平对象）：共有字段在顶层，**仅 `type` 对应的内容子对象返回**（`giftcard` / `product` / `ticket` 之一，其余不返回本键）；`recipientInformation` 仅礼卡链接返回。
       required:
         - linkId
         - type
@@ -3658,6 +4083,10 @@ components:
         - currency
         - status
         - createdAt
+        - methods
+        - buyerInformation
+        - policies
+        - paymentUrl
       properties:
         linkId:
           type: string
@@ -3678,67 +4107,36 @@ components:
             $ref: '#/components/schemas/PaymentMethodRef'
         buyerInformation:
           type: array
-          uniqueItems: true
           maxItems: 5
-          description: 付款人信息采集项（标题商户自撰），**最多 5 个（固定上限）**；新建时以 `defaultBuyerInfo` 为起点，编辑时以本链接已存值为起点
+          description: 这条链接**当前保留着的全部**付款人信息采集项，系统给出的与商户自撰的同在一个列表里、各项按 `system` / `mandatory` 区分。 这就是编辑页要回显的那份内容——**别再去 `getPaymentLinkCreateConfig` 的 `defaultBuyerInfo` 取**，那份只在新建时用。 **最多 5 项（固定上限），系统项与自撰项合计。**
           items:
-            $ref: '#/components/schemas/InfoFieldLabel'
+            $ref: '#/components/schemas/InfoFieldEntry'
+        recipientInformation:
+          type: array
+          maxItems: 5
+          description: |
+            这条链接**当前保留着的全部**收件人信息采集项，形状同 `buyerInformation`。**只有礼卡链接返回本键**（其他类型不返回），礼卡链接恒返（至少含必填的收件人邮箱）。
+
+            ⚠️ **读侧在顶层、与 `buyerInformation` 同层**——虽然写侧提交时它落在 `giftcard.recipientInformation`（内容段内），读回来时**不在** `giftcard` 段里，别照搬写侧层级。
+          items:
+            $ref: '#/components/schemas/InfoFieldEntry'
         policies:
           $ref: '#/components/schemas/PoliciesAndSupportRead'
         paymentUrl:
           type: string
           description: 链接整串（前端纯呈现）
-    PaymentLinkDetail:
-      description: 支付链接详情；按 `type` 判别（discriminator），仅本类型内容存在。
-      oneOf:
-        - $ref: '#/components/schemas/GiftcardPaymentLinkDetail'
-        - $ref: '#/components/schemas/ProductPaymentLinkDetail'
-        - $ref: '#/components/schemas/TicketPaymentLinkDetail'
-      discriminator:
-        propertyName: type
-        mapping:
-          giftcard: '#/components/schemas/GiftcardPaymentLinkDetail'
-          product: '#/components/schemas/ProductPaymentLinkDetail'
-          ticket: '#/components/schemas/TicketPaymentLinkDetail'
-    GiftcardPaymentLinkDetail:
-      allOf:
-        - $ref: '#/components/schemas/PaymentLinkDetailBase'
-        - type: object
-          required:
-            - giftcard
-          properties:
-            type:
-              type: string
-              enum:
-                - giftcard
-            giftcard:
-              $ref: '#/components/schemas/GiftcardContentCompleteRead'
-    ProductPaymentLinkDetail:
-      allOf:
-        - $ref: '#/components/schemas/PaymentLinkDetailBase'
-        - type: object
-          required:
-            - product
-          properties:
-            type:
-              type: string
-              enum:
-                - product
-            product:
-              $ref: '#/components/schemas/ProductContentCompleteRead'
-    TicketPaymentLinkDetail:
-      allOf:
-        - $ref: '#/components/schemas/PaymentLinkDetailBase'
-        - type: object
-          required:
-            - ticket
-          properties:
-            type:
-              type: string
-              enum:
-                - ticket
-            ticket:
-              $ref: '#/components/schemas/TicketContentCompleteRead'
+        giftcard:
+          allOf:
+            - $ref: '#/components/schemas/GiftcardContentCompleteRead'
+          description: 礼卡内容；仅 `type=giftcard` 返回（该类型恒返）
+        product:
+          allOf:
+            - $ref: '#/components/schemas/ProductContentCompleteRead'
+          description: 商品内容；仅 `type=product` 返回（该类型恒返）
+        ticket:
+          allOf:
+            - $ref: '#/components/schemas/TicketContentCompleteRead'
+          description: 票务内容；仅 `type=ticket` 返回（该类型恒返）
     PaymentLinkListPage:
       type: object
       required:
@@ -3757,7 +4155,7 @@ components:
       required:
         - total
         - data
-      description: 该 link 的交易分页列表（按交易时间倒序）。行形状与交易管理的交易列表逐字段相同。
+      description: 该 link 的交易分页列表。行 = 交易管理的交易列表行 + giftcard 链接专属的 `giftCard` 段。
       properties:
         total:
           type: integer
@@ -3766,7 +4164,79 @@ components:
         data:
           type: array
           items:
-            $ref: '#/components/schemas/PaymentRow'
+            $ref: '#/components/schemas/PaymentLinkTransactionRow'
+    PaymentLinkTransactionRow:
+      description: 交易行 = 通用交易列表行（逐字段同交易管理）+ **giftcard 链接必带** `giftCard` 段（其他类型不返回本键）。
+      allOf:
+        - $ref: '#/components/schemas/PaymentRow'
+        - type: object
+          properties:
+            giftCard:
+              $ref: '#/components/schemas/GiftCardOrderRowSegment'
+    GiftCardOrderRowSegment:
+      type: object
+      additionalProperties: false
+      description: 礼卡订单在链接交易列表里的专属列（语义归 32-礼卡；订单详情的完整礼卡段在交易管理契约）。
+      required:
+        - giftCardOrderId
+        - campaignName
+        - giftCardName
+        - faceValue
+        - price
+        - credentialState
+        - recipient
+        - riskLevel
+      properties:
+        giftCardOrderId:
+          type: string
+          minLength: 1
+          description: 礼卡订单号
+        campaignName:
+          type: string
+          description: 后台活动名（行主标题；不面向持卡人）
+        giftCardName:
+          type: string
+          description: 用户可见礼卡商品名（行副标题）
+        faceValue:
+          $ref: '#/components/schemas/Money'
+        price:
+          $ref: '#/components/schemas/Money'
+        credentialState:
+          type: string
+          enum:
+            - PENDING
+            - ISSUABLE
+            - ISSUED
+            - SUSPENDED
+            - CANCELED
+          description: 凭证发放态（同订单详情）。可选集按该链接的 Fulfillment Mode 收窄，详见交易管理契约的礼卡段说明。
+        redemptionStatus:
+          type: string
+          enum:
+            - not_redeemed
+            - redeemed
+            - voided
+          description: 核销态；**仅 Voucher Mode 返回本键**（Inventory Mode 无平台核销）
+        credentialMasked:
+          type: string
+          description: 凭证展示串：Inventory Mode = 掩码卡号、Voucher Mode = 券号；尚未发放则不返回本键
+        recipient:
+          type: object
+          additionalProperties: false
+          properties:
+            name:
+              type: string
+              description: 收卡人姓名（无则不返回本键）
+            email:
+              type: string
+              description: 收卡人邮箱（无则不返回本键）
+        riskLevel:
+          type: string
+          enum:
+            - normal
+            - medium
+            - high
+          description: 风险等级（`normal` 不展示风险标签）；语义归 32-礼卡
     RedemptionListPage:
       type: object
       description: '核销记录分页。**giftcard Inventory Mode 恒返 `total: 0` + 空** `data`（无平台核销、tab 置灰）， 其发卡 / 投递情况在订单详情呈现、不在本资源。'
@@ -3786,7 +4256,6 @@ components:
       description: 核销记录（只读）。适用于 product / ticket，以及 **giftcard 的 Voucher Mode** （Inventory Mode 无平台核销，本 tab 置灰、记录数恒 0）。 核销为**整单一次性**——**不含已用金额 / 剩余余额字段**（非储值）。
       required:
         - recordId
-        - recordKind
         - code
         - status
       properties:
@@ -3795,10 +4264,6 @@ components:
           minLength: 1
           readOnly: true
           description: '**核销记录号**——本条记录自身的标识（与被核销的 `code` 是两回事），可直接作列表行 key'
-        recordKind:
-          type: string
-          enum:
-            - redemption
         code:
           type: string
           readOnly: true
@@ -3820,10 +4285,19 @@ components:
           type: string
           readOnly: true
           description: 核销操作人；无操作人信息时不返回本键
+        guest:
+          type: string
+          readOnly: true
+          description: 购票人姓名（ticket 入场核销记录；来自购票时填写的姓名）；无则不返回本键
         status:
           type: string
           readOnly: true
-          description: 核销记录态。⚠️ **取值集不由本契约定义**——核销记录的产生与状态语义归产品能力侧，本域只做只读呈现； 该取值集尚未在契约层固定，**前端不要 hardcode 状态下拉**，按本次返回的记录里出现的值构造筛选项、并对未识别值保守呈现（原样显示、不丢弃）。
+          enum:
+            - ISSUED
+            - REDEEMED
+            - VOID
+            - CANCELED
+          description: 核销记录态（凭证的核销态，语义归产品能力侧、本域只读呈现）：`ISSUED` 未核销（可核销）/ `REDEEMED` 已核销（商品自提 / 票务入场 / 礼卡券核销）/ `VOID` 已作废（商户主动作废）/ `CANCELED` 已失效（退款成功后凭证失效）。 状态筛选项按本 enum 渲染；Inventory Mode 礼卡无本资源。
     DeviceLifecycleStatus:
       type: string
       description: 设备生命周期态。
@@ -3832,15 +4306,53 @@ components:
         - ACTIVE
         - DISABLED
         - RELEASED
-    DeviceBindClientType:
-      type: string
-      description: 预登记表单可选的收款端家族 / 厂商命名空间。**只含 POS 硬件家族**——收银 App（softPOS）不经预登记入册， 它在设备首次登录时自动进入商户设备列表，商户无需也无法在此登记。 **封闭取值**（不同于 `model` / `source` 那两个自由文本字段）——未知值按字段错误拒绝。
-      enum:
-        - clover
-        - sunmi
-        - poynt
-        - pax
-        - ingenico
+    DeviceSourceOption:
+      type: object
+      additionalProperties: false
+      description: 一个设备来源候选（这台 POS 归谁所有：平台自有 / 某合作方 / 未知）。**本项带展示名**——来源是专有名（合作方名与平台自称），没有标准名表可解析。
+      required:
+        - code
+        - displayName
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: '**这才是提交给 `source` 的值**（不要提交 `displayName`）'
+          examples:
+            - moneris
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 展示名（**非本地化**、不随 locale 变）；客户端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+          examples:
+            - Moneris
+    DeviceBindSourceOption:
+      type: object
+      additionalProperties: false
+      description: 预登记面的来源候选：`DeviceSourceOption` 的两项 + 该来源名下的型号清单（两者的 `code` / `displayName` 口径一致）。
+      required:
+        - code
+        - displayName
+        - models
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: '**这才是提交给 `source` 的值**（不要提交 `displayName`）'
+          examples:
+            - moneris
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 展示名（**非本地化**、不随 locale 变）；客户端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+          examples:
+            - Moneris
+        models:
+          type: array
+          description: 该来源名下的已知型号（顺序即展示顺序）。**是便利清单、不是白名单**——商户可提交清单外的自定义型号；本来源暂无收录型号时为空数组。
+          items:
+            type: string
+            minLength: 1
     DeviceConnection:
       type: string
       enum:
@@ -3855,6 +4367,7 @@ components:
         - serialNumber
         - lifecycleStatus
         - createdAt
+        - createdDate
       properties:
         deviceId:
           type: string
@@ -3898,8 +4411,18 @@ components:
           description: 最近活跃时间；**从未活跃则不返回本键**
           allOf:
             - $ref: '#/components/schemas/Timestamp'
+        activatedAt:
+          readOnly: true
+          description: 激活时间（首次绑定生效、进入 ACTIVE 的时刻）；**尚未激活则不返回本键**。列表不展示本列、只作排序键。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
+        createdDate:
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+          readOnly: true
+          description: 创建日（服务端固化）。按创建日期筛选筛的就是它。
     DeviceDetail:
       description: 设备详情。版本字段（`firmwareOsVersion` / `appVersion`）与列表同源同名、口径见 `DeviceListItem`，详情不另给一套。
       allOf:
@@ -3929,7 +4452,6 @@ components:
       type: object
       required:
         - model
-        - clientType
         - serialNumber
         - source
         - storeName
@@ -3937,22 +4459,19 @@ components:
         model:
           type: string
           minLength: 1
-          description: 设备型号：已知型号或 Other 自定义文本。⚠️ **候选集由前端维护**（无取候选集的端点，也不做命中校验）——型号增删改只改前端
-        clientType:
-          allOf:
-            - $ref: '#/components/schemas/DeviceBindClientType'
-          description: '**与 `model` 不是一回事**：`model` 纯记录展示、可自由填；本字段**参与该设备身份的判定**（怎么判在服务端， 前端只负责如实提交），所以它是**封闭取值**、传错即 400 字段错误。 前端在型号清单里为每个型号标好对应家族并随之提交；**选 Other 自定义型号时同样必须给出家族**。'
+          description: 设备型号。**已知型号取自 `getDeviceBindOptions` 里所选来源那一组的 `models`，也可填清单外的自定义型号**（提交不做命中校验）。 纯记录与列表展示、不参与判定——设备的身份由服务端确定，本字段不是其构件。
         serialNumber:
           type: string
           minLength: 1
-          description: 商户从设备上抄录的厂商序列号。它与 `clientType` 一起决定这台设备的身份—— **服务端校验的是那个身份有没有被占用，不是这串序列号本身是否全平台唯一** （同一串序列号出现在不同家族下不冲突）。已占用 → `409`·208021，渲染成本字段的字段级错误（见本端点说明）。
+          description: 商户从设备上抄录的厂商序列号。这台设备日后首次登录时，服务端据它把这条绑定记录认到那台机器上。 **判重只在您名下做**——您已绑过同一串 → `409`·208021，渲染成本字段的字段级错误（见本端点说明）； 这串序列号**不是全平台唯一键**，别家商户用过同一串不会在这里被拦下（同一串出现在不同厂商下本就是两台机器）。
         source:
           type: string
           minLength: 1
-          description: 设备来源，默认 `Platform`（平台自有设备）；其余为合作方来源（如 `Moneris` / `Clover`）或 `Unknown`。⚠️ **候选集由前端维护**（无取候选集的端点）——来源增删改只改前端
+          description: 设备来源（这台 POS 归谁所有）。**取自** `getDeviceBindOptions.sources[].code` —— 取值集由后端配置决定、会随新增合作方增长，前端不要 hardcode。
         storeName:
           type: string
           minLength: 1
+          description: 绑定店铺名，**商户自填的自由文本**（不是实体引用、不做命中校验）。它同时构成设备列表「绑定店铺」筛选的候选来源——已用过的全集见 `getDeviceFilterOptions`
     DeviceLogType:
       type: string
       description: 设备日志类型（首期 3 类；firmware/error 不在首期）。
@@ -3964,11 +4483,19 @@ components:
       type: object
       required:
         - type
+        - severity
         - event
         - timestamp
       properties:
         type:
           $ref: '#/components/schemas/DeviceLogType'
+        severity:
+          type: string
+          enum:
+            - info
+            - warning
+            - error
+          description: 严重程度（由上游设备日志投影给出，与 `type` 正交）；类型徽标按此着色，商户据此在长日志里挑出异常项
         event:
           type: string
           readOnly: true
@@ -4042,6 +4569,27 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -4092,17 +4640,22 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
-    Currency:
-      type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
     FileUploadTargetRequest:
       type: object
       additionalProperties: false
@@ -4137,7 +4690,7 @@ components:
         | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
         | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
         | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
-        | `merchant_logo` | PNG / JPEG | 默认 512KB（可配置） | 长效稳定的公开地址（要展示给外部访客） |
+        | `merchant_logo` | PNG / JPEG | **512KB（固定上限）** | 长效稳定的公开地址（要展示给外部访客） |
         | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
         | `payment_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
         | `payment_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
@@ -4161,7 +4714,7 @@ components:
         - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
           「出参 Z」是约定、非 schema 可强制)。
 
-        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+        展示由消费方按**本地时区**换算(浏览器端即浏览器时区);商户配置的 IANA 时区是**服务端固化日期字段**时用的,不用于展示换算。
 
         **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
         **别拿本类型自己推**：两者在跨日边界附近会分属两天。
@@ -4208,22 +4761,19 @@ components:
     LocalDate:
       type: string
       format: date
-      description: 日期 `YYYY-MM-DD`，**不带时区**。本面所有日期字段与日期入参都是它。 **按字面收发**——展示直接用这个字符串，别塞进 `Date` 按浏览器时区格式化（负偏移时区会显示成前一天）。
+      description: |
+        **日历日期**(无偏移,`YYYY-MM-DD`)。**不带时区、不隐含日切时刻** —— 就是这一天本身。
+
+        - **按字面值收发**:展示直接用这个字符串、**不做任何时区换算**
+          (禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天);
+        - **日期区间入参与固化的日期列作字面比较**,不把日期换算成瞬时区间去扫时间戳列;
+        - **不改写已固化的日期字面值**,无论它当初是按谁的时区算出来的。
+
+        商户选定的日期(Invoice Due Date / 礼卡 Campaign End Date / 票务 Event Date)与服务端固化后出参的日期
+        (如各类记录的创建日)同用本类型。某个 `LocalDate` 在服务端对应哪条日轴、要不要解释成瞬时区间,
+        是服务端的事 —— 契约面只承诺这一天的字面值。
       examples:
-        - '2026-05-19'
-    Money:
-      type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
-      required:
-        - amount
-        - currency
-      properties:
-        amount:
-          type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
-        currency:
-          $ref: '#/components/schemas/Currency'
+        - '2026-08-01'
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
@@ -4328,6 +4878,10 @@ components:
         refundable:
           type: boolean
           description: 可退——**后端可退资格结果**（`PAID` / `PARTIALLY_REFUNDED` ∧ 剩余可发起额 > 0，**或平台挂起 `PREAUTH_HOLDING` 经预授权放行**）；非按 status 硬编码。行内退款入口可见性。
+        remainingRefundable:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 剩余可发起退款额（口径同详情 `refundability.remainingRefundable`：成交 − 已落账 − 在途占用）。refundable 为 **true 时必返**，其余不返回本键。行内退款按钮据此提示「还可退 X」。
         receiptAvailable:
           type: boolean
           description: 该笔已收款（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）、有收据可取。**取收据的端点在交易管理契约**；所在页没有收据入口时本键可忽略

@@ -29,14 +29,14 @@
 
 登录 / 微信扫码 / 邮箱激活成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录 / 激活响应直接携带 merchantId 或路由**：
 
-1. `getCurrentSession`（`GET /sessions/current`）→ 取 `merchantId`（当前商户内部 id）、`menus`（可见菜单树）、`landingPage`（默认落地页）。
+1. `getCurrentSession`（`GET /sessions/current`）→ 取 `merchantId`（当前商户内部 id）、`privileges`（可见权限点集合，导航 / 入口 / 按钮 / 只读态一律查它）、`landingPage`（默认落地页，给的是权限点标识、按自己的路由表映射）。
 2. 以该 `merchantId` 初始化 `X-Merchant-Context`，作为后续所有 merchant-scoped 调用的 header（见下「merchant scope + stale-tab 守卫」）。
 3. `getOnboardingStatus`（`GET /onboarding/status`，带 `X-Merchant-Context`）→ `routeTo` 决定落到哪个区域：`ONBOARDING_WIZARD` / `REVIEW_STATUS_PAGE` / `REJECTED_PAGE` / `MERCHANT_HOME`。
 4. **`routeTo` 是区域分流的唯一真相源**；**仅 `routeTo = MERCHANT_HOME` 时才采用 `landingPage`**（商户后台内默认页）。入驻 / 审核 / 拒绝区域不看 `landingPage`。
 
 > **无当前商户分支**：`getCurrentSession` **可能不返回 `merchantId` 键**（该用户当前没有任何可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / 入驻相关接口**。
 >
-> 邮箱激活**在建了会话时**与登录等价，FE 同样从 `getCurrentSession` 起步；激活响应的 `sessionEstablished=false` 则表示账号已激活但本次没建会话，跳登录页首次密码登录——**两支都要留**，别默认激活必然带会话。
+> 邮箱激活成功（`200`）即已建会话，与登录等价，FE 同样从 `getCurrentSession` 起步；激活已提交但建会话失败返错误体，用户再次点击链接会命中 `410` 已激活 → 跳登录页密码登录——这是唯一的降级出口，响应里没有「已激活但未建会话」的成功分支。
 
 ## merchant scope + stale-tab 守卫（`X-Merchant-Context`）
 
@@ -169,7 +169,22 @@
 
 - 请求：`pageNum`（默认 **1**，从 1 计）、`pageSize`（默认 **20**；上限可配置）
 - 响应：`{ total, data[] }`（`total` 总记录数，`data` 当页记录数组）
-- 排序由具体接口约定。
+- 排序：`sortField` + `sortOrder`，规则见下。
+
+## 排序
+
+分页列表统一两个参数（对应表格排序控件的 `{ field, order }`）：
+
+- `sortField`：可排字段，每个端点自己列封闭 enum，取值 = 该列表行的字段名。
+- `sortOrder`：`ascend` / `descend`。
+
+- 不传 `sortField` → 不排序（顺序不承诺）。**页面的默认顺序由前端显式传**（如成员列表默认最新创建在前，就传 `sortField=createdAt&sortOrder=descend`），后端没有「默认排序」。
+- 传了 `sortField` 未传 `sortOrder` → 升序。
+- `sortField` 不在 enum 内 → 静默当作没传，不报错。
+- 空值恒排末尾，升降序都一样（如「从未登录」的成员按最近登录排序时总在最后）。
+- 同值行顺序稳定，翻页不重不漏。
+- 金额按数值比较、不分币种。
+- 固定顺序的列表（如账户流水固定按过账时间倒序）没有这两个参数。
 
 ## 列表页顶部的快捷筛选（chip）
 
@@ -241,9 +256,10 @@
 
 ## 时间 / 金额 / 币种
 
-- **时间**：**响应**的瞬时时刻一律 UTC `Z`（如 `2026-05-19T14:30:00Z`）；**请求 / query 入参**接受任意合法 offset、服务端归一 UTC。展示按商户配置时区换算（时区走单独字段，`offset ≠ timezone`）。
-- **日期**：`YYYY-MM-DD`、**不带时区**（spec 内的 `LocalDate`），**按字面收发**——别塞进 `Date` 按浏览器时区渲染（负偏移时区会显示成前一天）。**时间戳**（`Timestamp`）则相反，可按商户时区换算展示。
+- **时间戳**（spec 内的 `Timestamp`）：**响应**一律 UTC `Z`（如 `2026-05-19T14:30:00Z`）；**请求 / query 入参**接受任意合法 offset、服务端归一 UTC。**显示时按浏览器时区换算**（就是通常那样 `new Date(...)` 后本地化）。
+- **日期**（spec 内的 `LocalDate`）：`YYYY-MM-DD`、**不带时区**，**按字面收发** —— 直接当字符串显示，**别塞进 `Date`**（负偏移时区会显示成前一天）。它是服务端已经算好并固化下来的一个日期字段，不是从哪个时间戳现截的。
   日期区间一律 `from` / `to`（**闭区间、含当日**），`to < from` → `400`；是否必填、有无跨度上限看该端点。
+- ⚠️ **两者互不对应，别互相校验**：同一条记录的时间戳按你本地时区截出的年月日，与它的日期字段可以是不同的两天（日期在服务端按商户所在时区固化，与看它的人在哪儿无关）。按日期筛出来的结果，时间戳看着「不在那天」不是 bug。
 - **金额**：**字符串**类型（避免 JSON Number 精度丢失）；默认最小货币单位的整数字符串（如「分」），scale 由币种 ISO 精度解释（CAD / USD 2 位、JPY 0 位）；接口若用十进制金额字符串（如 `"10.00"`）会在该接口契约显式声明。
 - **币种**：ISO 4217 三字母码（`CAD` / `CNY` / `USD`…）。
 

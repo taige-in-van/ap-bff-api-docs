@@ -25,6 +25,7 @@
 | operationId | method + path | 用途 |
 |---|---|---|
 | [`listPayments`](index.html#tag/payments/operation/listPayments) | `GET /payments` | 支付交易列表（过滤 + 关键词 + 排序 + 分页） |
+| [`listRecentPayments`](index.html#tag/payments/operation/listRecentPayments) | `GET /payments/recent` | Dashboard「Transaction History」块的最近 N 条交易（单次调用、不分页、行形状同列表） |
 | [`getPaymentCounts`](index.html#tag/payments/operation/getPaymentCounts) | `GET /payments/counts` | 交易列表状态 chip 的各项与计数（不收状态参数） |
 | [`getRefundCounts`](index.html#tag/refunds/operation/getRefundCounts) | `GET /refunds/counts` | 退款列表状态 chip 的各项与计数（不收状态参数） |
 | [`getTransactionFilterOptions`](index.html#tag/payments/operation/getTransactionFilterOptions) | `GET /transactions/filter-options` | 支付方式 / 来源筛选项候选集（交易页与退款页共用） |

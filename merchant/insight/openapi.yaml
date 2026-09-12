@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 数据洞察 — 前端契约面
-  version: 0.9.2
+  version: 1.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -44,8 +44,8 @@ paths:
 
         需逐笔核对的场景走交易 / 退款明细列表，但交易管理页的同名字段是**按那一页的筛选条件算出的另一个量**、与本页口径不同，两页数字**不可互相核对或推导**。
 
-        **区块降级（分组判别）**：**Gross / Refund / Net 为一组、三项整体判别**（同时 `available` 或同时 `unavailable`）；
-        **To Settle** 与 **Payment Distribution** 各自独立判别——某项取数超时 / 失败 → 对应组 / 块 `unavailable`（**非 0**）、其余照常渲染。
+        **区块降级（按组）**：**Gross / Refund / Net 为一组、三项整体降级**（同时 `available` 或同时 `unavailable`）；
+        **To Settle** 与 **Payment Distribution** 各自独立降级——某项取数超时 / 失败 → 对应组 / 块 `status=unavailable`（**非 0**）、其余照常渲染。
 
         「窗内无交易」= **空态**（Gross / Refund / Net = `available` 且金额为 "0"、分布 `available` 且 slices 为空），与 `unavailable` 语义分离。
 
@@ -120,7 +120,6 @@ paths:
                           amount:
                             amount: '150000'
                             currency: CAD
-                          aggregated: true
                 refundHeavyWindow:
                   summary: 退款大于当窗收款 → Net 为负（有符号原样渲染，不得截为 0）
                   value:
@@ -157,7 +156,7 @@ paths:
                             amount: '120000'
                             currency: CAD
                 groupDegraded:
-                  summary: Gross / Refund / Net 一组 + 分布 unavailable；To Settle 独立判别、仍可用
+                  summary: Gross / Refund / Net 一组 + 分布 unavailable；To Settle 独立降级、仍可用
                   value:
                     currency: CAD
                     timeZone: America/Toronto
@@ -335,15 +334,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
     DashboardKpi:
-      description: |
-        四项 Dashboard KPI。**Gross / Refund / Net 为一组**—— **要么三项同时 available、要么三项同时 unavailable**（`Net = Gross − Refund` 由服务端算出）； **To Settle 独立判别**、可单独降级。组内混合态（如 Gross available 而 Refund unavailable）**不会出现**。
-      oneOf:
-        - $ref: '#/components/schemas/DashboardKpiMoneyAvailable'
-        - $ref: '#/components/schemas/DashboardKpiMoneyUnavailable'
-    DashboardKpiMoneyAvailable:
       type: object
       additionalProperties: false
-      description: 该组可用——Gross / Refund / Net 三项均 available（To Settle 独立、可 available 或 unavailable）。
+      description: |
+        四项 Dashboard KPI。**Gross / Refund / Net 为一组**—— **要么三项同时 available、要么三项同时 unavailable**（`Net = Gross − Refund` 由服务端算出）； **To Settle 独立降级**、可单独 unavailable。组内混合态（如 Gross available 而 Refund unavailable）**不会出现**——由服务端保证，前端不必防御。
       required:
         - grossSales
         - refundAmount
@@ -351,182 +345,78 @@ components:
         - toSettle
       properties:
         grossSales:
-          description: Gross Sales（窗内成功收款合计、结算币种）
-          allOf:
-            - $ref: '#/components/schemas/MetricMoneyAvailable'
-        refundAmount:
-          description: Refund Amount（窗内退款合计；**排除系统自动退款**）。**与 Gross Sales 各按自己的日期入窗、不做按原订单的同期配对**—— 所以两者不可逐笔对上，别拿它们做勾稽 UI。 服务端返回**有符号**金额、**可能为负**（退款回冲计负向），且**历史窗口的数字不会回溯变化**。
-          allOf:
-            - $ref: '#/components/schemas/MetricMoneyAvailable'
-        netSales:
-          description: Net Sales（= Gross Sales − Refund Amount，**服务端算出**、FE 不自行相减）——服务端返回的有符号金额、**可能为负**。
-          allOf:
-            - $ref: '#/components/schemas/MetricMoneyAvailable'
-        toSettle:
-          description: To Settle（当前待结算即时态派生值、**不随时间窗变化**；与账户账务与清结算页同源、口径一致；**独立判别、可单独降级**）
+          description: Gross Sales（窗内成功收款合计、结算币种）；取数失败 → `unavailable`（与 Refund / Net 同组同进退）
           allOf:
             - $ref: '#/components/schemas/MetricMoney'
-    DashboardKpiMoneyUnavailable:
-      type: object
-      additionalProperties: false
-      description: 该组降级——Gross / Refund / Net 三项均 unavailable（取数失败；To Settle 独立、仍可 available）。
-      required:
-        - grossSales
-        - refundAmount
-        - netSales
-        - toSettle
-      properties:
-        grossSales:
-          description: Gross Sales（取数失败 → 暂不可用）
-          allOf:
-            - $ref: '#/components/schemas/MetricMoneyUnavailable'
         refundAmount:
-          description: Refund Amount（取数失败 → 暂不可用）
+          description: Refund Amount（窗内退款合计；**排除系统自动退款**）。**与 Gross Sales 各按自己的日期入窗、不做按原订单的同期配对**—— 所以两者不可逐笔对上，别拿它们做勾稽 UI。 服务端返回**有符号**金额、**可能为负**（退款回冲计负向），且**历史窗口的数字不会回溯变化**。取数失败 → `unavailable`（与 Gross / Net 同组同进退）。
           allOf:
-            - $ref: '#/components/schemas/MetricMoneyUnavailable'
+            - $ref: '#/components/schemas/MetricMoney'
         netSales:
-          description: Net Sales（Gross / Refund 不可用 → 无法算出、暂不可用）
+          description: Net Sales（= Gross Sales − Refund Amount，**服务端算出**、FE 不自行相减）——服务端返回的有符号金额、**可能为负**。Gross / Refund 不可用 → 无法算出、同为 `unavailable`。
           allOf:
-            - $ref: '#/components/schemas/MetricMoneyUnavailable'
+            - $ref: '#/components/schemas/MetricMoney'
         toSettle:
-          description: To Settle（**独立判别**——上面三项降级时本项仍可 available）
+          description: To Settle（当前待结算即时态派生值、**不随时间窗变化**；与账户账务与清结算页同源、口径一致；**独立降级**——上面三项 unavailable 时本项仍可 available）
           allOf:
             - $ref: '#/components/schemas/MetricMoney'
     MetricMoney:
-      description: |
-        单项 KPI 金额（结算币种）——按 `status` 判别：**available 必携 amount、unavailable 无 amount** （封闭枚举，取值集固定、可穷举分支）。**空态（窗内无数据）= available 且 amount 为 "0"、非 unavailable**； `unavailable` 仅表该项取数失败（对应 KPI 卡「暂不可用」而非 0）。
-      oneOf:
-        - $ref: '#/components/schemas/MetricMoneyAvailable'
-        - $ref: '#/components/schemas/MetricMoneyUnavailable'
-      discriminator:
-        propertyName: status
-        mapping:
-          available: '#/components/schemas/MetricMoneyAvailable'
-          unavailable: '#/components/schemas/MetricMoneyUnavailable'
-    MetricMoneyAvailable:
       type: object
       additionalProperties: false
+      description: |
+        单项 KPI 金额（结算币种）。`available` 时携 `amount`、`unavailable` 时不返回 `amount`。 **空态（窗内无数据）= available 且 amount 为 "0"、非 unavailable**； `unavailable` 仅表该项取数失败（对应 KPI 卡「暂不可用」而非 0）。
       required:
         - status
-        - amount
       properties:
         status:
           type: string
-          const: available
+          enum:
+            - available
+            - unavailable
+          description: 取数结果（`unavailable` = 取数失败 / 超时，KPI 卡「暂不可用」、不以 0 冒充）。封闭枚举（取值集固定、可穷举分支）。
         amount:
-          description: 金额（最小币种单位整数字符串 + 结算币种；空态为 "0"）
+          description: 金额（最小币种单位整数字符串 + 结算币种；空态为 "0"）。**仅 `status=available` 时返回本键**（此时必返）
           allOf:
             - $ref: '#/components/schemas/Money'
-    MetricMoneyUnavailable:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          const: unavailable
-          description: 取数失败 / 超时（KPI 卡「暂不可用」、不以 0 冒充）
     DistributionBlock:
-      description: |
-        Payment Distribution 分布块——按 `status` 判别：**available 携 slices（可空 = 空态）、unavailable 无 slices**。 「窗内无交易」= available + 空 slices（非 unavailable）；`unavailable` 仅表该块取数失败。
-      oneOf:
-        - $ref: '#/components/schemas/DistributionAvailable'
-        - $ref: '#/components/schemas/DistributionUnavailable'
-      discriminator:
-        propertyName: status
-        mapping:
-          available: '#/components/schemas/DistributionAvailable'
-          unavailable: '#/components/schemas/DistributionUnavailable'
-    DistributionAvailable:
       type: object
       additionalProperties: false
+      description: |
+        Payment Distribution 分布块。`available` 时携 `slices`（可空 = 空态）、`unavailable` 时不返回 `slices`。 「窗内无交易」= available + 空 slices（非 unavailable）；`unavailable` 仅表该块取数失败。
       required:
         - status
-        - slices
       properties:
         status:
           type: string
-          const: available
+          enum:
+            - available
+            - unavailable
+          description: 取数结果（`unavailable` = 取数失败 / 超时，分布块「暂不可用」）。封闭枚举（取值集固定、可穷举分支）。
         slices:
           type: array
           description: |
-            各支付方式收款金额分片（占比由 FE 从金额派生、和为 100%）；空数组 = 空态（窗内无交易）。归并「其他」为单独一片（`aggregated=true`）。
+            各支付方式收款金额分片（占比由 FE 从金额派生、和为 100%）；空数组 = 空态（窗内无交易）。归并「其他」为单独一片（`paymentMethod.code = _other`）。**仅 `status=available` 时返回本键**（此时必返）。
 
             - **响应恒等式（契约保证，FE 无需运行时校验或纠偏）**：`Σ slices[].amount.amount = kpi.grossSales.amount.amount`（两者均 `available` 时；**同一结算币种**）——
-              分布与 Gross 同源同窗，故窗口内合计必然相等；**至多一个** `aggregated=true` 分片。
+              分布与 Gross 同源同窗，故窗口内合计必然相等；**至多一个** `_other` 聚合片（服务端保证）。
             - **契约约束**：`paymentMethod.code` 在同一响应内**唯一**（可直接作渲染 key）；**非聚合分片按金额降序**返回，**聚合片不参与排序、恒置末位**（归并按占比阈值，聚合片金额可能大于某个上榜方式，故位置由本规则定、不由金额定）——前端照序渲染即可，不必自己排序、图例配色也因此稳定。
           items:
             $ref: '#/components/schemas/DistributionSlice'
-          contains:
-            $ref: '#/components/schemas/DistributionSliceAggregated'
-          minContains: 0
-          maxContains: 1
-    DistributionUnavailable:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          const: unavailable
-          description: 取数失败 / 超时（分布块「暂不可用」）
     DistributionSlice:
+      type: object
+      additionalProperties: false
       description: |
-        单个支付方式分片。**聚合哨兵与 `aggregated` 互锁**：聚合片必为 `paymentMethod.code = _other` + `aggregated = true`； 普通片 `code ≠ _other` 且 `aggregated` 省略或 `false`。**一次响应至多一个聚合片**（数组级约束、服务端保证，见 `slices` 描述）。
-      oneOf:
-        - $ref: '#/components/schemas/DistributionSliceMethod'
-        - $ref: '#/components/schemas/DistributionSliceAggregated'
-    DistributionSliceMethod:
-      type: object
-      additionalProperties: false
-      description: 具体支付方式分片（非聚合）。
+        单个支付方式分片。`paymentMethod.code = _other` 即归并「其他」聚合片（占比低于归并阈值〔默认值、可配置〕的支付方式合并；一次响应至多一片、恒置末位）， 其余为具体支付方式分片。
       required:
         - paymentMethod
         - amount
       properties:
         paymentMethod:
-          allOf:
-            - $ref: '#/components/schemas/PaymentMethodRef'
-            - type: object
-              properties:
-                code:
-                  not:
-                    const: _other
+          $ref: '#/components/schemas/PaymentMethodRef'
         amount:
-          description: 该支付方式窗内成功收款金额（结算币种）
+          description: 该支付方式窗内成功收款金额（结算币种）；聚合片 = 归并入「其他」的收款金额合计
           allOf:
             - $ref: '#/components/schemas/Money'
-        aggregated:
-          type: boolean
-          const: false
-          default: false
-          description: 非聚合片（省略等价 `false`）。
-    DistributionSliceAggregated:
-      type: object
-      additionalProperties: false
-      description: 归并「其他」聚合片——占比低于归并阈值（默认值、可配置）的支付方式合并；每次响应至多一片。
-      required:
-        - paymentMethod
-        - amount
-        - aggregated
-      properties:
-        paymentMethod:
-          allOf:
-            - $ref: '#/components/schemas/PaymentMethodRef'
-            - type: object
-              properties:
-                code:
-                  const: _other
-        amount:
-          description: 归并入「其他」的收款金额合计（结算币种）
-          allOf:
-            - $ref: '#/components/schemas/Money'
-        aggregated:
-          type: boolean
-          const: true
-          description: 恒 `true`（聚合片标识；与 `code = _other` 互锁）。
     PaymentMethodRef:
       type: object
       additionalProperties: false
@@ -543,65 +433,44 @@ components:
           minLength: 1
           description: canonical 默认展示名（**非本地化**、不随 locale 变；FE 按 `code` 本地化、此值作 unknown-safe fallback；归并聚合片的默认展示名 = "Other"）。
     DashboardTrend:
-      description: |
-        趋势响应——按 `status` 判别：**available 携双序列、unavailable 无**。「所选月份无交易」= available + 空 `points`（空态、零基线）， 与取数失败 `unavailable` 分离。趋势独立于全局时间窗（仅 `month` 管辖）。
-      oneOf:
-        - $ref: '#/components/schemas/TrendAvailable'
-        - $ref: '#/components/schemas/TrendUnavailable'
-      discriminator:
-        propertyName: status
-        mapping:
-          available: '#/components/schemas/TrendAvailable'
-          unavailable: '#/components/schemas/TrendUnavailable'
-    TrendAvailable:
       type: object
       additionalProperties: false
+      description: |
+        趋势响应。`available` 时携双序列及其上下文（`month` / `window` / `currency` / `timeZone` / `points` 五键同进退）、`unavailable` 时只有 `status`。 「所选月份无交易」= available + 空 `points`（空态、零基线），与取数失败 `unavailable` 分离。趋势独立于全局时间窗（仅 `month` 管辖）。
       required:
         - status
-        - month
-        - window
-        - currency
-        - timeZone
-        - points
       properties:
         status:
           type: string
-          const: available
+          enum:
+            - available
+            - unavailable
+          description: 取数结果（`unavailable` = 取数失败 / 超时，趋势块「暂不可用」）。封闭枚举（取值集固定、可穷举分支）。
         month:
           type: string
           enum:
             - current
             - previous
-          description: 生效月份档（回显请求值）
+          description: 生效月份档（回显请求值）。**仅 `status=available` 时返回本键**
         window:
           description: |
-            服务端认定的该档**实际日期范围**（闭区间）。 **FE 据此在范围内补零基线**——`points` 稀疏、空月时更是零信息，**不要自行按浏览器时区推算年月**。
+            服务端认定的该档**实际日期范围**（闭区间）。 **FE 据此在范围内补零基线**——`points` 稀疏、空月时更是零信息，**不要自行按浏览器时区推算年月**。**仅 `status=available` 时返回本键**。
           allOf:
             - $ref: '#/components/schemas/DateWindow'
         currency:
-          description: 结算币种（Volume 金额计价）
+          description: 结算币种（Volume 金额计价）。**仅 `status=available` 时返回本键**
           allOf:
             - $ref: '#/components/schemas/Currency'
         timeZone:
           type: string
           minLength: 1
-          description: 商户 IANA 时区（回显商户上下文；**不要拿它换算** `points[].date`——日期字面呈现）
+          description: 商户 IANA 时区（回显商户上下文；**不要拿它换算** `points[].date`——日期字面呈现）。**仅 `status=available` 时返回本键**
         points:
           type: array
           description: |
-            按日双序列点（**仅有数据的日**、稀疏；空数组 = 空态）。**契约约束**：`date` 唯一、按日期**升序**、 且全部落在 `window` 闭区间内；缺数据日由 FE 在 `window` 范围内补零基线。
+            按日双序列点（**仅有数据的日**、稀疏；空数组 = 空态）。**契约约束**：`date` 唯一、按日期**升序**、 且全部落在 `window` 闭区间内；缺数据日由 FE 在 `window` 范围内补零基线。**仅 `status=available` 时返回本键**（此时必返，可为空数组）。
           items:
             $ref: '#/components/schemas/TrendPoint'
-    TrendUnavailable:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          const: unavailable
-          description: 取数失败 / 超时（趋势块「暂不可用」）
     TrendPoint:
       type: object
       additionalProperties: false
@@ -625,12 +494,43 @@ components:
     LocalDate:
       type: string
       format: date
-      description: 日期 `YYYY-MM-DD`，**不带时区**。本面所有日期字段与日期入参都是它。 **按字面收发**——展示直接用这个字符串，别塞进 `Date` 按浏览器时区格式化（负偏移时区会显示成前一天）。
+      description: |
+        **日历日期**(无偏移,`YYYY-MM-DD`)。**不带时区、不隐含日切时刻** —— 就是这一天本身。
+
+        - **按字面值收发**:展示直接用这个字符串、**不做任何时区换算**
+          (禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天);
+        - **日期区间入参与固化的日期列作字面比较**,不把日期换算成瞬时区间去扫时间戳列;
+        - **不改写已固化的日期字面值**,无论它当初是按谁的时区算出来的。
+
+        商户选定的日期(Invoice Due Date / 礼卡 Campaign End Date / 票务 Event Date)与服务端固化后出参的日期
+        (如各类记录的创建日)同用本类型。某个 `LocalDate` 在服务端对应哪条日轴、要不要解释成瞬时区间,
+        是服务端的事 —— 契约面只承诺这一天的字面值。
       examples:
-        - '2026-05-19'
+        - '2026-08-01'
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -681,30 +581,22 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
-    Currency:
-      type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
-    Money:
-      type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
-      required:
-        - amount
-        - currency
-      properties:
-        amount:
-          type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
-        currency:
-          $ref: '#/components/schemas/Currency'
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context

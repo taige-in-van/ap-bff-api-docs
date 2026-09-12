@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 开发者 — 前端契约面
-  version: 0.6.6
+  version: 1.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -35,7 +35,7 @@ paths:
 
         - Merchant Code（明文公开标识）、
         - Gateway Credential **默认脱敏**（末 4 位；展示**不触发**访问审计；未签发 / 已吊销 → status=unavailable）、
-        - Gateway URL + Verification Type=RSA2（只读集成参数）、
+        - Gateway URL（只读集成参数；Verification Type 恒为 RSA2、是契约常量、**不在响应返回**，前端直接展示）、
         - 商户签名公钥态（registered 携公钥 PEM + keyVersion，或 unset）、
         - 平台公钥（current PEM + keyVersion；未发布则不返回该键）。
 
@@ -59,7 +59,6 @@ paths:
                   status: available
                   masked: ••••4821
                 gatewayUrl: https://gateway.example.com/api
-                verificationType: RSA2
                 merchantSigningKey:
                   status: registered
                   keyVersion: 2
@@ -201,11 +200,11 @@ paths:
               expectedKeyVersion: 2
       responses:
         '200':
-          description: 已登记 / 替换（返回当前公钥态）
+          description: 已登记 / 替换（返回当前公钥态；本端点恒为 `registered`，三个公钥键必返）
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MerchantSigningKeyRegistered'
+                $ref: '#/components/schemas/MerchantSigningKeyReplaceResult'
               example:
                 status: registered
                 keyVersion: 3
@@ -238,10 +237,10 @@ components:
     DeveloperOverview:
       type: object
       additionalProperties: false
+      description: 开发者页聚合。Verification Type 恒为 `RSA2`（契约常量、无变体），**不作字段返回**——前端直接展示该常量。
       required:
         - merchantCode
         - gatewayCredential
-        - verificationType
         - merchantSigningKey
       properties:
         merchantCode:
@@ -254,10 +253,6 @@ components:
           type: string
           format: uri
           description: 适用当前商户接入环境的网关基址（平台配置、只读）；**未配置则不返回本键**，前端走占位态
-        verificationType:
-          type: string
-          const: RSA2
-          description: 签名验证类型（只读；封闭常量，取值固定）
         merchantSigningKey:
           $ref: '#/components/schemas/MerchantSigningKeyState'
         platformPublicKey:
@@ -269,40 +264,23 @@ components:
           allOf:
             - $ref: '#/components/schemas/PlatformPublicKey'
     GatewayCredentialMasked:
-      description: |
-        Gateway Credential 脱敏态（默认展示；完整值走 revealGatewayCredential）。按 status 判别机器约束： **available 必携 masked、unavailable 无 masked**（封闭枚举，取值集固定、可穷举分支）。
-      oneOf:
-        - $ref: '#/components/schemas/GatewayCredentialAvailable'
-        - $ref: '#/components/schemas/GatewayCredentialUnavailable'
-      discriminator:
-        propertyName: status
-        mapping:
-          available: '#/components/schemas/GatewayCredentialAvailable'
-          unavailable: '#/components/schemas/GatewayCredentialUnavailable'
-    GatewayCredentialAvailable:
       type: object
       additionalProperties: false
+      description: |
+        Gateway Credential 脱敏态（默认展示；完整值走 revealGatewayCredential）。`available` 时携 `masked`； `unavailable`（未签发 / 已吊销）时不返回 `masked`、reveal 亦不可用。
       required:
         - status
-        - masked
       properties:
         status:
           type: string
-          const: available
+          enum:
+            - available
+            - unavailable
+          description: 凭据可用性（`unavailable` = 未签发 / 已吊销）。封闭枚举（取值集固定、可穷举分支）。
         masked:
           type: string
           minLength: 1
-          description: 脱敏串（如 `••••4821`、末 4 位）——非秘密显示提示、展示不触发审计（available 必非空）
-    GatewayCredentialUnavailable:
-      type: object
-      additionalProperties: false
-      required:
-        - status
-      properties:
-        status:
-          type: string
-          const: unavailable
-          description: 未签发 / 已吊销（无脱敏值、reveal 不可用）
+          description: 脱敏串（如 `••••4821`、末 4 位）——非秘密显示提示、展示不触发审计。**仅 `status=available` 时返回本键**（此时必返、非空）
     GatewayCredentialDisclosure:
       type: object
       additionalProperties: false
@@ -321,48 +299,38 @@ components:
             - copy
           description: 本次披露意图（回显请求值）
     MerchantSigningKeyState:
-      description: 商户签名公钥态（registered 携公钥 PEM + keyVersion；unset 未登记）。
-      oneOf:
-        - $ref: '#/components/schemas/MerchantSigningKeyRegistered'
-        - $ref: '#/components/schemas/MerchantSigningKeyUnset'
-      discriminator:
-        propertyName: status
-        mapping:
-          registered: '#/components/schemas/MerchantSigningKeyRegistered'
-          unset: '#/components/schemas/MerchantSigningKeyUnset'
-    MerchantSigningKeyRegistered:
       type: object
       additionalProperties: false
+      description: |
+        商户签名公钥态。`registered` 时携 `keyVersion` / `publicKeyPem` / `rotationGrace`（三键同进退）； `unset`（未登记）时只有 `status`——引导登记；无回到未登记的转换（不提供清除 / 解绑）。
       required:
         - status
-        - keyVersion
-        - publicKeyPem
-        - rotationGrace
       properties:
         status:
           type: string
-          const: registered
+          enum:
+            - registered
+            - unset
+          description: 登记态。封闭枚举（取值集固定、可穷举分支）。
         keyVersion:
           type: integer
           minimum: 1
-          description: 当前公钥版本（每次替换递增；轮换宽限期语义见 replaceMerchantSigningKey）
+          description: 当前公钥版本（每次替换递增；轮换宽限期语义见 replaceMerchantSigningKey）。**仅 `status=registered` 时返回本键**
         publicKeyPem:
           type: string
           minLength: 1
-          description: 商户当前 RSA2 公钥 PEM（非秘密、可查看 / 复制）
+          description: 商户当前 RSA2 公钥 PEM（非秘密、可查看 / 复制）。**仅 `status=registered` 时返回本键**
         rotationGrace:
           type: boolean
-          description: '**当前是否处于轮换宽限期**（新旧公钥并验）。**字段恒在**。 为 `true` 时**再次替换会被拒**——前端据此预先禁用替换入口，而不是让用户提交后才撞 `409 208015`。 宽限期何时结束不在本接口给出。'
-    MerchantSigningKeyUnset:
-      type: object
-      additionalProperties: false
+          description: '**当前是否处于轮换宽限期**（新旧公钥并验）。**仅 `status=registered` 时返回本键**（此时恒在）。 为 `true` 时**再次替换会被拒**——前端据此预先禁用替换入口，而不是让用户提交后才撞 `409 208015`。 宽限期何时结束不在本接口给出。'
+    MerchantSigningKeyReplaceResult:
+      description: '`replaceMerchantSigningKey` 的响应形态：登记 / 替换成功后恒为 `registered`，`keyVersion` / `publicKeyPem` / `rotationGrace` 必返。'
       required:
-        - status
-      properties:
-        status:
-          type: string
-          const: unset
-          description: 未登记（引导登记；无回到未登记的转换——不提供清除 / 解绑）
+        - keyVersion
+        - publicKeyPem
+        - rotationGrace
+      allOf:
+        - $ref: '#/components/schemas/MerchantSigningKeyState'
     PlatformPublicKey:
       type: object
       additionalProperties: false
@@ -381,6 +349,27 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -431,9 +420,22 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context

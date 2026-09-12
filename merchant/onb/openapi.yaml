@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户入驻 — 前端契约面
-  version: 0.15.3
+  version: 1.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -86,8 +86,7 @@ paths:
                     lastName: Merchant
                     email: jane@example.com
                     businessTitle: Manager
-                    phoneCountryCode: '+1'
-                    phone: '6045550123'
+                    phone: '+16045550123'
                     referredBy: Moneris
                     monerisMid: MON-44821
                     monerisManagerName: Alex Lee
@@ -102,25 +101,26 @@ paths:
                     country: CA
                     legalBusinessName: Maple Foods Inc.
                     tradeName: Maple Bistro
-                    typeOfOwnership: Corporation
+                    typeOfOwnership: CORPORATION
                     registrationNumber: '1234567'
                     businessAddress: 88 King St W
                     city: Toronto
                     province: 'ON'
                     postalCode: M5H 1A1
                     timeZone: America/Toronto
-                    businessPhoneCountryCode: '+1'
-                    businessPhone: '4165550199'
+                    businessPhone: '+14165550199'
                     industryCategory: FOOD_BEVERAGE
                     mcc: '5812'
                     typeOfOnlineService: Website
                     websiteUrl: https://maplebistro.example.com
                   settlement:
                     bankName: Royal Bank of Canada
-                    transitNumber: '00123'
-                    institutionNumber: '003'
-                    accountNumberMasked: •••• 4567
-                    accountNumberSet: true
+                    bankAccount:
+                      type: ca_local
+                      transitNumber: '00123'
+                      institutionNumber: '003'
+                      accountNumberMasked: •••• 4567
+                      accountNumberSet: true
                     refundPinSet: true
                     settlementCycle: t2
                     storeId: STORE-001
@@ -222,8 +222,7 @@ paths:
                 value:
                   contact:
                     businessTitle: Manager
-                    phoneCountryCode: '+1'
-                    phone: '6045550123'
+                    phone: '+16045550123'
                     referredBy: Moneris
                     monerisMid: MON-44821
                     monerisManagerName: Alex Lee
@@ -244,15 +243,14 @@ paths:
                     country: CA
                     legalBusinessName: Maple Foods Inc.
                     tradeName: Maple Bistro
-                    typeOfOwnership: Corporation
+                    typeOfOwnership: CORPORATION
                     registrationNumber: '1234567'
                     businessAddress: 88 King St W
                     city: Toronto
                     province: 'ON'
                     postalCode: M5H 1A1
                     timeZone: America/Toronto
-                    businessPhoneCountryCode: '+1'
-                    businessPhone: '4165550199'
+                    businessPhone: '+14165550199'
                     industryCategory: FOOD_BEVERAGE
                     mcc: '5812'
                     typeOfOnlineService: Website
@@ -263,9 +261,11 @@ paths:
                 value:
                   settlement:
                     bankName: Royal Bank of Canada
-                    transitNumber: '00123'
-                    institutionNumber: '003'
-                    accountNumber: '1234567'
+                    bankAccount:
+                      type: ca_local
+                      transitNumber: '00123'
+                      institutionNumber: '003'
+                      accountNumber: '1234567'
                     settlementCycle: t2
                     storeId: STORE-001
                     refundPin: '123456'
@@ -286,14 +286,13 @@ paths:
                       fileId: f712c9b6480a4de5931b8ac04e26df70
       responses:
         '200':
-          description: 当前 step 已保存（返回保存结果 saved + 该 step 当前 missingFields 命中项；**非完整快照**，掩码 / set 回显需重 GET application）
+          description: 当前 step 已保存（返回 step + 该 step 当前 missingFields 命中项；**非完整快照**，掩码 / set 回显需重 GET application）
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/StepSaveResult'
               example:
                 step: business
-                saved: true
                 stepMissingFields: []
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -318,7 +317,7 @@ paths:
         - 其余源态（既非可提交态、也非已 UNDER_REVIEW）→ 409 `208003`；
         - 字段或 Documents 不完整 → 400（204001 字段 / 204002 文档）。
 
-        本端点一次校验全部 5 个 step，故 `details[].field` 用 **step-qualified** 形式 `<step>.<field>`（如 `settlement.transitNumber`，同 `readonlyFields` 的写法、避免跨 step 同名碰撞）；
+        本端点一次校验全部 5 个 step，故 `details[].field` 用 **step-qualified** 形式 `<step>.<field>`（如 `settlement.bankAccount.transitNumber`，同 `readonlyFields` 的写法、避免跨 step 同名碰撞）；
         前端据此把错误条与 stepper 上的 step 编号关联、点击回跳对应 step。文档类缺失给 `documents.<docKey>`。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
@@ -376,8 +375,7 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      enum:
-                        - onboarding_document
+                      description: 本端点固定传 `onboarding_document`（入驻文档）；传其他用途 → 400。
                     contentType:
                       enum:
                         - image/png
@@ -469,13 +467,13 @@ paths:
 
         - Step 1 / 3 电话区号候选（`phoneCountryCodes`）；
         - Step 2 各营业场景可选支付方式 + 展示费率 + 可选状态（`paymentMethods`）；
-        - Step 3 有效 Currency × Country 组合（`currencyCountries`）、Industry→MCC 级联（`industries`）、时区候选（`timeZoneOptions`，按 country 分组）；
-        - Step 4 结算周期候选档位集（`settlementCycleOptions`）；
+        - Step 3 有效 Currency × Country 组合（`currencyCountries`）、Industry→MCC 级联（`industries`）、按国家分组的省 / 州候选 + 邮编规则 + 时区候选（`countryOptions`）；
+        - Step 4 结算周期候选档位集（`settlementCycleOptions`）、结算币种 → 允许的银行账户制式集（`bankAccountTypes`）；
         - Step 5 文件上传的前端拦截参数（`documentUpload`）。
 
         **这些候选集一律由后端配置决定、前端不要 hardcode。**
 
-        按当前选中商户上下文返回（不同商户可用集可能不同）。**前端渲染用；Step 2/3 有效性以 Next/Submit 时服务端重新校验为准**（不信客户端缓存 config）。只读、可缓存。
+        按当前选中商户上下文返回（不同商户可用集可能不同）。**前端渲染用；Step 2/3/4 有效性以 Next/Submit 时服务端重新校验为准**（不信客户端缓存 config）。只读、可缓存。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
       responses:
@@ -505,12 +503,31 @@ paths:
                     countries:
                       - CA
                       - US
+                bankAccountTypes:
+                  - currency: CAD
+                    types:
+                      - ca_local
+                  - currency: USD
+                    types:
+                      - ca_local
+                      - us_local
+                ownershipTypes:
+                  - code: SOLE_PROPRIETORSHIP
+                    name: Sole Proprietorship
+                  - code: PARTNERSHIP
+                    name: Partnership
+                  - code: CORPORATION
+                    name: Corporation
+                  - code: NON_PROFIT
+                    name: Non-Profit
                 industries:
                   - code: FOOD_BEVERAGE
                     name: Food & Beverage
                     mccOptions:
-                      - '5812'
-                      - '5814'
+                      - code: '5812'
+                        name: Eating Places and Restaurants
+                      - code: '5462'
+                        name: Bakeries
                 settlementCycleOptions:
                   - code: t2
                     displayName: T+2 Business Days
@@ -525,15 +542,31 @@ paths:
                     dialCode: '+1'
                   - code: CN
                     dialCode: '+86'
-                timeZoneOptions:
-                  - country: CA
+                countryOptions:
+                  - code: CA
+                    provinces:
+                      - code: BC
+                        displayName: British Columbia
+                      - code: 'ON'
+                        displayName: Ontario
+                    postalCode:
+                      pattern: ^[A-Z]\d[A-Z] ?\d[A-Z]\d$
+                      example: V6B 1A1
                     timeZones:
                       - America/Vancouver
                       - America/Edmonton
                       - America/Winnipeg
                       - America/Toronto
                       - America/Halifax
-                  - country: US
+                  - code: US
+                    provinces:
+                      - code: WA
+                        displayName: Washington
+                      - code: NY
+                        displayName: New York
+                    postalCode:
+                      pattern: ^\d{5}(-\d{4})?$
+                      example: '98101'
                     timeZones:
                       - America/Los_Angeles
                       - America/Denver
@@ -695,20 +728,15 @@ components:
           $ref: '#/components/schemas/DocumentsStep'
     StepSaveResult:
       type: object
-      description: 分步保存结果。
+      description: 分步保存结果。**200 即已写入草稿**——未写入一律非 2xx（校验失败 400 / 状态前置 409 / 文档未就位 400），没有「200 但没存成」。
       additionalProperties: false
       required:
         - step
-        - saved
       properties:
         step:
           allOf:
             - $ref: '#/components/schemas/StepName'
           readOnly: true
-        saved:
-          type: boolean
-          readOnly: true
-          description: 当前 step 是否已写入草稿。
         stepMissingFields:
           type: array
           readOnly: true
@@ -728,10 +756,10 @@ components:
           type: string
           readOnly: true
         status:
-          type: string
-          const: UNDER_REVIEW
+          allOf:
+            - $ref: '#/components/schemas/ApplicationStatus'
           readOnly: true
-          description: 提交后必然迁移为 UNDER_REVIEW（DRAFT/MORE_INFO_REQUIRED → UNDER_REVIEW）。
+          description: 提交后的申请状态；本端点恒为 UNDER_REVIEW（DRAFT/MORE_INFO_REQUIRED → UNDER_REVIEW，一致重放亦返 UNDER_REVIEW）。
         submittedAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -748,24 +776,19 @@ components:
           readOnly: true
           description: 粗分类拒绝原因（不分享细节，合规 / 防 gaming）。
     OnboardingStatus:
-      description: 审核状态 + 登录后页面分流数据 + 拒绝结果；只读。**按 status 拆分支、各分支钉死 routeTo + 必需字段**（状态↔页面↔字段绑定，杜绝「UNDER_REVIEW 却 routeTo=REJECTED_PAGE / REJECTED 却缺 rejectInfo」等非法组合）。`WITHDRAWN` 是隐藏终态（撤回后不在切换器展示、不会被分流到），**不进本响应**。
-      oneOf:
-        - $ref: '#/components/schemas/OnboardingStatusWizard'
-        - $ref: '#/components/schemas/OnboardingStatusUnderReview'
-        - $ref: '#/components/schemas/OnboardingStatusRejected'
-        - $ref: '#/components/schemas/OnboardingStatusApproved'
-      discriminator:
-        propertyName: status
-        mapping:
-          DRAFT: '#/components/schemas/OnboardingStatusWizard'
-          MORE_INFO_REQUIRED: '#/components/schemas/OnboardingStatusWizard'
-          UNDER_REVIEW: '#/components/schemas/OnboardingStatusUnderReview'
-          REJECTED: '#/components/schemas/OnboardingStatusRejected'
-          APPROVED: '#/components/schemas/OnboardingStatusApproved'
-    OnboardingStatusWizard:
       type: object
       additionalProperties: false
-      description: DRAFT / MORE_INFO_REQUIRED → 入驻向导。
+      description: |
+        审核状态 + 登录后页面分流数据 + 拒绝结果；只读。`status` 与 `routeTo` 一一对应，随状态返回的字段见下表与各字段说明：
+
+        | `status` | `routeTo` | 随状态返回 |
+        |---|---|---|
+        | `DRAFT` / `MORE_INFO_REQUIRED` | `ONBOARDING_WIZARD` | — |
+        | `UNDER_REVIEW` | `REVIEW_STATUS_PAGE` | `submittedAt` |
+        | `APPROVED` | `MERCHANT_HOME` | `decidedAt` |
+        | `REJECTED` | `REJECTED_PAGE` | `decidedAt` + `rejectInfo` |
+
+        `WITHDRAWN` 是隐藏终态（撤回后不在切换器展示、不会被分流到），不会出现在本响应。
       required:
         - applicationId
         - status
@@ -775,95 +798,34 @@ components:
           type: string
           readOnly: true
         status:
+          allOf:
+            - $ref: '#/components/schemas/ApplicationStatus'
+          readOnly: true
+          description: 当前申请状态；本响应不会返回 WITHDRAWN。
+        routeTo:
           type: string
           enum:
-            - DRAFT
-            - MORE_INFO_REQUIRED
+            - ONBOARDING_WIZARD
+            - REVIEW_STATUS_PAGE
+            - MERCHANT_HOME
+            - REJECTED_PAGE
           readOnly: true
-        routeTo:
-          type: string
-          const: ONBOARDING_WIZARD
-          readOnly: true
-    OnboardingStatusUnderReview:
-      type: object
-      additionalProperties: false
-      description: UNDER_REVIEW → 审核状态页（必带提交时间；审核 SLA 固定 2-3 工作日 = 前端 i18n 固定文案、不返）。
-      required:
-        - applicationId
-        - status
-        - routeTo
-        - submittedAt
-      properties:
-        applicationId:
-          type: string
-          readOnly: true
-        status:
-          type: string
-          const: UNDER_REVIEW
-          readOnly: true
-        routeTo:
-          type: string
-          const: REVIEW_STATUS_PAGE
-          readOnly: true
+          description: 前端应路由到的业务页面（与 `status` 的对应关系见上表）：入驻向导 / 审核状态页 / 商户后台首页 / 拒绝结果页。
         submittedAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
           readOnly: true
-    OnboardingStatusRejected:
-      type: object
-      additionalProperties: false
-      description: REJECTED → 拒绝结果页（必带决策时间 + rejectInfo）。
-      required:
-        - applicationId
-        - status
-        - routeTo
-        - decidedAt
-        - rejectInfo
-      properties:
-        applicationId:
-          type: string
-          readOnly: true
-        status:
-          type: string
-          const: REJECTED
-          readOnly: true
-        routeTo:
-          type: string
-          const: REJECTED_PAGE
-          readOnly: true
+          description: 提交时间；仅 UNDER_REVIEW 时返回（审核 SLA 固定 2-3 工作日 = 前端 i18n 固定文案、不返）。
         decidedAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
           readOnly: true
+          description: 审核决策时间；仅 APPROVED / REJECTED 时返回。
         rejectInfo:
           allOf:
             - $ref: '#/components/schemas/RejectInfo'
           readOnly: true
-    OnboardingStatusApproved:
-      type: object
-      additionalProperties: false
-      description: APPROVED → 商户后台首页（必带决策时间）。
-      required:
-        - applicationId
-        - status
-        - routeTo
-        - decidedAt
-      properties:
-        applicationId:
-          type: string
-          readOnly: true
-        status:
-          type: string
-          const: APPROVED
-          readOnly: true
-        routeTo:
-          type: string
-          const: MERCHANT_HOME
-          readOnly: true
-        decidedAt:
-          allOf:
-            - $ref: '#/components/schemas/Timestamp'
-          readOnly: true
+          description: 拒绝结果（粗分类）；仅 REJECTED 时返回。
     OnboardingConfig:
       type: object
       description: 向导动态配置（后端配置驱动，前端不写死方式 / 费率 / 组合）。
@@ -871,10 +833,12 @@ components:
       required:
         - paymentMethods
         - currencyCountries
+        - bankAccountTypes
+        - ownershipTypes
         - industries
         - settlementCycleOptions
         - phoneCountryCodes
-        - timeZoneOptions
+        - countryOptions
         - documentUpload
       properties:
         paymentMethods:
@@ -888,7 +852,21 @@ components:
           readOnly: true
           description: Step 3 有效 Currency × Country 组合（当前 CAD→CA、USD→CA/US；以后端配置为准）。
           items:
-            $ref: '#/components/schemas/ConfigCurrencyCountry'
+            $ref: '#/components/schemas/CurrencyCountry'
+        bankAccountTypes:
+          type: array
+          readOnly: true
+          minItems: 1
+          description: Step 4 结算银行账户制式：结算币种 → 允许的 `bankAccount.type` 集（部署配置驱动）。前端按 Step 3 所选币种取候选，单一制式直接渲染、多个则先让用户选收款银行所在国；`currencyCountries` 里出现的每个币种都有一项。与营业地址 Country 无关。
+          items:
+            $ref: '#/components/schemas/CurrencyBankAccountTypes'
+        ownershipTypes:
+          type: array
+          readOnly: true
+          minItems: 1
+          description: Step 3 企业类型候选（部署可配）。**提交 `code`、显示 `name`** —— 本字段激活后不可改，存展示名会在改文案或做多语言后失去解释。
+          items:
+            $ref: '#/components/schemas/ConfigOwnershipType'
         industries:
           type: array
           readOnly: true
@@ -909,14 +887,14 @@ components:
           minItems: 1
           description: 电话区号候选（部署可配；渲染 Business Phone / Contact Phone 的区号下拉用）。**前端不要 hardcode 区号表**——部署会调整。
           items:
-            $ref: '#/components/schemas/ConfigPhoneCountryCode'
-        timeZoneOptions:
+            $ref: '#/components/schemas/PhoneCountryCode'
+        countryOptions:
           type: array
           readOnly: true
           minItems: 1
           items:
-            $ref: '#/components/schemas/ConfigCountryTimeZones'
-          description: Step 3 时区下拉的候选,**按 country 分组**——前端取用户在本步所选 country 那一组渲染（country 改选就换组）。**前端不要 hardcode 时区表**（部署可配）;取值集覆盖 `currencyCountries` 里出现的每个 country。
+            $ref: '#/components/schemas/CountryOption'
+          description: Step 3 按国家分组的候选与规则——省 / 州候选、邮编规则、时区候选。**前端取用户在本步所选 country 那一组渲染，country 改选就换组**；三者都不要 hardcode（部署可配）。覆盖 `currencyCountries` 里出现的每个 country。
         documentUpload:
           allOf:
             - $ref: '#/components/schemas/ConfigDocumentUpload'
@@ -947,36 +925,6 @@ components:
           description: 展示费率（示例文案，非固定业务参数）。
         selectable:
           type: boolean
-    ConfigCountryTimeZones:
-      type: object
-      additionalProperties: false
-      required:
-        - country
-        - timeZones
-      properties:
-        country:
-          type: string
-          description: 国家代码,与 `currencyCountries[].countries` 同一取值域。
-        timeZones:
-          type: array
-          minItems: 1
-          items:
-            type: string
-            minLength: 1
-          description: 该国可选的 **IANA tz 标识**（如 `America/Toronto`）——**不用 PT/ET 缩写**（缩写表达不了夏令时）。**顺序即展示顺序**。
-    ConfigCurrencyCountry:
-      type: object
-      additionalProperties: false
-      required:
-        - currency
-        - countries
-      properties:
-        currency:
-          $ref: '#/components/schemas/Currency'
-        countries:
-          type: array
-          items:
-            type: string
     ConfigIndustry:
       type: object
       additionalProperties: false
@@ -999,24 +947,47 @@ components:
           type: array
           description: 该行业下可选 MCC（级联下拉的第二级）。**恒 present**，无可选项时为空数组。
           items:
-            type: string
-    ConfigPhoneCountryCode:
+            $ref: '#/components/schemas/ConfigMccOption'
+    ConfigOwnershipType:
       type: object
       additionalProperties: false
+      description: 一个企业类型候选项。**本项带展示名**——企业类型没有标准名表，客户端无从自解；下拉显示 `name`，提交的是 `code`。
       required:
         - code
-        - dialCode
+        - name
       properties:
         code:
           type: string
-          description: ISO 3166-1 alpha-2 国家码
+          minLength: 1
+          description: '**这才是提交给 `typeOfOwnership` 的值**（不要提交 `name`）'
           examples:
-            - CA
-        dialCode:
+            - CORPORATION
+        name:
           type: string
-          description: 国际拨号前缀（含 `+`）
+          minLength: 1
+          description: 企业类型展示名（**非本地化**、不随 locale 变）；客户端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
           examples:
-            - '+1'
+            - Corporation
+    ConfigMccOption:
+      type: object
+      additionalProperties: false
+      description: 一个 MCC 候选项。**本项带展示名**——MCC 没有标准名表，客户端无从自解；下拉按 `name` 检索、按 `name (code)` 呈现，提交的是 `code`。
+      required:
+        - code
+        - name
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: '**这才是提交给 `mcc` 的值**（不要提交 `name`）'
+          examples:
+            - '5462'
+        name:
+          type: string
+          minLength: 1
+          description: MCC 展示名（**非本地化**、不随 locale 变）；客户端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+          examples:
+            - Bakeries
     ConfigDocumentUpload:
       type: object
       additionalProperties: false
@@ -1039,6 +1010,27 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -1089,9 +1081,27 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
+    Phone:
+      type: string
+      pattern: ^\+[1-9]\d{1,14}$
+      maxLength: 16
+      description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用区号候选集（`PhoneCountryCode.dialCode`）做**最长前缀匹配**拆分本串。
     ContactStep:
       type: object
       description: Step 1 Contact。已预填字段（注册时已填）服务端保持只读；referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
@@ -1108,11 +1118,10 @@ components:
         businessTitle:
           type: string
           description: 选 Other 时须另填具体 title（自定义文本）。
-        phoneCountryCode:
-          type: string
-          description: 区号，取自 `getOnboardingConfig.phoneCountryCodes`（白名单部署可配）。`+1` **只是空白表单的初始值**——已有草稿或已保存值时回显其自身取值，不要拿 `+1` 覆盖。
         phone:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 联系人电话。区号候选取自 `getOnboardingConfig.phoneCountryCodes`（白名单部署可配）；`+1` **只是空白表单的初始值**——已有草稿或已保存值时回显其自身取值，不要拿 `+1` 覆盖。
         referredBy:
           type: string
           description: 来源；Welcome 链接带来则只读，否则 Owner 可在 Step 1 填；填 Moneris 触发条件字段。
@@ -1141,23 +1150,14 @@ components:
           description: 营业场景 = 申请开通的 AcceptanceMode（选中方式所属分组推导，无需单独选场景）。
     ServicesStep:
       type: object
-      description: Step 2 Services；至少选 1 个支付方式（可跨场景多选）——完整性在 `mode=next` 时由服务端校验，草稿态可缺。
+      description: Step 2 Services；至少选 1 个支付方式（可跨场景多选）——**该 ≥1 是提交完整性、不是本形状的约束**：由服务端在 `mode=next` 校验，草稿态可缺、也可为空。已提交形态的收紧在审核面的 `ServicesStepReviewed`。
       additionalProperties: false
       properties:
         selectedPaymentMethods:
           type: array
-          minItems: 1
-          description: 选中的支付方式（≥1）；所属营业场景推导 AcceptanceMode。
+          description: 选中的支付方式；所属营业场景推导 AcceptanceMode。**草稿态允许空数组**——用户把已勾选的全部取消后离开就是提交 `[]`（数组整组置换语义即清空该集）；`mode=next` 时服务端再校验 ≥1。
           items:
             $ref: '#/components/schemas/SelectedPaymentMethod'
-    Currency:
-      type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
     BusinessStep:
       type: object
       description: Step 3 Business。Currency × Country 有效组合以后端配置为准（当前 CAD→CA、USD→CA/US）；Step 2 选了任一 Online 支付方式时 typeOfOnlineService 必填、Website 时 websiteUrl 必填。
@@ -1176,7 +1176,8 @@ components:
           description: Trade Name (DBA)。
         typeOfOwnership:
           type: string
-          description: 身份字段（激活后不可改）。
+          minLength: 1
+          description: 企业类型——提交**稳定标识**（入驻配置 `ownershipTypes[].code`，如 `CORPORATION`），**不是展示名**；下拉显示用同一条的 `name`。身份字段（激活后不可改）。
         registrationNumber:
           type: string
         businessAddress:
@@ -1185,17 +1186,17 @@ components:
           type: string
         province:
           type: string
+          description: 取自 `getOnboardingConfig.countryOptions` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），不要自行拼；改 country 后须重选。
         postalCode:
           type: string
-          description: 邮编（格式按 country 服务端校验：CA 6 位 / US 5 位等，不设单一静态 pattern）。
+          description: 邮编。按 `getOnboardingConfig.countryOptions` 里所选 country 那一组的 `postalCode.pattern` 校验——**规则由后端配置下发、契约不写死单一静态 pattern**；前端据它预校，服务端在提交面重校。
         timeZone:
           type: string
-          description: 商户 IANA 时区（驱动显示 / 清算切日；offset ≠ timezone，**不用 PT/ET 缩写**——缩写表达不了夏令时）。取自 `getOnboardingConfig.timeZoneOptions`（白名单部署可配、与所选 country 联动），**前端不要 hardcode 时区表**；已有草稿或已保存值时回显其自身取值。
-        businessPhoneCountryCode:
-          type: string
-          description: 区号，取自 `getOnboardingConfig.phoneCountryCodes`（白名单部署可配）。`+1` **只是空白表单的初始值**——已有草稿或已保存值时回显其自身取值，不要拿 `+1` 覆盖。
+          description: 商户 IANA 时区（驱动显示 / 清算切日；offset ≠ timezone，**不用 PT/ET 缩写**——缩写表达不了夏令时）。取自 `getOnboardingConfig.countryOptions` 里所选 country 那一组的 `timeZones`（部署可配、随 country 换组），**前端不要 hardcode 时区表**；已有草稿或已保存值时回显其自身取值。
         businessPhone:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 商户营业电话。区号候选取自 `getOnboardingConfig.phoneCountryCodes`（白名单部署可配）；`+1` **只是空白表单的初始值**——已有草稿或已保存值时回显其自身取值，不要拿 `+1` 覆盖。
         industryCategory:
           type: string
           description: 行业——提交**行业稳定标识**（入驻配置 `industries[].code`，如 `FOOD_BEVERAGE`），**不是展示名**；下拉显示用同一条的 `name`。身份字段（激活后不可改）。
@@ -1218,7 +1219,7 @@ components:
             - string
             - 'null'
           format: uri
-          description: 条件字段：typeOfOnlineService = Website 时必填（https 合法 host；online 支付方式的官网地址）；其他类型不采集（null）。
+          description: 条件字段：typeOfOnlineService = Website 时必填（合法 URL，http / https 均可；online 支付方式的官网地址）；其他类型不采集（null）。
         note:
           type:
             - string
@@ -1243,6 +1244,58 @@ components:
       allOf:
         - $ref: '#/components/schemas/BusinessStep'
         - $ref: '#/components/schemas/BusinessStepReadOverlay'
+    BankAccountIdentification:
+      type: object
+      additionalProperties: false
+      description: |
+        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+
+        - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
+        - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
+
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 见入驻配置 / 结算 options 的 `bankAccountTypes`（按结算币种）。
+
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+      required:
+        - type
+      properties:
+        type:
+          type: string
+          enum:
+            - ca_local
+            - us_local
+          description: 结算银行账户制式（`ca_local` 加拿大 EFT / `us_local` 美国 ACH）。**封闭 enum**——新增国家 = 契约加取值与对应字段 + 前端加表单组件 + 出款适配器，不是纯配置。
+        transitNumber:
+          type: string
+          pattern: ^[0-9]{5}$
+          description: Transit Number，5 位数字（分行）。只属 `type=ca_local`（**此时必填**）。
+        institutionNumber:
+          type: string
+          pattern: ^[0-9]{3}$
+          description: Institution Number，3 位数字（银行）。只属 `type=ca_local`（**此时必填**）。
+        routingNumber:
+          type: string
+          pattern: ^[0-9]{9}$
+          description: ABA Routing Number，9 位数字。只属 `type=us_local`（**此时必填**）。
+        accountType:
+          type: string
+          enum:
+            - checking
+            - savings
+          description: 账户类型（ACH 必需）。只属 `type=us_local`（**此时必填**）。
+        accountNumber:
+          type: string
+          writeOnly: true
+          pattern: ^[0-9]{4,17}$
+          description: 银行账号（write-only 输入；read 走 accountNumberMasked，明文不回显）。位数随制式：`ca_local` 6-12 位、`us_local` 4-17 位——schema 只守两制式的并集，精确位数由服务端按 `type` 校验。
+        accountNumberMasked:
+          type: string
+          readOnly: true
+          description: 账号末 4 位掩码回显（如 `•••• 5678`）。
+        accountNumberSet:
+          type: boolean
+          readOnly: true
+          description: 是否已填 accountNumber（跨设备恢复 / 草稿完整性判定用）。
     SettlementCycleCode:
       type: string
       minLength: 1
@@ -1254,32 +1307,20 @@ components:
       description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
     SettlementStep:
       type: object
-      description: Step 4 Settlement。refundPin + confirmRefundPin / accountNumber 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（accountNumberMasked / accountNumberSet / refundPinSet）供跨设备恢复。refundPin 两者须一致否则 400（格式见 `RefundPin`）。Step 3 Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
+      description: |
+        Step 4 Settlement。
+
+        - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
+        - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
+        - Step 3 Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
       additionalProperties: false
       properties:
         bankName:
           type: string
-        transitNumber:
-          type: string
-          pattern: ^[0-9]{5}$
-          description: 5 位数字（默认；服务端为准）。
-        institutionNumber:
-          type: string
-          pattern: ^[0-9]{3}$
-          description: 3 位数字（默认；服务端为准）。
-        accountNumber:
-          type: string
-          writeOnly: true
-          pattern: ^[0-9]{6,12}$
-          description: 银行账号（write-only 输入；6-12 位数字默认；read 走 accountNumberMasked，明文不回显）。
-        accountNumberMasked:
-          type: string
-          readOnly: true
-          description: 账号末 4 位掩码回显（如 `•••• 5678`；跨设备恢复用，不泄明文）。
-        accountNumberSet:
-          type: boolean
-          readOnly: true
-          description: 是否已填 accountNumber（重新登录后前端据此判断 Step 4 银行账号是否已填）。
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+          description: 结算银行账户（制式按收款银行所在国、须 ∈ 入驻配置 `bankAccountTypes` 中 Step 3 所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
@@ -1325,7 +1366,7 @@ components:
         - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
           「出参 Z」是约定、非 schema 可强制)。
 
-        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+        展示由消费方按**本地时区**换算(浏览器端即浏览器时区);商户配置的 IANA 时区是**服务端固化日期字段**时用的,不用于展示换算。
 
         **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
         **别拿本类型自己推**：两者在跨日边界附近会分属两天。
@@ -1472,7 +1513,7 @@ components:
         | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
         | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
         | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
-        | `merchant_logo` | PNG / JPEG | 默认 512KB（可配置） | 长效稳定的公开地址（要展示给外部访客） |
+        | `merchant_logo` | PNG / JPEG | **512KB（固定上限）** | 长效稳定的公开地址（要展示给外部访客） |
         | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
         | `payment_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
         | `payment_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
@@ -1526,6 +1567,43 @@ components:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
           description: 本目标的失效时刻。**过了这个点提交会被存储端拒绝**,须重新申请一个目标。 用户选好文件后放置较久、或准备提交大文件时,可据此提前判断要不要先换一个新目标, 不必等提交失败再回退。
+    CurrencyCountry:
+      type: object
+      additionalProperties: false
+      description: 一条**有效 Currency × Country 组合**（入驻向导 Step 3 与 Add Merchant 弹窗共用同一形状）。组合集**由后端配置决定、契约不写死**——当前部署为 `CAD→CA` / `USD→CA·US`，但不要把它当固定值：客户端一律从候选集渲染，不自行拼组合。`currency` 与 `countries` 都是 ISO 标准码（4217 / 3166），币种与国家的展示名由客户端按它们解析（浏览器内置 `Intl.DisplayNames` 即可）。
+      required:
+        - currency
+        - countries
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        countries:
+          type: array
+          minItems: 1
+          description: 该币种下可选的国家（ISO 3166-1 alpha-2）。
+          items:
+            type: string
+            minLength: 1
+    CurrencyBankAccountTypes:
+      type: object
+      additionalProperties: false
+      description: 结算币种 → 允许的结算银行账户制式集（部署配置驱动，随出款执行方接入扩展）。制式由**收款银行账户所在国**决定、受结算币种约束，**与商户营业地址 Country 无关**（改地址国家不触碰结算账户）。前端按商户结算币种取本项：只有一个制式就直接渲染该表单，多于一个让商户选账户所在国后按 `type` 查表选表单组件，**不按 currency / country 写 if / else**；写侧提交的 `bankAccount.type` 须 ∈ 该币种的 `types`，否则 400。
+      required:
+        - currency
+        - types
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        types:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - ca_local
+              - us_local
+            description: 结算银行账户制式；**封闭 enum**——新增国家 = 契约加取值与对应字段 + 前端加表单组件 + 出款适配器，不是纯配置。
     SettlementCycleOption:
       type: object
       description: 结算周期档位的一个候选项（入驻向导与商户资料的 Settlement 编辑面共用同一形状）。
@@ -1542,6 +1620,91 @@ components:
           type: string
           minLength: 1
           description: canonical 展示名（**非本地化**、不随 locale 变）。前端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+    PhoneCountryCode:
+      type: object
+      additionalProperties: false
+      description: 电话区号候选项（注册面 / 入驻向导 / 商户资料三处共用同一形状）。同一 `dialCode` 可对应多个国家（如 `+1` = CA·US），故 `code` 与 `dialCode` 都给。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。
+      required:
+        - code
+        - dialCode
+      properties:
+        code:
+          type: string
+          description: ISO 3166-1 alpha-2 国家码
+          examples:
+            - CA
+        dialCode:
+          type: string
+          description: 国际拨号前缀（含 `+`）
+          examples:
+            - '+1'
+    ProvinceOption:
+      type: object
+      additionalProperties: false
+      description: 省 / 州候选项。`code` 是 ISO 3166-2 的地区部分（如 `BC`）；**本项带展示名**——标准本地化能力不解析行政区划，客户端拿不到名字。
+      required:
+        - code
+        - displayName
+      properties:
+        code:
+          type: string
+          minLength: 1
+          examples:
+            - BC
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 展示名（**非本地化**、不随 locale 变）；客户端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+          examples:
+            - British Columbia
+    PostalCodeRule:
+      type: object
+      additionalProperties: false
+      description: 该国的邮编格式规则（部署可配）。客户端据此做输入预校与占位提示；**服务端在提交面重校**，两侧不一致时以服务端为准。
+      required:
+        - pattern
+      properties:
+        pattern:
+          type: string
+          minLength: 1
+          description: ECMA-262 正则（整串匹配）。
+          examples:
+            - ^[A-Z]\d[A-Z] ?\d[A-Z]\d$
+        example:
+          type: string
+          description: 该国合法邮编样例，供占位符 / 错误提示用。
+          examples:
+            - V6B 1A1
+    CountryOption:
+      type: object
+      additionalProperties: false
+      description: 一个可选国家及其下属候选与规则（入驻向导 Step 3 与商户资料 Business Information 编辑面共用同一形状）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。**选定国家即切换本项下的三组候选**——改国家后须重选省 / 州与时区、并按新的邮编规则重校。
+      required:
+        - code
+        - provinces
+        - postalCode
+        - timeZones
+      properties:
+        code:
+          type: string
+          minLength: 1
+          examples:
+            - CA
+        provinces:
+          type: array
+          minItems: 1
+          description: 该国的省 / 州候选（顺序即展示顺序）。
+          items:
+            $ref: '#/components/schemas/ProvinceOption'
+        postalCode:
+          $ref: '#/components/schemas/PostalCodeRule'
+        timeZones:
+          type: array
+          minItems: 1
+          description: 该国可选的 **IANA tz 标识**（如 `America/Toronto`）——**不用 PT / ET 缩写**（缩写表达不了夏令时）。顺序即展示顺序；**下拉直接展示标识本身**，浏览器没有时区展示名的标准解析器（`Intl.DisplayNames` 无此类型），也不要自行拼一张缩写表。
+          items:
+            type: string
+            minLength: 1
   parameters:
     MerchantContextGuard:
       name: X-Merchant-Context

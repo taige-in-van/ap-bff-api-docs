@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 — 前端契约面
-  version: 0.20.2
+  version: 2.0.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -27,7 +27,7 @@ security:
   - cookieAuth: []
 tags:
   - name: account-overview
-    description: 资金概览：Account Balance / To Settle（派生展示）/ Refund Reserve / 可用额，商户结算币种。只读。
+    description: 资金概览：Account Balance（商户面 = 账本可结算余额 − 应收商户款，可为负）/ To Settle（派生展示）/ Refund Reserve，商户结算币种。只读。
   - name: account-ledger
     description: 账户流水（Account Ledger）：每笔资金进出只读分页查询（过滤 + 搜索 + 双池可见）。只读。
   - name: settlement
@@ -44,13 +44,13 @@ paths:
       tags:
         - account-overview
       operationId: getAccountOverview
-      summary: 资金概览（Account Balance / To Settle / Refund Reserve / 可用额）
+      summary: 资金概览（Account Balance / To Settle / Refund Reserve）
       description: |
-        资金概览（商户 scope）：Account Balance（账本值恒 ≥ 0）、To Settle（按手续费结算模式派生、本面不二次计算）、Refund Reserve、可用额（= Account Balance − 应收商户款,可呈负,纯展示）。
+        资金概览（商户 scope）：Account Balance（**商户面口径 = 账本可结算余额 − 应收商户款，可为负**，负值 = 商户欠平台）、To Settle（按手续费结算模式派生、本面不二次计算）、Refund Reserve。
 
         Account Balance 卡片展示值是否并入平台侧预授权挂起额由**管理后台设置的 per-商户展示配置**控制（默认并入,本面只展示、不改账本值）。
 
-        上游账务查询超时 → degraded=true 降级展示"暂不可用"、不伪造资金,不阻塞页面。
+        上游账务查询超时 → 三个金额键（`accountBalance` / `toSettle` / `refundReserve`）一起不返回、降级展示「暂不可用」、不伪造资金,不阻塞页面。
 
         ⚠️ **储备金写操作成功后本卡片有追赶窗口**：Top Up / Withdraw 返回成功即表示资金动作已受理并有权威结果（凭响应里的操作标识），但概览与账户流水是**另一次取数**、可能短暂看不到这笔。**按最终一致处理**——刷新后没看到不代表失败，**不要提示失败、更不要诱导用户再提一次**（重复提交资金动作的代价是真金白银）。要确认结果就凭该操作标识重查，别靠列表有没有出现来判断。
       parameters:
@@ -72,9 +72,6 @@ paths:
                 refundReserve:
                   amount: '500000'
                   currency: CAD
-                availableBalance:
-                  amount: '1230050'
-                  currency: CAD
                 currency: CAD
                 settlementMode: NETTING
                 preauthHoldIncludedInDisplay: true
@@ -83,7 +80,6 @@ paths:
                   accountLimit:
                     amount: '50000'
                     currency: CAD
-                degraded: false
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -108,7 +104,7 @@ paths:
           in: query
           schema:
             $ref: '#/components/schemas/LocalDate'
-          description: 起始日期（含）——**只管下界**：不传即不设下界（上界看 `to`，两个都不传才是完全不按日期筛）。**按每行的 `merchantBusinessDay` 过滤**,不是按行上的瞬时时间戳。
+          description: 起始日期（含）——**只管下界**：不传即不设下界（上界看 `to`，两个都不传才是完全不按日期筛）。
         - name: to
           in: query
           schema:
@@ -231,14 +227,14 @@ paths:
       operationId: listSettlements
       summary: 结算单列表（周期 / 状态过滤 + 搜索 + 排序 + 分页）
       description: |
-        结算单列表（商户 scope）。日期倒序默认;状态过滤为商户视角四态（待结算 / 处理中 / 已结算 / 失败,不展示具名冻结态）。 FAILED 行标记并提示资金退回待结算池、后续重新归集或人工处置。**不传日期参数 = 不按日期筛**（返回全部结算单，无默认时间窗）。
+        结算单列表（商户 scope）。排序走 `sortField` + `sortOrder`（页面默认最新结算在前由前端显式传）;状态过滤为商户视角四态（待结算 / 处理中 / 已结算 / 失败,不展示具名冻结态）。 FAILED 行标记并提示资金退回待结算池、后续重新归集或人工处置。**不传日期参数 = 不按日期筛**（返回全部结算单，无默认时间窗）。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
         - name: from
           in: query
           schema:
             $ref: '#/components/schemas/LocalDate'
-          description: 起始日期（含）——**只管下界**：不传即不设下界（上界看 `to`，两个都不传才是完全不按日期筛）。**按结算单自身的 `settlementDate` 过滤,不是按它明细行的日期**——一个批次通常归集多天的明细,按明细日筛会让同一单在多个区间重复命中。
+          description: 起始日期（含）——**只管下界**：不传即不设下界（上界看 `to`，两个都不传才是完全不按日期筛）。
         - name: to
           in: query
           schema:
@@ -255,17 +251,15 @@ paths:
             type: string
             maxLength: 128
           description: 结算单号 / 金额（有长度上界）
-        - name: sort
+        - name: sortField
           in: query
-          description: 排序（默认 settlementDate 倒序）
+          description: 排序字段。不传 = 不排序；页面默认顺序（最新结算在前）由前端显式传 `settlementDate` + `descend`。金额按 `netSales`（净销售额列）排。
           schema:
             type: string
             enum:
-              - settlementDate_desc
-              - settlementDate_asc
-              - settledAmount_desc
-              - settledAmount_asc
-            default: settlementDate_desc
+              - settlementDate
+              - netSales
+        - $ref: '#/components/parameters/SortOrder'
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -294,13 +288,13 @@ paths:
                       from: '2026-05-18'
                       to: '2026-05-18'
                     netSales:
-                      amount: '12500'
+                      amount: '40000'
                       currency: CAD
                     fee:
-                      amount: '290'
+                      amount: '1740'
                       currency: CAD
                     settledAmount:
-                      amount: '12210'
+                      amount: '48760'
                       currency: CAD
                     status: SETTLED
                     settlementDate: '2026-05-19'
@@ -337,13 +331,13 @@ paths:
                     from: '2026-05-18'
                     to: '2026-05-18'
                   netSales:
-                    amount: '12500'
+                    amount: '40000'
                     currency: CAD
                   fee:
-                    amount: '290'
+                    amount: '1740'
                     currency: CAD
                   settledAmount:
-                    amount: '12210'
+                    amount: '48760'
                     currency: CAD
                   status: SETTLED
                   settlementDate: '2026-05-19'
@@ -353,6 +347,7 @@ paths:
                       kind: ORDER
                       id: ord_88231
                       label: '#88231'
+                    paymentMethod: wechat
                     amount:
                       amount: '10000'
                       currency: CAD
@@ -365,11 +360,59 @@ paths:
                     merchantBusinessDay: '2026-05-18'
                     channelDay: '2026-05-18'
                     occurredAt: '2026-05-18T11:02:00Z'
+                  - type: PAYMENT
+                    relatedRef:
+                      kind: ORDER
+                      id: ord_88240
+                      label: '#88240'
+                    paymentMethod: alipay
+                    amount:
+                      amount: '50000'
+                      currency: CAD
+                    fee:
+                      amount: '1450'
+                      currency: CAD
+                    settlementAmount:
+                      amount: '48550'
+                      currency: CAD
+                    merchantBusinessDay: '2026-05-18'
+                    channelDay: '2026-05-18'
+                    occurredAt: '2026-05-18T13:26:00Z'
+                  - type: REFUND
+                    relatedRef:
+                      kind: REFUND
+                      id: rfd_5603
+                      label: '#88190-R'
+                    paymentMethod: wechat
+                    amount:
+                      amount: '-20000'
+                      currency: CAD
+                    settlementAmount:
+                      amount: '-20000'
+                      currency: CAD
+                    merchantBusinessDay: '2026-05-18'
+                    channelDay: '2026-05-18'
+                    occurredAt: '2026-05-18T15:12:00Z'
+                    memo: 退款全额 200.00；其中 80.00 由退款预留金承担，见下一行同 id 的配对行
+                  - type: RESERVE_DRAWDOWN
+                    relatedRef:
+                      kind: REFUND
+                      id: rfd_5603
+                      label: '#88190-R'
+                    amount:
+                      amount: '8000'
+                      currency: CAD
+                    settlementAmount:
+                      amount: '8000'
+                      currency: CAD
+                    merchantBusinessDay: '2026-05-18'
+                    occurredAt: '2026-05-18T15:12:00Z'
                   - type: REFUND_REVERSAL
                     relatedRef:
                       kind: REFUND
                       id: rfd_5521
                       label: '#88102-R'
+                    paymentMethod: alipay
                     amount:
                       amount: '2500'
                       currency: CAD
@@ -420,9 +463,25 @@ paths:
       operationId: listStatements
       summary: 月度账单列表（按年份过滤）
       description: |
-        月度服务费账单（商户 scope）——按**手续费服务期间年**过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如可用）。 **默认排序 = 服务期间月倒序**（最近月在前）。无数据返回空态。
+        月度服务费账单（商户 scope）——按**手续费服务期间年**过滤;列 = 期间（月）/ Net Settlement（月度净结算汇总）/ 交易笔数 / 服务费 / 可见状态（ISSUED / PAID,如可用）。 无数据返回空态。
       parameters:
         - $ref: '#/components/parameters/MerchantContextGuard'
+        - name: sortField
+          in: query
+          description: 排序字段。不传 = 不排序；页面默认顺序（最近月在前）由前端显式传 `period` + `descend`。
+          schema:
+            type: string
+            enum:
+              - period
+              - netSettlement
+              - serviceFee
+        - $ref: '#/components/parameters/SortOrder'
+        - name: keyword
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+          description: 关键词：期间（`YYYY-MM` 前缀匹配）或发票号（子串匹配）。
         - name: year
           in: query
           schema:
@@ -494,23 +553,31 @@ paths:
                 issuedAt: '2026-05-01T00:00:00Z'
                 currency: CAD
                 serviceLines:
-                  - service: In-store QR
-                    channel: WeChat Pay
+                  - service:
+                      code: in_store_qr
+                      displayName: In-store QR
+                    channel:
+                      code: wechatpay
+                      displayName: WeChat Pay
                     count: 1820
                     gross:
                       amount: '5200000'
                       currency: CAD
-                    rate: 2.65%
+                    rate: '2.65'
                     fee:
                       amount: '137800'
                       currency: CAD
-                  - service: Online
-                    channel: Alipay
+                  - service:
+                      code: online
+                      displayName: Online
+                    channel:
+                      code: alipay
+                      displayName: Alipay
                     count: 1601
                     gross:
                       amount: '4903333'
                       currency: CAD
-                    rate: 3.00%
+                    rate: '3.00'
                     fee:
                       amount: '147100'
                       currency: CAD
@@ -561,6 +628,63 @@ paths:
               schema:
                 type: string
                 format: binary
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208001
+  /refund-reserve/options:
+    get:
+      tags:
+        - refund-reserve
+      operationId: getRefundReserveOptions
+      summary: 储备金充值与取回的部署参数
+      description: |
+        储备金面里**取值由部署配置决定**的两项，供前端渲染快捷档与输入校验：
+
+        - `fundingPresets` —— Top Up 的预设金额档（顺序即展示顺序）。**是快捷入口、不是取值白名单**——商户仍可自填任意正数金额；
+        - `minWithdrawalAmount` —— 单次取回的最小额，前端据它做输入预校与提示。
+
+        两者**都随部署 / 运营调整**，前端不要 hardcode；服务端在提交面重校，不符即拒。
+
+        只读、无副作用；不含账户余额等资金事实（那些取 `getAccountOverview`）。
+      parameters:
+        - $ref: '#/components/parameters/MerchantContextGuard'
+      responses:
+        '200':
+          description: OK（储备金部署参数）
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - fundingPresets
+                  - minWithdrawalAmount
+                properties:
+                  fundingPresets:
+                    type: array
+                    readOnly: true
+                    description: Top Up 预设金额档（顺序即展示顺序）。**恒 present**，未配置预设档时为空数组——此时只渲染自填输入框。
+                    items:
+                      $ref: '#/components/schemas/PositiveMoney'
+                  minWithdrawalAmount:
+                    allOf:
+                      - $ref: '#/components/schemas/PositiveMoney'
+                    readOnly: true
+                    description: 单次取回的最小额。低于此值 → 提交被拒。
+              example:
+                fundingPresets:
+                  - amount: '50000'
+                    currency: CAD
+                  - amount: '100000'
+                    currency: CAD
+                  - amount: '200000'
+                    currency: CAD
+                  - amount: '500000'
+                    currency: CAD
+                minWithdrawalAmount:
+                  amount: '1000'
+                  currency: CAD
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -727,11 +851,11 @@ paths:
         把 Refund Reserve 取回到 Account Balance（守 Refund Reserve 足额）。资金回 Account Balance 后随正常结算入银行、不发起独立 payout、不提供外部目的地选择、不要求 Owner email OTP。
         应收抵扣在平台账本内部完成、本面不可见不编排。
 
-        `max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 走 amount。
+        `max=true`（取回全部）由服务端按执行时的实际可取金额定额,前端**不自读余额填 amount**（避免余额变化造成取回金额错误）。固定额 Withdraw 传 `max=false` + `amount`。
 
         **两条线分开看**（同 Top Up 侧）：
 
-        - 金额 ≤ 0 / 二选一未满足等**受理前**被拒 → `400`、什么都没发生;
+        - 金额 ≤ 0 / 低于最小取回额 / `max` 与 `amount` 搭配不合法等**受理前**被拒 → `400`、什么都没发生;
         - **执行期失败**（如 Refund Reserve 不足 → `INSUFFICIENT_FUNDS`）属**受理后**的结果 → 仍返 `200`,由 `status=FAILED` + `failureReason` 表达、不划转（**按 `failureReason` 取值分支,别假定只有余额不足一种**）,**别把它接到 error 分支**,否则不足时前端什么都不提示。
 
         **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次结果**、**不会重复划转**——网络重试请复用同一个键;改了 amount / max 就必须换新键,沿用旧键改内容 → `409`·208005。
@@ -752,6 +876,7 @@ paths:
               fixedAmount:
                 summary: 固定额取回
                 value:
+                  max: false
                   amount:
                     amount: '30000'
                     currency: CAD
@@ -779,6 +904,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 204016
+        - 204018
         - 208001
         - 208005
   /refund-reserve/operations/{operationId}:
@@ -833,12 +959,14 @@ paths:
       description: |
         按当前查询条件（筛选 / 搜索 / 排序）创建导出任务,范围与查询一致、不局限当前分页。
 
-        导出范围固定为发起时的当前商户,filters 只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。
+        导出范围固定为发起时的当前商户,筛选子对象（`settlementFilters` / `ledgerFilters`）只表达筛选条件、不能扩大商户范围;resourceId 跨 scope → 拒绝 / 404。导出下载时仍按发起者当前对该商户的有效权限裁决——撤权后不能取走数据。
 
-        **本端点恒异步**（返 `202` + `exportJobId`,凭它轮询）。两种非成功终态都走 `status=FAILED` + `failureReason`、**不静默丢弃、也不产出文件**：
+        **本端点恒异步**（返 `202` + `exportJobId`,凭它轮询）。**创建前先按当前条件计数预检**：命中数超业务上限 → `400`·204009 直接拒绝、不建任务（提示缩小范围重导,与交易导出同一处置）。
 
-        - 命中数超上限 → `RESULT_SET_TOO_LARGE`（提示缩小范围重导）;
-        - 命中数为 0 → `EMPTY_RESULT`（提示无数据,**不产出只有表头的空文件**）。
+        任务运行中的非成功终态走 `status=FAILED` + `failureReason`、**不静默丢弃、也不产出文件**：
+
+        - 命中数为 0 → `EMPTY_RESULT`（提示无数据,**不产出只有表头的空文件**）;
+        - 其它 → `INTERNAL`。
 
         **幂等**：必带 `Idempotency-Key`。同键 + 同请求体重发返**首次创建的任务**、不重复建任务——网络重试请复用同一个键;改了筛选条件 / 范围就必须换新键,沿用旧键改内容 → `409`·208005。
       parameters:
@@ -854,8 +982,7 @@ paths:
               $ref: '#/components/schemas/ExportRequest'
             example:
               kind: LEDGER
-              format: XLSX
-              filters:
+              ledgerFilters:
                 from: '2026-05-01'
                 to: '2026-05-19'
                 pool: ACCOUNT_BALANCE
@@ -872,6 +999,7 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
+        - 204009
         - 208001
         - 208005
   /exports/{exportJobId}:
@@ -987,6 +1115,15 @@ components:
         minimum: 1
         maximum: 200
         default: 20
+    SortOrder:
+      name: sortOrder
+      in: query
+      description: 排序方向;与端点自己的 sortField 配对,或作用于端点 description 声明的固定排序键。有排序键、未传本参数 = ascend;端点无排序键且未传 sortField 时本参数无效(不排序)
+      schema:
+        type: string
+        enum:
+          - ascend
+          - descend
     CsrfToken:
       name: X-CSRF-Token
       in: header
@@ -1020,7 +1157,7 @@ components:
   schemas:
     FundPool:
       type: string
-      description: 资金池。
+      description: 资金池。商户面只有两池；应收商户款（平台垫款）不单列，其变动并入 ACCOUNT_BALANCE 池、以该池余额可为负体现。
       enum:
         - ACCOUNT_BALANCE
         - REFUND_RESERVE
@@ -1050,39 +1187,27 @@ components:
         - WITHDRAW
         - SETTLEMENT_PAYOUT
     AccountOverview:
-      description: 资金概览。**按 degraded 拆两分支**：正常返全金额；上游账务查询超时 → 降级分支**金额字段省略**、不伪造资金、展示「暂不可用」。
-      oneOf:
-        - $ref: '#/components/schemas/AccountOverviewNormal'
-        - $ref: '#/components/schemas/AccountOverviewDegraded'
-    AccountOverviewNormal:
       type: object
       additionalProperties: false
-      description: 正常：金额可用（degraded=false）。
+      description: 资金概览。正常时三个金额键齐返；上游账务查询超时时**三个金额键（`accountBalance` / `toSettle` / `refundReserve`）一起不返回**、不伪造资金、展示「暂不可用」——币种 / 结算模式 / 展示配置 / auto-replenish 配置不受上游超时影响，仍返回。
       required:
-        - accountBalance
-        - toSettle
-        - refundReserve
-        - availableBalance
         - currency
         - settlementMode
         - preauthHoldIncludedInDisplay
         - autoReplenish
-        - degraded
       properties:
         accountBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: Account Balance 卡片展示值（账本值恒 ≥ 0;展示值是否并入预授权挂起额由 preauthHoldIncludedInDisplay 决定,不改账本值）。
+          description: Account Balance 卡片展示值 = 账本可结算余额 − 应收商户款，**可为负**（负值 = 商户欠平台；两者不会同时为正,故合成一个有符号数）;展示值是否并入预授权挂起额由 preauthHoldIncludedInDisplay 决定,不改账本值。**上游账务查询超时时不返回本键**（与 `toSettle` / `refundReserve` 同进退）。
         toSettle:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 待结算（按手续费结算模式派生,本面只展示、不二次计算）。
+          description: 待结算（按手续费结算模式派生,本面只展示、不二次计算）。**上游账务查询超时时不返回本键**。
         refundReserve:
-          $ref: '#/components/schemas/Money'
-        availableBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 可用额（= Account Balance − 应收商户款,可呈负、纯展示;反欠平台体现为负）。
+          description: Refund Reserve 余额。**上游账务查询超时时不返回本键**。
         currency:
           $ref: '#/components/schemas/Currency'
         settlementMode:
@@ -1095,37 +1220,6 @@ components:
           allOf:
             - $ref: '#/components/schemas/AutoReplenishState'
           description: '**auto-replenish 当前生效配置**（开关 + Account Limit 阈值），供储备金管理区回显与编辑前预填。 从未配置过 → `enabled=false` 且不返回 `accountLimit`。本域自持配置、**不受上游账务超时影响**（降级时同样返回）。 变更走 `submitRefundReserveFunding`（经 Owner email OTP）——该提交按**字段存在性**纳入 OTP 摘要绑定， 前端据本字段判断本次是「改配置」还是「原样重发」。'
-        degraded:
-          type: boolean
-          const: false
-          description: 金额可用（非降级）。
-    AccountOverviewDegraded:
-      type: object
-      additionalProperties: false
-      description: 上游账务查询超时降级：**金额字段省略**、展示「暂不可用」（不伪造资金数据）。currency / settlementMode / 展示配置不受上游超时影响，仍返回。
-      required:
-        - currency
-        - settlementMode
-        - preauthHoldIncludedInDisplay
-        - autoReplenish
-        - degraded
-      properties:
-        currency:
-          $ref: '#/components/schemas/Currency'
-        settlementMode:
-          $ref: '#/components/schemas/SettlementMode'
-        preauthHoldIncludedInDisplay:
-          type: boolean
-          readOnly: true
-          description: 管理后台设置的 per-商户展示配置（只读消费）。
-        autoReplenish:
-          allOf:
-            - $ref: '#/components/schemas/AutoReplenishState'
-          description: auto-replenish 当前生效配置（本域自持、不受上游超时影响，故降级时仍返回；语义同非降级分支）。
-        degraded:
-          type: boolean
-          const: true
-          description: 上游账务查询超时降级；金额字段不可用、不伪造。
     RelatedRef:
       type: object
       description: 关联单据 / 操作记录引用（订单 / 退款 / 结算单 / 储备金操作 / 系统调整）。
@@ -1166,7 +1260,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
           readOnly: true
-          description: 本笔归属的日期。**日期范围过滤按本字段**（不是按行上的瞬时时间戳）。
+          description: 本笔归属的日期。
         occurredAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -1189,14 +1283,15 @@ components:
           allOf:
             - $ref: '#/components/schemas/Money'
           readOnly: true
-          description: 对应资金池变动后余额。
+          description: 对应资金池变动后余额。ACCOUNT_BALANCE 池与概览同口径（账本可结算余额 − 应收商户款，**可为负**）——应收商户款的增减并入本池的行，没有单独的应收池。
         relatedRef:
           allOf:
             - $ref: '#/components/schemas/RelatedRef'
           description: 关联单据（订单 / 退款 / 储备金操作）。**无可关联单据时不返回本键**（如系统调整），该格渲染「—」。
         memo:
           type: string
-          description: 备注（系统账务展示调整原因,不暴露对手方账户）。**无备注时不返回本键**。
+          minLength: 1
+          description: 备注。类型为 **SYSTEM_ADJUSTMENT（含罚款）时必返** = 调整原因（商户可读文案、不暴露对手方账户），行上与金额并列展示；其他类型无备注时不返回本键。
     SettlementSummary:
       type: object
       required:
@@ -1217,7 +1312,7 @@ components:
         netSales:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 净销售额。
+          description: 净销售额 = 本批**收款毛额合计 − 退款全额合计**,**只含交易明细**。预留金动用 / Top Up / 自动回补 / Withdraw / 系统账务等调拨类**不计入本项**（它们各自在明细里成行、并计入 `settledAmount`）,故 `settledAmount ≠ netSales − fee`。
         fee:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1246,11 +1341,12 @@ components:
       properties:
         type:
           type: string
-          description: 明细类型（REFUND_REVERSAL = 退款失败回冲、正向明细,符号与 REFUND 相反、不可坍缩进 REFUND）。封闭枚举（取值集固定、可穷举分支）。
+          description: 明细类型。`REFUND_REVERSAL` = 退款失败回冲、正向明细,符号与 `REFUND` 相反、不可坍缩进 `REFUND`。`RESERVE_DRAWDOWN` = 该笔退款从退款预留金出的那一段（正向,与其 `REFUND` 行配对,两行之和 = 该退款真正少结的钱）。封闭枚举（取值集固定、可穷举分支）。
           enum:
             - PAYMENT
             - REFUND
             - REFUND_REVERSAL
+            - RESERVE_DRAWDOWN
             - TOP_UP
             - AUTO_REPLENISH
             - WITHDRAW
@@ -1258,19 +1354,22 @@ components:
         relatedRef:
           allOf:
             - $ref: '#/components/schemas/RelatedRef'
-          description: 关联单据（订单 / 退款 / 储备金操作）。**无可关联单据时不返回本键**（如系统调整），该格渲染「—」。
+          description: 关联单据（订单 / 退款 / 储备金操作）。**无可关联单据时不返回本键**（如系统调整），该格渲染「—」。⚠️ **`REFUND` / `RESERVE_DRAWDOWN` / `REFUND_REVERSAL` 行必返本键且 `id` 非空**。`RESERVE_DRAWDOWN` 与其退款行**同批、同 `id`**,FE 据此把两行并排渲染,一个批次有多笔退款时**只能靠这个 id 配对**、不要按出现顺序猜;`REFUND_REVERSAL` 是后续批次里的独立正向行,`id` 只用于追溯到原退款(原退款行通常不在本单),**不要求并排**。
+        paymentMethod:
+          type: string
+          description: 支付方式（**稳定 Family code**，如 `wechat`；展示名 / 图标 FE 按 code 本地化）。**交易类行（`PAYMENT` / `REFUND` / `REFUND_REVERSAL`）必返**，调拨类行不返回本键。商户据此按渠道核对结算。
         amount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 原始金额（负向项为负）。
+          description: 该笔资金移动的金额（负向项为负）:退款行是**退款全额**,收款行是**入账毛额**。
         fee:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 手续费（如适用;另计、不参与逐笔结算金额合计）。
+          description: 该笔的手续费（如适用）。**轧差模式**下它已从本行 `settlementAmount` 扣除,单列只为让商户看见扣了多少,**不要再把本列加进合计**;**月结模式**下手续费不进本批结算、另按月度账单收取,本列**仅展示**、`settlementAmount` 未扣它。判断看 `settlementAmount` 与 `amount` 是否相差本列。
         settlementAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 本笔结算金额（带符号;逐笔合计 = 汇总本期结算金额）。
+          description: 该笔**计入本批结算金额的净贡献**（带符号;逐笔合计 = 汇总 `settledAmount`）。= `amount` − **本批实际轧差的手续费**（轧差模式扣、月结模式不扣,见 `fee`）。**退款穿透预留金 / 平台垫款不在本列体现** —— 前者由配对的 `RESERVE_DRAWDOWN` 行表达,后者体现为本批合计转负。
         merchantBusinessDay:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
@@ -1280,7 +1379,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
           readOnly: true
-          description: '**通道声明的通道日**；**通道未声明则不返回本键**，**平台不推算、不用平台时间兜底**。非通道类明细（`type` = `TOP_UP` / `AUTO_REPLENISH` / `WITHDRAW` / `SYSTEM_ADJUSTMENT`）本就无通道日、同样不返回。'
+          description: '**通道声明的通道日**；**通道未声明则不返回本键**，**平台不推算、不用平台时间兜底**。非通道类明细（`type` = `RESERVE_DRAWDOWN` / `TOP_UP` / `AUTO_REPLENISH` / `WITHDRAW` / `SYSTEM_ADJUSTMENT`）本就无通道日、同样不返回。⚠️ **`RESERVE_DRAWDOWN` 即便与某个 `REFUND` 行配对、共用 `relatedRef`,也不返回本键** —— 它是池间内部划拨,通道从未声明过它;**不要把配对退款行的通道日复制过来**。'
         occurredAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -1301,7 +1400,7 @@ components:
           $ref: '#/components/schemas/SettlementSummary'
         lines:
           type: array
-          description: 该结算单的逐笔明细，**整份返回、不分页也不截断**（本端点无分页参数）。 单张结算单的笔数随商户交易量走、**可能很大**——前端自行按需虚拟滚动 / 分批渲染; 要落地文件请走 `createExport` 的 `SETTLEMENT_DETAIL` 品种（那条会在结果集过大时以 `RESULT_SET_TOO_LARGE` 失败）。
+          description: 该结算单的逐笔明细，**整份返回、不分页也不截断**（本端点无分页参数）。 单张结算单的笔数随商户交易量走、**可能很大**——前端自行按需虚拟滚动 / 分批渲染; 要落地文件请走 `createExport` 的 `SETTLEMENT_DETAIL` 品种（那条会在结果集过大时以 `400`·204009 拒绝创建）。
           items:
             $ref: '#/components/schemas/SettlementLine'
         settlementAccountLast4:
@@ -1343,6 +1442,22 @@ components:
           enum:
             - ISSUED
             - PAID
+    StatementLineRef:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - displayName
+      description: 账单明细行的服务 / 渠道引用：稳定 `code` + canonical 默认展示名。**页面按 `code` 取自己的多语言文案**，`displayName` 只作 unknown-safe 兜底。
+      properties:
+        code:
+          type: string
+          minLength: 1
+          description: 稳定标识（服务端配置，**FE 不得 hardcode 枚举**）。
+        displayName:
+          type: string
+          minLength: 1
+          description: canonical 默认展示名（**非本地化**、不随 locale 变；FE 按 `code` 本地化、此值作 unknown-safe fallback）。
     StatementServiceLine:
       type: object
       required:
@@ -1352,11 +1467,13 @@ components:
       description: 账单服务明细行（按服务 / 渠道分行）。
       properties:
         service:
-          type: string
-          description: 服务名（如 In-store QR / Online）。**无法归到具体服务时不返回本键**。
+          allOf:
+            - $ref: '#/components/schemas/StatementLineRef'
+          description: 服务（如 In-store QR / Online）。**无法归到具体服务时不返回本键**。
         channel:
-          type: string
-          description: 渠道名（如 WeChat Pay / Alipay）。**无法归到具体渠道时不返回本键**。
+          allOf:
+            - $ref: '#/components/schemas/StatementLineRef'
+          description: 渠道（如 WeChat Pay / Alipay）。**无法归到具体渠道时不返回本键**。
         count:
           type: integer
           format: int64
@@ -1364,7 +1481,8 @@ components:
           $ref: '#/components/schemas/Money'
         rate:
           type: string
-          description: 费率展示（如 2.65%;本面只展示）。
+          pattern: ^[0-9]+(\.[0-9]+)?$
+          description: 费率，百分数的**数值字符串**（`"2.65"` = 2.65%），**不带百分号、不预格式化**——百分号与小数位由页面按 locale 格式化。**本行无单一费率时不返回本键**。
         fee:
           $ref: '#/components/schemas/Money'
     StatementDetail:
@@ -1414,30 +1532,9 @@ components:
         to:
           $ref: '#/components/schemas/LocalDate'
     OtpChallenge:
-      type: object
-      required:
-        - challengeId
-        - deliveredTo
-        - cooldownSeconds
-        - expiresAt
-      description: Owner email OTP 挑战。挑战绑定本次操作摘要与发起会话——funding 提交须同会话、摘要一致,否则 → 403。
-      properties:
-        challengeId:
-          type: string
-          readOnly: true
-        deliveredTo:
-          type: string
-          readOnly: true
-          description: 脱敏投递目标（如 o***@e***.com）。
-        cooldownSeconds:
-          type: integer
-          readOnly: true
-          description: 重发冷却秒数（业务参数）。
-        expiresAt:
-          allOf:
-            - $ref: '#/components/schemas/Timestamp'
-          readOnly: true
-          description: challenge 失效时间（业务参数）。**只约束尚未受理的提交**：过期后再拿它去 funding，即使摘要一致亦 → `410` 重挑战。**已受理过的同键同摘要重投不受本时限影响**——那条路径走幂等复放、不再校验挑战,故不会因挑战过期而返 `410`（见 `submitRefundReserveFunding` 的两支重试说明）。
+      description: Owner email OTP 挑战（形状是本 BFF 的共享件）。本域的挑战**绑定本次操作摘要与发起会话**——funding 提交须同会话、摘要一致,否则 → `403`。 `expiresAt` 在本域**只约束尚未受理的提交**：过期后再拿它去 funding,即使摘要一致亦 → `410` 重挑战； **已受理过的同键同摘要重投不受本时限影响**——那条路径走幂等复放、不再校验挑战,故不会因挑战过期而返 `410`（见 `submitRefundReserveFunding` 的两支重试说明）。
+      allOf:
+        - $ref: '#/components/schemas/OtpChallenge-2'
     OtpProof:
       type: object
       required:
@@ -1467,35 +1564,19 @@ components:
             - $ref: '#/components/schemas/PositiveMoney'
           description: 已保存的 Account Limit 阈值（关闭态同样返回,供再次开启预填）;**从未设置过则不返回本键**。
     AutoReplenishConfig:
-      description: auto-replenish 配置**提交**（写侧;开关 + Account Limit 阈值,Refund Reserve 低于阈值时由平台自动从 Account Balance 补足）。配置字段变更纳入 OTP 摘要。**开启时 `accountLimit` 必填且 > 0；关闭时该字段可选**——不传 = 只关开关、**保留已保存阈值**（下次开启仍可预填）;传了 = 关开关并同时把阈值改成该值。带与不带是两次不同的提交（字段存在性纳入 OTP 摘要指纹），Owner 在确认邮件里看到的内容随之不同。
-      oneOf:
-        - title: AutoReplenishOn
-          type: object
-          additionalProperties: false
-          required:
-            - enabled
-            - accountLimit
-          properties:
-            enabled:
-              type: boolean
-              const: true
-            accountLimit:
-              allOf:
-                - $ref: '#/components/schemas/PositiveMoney'
-              description: Account Limit 阈值（> 0）。
-        - title: AutoReplenishOff
-          type: object
-          additionalProperties: false
-          required:
-            - enabled
-          properties:
-            enabled:
-              type: boolean
-              const: false
-            accountLimit:
-              allOf:
-                - $ref: '#/components/schemas/PositiveMoney'
-              description: 关闭时可选;不传 = 保留已保存阈值,传了 = 关闭并同时改成该值。
+      type: object
+      additionalProperties: false
+      description: auto-replenish 配置**提交**（写侧;开关 + Account Limit 阈值,Refund Reserve 低于阈值时由平台自动从 Account Balance 补足）。配置字段变更纳入 OTP 摘要。**开启时 `accountLimit` 必填且 > 0（缺 → `400`）；关闭时该字段可选**——不传 = 只关开关、**保留已保存阈值**（下次开启仍可预填）;传了 = 关开关并同时把阈值改成该值。带与不带是两次不同的提交（字段存在性纳入 OTP 摘要指纹），Owner 在确认邮件里看到的内容随之不同。
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+          description: 自动补足开关目标值。
+        accountLimit:
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+          description: Account Limit 阈值（> 0）。**开启时必填**（`enabled=true`）;`enabled=false` 时可选——不传 = 保留已保存阈值,传了 = 关闭并同时改成该值。
     RefundReserveOperationSummary:
       type: object
       description: |-
@@ -1515,7 +1596,7 @@ components:
         topUpAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: Top Up 金额（来源固定 Account Balance;> 0;缺省则本次只改配置）。
+          description: Top Up 金额（来源固定 Account Balance;> 0;缺省则本次只改配置）。快捷档见 `getRefundReserveOptions.fundingPresets`——**那是入口便利、不是取值白名单**，本字段可提交任意正数金额。
         autoReplenish:
           allOf:
             - $ref: '#/components/schemas/AutoReplenishConfig'
@@ -1581,23 +1662,6 @@ components:
             - $ref: '#/components/schemas/Timestamp'
           readOnly: true
           description: 执行时刻。**未达终态（`PENDING`）时不返回本键**——还没执行。
-      oneOf:
-        - title: FAILED — 必带 failureReason
-          properties:
-            status:
-              type: string
-              const: FAILED
-            failureReason:
-              $ref: '#/components/schemas/ReserveFailureReason'
-          required:
-            - failureReason
-        - title: SUCCEEDED / PENDING — 不带 failureReason
-          properties:
-            status:
-              type: string
-              enum:
-                - SUCCEEDED
-                - PENDING
     ReserveFailureReason:
       type: string
       enum:
@@ -1673,10 +1737,10 @@ components:
         储备金**商户发起**操作（funding / withdrawal）全部子写状态（GET /operations 返回;含 config 子写,供 PENDING 收敛轮询）。
         auto-replenish **系统触发**操作不经此查询——经账户流水 AUTO_REPLENISH + 站内事件可见。
 
-        **哪个子项在，由 `opType` 定**（见下方分支）：
+        **哪个子项在，由 `opType` 定**：
 
-        - `FUNDING` 只出 `topUpResult` / `autoReplenishResult`（按当初提交了哪几项,至少其一）,
-        - `WITHDRAW` 只出 `withdrawResult`。
+        - `FUNDING` 只出 `topUpResult` / `autoReplenishResult`（按当初提交了哪几项,至少其一）,不出 `withdrawResult`;
+        - `WITHDRAW` 只出 `withdrawResult`,不出 funding 两项。
 
         ⚠️ `opType` 与 `ReserveOperationResult.kind` **不是一回事、别互相映射**：前者分**这次提交走的哪个端点**（funding 提交 / 取回提交）,后者分**子项里那笔资金动作**——`FUNDING` 操作里的 `topUpResult.kind` 恒为 `TOP_UP`。
       properties:
@@ -1691,135 +1755,67 @@ components:
             - FUNDING
             - WITHDRAW
         topUpResult:
-          $ref: '#/components/schemas/ReserveOperationResult'
+          allOf:
+            - $ref: '#/components/schemas/ReserveOperationResult'
+          description: Top Up 子项。**仅 `opType=FUNDING` 且当初提交了 `topUpAmount` 时返回本键**。
         autoReplenishResult:
-          $ref: '#/components/schemas/ConfigResult'
+          allOf:
+            - $ref: '#/components/schemas/ConfigResult'
+          description: auto-replenish 配置子项。**仅 `opType=FUNDING` 且当初提交了 `autoReplenish` 时返回本键**。
         withdrawResult:
-          $ref: '#/components/schemas/ReserveOperationResult'
-      oneOf:
-        - title: FUNDING — topUpResult / autoReplenishResult 至少其一,不出 withdrawResult
-          properties:
-            opType:
-              type: string
-              const: FUNDING
-            topUpResult:
-              $ref: '#/components/schemas/ReserveOperationResult'
-            autoReplenishResult:
-              $ref: '#/components/schemas/ConfigResult'
-            withdrawResult:
-              not: {}
-          anyOf:
-            - required:
-                - topUpResult
-            - required:
-                - autoReplenishResult
-        - title: WITHDRAW — 必带 withdrawResult,不出 funding 两项
-          properties:
-            opType:
-              type: string
-              const: WITHDRAW
-            withdrawResult:
-              $ref: '#/components/schemas/ReserveOperationResult'
-            topUpResult:
-              not: {}
-            autoReplenishResult:
-              not: {}
-          required:
-            - withdrawResult
+          allOf:
+            - $ref: '#/components/schemas/ReserveOperationResult'
+          description: 取回子项。**仅 `opType=WITHDRAW` 时返回本键**（此时必返）。
     RefundReserveWithdrawalRequest:
       type: object
       additionalProperties: false
-      description: 储备金取回（**amount 与 max 恰二选一**，both / neither 非法 → `400`·`204016`，不划转）。字段全集 = {amount, max}、拒未知字段。
-      oneOf:
-        - properties:
-            amount: {}
-          not:
-            properties:
-              max: {}
-            required:
-              - max
-        - properties:
-            max: {}
-          not:
-            properties:
-              amount: {}
-            required:
-              - amount
+      description: 储备金取回。`max` 必传：`max=true` 取回全部（服务端定额、**不传** `amount`）;`max=false` 固定额取回、`amount` **必填**。搭配不合法（`max=true` 却带 `amount`、`max=false` 却缺 `amount`）→ `400`·`204016`，不划转。字段全集 = {max, amount}、拒未知字段。
+      required:
+        - max
       properties:
+        max:
+          type: boolean
+          description: 是否取回当前全部可取回 Refund Reserve。`true` = 全部金额由服务端按执行时的实际可取额定额,前端不自读余额填 `amount`;`false` = 固定额,走 `amount`。
         amount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 取回金额（> 0;与 max 二选一）。
-        max:
-          type: boolean
-          const: true
-          description: 取回当前全部可取回 Refund Reserve（仅接受 true,不取全部请走 amount;全部金额由服务端按执行时的实际可取额定额,前端不自读余额填）。
+          description: 取回金额（> 0）。`max=false` **时必填**、`max=true` **时不传**。**不得低于** `getRefundReserveOptions.minWithdrawalAmount` —— 下限由部署配置决定、契约不写死；前端据它预校，服务端在提交面重校，低于时 `400`·`204018`（受理前拒绝、不划转）。
     ExportRequest:
-      description: 导出请求（异步、按当前查询条件、范围与查询一致不局限分页）。**按 kind 拆 oneOf**（各类必需字段不同：列表类带 filters、单资源需 resourceId；format 钉 XLSX）。月度账单 PDF 不经此（走同步 getStatementPdf）。
-      oneOf:
-        - $ref: '#/components/schemas/ExportSettlementsRequest'
-        - $ref: '#/components/schemas/ExportSettlementDetailRequest'
-        - $ref: '#/components/schemas/ExportLedgerRequest'
-      discriminator:
-        propertyName: kind
-        mapping:
-          SETTLEMENTS: '#/components/schemas/ExportSettlementsRequest'
-          SETTLEMENT_DETAIL: '#/components/schemas/ExportSettlementDetailRequest'
-          LEDGER: '#/components/schemas/ExportLedgerRequest'
-    ExportSettlementsRequest:
       type: object
       additionalProperties: false
-      description: 结算单列表导出（XLSX）。
+      description: |-
+        导出请求（异步、按当前查询条件、范围与查询一致不局限分页）。**格式恒为 XLSX**（不作字段）。月度账单 PDF 不经此（走同步 getStatementPdf）。
+
+        随 `kind` 带对应参数,其余不传（传了 → `400`）：
+
+        - `SETTLEMENTS` —— 结算单列表导出,可带 `settlementFilters`（不带 = 不筛、导全部）;
+        - `SETTLEMENT_DETAIL` —— 单结算单详情导出,**`resourceId` 必填**（= settlementId）;
+        - `LEDGER` —— 账户流水导出,可带 `ledgerFilters`（不带 = 不筛、导全部）。
       required:
         - kind
-        - format
       properties:
         kind:
           type: string
-          const: SETTLEMENTS
-        format:
-          type: string
-          const: XLSX
-        filters:
-          $ref: '#/components/schemas/SettlementExportFilters'
-    ExportSettlementDetailRequest:
-      type: object
-      additionalProperties: false
-      description: 单结算单详情导出（XLSX；必需 resourceId = settlementId）。
-      required:
-        - kind
-        - format
-        - resourceId
-      properties:
-        kind:
-          type: string
-          const: SETTLEMENT_DETAIL
-        format:
-          type: string
-          const: XLSX
+          enum:
+            - SETTLEMENTS
+            - SETTLEMENT_DETAIL
+            - LEDGER
+          description: 导出品种。
         resourceId:
           type: string
-          description: settlementId。
-    ExportLedgerRequest:
-      type: object
-      additionalProperties: false
-      description: 账户流水导出（XLSX）。
-      required:
-        - kind
-        - format
-      properties:
-        kind:
-          type: string
-          const: LEDGER
-        format:
-          type: string
-          const: XLSX
-        filters:
-          $ref: '#/components/schemas/LedgerExportFilters'
+          description: '**`kind=SETTLEMENT_DETAIL` 时必填** = settlementId;其余品种不传。跨 scope → 404。'
+        settlementFilters:
+          allOf:
+            - $ref: '#/components/schemas/SettlementExportFilters'
+          description: '**仅 `kind=SETTLEMENTS` 可带**：结算单列表的当前筛选态。'
+        ledgerFilters:
+          allOf:
+            - $ref: '#/components/schemas/LedgerExportFilters'
+          description: '**仅 `kind=LEDGER` 可带**：账户流水的当前筛选态。'
     SettlementExportFilters:
       type: object
       additionalProperties: false
-      description: 结算单导出过滤（**逐字镜像 listSettlements 的 query 参数**：from / to / status / keyword / sort，把当前列表筛选态原样填进来即可）。
+      description: 结算单导出过滤（**逐字镜像 listSettlements 的 query 参数**：from / to / status / keyword / sortField / sortOrder，把当前列表筛选态原样填进来即可）。
       properties:
         from:
           $ref: '#/components/schemas/LocalDate'
@@ -1830,14 +1826,16 @@ components:
         keyword:
           type: string
           maxLength: 128
-        sort:
+        sortField:
           type: string
           enum:
-            - settlementDate_desc
-            - settlementDate_asc
-            - settledAmount_desc
-            - settledAmount_asc
-          default: settlementDate_desc
+            - settlementDate
+            - netSales
+        sortOrder:
+          type: string
+          enum:
+            - ascend
+            - descend
     LedgerExportFilters:
       type: object
       additionalProperties: false
@@ -1878,7 +1876,7 @@ components:
         downloadUrl:
           type: string
           readOnly: true
-          description: READY 时短期有效下载链接。
+          description: 短期有效下载链接。**仅 `status=READY` 时返回本键**（此时必返,与 `expiresAt` 同进退）。
         expiresAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -1887,7 +1885,6 @@ components:
         failureReason:
           type: string
           enum:
-            - RESULT_SET_TOO_LARGE
             - EMPTY_RESULT
             - INTERNAL
           readOnly: true
@@ -1897,42 +1894,30 @@ components:
             - $ref: '#/components/schemas/DiagnosticDetail'
           readOnly: true
           description: 本次导出的诊断描述（口径见 `DiagnosticDetail`）。用户可见文案取 `failureReason`。
-      oneOf:
-        - title: READY — 必带 downloadUrl + expiresAt
-          properties:
-            status:
-              type: string
-              const: READY
-            downloadUrl:
-              type: string
-            expiresAt:
-              $ref: '#/components/schemas/Timestamp'
-          required:
-            - downloadUrl
-            - expiresAt
-        - title: FAILED — 必带 failureReason
-          properties:
-            status:
-              type: string
-              const: FAILED
-            failureReason:
-              type: string
-              enum:
-                - RESULT_SET_TOO_LARGE
-                - EMPTY_RESULT
-                - INTERNAL
-          required:
-            - failureReason
-        - title: PENDING / PROCESSING — 尚无结果
-          properties:
-            status:
-              type: string
-              enum:
-                - PENDING
-                - PROCESSING
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -1983,30 +1968,22 @@ components:
             currentMerchantId:
               type: string
               description: 服务端会话当前商户（≠ 请求携带的 expected `X-Merchant-Context`），供前端 re-sync；**无当前商户则不返回本键**（前端须重选）。
+            paymentId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             maskedEmail:
               type: string
               description: 已遮蔽的邮箱（形如 `j***@example.com`），**只作展示、不可回填表单**。
-    Currency:
-      type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
-    Money:
-      type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
-      required:
-        - amount
-        - currency
-      properties:
-        amount:
-          type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
-        currency:
-          $ref: '#/components/schemas/Currency'
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
@@ -2019,9 +1996,19 @@ components:
     LocalDate:
       type: string
       format: date
-      description: 日期 `YYYY-MM-DD`，**不带时区**。本面所有日期字段与日期入参都是它。 **按字面收发**——展示直接用这个字符串，别塞进 `Date` 按浏览器时区格式化（负偏移时区会显示成前一天）。
+      description: |
+        **日历日期**(无偏移,`YYYY-MM-DD`)。**不带时区、不隐含日切时刻** —— 就是这一天本身。
+
+        - **按字面值收发**:展示直接用这个字符串、**不做任何时区换算**
+          (禁塞进 `Date` 后按浏览器时区渲染 —— 负偏移时区会显示成前一天);
+        - **日期区间入参与固化的日期列作字面比较**,不把日期换算成瞬时区间去扫时间戳列;
+        - **不改写已固化的日期字面值**,无论它当初是按谁的时区算出来的。
+
+        商户选定的日期(Invoice Due Date / 礼卡 Campaign End Date / 票务 Event Date)与服务端固化后出参的日期
+        (如各类记录的创建日)同用本类型。某个 `LocalDate` 在服务端对应哪条日轴、要不要解释成瞬时区间,
+        是服务端的事 —— 契约面只承诺这一天的字面值。
       examples:
-        - '2026-05-19'
+        - '2026-08-01'
     Timestamp:
       type: string
       format: date-time
@@ -2032,7 +2019,7 @@ components:
         - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
           「出参 Z」是约定、非 schema 可强制)。
 
-        展示可按商户 IANA 时区换算(单独字段,offset ≠ timezone)。
+        展示由消费方按**本地时区**换算(浏览器端即浏览器时区);商户配置的 IANA 时区是**服务端固化日期字段**时用的,不用于展示换算。
 
         **只表示「什么时候发生」,不表示「算哪一天」** —— 需要「哪一天」的地方各有自己的**日期字段**(`YYYY-MM-DD`),
         **别拿本类型自己推**：两者在跨日边界附近会分属两天。
@@ -2076,6 +2063,34 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/QuickFilterItem'
+    OtpChallenge-2:
+      type: object
+      additionalProperties: false
+      description: 一次性验证码挑战句柄 = `OtpDelivery` 的三件事 + 本挑战自己的 id（供后续校验步骤引用）。 用于**挑战自带 id** 的入口；若 id 已由所在流程的资源提供（如 change-request），那里直接用 `OtpDelivery`、不重复给 id。 **各入口的绑定语义与失效细则不同**（是否绑操作摘要 / 发起会话、幂等重投是否受时限约束等），见各自端点说明。
+      required:
+        - challengeId
+        - deliveredTo
+        - cooldownSeconds
+        - expiresAt
+      properties:
+        challengeId:
+          type: string
+          readOnly: true
+          description: 挑战实例 id，串起后续校验步骤。
+        deliveredTo:
+          type: string
+          readOnly: true
+          description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
+        cooldownSeconds:
+          type: integer
+          readOnly: true
+          minimum: 0
+          description: 重发冷却秒数（部署可配）。
+        expiresAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 该码的失效时间（部署可配）。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$

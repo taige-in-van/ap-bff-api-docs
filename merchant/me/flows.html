@@ -36,7 +36,7 @@
 | [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) | `POST /account/settlement/change-requests/otp-challenges` | 发结算变更 OTP 到 Owner email（返回 `challengeId` + 脱敏邮箱） |
 | [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) | `POST /account/settlement/change-requests/otp-challenges/{challengeId}/verification` | 校验 OTP，通过签发单次 `otpToken` |
 | [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) | `POST /account/settlement/change-requests` | 创建结算变更请求（→ PENDING_REVIEW；旧值生效） |
-| [`setRefundPin`](index.html#tag/refund-pin/operation/setRefundPin) | `PUT /account/refund-pin` | 设置 Refund PIN（oneOf 授权：旧 PIN 改 / reset-challenge OTP） |
+| [`setRefundPin`](index.html#tag/refund-pin/operation/setRefundPin) | `PUT /account/refund-pin` | 设置 Refund PIN（二选一授权：旧 PIN 改 / reset-challenge OTP） |
 | [`requestRefundPinResetOtp`](index.html#tag/refund-pin/operation/requestRefundPinResetOtp) | `POST /account/refund-pin/reset-challenges` | Forgot PIN 发重置 OTP 到 Owner email（脱敏邮箱 + 冷却） |
 | [`listMerchants`](index.html#tag/merchants/operation/listMerchants) | `GET /merchants` | switcher 商户列表（仅 ACTIVE / INCOMPLETE / PENDING_REVIEW） |
 | [`addMerchant`](index.html#tag/merchants/operation/addMerchant) | `POST /merchants` | 添加关联商户（创建 INCOMPLETE → 进入入驻向导） |
@@ -65,12 +65,12 @@
 - **Settlement 编辑（进编辑态先取选项）**：`settlementSchedule` 的候选集**同样不在契约里写死**——渲染下拉前先调 [`getSettlementOptions`](index.html#tag/settlement/operation/getSettlementOptions)（`GET /account/profile/settlement/options`）取当前可选档位（`{code, displayName}` 成对，**顺序即展示顺序**）；提交传 `code`、**不要传展示名**。⚠️ **初始选中 = 该商户当前的 `settlementSchedule`**（取自 `getAccountProfile`），**不是数组第一项**——否则会把商户现值静默改掉。取值不在提交时点的候选集内 → `400`·`204017`，重取候选集让用户重选、**不要回落到第一项**。
 - **Contact Information（联系人 + Primary Email）**：Profile 页 Contact section 展示走 [`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) 聚合的 contact 区块；**改联系人**调 `updateOwnerContact`、**改 Primary Email**调 `initiateOwnerPrimaryEmailChange` 起严格两步验证（均为 `owner-contact` 端点，详见注册登录与认证 flows「Owner 联系人 / Primary Email」）。
 - **Logo 移除**：[`removeLogo`](index.html#tag/profile/operation/removeLogo)（204，回退默认首字母标识，即时生效）。**换 Logo 是三步流程，见下方「更换 Profile Logo」**。
-- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / `pendingUrlChange`）+ `integrations`（terminal `activeProvider` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回；支付方式配置源读不到内容时 500、不返回不完整配置。
+- **Service Page 浏览**：[`getServicePage`](index.html#tag/service-page/operation/getServicePage) 聚合 `acceptanceModes`（各 mode `status` + `paymentMethods` + online `websiteUrl` / 有待审核变更时的 `pendingUrlChange`）+ `integrations`（terminal `active` / Ecommerce 列表）；凭据仅返回 `credentialSummary` 掩码摘要，明文不返回；支付方式配置源读不到内容时 500、不返回不完整配置。
 - **PaymentMethod 启停**：[`updateAcceptanceModePaymentMethods`](index.html#tag/service-page/operation/updateAcceptanceModePaymentMethods) 在已 ACTIVE 的 mode 内**覆盖式**提交 `enabledMethodIds`，立即生效（204）；method 不属该 mode / 不存在 400；mode 未开通或未 ACTIVE 409；支付方式配置源读不到内容时 500、不保存。
-- **Terminal 连接 / 停用**：[`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration)（Moneris / Clover 互斥，`provider` 判别多态请求体，即时生效，返回掩码 `credentialSummary` + 当前 `activeProvider` + `threedsEnabled`；凭据校验失败 400。**`threedsEnabled` 必传**——本端点是全量覆盖，漏传会把已开启的 3DS 关掉；表单初始值分两支：**更新当前生效 provider 的凭据** → 取读面的 `terminal.threedsEnabled`；**切换 / 停用后重连**（目标 ≠ 当前生效者）→ 取 `retained` 里同 provider 那项——`retained` 只含非生效 provider，更新在用凭据时别去那里找）/ [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration)（清 `activeProvider`、凭据保留以便再连，204）。
+- **Terminal 连接 / 停用**：[`connectTerminalIntegration`](index.html#tag/integrations/operation/connectTerminalIntegration)（Moneris / Clover 互斥，`provider` + 对应凭据子对象〔`moneris` / `clover`〕，即时生效，返回 `active`〔provider / `threedsEnabled` / 掩码 `credentialSummary`〕；凭据校验失败 400。**`threedsEnabled` 必传**——本端点是全量覆盖，漏传会把已开启的 3DS 关掉；表单初始值分两支：**更新当前生效 provider 的凭据** → 取读面的 `terminal.active.threedsEnabled`；**切换 / 停用后重连**（目标 ≠ 当前生效者）→ 取 `retained` 里同 provider 那项——`retained` 只含非生效 provider，更新在用凭据时别去那里找）/ [`disableTerminalIntegration`](index.html#tag/integrations/operation/disableTerminalIntegration)（清 `active`、凭据保留以便再连，204）。
 - **切换当前商户**：[`switchCurrentMerchant`](index.html#tag/merchants/operation/switchCurrentMerchant) 把当前商户切到目标商户（204）；目标商户不在当前账号可访问范围 → 404、REJECTED / 无权切 → 403。切换成功后，后续页面均使用新的当前商户。
 - **撤回未激活商户在途入驻**：[`withdrawOnboardingApplication`](index.html#tag/merchants/operation/withdrawOnboardingApplication) 把在途 Application 迁 `WITHDRAWN`（该商户从切换列表隐藏）→ **200 `{contextChanged, currentMerchantId}`**；ACTIVE / REJECTED（及无上级关联关系的商户）不可撤回 → 409。若撤回的是当前选中商户，服务端切换到可访问的上级商户、无可切换者则**不返回 `currentMerchantId` 键**（前端按 `contextChanged` 刷新、该键缺失时重选商户）；撤回非当前商户则 `contextChanged=false`、会话不变。
-- **Documents 只读**：[`getDocuments`](index.html#tag/documents/operation/getDocuments) 返回 `required`（5 必传，未上传项 `present: false` 缺失占位）+ `optional`（2 可选，仅已上传时返回）；无自助上传 / 替换 / 删除入口（续期走客服）。
+- **Documents 只读**：[`getDocuments`](index.html#tag/documents/operation/getDocuments) 返回 `required`（5 必传，未上传项不带 `file`、作缺失占位）+ `optional`（2 可选，仅已上传时返回）；无自助上传 / 替换 / 删除入口（续期走客服）。
 
 ---
 
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ## 结算字段变更（事前审批；银行字段 4 调 / 非银行字段 3 调）
 
-结算字段变更**必经事前审批**：成功提交只创建审核请求（PENDING_REVIEW），**旧值持续生效至审核通过**；同一商户至多 1 个 PENDING_REVIEW（已存在再创建 → 409）。银行账户字段（`bankName` / `transitNumber` / `institutionNumber` / `accountNumber`）变更走 4 步——[`createSettlementVoidChequeUploadTarget`](index.html#tag/settlement/operation/createSettlementVoidChequeUploadTarget) 拿直传目标、浏览器直传后得 `voidChequeRef` → [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) 发 Owner email OTP → [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) 换 `otpToken` → [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) 提交；非银行字段（仅 `storeId` / `settlementSchedule`）跳过 Void cheque，3 步（发 OTP → 验 OTP → 提交）。
+结算字段变更**必经事前审批**：成功提交只创建审核请求（PENDING_REVIEW），**旧值持续生效至审核通过**；同一商户至多 1 个 PENDING_REVIEW（已存在再创建 → 409）。银行账户字段（`bankName` / `bankAccount`〔按制式的整组，`type` 须在 `getSettlementOptions.bankAccountTypes` 中商户结算币种允许的集合内〕）变更走 4 步——[`createSettlementVoidChequeUploadTarget`](index.html#tag/settlement/operation/createSettlementVoidChequeUploadTarget) 拿直传目标、浏览器直传后得 `voidChequeRef` → [`requestSettlementOtp`](index.html#tag/settlement/operation/requestSettlementOtp) 发 Owner email OTP → [`verifySettlementOtp`](index.html#tag/settlement/operation/verifySettlementOtp) 换 `otpToken` → [`createSettlementChangeRequest`](index.html#tag/settlement/operation/createSettlementChangeRequest) 提交；非银行字段（仅 `storeId` / `settlementSchedule`）跳过 Void cheque，3 步（发 OTP → 验 OTP → 提交）。
 
 ```mermaid
 sequenceDiagram
@@ -194,7 +194,7 @@ sequenceDiagram
 ```
 
 - **审核分流**：申请创建后主状态 `PENDING_REVIEW`；前端靠 [`getServicePage`](index.html#tag/service-page/operation/getServicePage) 各 mode 的 `status` 反映审核进展，无前端轮询。
-- **online URL 改 = 重审、原 URL 继续生效**：已 ACTIVE 的 online mode 改 website URL 走 [`changeAcceptanceModeWebsiteUrl`](index.html#tag/service-page/operation/changeAcceptanceModeWebsiteUrl) → 200 受理待审核变更（返 `pendingUrlChange: true`），主状态仍 ACTIVE、**原 URL 继续生效**（`getServicePage` 的 `pendingUrlChange: true`）；审核通过新 URL 才生效。已有待审核 URL 变更再改 → 409；mode 非 online ACTIVE → 409。
+- **online URL 改 = 重审、原 URL 继续生效**：已 ACTIVE 的 online mode 改 website URL 走 [`changeAcceptanceModeWebsiteUrl`](index.html#tag/service-page/operation/changeAcceptanceModeWebsiteUrl) → 200 受理待审核变更（返 `changeRequestId`），主状态仍 ACTIVE、**原 URL 继续生效**（`getServicePage` 该 mode 带 `pendingUrlChange.requestId`）；审核通过新 URL 才生效。已有待审核 URL 变更再改 → 409；mode 非 online ACTIVE → 409。
 
 ---
 
@@ -212,10 +212,10 @@ sequenceDiagram
     opt 集成 ACTIVE 后管理
         alt 仅改 paymentMethodConfig（URL 未变）
             B->>A: [manageEcommerceIntegration] PUT /integrations/ecommerce/{integrationId} { paymentMethodConfig }
-            A-->>B: 200 { status= ACTIVE, pendingUrlChange= false }（立即生效、不重审）
+            A-->>B: 200 { status= ACTIVE }（无 pendingUrlChange 键；立即生效、不重审）
         else 改 websiteUrl
             B->>A: [manageEcommerceIntegration] PUT /integrations/ecommerce/{integrationId} { websiteUrl }
-            A-->>B: 200 { status= ACTIVE, pendingUrlChange= true }（受理待审核变更、原配置继续生效）
+            A-->>B: 200 { status= ACTIVE, pendingUrlChange= { requestId } }（受理待审核变更、原配置继续生效）
         end
         Note over B,A: 已有待审核 URL 变更时再改 URL 409<br/>校验失败 400；方式配置依赖的配置源读不到内容 500（不保存）<br/>不提供 Ecommerce 自助断开入口（走客服）
     end

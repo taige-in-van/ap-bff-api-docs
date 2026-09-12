@@ -47,7 +47,7 @@ sequenceDiagram
     loop Step 1-5 逐步填写
         B->>A: [saveOnboardingStep] PUT .../steps/{step}?mode=next|draft
         alt 校验通过
-            A-->>B: 200 StepSaveResult{ saved= true }(mode=next 推进下一步 / mode=draft 仅保存不推进)
+            A-->>B: 200 StepSaveResult{ step, stepMissingFields }(200 即已写入草稿；mode=next 推进下一步 / mode=draft 仅保存不推进)
         else 字段非法 / 漏填
             A-->>B: 400 ErrorEnvelope{ details:[字段级校验错误] }(红框 + 错误条，不推进)
         end

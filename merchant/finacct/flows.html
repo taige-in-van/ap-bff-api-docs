@@ -50,7 +50,7 @@
 - 账单页顶部的年份 chip 另取 `getStatementCounts`，取法见公共约定「列表页顶部的快捷筛选」。**年份项集来自它**——别在前端按当前年份往回推算区间，没有账单的年份不会出现。
 - 详情类(`getSettlementDetail` / `getStatementDetail`)按 `{id}` 取单条。
 - `getStatementPdf` 返回 `application/pdf` 二进制流（非 JSON），`Content-Disposition: inline` —— **默认在浏览器内预览打印**；要「另存为」由前端自行触发下载（导出品种走 `createExport`，那条是 `attachment`）。
-- `getAccountOverview` 上游账务读超时会**降级**（响应体带 `degraded` 标志），前端展示「暂不可用」而非阻塞——只读降级，**资金写无安全降级**（见下）。
+- `getAccountOverview` 上游账务读超时会**降级**（响应体不返回三个金额键 `accountBalance` / `toSettle` / `refundReserve`），前端展示「暂不可用」而非阻塞——只读降级，**资金写无安全降级**（见下）。
 
 下面 3 条是有多步编排、值得讲清调用顺序的流程。
 
@@ -100,7 +100,7 @@ sequenceDiagram
 sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
-    B->>A: [submitRefundReserveWithdrawal] POST /refund-reserve/withdrawals<br/>Idempotency-Key ＋ { amount 或 max＝true(全额) }
+    B->>A: [submitRefundReserveWithdrawal] POST /refund-reserve/withdrawals<br/>Idempotency-Key ＋ { max, amount?(max＝false 时必填) }
     alt 同步达终态
         A-->>B: 200 ReserveOperationResult{ operationId, kind, status, amount }
     else 未达终态
@@ -110,11 +110,11 @@ sequenceDiagram
             A-->>B: 200 OperationDetail{ opType＝WITHDRAW, withdrawResult.status }
         end
     end
-    Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（避免余额变化造成取回金额错误）<br/>执行期失败（Reserve 不足等）→ status＝FAILED + failureReason、不划转<br/>amount 与 max 二选一（both/neither 非法 400）<br/>幂等键复用、同一幂等键对应的请求内容不一致 409、限流 429
+    Note over B,A: 全额取回传 max＝true，前端不自读余额填 amount（避免余额变化造成取回金额错误）<br/>执行期失败（Reserve 不足等）→ status＝FAILED + failureReason、不划转<br/>max 必传：max＝false 须带 amount、max＝true 不带 amount（搭配不合法 400）<br/>幂等键复用、同一幂等键对应的请求内容不一致 409、限流 429
 ```
 
-- **全额用 `max=true`**：「取回全部」由服务端按执行时的实际可取金额处理（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（读到与执行之间余额可能已变，会取错数）。固定额才传 `amount`。
-- **`amount` 与 `max` 二选一**：都传 / 都不传 → 400。
+- **全额用 `max=true`**：「取回全部」由服务端按执行时的实际可取金额处理（后端处理、前端不可见），前端**不要**自己读余额再填 `amount`（读到与执行之间余额可能已变，会取错数）。固定额传 `max=false` + `amount`。
+- **`max` 必传**：`max=false` 时 `amount` 必填、`max=true` 时不传 `amount`；搭配不合法 → 400。
 - 资金去向 = 商户**最终正常结算入账账户**（取回资金**先回 Account Balance、再随正常结算入该账户**，非独立提现）：确认前调用**商户实体契约的 `getSettlement`（`GET /account/settlement`）** 展示该账户（末 4 位掩码、只读仅供核对），由**具备对应权限的商户用户**核对后再提交；**复用商户实体契约的 `getSettlement`、不另设「当前结算账户」端点**。执行期失败（Reserve 不足等）则 `FAILED` + `failureReason`、不划转（按取值分支）。
 
 ---
@@ -127,7 +127,7 @@ sequenceDiagram
 sequenceDiagram
     participant B as 浏览器(SPA)
     participant A as 商户后台 BFF
-    B->>A: [createExport] POST /exports<br/>Idempotency-Key ＋ { kind(SETTLEMENTS/SETTLEMENT_DETAIL/LEDGER), format＝XLSX, resourceId?, filters? }
+    B->>A: [createExport] POST /exports<br/>Idempotency-Key ＋ { kind(SETTLEMENTS/SETTLEMENT_DETAIL/LEDGER), resourceId?, settlementFilters? / ledgerFilters? }
     A-->>B: 202 ExportJob{ exportJobId, status＝ PENDING }
     loop 直到 status 终态
         B->>A: [getExport] GET /exports/{exportJobId}
@@ -135,10 +135,10 @@ sequenceDiagram
     end
     B->>A: [downloadExport] GET /exports/{exportJobId}/download（downloadUrl 指向此 BFF 端点）
     A-->>B: 200 文件流 XLSX ｜ 403 撤权 / 404 跨scope / 409 未 READY / 410 过期
-    Note over B,A: 按当前查询条件导出（filters，不局限当前分页）<br/>downloadUrl 指向 download 端点、经会话鉴权、短期有效（expiresAt 过期 410）<br/>恒异步：创建即返 202 + exportJobId，凭它轮询<br/>命中超上限 / 命中为 0 → 轮询到 status=FAILED + failureReason（RESULT_SET_TOO_LARGE / EMPTY_RESULT），**不产出文件、不是 4xx**<br/>非法过滤参数 400
+    Note over B,A: 按当前查询条件导出（settlementFilters / ledgerFilters，不局限当前分页）<br/>downloadUrl 指向 download 端点、经会话鉴权、短期有效（expiresAt 过期 410）<br/>恒异步：创建即返 202 + exportJobId，凭它轮询<br/>命中超上限 → 创建前预检拒绝 400·204009、不建任务（提示缩小范围）<br/>命中为 0 → 轮询到 status=FAILED + failureReason=EMPTY_RESULT，**不产出文件、不是 4xx**<br/>非法过滤参数 400
 ```
 
-- **按查询条件、非当前页**：`filters` 镜像对应列表端点的过滤字段，导出的是符合条件的**全集**、不是当前分页；导出范围固定为发起时的当前商户，`filters` 仅表达筛选条件、不能扩大商户范围。
+- **按查询条件、非当前页**：`settlementFilters` / `ledgerFilters` 镜像对应列表端点的过滤字段，导出的是符合条件的**全集**、不是当前分页；导出范围固定为发起时的当前商户，筛选子对象仅表达筛选条件、不能扩大商户范围。
 - **完成才有 `downloadUrl`**：轮询到终态(完成)再触发下载；`downloadUrl` 短期有效（`expiresAt`），过期需重新发起导出。
 - 大结果集异步执行，前端发起后给 toast / 通知，不阻塞页面。
 
