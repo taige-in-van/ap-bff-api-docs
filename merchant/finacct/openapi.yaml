@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 账户账务与清结算 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -1580,18 +1580,13 @@ components:
     RefundReserveOperationSummary:
       type: object
       description: |-
-        储备金 funding 操作摘要（**topUpAmount / autoReplenish 至少其一**,anyOf 守;空 `{}` 非法）。
+        储备金 funding 操作摘要（**topUpAmount / autoReplenish 至少其一**,服务端校验;空 `{}` → 400）。
 
         **币种须 == 商户结算币种**（单商户单结算币种,取值以概览返回的为准）——失配是**入参问题** → `400`,两步（发码 / 提交）都一样。
 
         OTP challenge 绑定此摘要（含金额 + 币种 + 字段存在性）,funding 提交时摘要须与 challenge 绑定一致——**不一致 →** `403`·`206005`（防串改金额 / 改币种 / 夹带配置,须重走一次 OTP）。
 
         两者别混：前者是这次就填错了、改对再发；后者是发码与提交之间被改过。
-      anyOf:
-        - required:
-            - topUpAmount
-        - required:
-            - autoReplenish
       properties:
         topUpAmount:
           allOf:
@@ -1709,12 +1704,7 @@ components:
       type: object
       required:
         - operationId
-      description: funding 处理结果。**子项 ⟺ 本次提交项**：提交了哪几项就回哪几项（至少一项），部分失败时各项独立 `status`。子项形状与 `getReserveOperation` 的 `OperationDetail`（`opType=FUNDING`）一致,可共用同一套收敛逻辑。
-      anyOf:
-        - required:
-            - topUpResult
-        - required:
-            - autoReplenishResult
+      description: funding 处理结果。**子项 ⟺ 本次提交项**：提交了哪几项就回哪几项（至少一项，由提交侧校验保证），部分失败时各项独立 `status`。子项形状与 `getReserveOperation` 的 `OperationDetail`（`opType=FUNDING`）一致,可共用同一套收敛逻辑。
       properties:
         operationId:
           type: string

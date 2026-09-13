@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户入驻 — 前端契约面
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -375,7 +375,8 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      description: 本端点固定传 `onboarding_document`（入驻文档）；传其他用途 → 400。
+                      enum:
+                        - onboarding_document
                     contentType:
                       enum:
                         - image/png

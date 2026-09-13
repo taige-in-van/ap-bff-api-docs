@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收单配置 — 前端契约面
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -293,7 +293,8 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      description: 本端点固定传 `payment_page_logo`（收款页 Logo）；传其他用途 → 400。
+                      enum:
+                        - payment_page_logo
                     contentType:
                       enum:
                         - image/png
@@ -3432,11 +3433,11 @@ components:
       description: 销售窗口（窗口外不可售）。
       properties:
         start:
-          anyOf:
+          oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
         end:
-          anyOf:
+          oneOf:
             - $ref: '#/components/schemas/Timestamp'
             - type: 'null'
     SaleWindowRead:
@@ -3473,17 +3474,17 @@ components:
           $ref: '#/components/schemas/PositiveMoney'
         price:
           description: 对外标价（留空 = 按面值标价）
-          anyOf:
+          oneOf:
             - $ref: '#/components/schemas/PositiveMoney'
             - type: 'null'
         discountAmount:
           description: 折扣额（仅 `promotionType=discount` 适用；写侧传 `null` 清空，读侧不适用时不返回本键）
-          anyOf:
+          oneOf:
             - $ref: '#/components/schemas/Money'
             - type: 'null'
         bonusCardAmount:
           description: 赠卡金额（仅 `promotionType=bonus_card` 适用；写侧传 `null` 清空，读侧不适用时不返回本键）
-          anyOf:
+          oneOf:
             - $ref: '#/components/schemas/Money'
             - type: 'null'
         bonusTerms:

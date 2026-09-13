@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户实体 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -331,7 +331,8 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      description: 本端点固定传 `merchant_logo`；其他用途 → 400
+                      enum:
+                        - merchant_logo
                     contentType:
                       enum:
                         - image/png
@@ -494,7 +495,8 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      description: 本端点固定传 `settlement_void_cheque`；其他用途 → 400
+                      enum:
+                        - settlement_void_cheque
                     contentType:
                       enum:
                         - image/png
@@ -1372,7 +1374,8 @@ paths:
                     purpose:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
-                      description: 本端点固定传 `store_photo`；其他用途 → 400
+                      enum:
+                        - store_photo
                     contentType:
                       enum:
                         - image/png

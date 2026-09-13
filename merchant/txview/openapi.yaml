@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 交易管理 — 前端契约面
-  version: 1.0.0
+  version: 1.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -1234,23 +1234,12 @@ components:
           $ref: '#/components/schemas/Currency'
         exchangeRate:
           type: string
+          minLength: 1
           description: 汇率（十进制字符串；**方向：1 单位 `settlementCurrency` = `exchangeRate` 单位** `payerCurrency`——如结算 CAD、付款 CNY 时形如 `5.2`。**方向由平台统一归一**（数值取自渠道回报，平台只做方向与标度的等价换算、不自行定价也不重算金额）；**渠道未给汇率则不返回本键**）
         note:
           type: string
-          description: 换算说明（**通道原文——原样展示、不保证本地化**；事实数据、非平台生成文案）；**渠道未给说明则不返回本键**
-      anyOf:
-        - required:
-            - exchangeRate
-          properties:
-            exchangeRate:
-              type: string
-              minLength: 1
-        - required:
-            - note
-          properties:
-            note:
-              type: string
-              minLength: 1
+          minLength: 1
+          description: 换算说明（**通道原文——原样展示、不保证本地化**；事实数据、非平台生成文案）；**渠道未给说明则不返回本键**。与 `exchangeRate` 至少一个非空，由服务端保证
     PaymentRow:
       type: object
       description: 支付交易列表行（默认列）。付款人 / 客户明细归详情，不入列表。凡呈现交易列表的页面（交易管理列表、Payment Link 详情的交易 tab）**行形状逐字段相同**，行组件可直接复用。
