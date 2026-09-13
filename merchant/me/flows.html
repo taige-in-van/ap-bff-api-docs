@@ -25,9 +25,9 @@
 | operationId | method + path | 用途 |
 |---|---|---|
 | [`getAccountProfile`](index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | Profile 概览（Header card + 4 section；account_number 掩码 + Locked 标识 + 资金只读） |
-| [`getBusinessInformationOptions`](index.html#tag/profile/operation/getBusinessInformationOptions) | `GET /account/profile/business-information/options` | Business Information 动态值域（当前仅 `timeZone` 白名单） |
+| [`getBusinessInformationOptions`](index.html#tag/profile/operation/getBusinessInformationOptions) | `GET /account/profile/business-information/options` | Business Information 动态值域（`countryOptions`：每国带省 / 州候选 + 邮编规则 + 时区候选；`phoneCountryCodes` 区号白名单） |
 | [`updateBusinessInformation`](index.html#tag/profile/operation/updateBusinessInformation) | `PUT /account/profile/business-information` | 编辑 7 可编辑字段（直接生效；Locked 字段出现即 403） |
-| [`getSettlementOptions`](index.html#tag/settlement/operation/getSettlementOptions) | `GET /account/profile/settlement/options` | Settlement 动态值域（结算周期候选档位 `{code, displayName}`） |
+| [`getSettlementOptions`](index.html#tag/settlement/operation/getSettlementOptions) | `GET /account/profile/settlement/options` | Settlement 动态值域（结算周期候选档位 `{code, displayName}` + 结算币种 → 允许的银行账户制式集 `bankAccountTypes`） |
 | [`createLogoUploadTarget`](index.html#tag/profile/operation/createLogoUploadTarget) | `POST /account/profile/files/upload-targets` | 取得 Logo 直传目标（文件由浏览器直传对象存储、不经本面） |
 | [`applyLogo`](index.html#tag/profile/operation/applyLogo) | `POST /account/profile/logo` | 使已直传的 Logo 生效（即时生效） |
 | [`removeLogo`](index.html#tag/profile/operation/removeLogo) | `DELETE /account/profile/logo` | 移除 Logo（回退默认首字母标识） |
