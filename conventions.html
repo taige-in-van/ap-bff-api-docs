@@ -3,14 +3,26 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>API 基础约定</title>
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
-<p><a href="./">← 全部契约</a></p>
+<p><a href="index.html">← 全部契约</a></p>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # API 基础约定（先读）
 
 > 所有 BFF / 前端面 API 共用的基础约定 —— 进任何模块 spec 前先读这一份。各模块 `openapi.yaml` 的字段类型以该 spec 为准；本文讲的是**跨模块一致的公约**（错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额）。
 >
-> ⚠️ **design / review 阶段**约定 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
+> ⚠️ **design / review 阶段**约定 —— 实现前可能调整，可据此并行开发，勿当冻结契约。本约定、各份 spec 与 flows 都处在这个阶段。
+
+## flows 怎么读
+
+接口本身（收什么、返回什么、什么时候拒绝）看各份 spec；每个页面先调谁、后调谁、各种结果页面怎么处理，看 flows。spec 按资源分文件，flows 按页面分文件，两者不一一对应：一份 flows 会用到几份 spec 的接口。
+
+- **视角**：图里只画浏览器（SPA）与 BFF，BFF 内部怎么实现不画。外部参与方（邮箱、微信、验证器、收款设备）只在用户真要去那边操作时出现。审核、通道处理、设备首次登录这类由系统推动的状态变化，前端靠重新读取看到。
+- **开头两张表**：先是本文覆盖的页面（页面、从哪进、对应哪几节），再是本文用到的接口（`op#`、`operationId`、方法与路径、用途）。页面之间前后连着走的（如登录注册、入驻），两张表之间另有一节「页面流转」，用一张图画出从哪一页、点什么、去哪一页。
+- **`op#`** 是本份 flows 内的接口编号，同一个接口在本份所有图里用同一个号；图里写成 `#n [operationId]`，正文里写 `#n`。不同 flows 的编号互不相干。
+- **`operationId`** 就是生成客户端的方法名（见「接口命名」）。接口表与正文里的可以点，直达该接口所在 spec 的文档；图里的受 Mermaid 限制不能点，点表里同名的那个即可。
+- **章节标题**：`页面：<页面名>`，或 `页面：<页面名> · <页面里的哪一块> <弹窗 / 页签 / 区块>`，名字照界面上显示的写；不是页面的写成 `流程：…`。
+- **失败情形**列在图下的表里；「相对 demo 的改动」只列产品行为与 demo 不同的地方。
+- 本文其余各节（会话、CSRF、当前商户、错误体、分页、幂等等）对每份 flows 都成立，flows 里不重复；某份 flows 有自己特有的前提时，在它开头写明。
 
 ## 编码与内容类型
 
@@ -25,30 +37,28 @@
   - **不要缓存该值**：会话轮换时（登录 / 改密后重建会话）两个 cookie 一起换，每次从 cookie 现读。
 - 公开端点（注册 / 登录 / 找回等 `security: []`）无会话、故无 CSRF。
 
-## 应用启动链路（bootstrap，登录 / 扫码 / 激活后必走）
+## 应用启动链路（bootstrap，登录 / 扫码后必走）
 
-登录 / 微信扫码 / 邮箱激活成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录 / 激活响应直接携带 merchantId 或路由**：
+登录 / 微信扫码成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录响应直接携带 merchantId 或路由**：
 
-1. `getCurrentSession`（`GET /sessions/current`）→ 取 `merchantId`（当前商户内部 id）、`privileges`（可见权限点集合，导航 / 入口 / 按钮 / 只读态一律查它）、`landingPage`（默认落地页，给的是权限点标识、按自己的路由表映射）。
-2. 以该 `merchantId` 初始化 `X-Merchant-Context`，作为后续所有 merchant-scoped 调用的 header（见下「merchant scope + stale-tab 守卫」）。
-3. `getOnboardingStatus`（`GET /onboarding/status`，带 `X-Merchant-Context`）→ `routeTo` 决定落到哪个区域：`ONBOARDING_WIZARD` / `REVIEW_STATUS_PAGE` / `REJECTED_PAGE` / `MERCHANT_HOME`。
-4. **`routeTo` 是区域分流的唯一真相源**；**仅 `routeTo = MERCHANT_HOME` 时才采用 `landingPage`**（商户后台内默认页）。入驻 / 审核 / 拒绝区域不看 `landingPage`。
+1. `getCurrentSession`（`GET /auth/sessions/current`）→ 取 `merchantId`（当前商户内部 id，必返）、`privileges`（可见权限点集合，导航 / 入口 / 按钮 / 只读态一律查它）。每个接口要哪个点看它的 `x-required-privilege`：是权限点就查集合里有没有；`session` 任何已登录者都能调；`owner` 只有当前商户的 Owner 能调（`isOwner`），不在集合里。返回 `403`·`208028` 时会话已被服务端结束，回登录页显示提示。
+2. `listMerchants`（`GET /merchants`）→ 当前商户**在列表里**就按它的 `status` 分流：`ACTIVE` 进商户后台，`DRAFT` / `MORE_INFO_REQUIRED` 进入驻向导，`UNDER_REVIEW` 进审核状态页；**不在列表里**（被拒的商户不进列表）调 `getOnboardingApplication`（`GET /merchants/{merchantId}/application`），`REJECTED` 进拒绝结果页——申请接口按「在册且未删除」授权，比列表宽，被拒的商户也能读。
+3. 进商户后台时落 Dashboard；按 `privileges` / `visibleModules` 看不到 Dashboard 时，落侧边栏里第一个能看到的页面（前端自行决定，服务端不下发落地页）。
 
-> **无当前商户分支**：`getCurrentSession` **可能不返回 `merchantId` 键**（该用户当前没有任何可访问商户）→ 先 `listMerchants`：有可访问商户则 `switchCurrentMerchant` 选定后再走第 3 步；无可访问商户 → 进入「无可用商户」态、**不调 `getOnboardingStatus` / 入驻相关接口**。
+> 当前商户在会话期间被冻结或删除时，由服务端在下一次 `getCurrentSession` 换一个，或在一个都取不到时结束会话（`208028`），前端不做判断。
 >
-> 邮箱激活成功（`200`）即已建会话，与登录等价，FE 同样从 `getCurrentSession` 起步；激活已提交但建会话失败返错误体，用户再次点击链接会命中 `410` 已激活 → 跳登录页密码登录——这是唯一的降级出口，响应里没有「已激活但未建会话」的成功分支。
+> 邮箱激活不建会话：激活成功后用户回登录页用密码登录，再从第 1 步起步。
 
-## merchant scope + stale-tab 守卫（`X-Merchant-Context`）
+## 当前商户
 
-商户后台**单会话单当前商户**；会话当前商户 = merchant scope **唯一权威**（服务端不信请求体里的 merchantId）。FE 须实现**统一 interceptor**：
+商户后台**单会话单当前商户**；会话当前商户 = merchant scope **唯一权威**（服务端不信请求体里的 merchantId），请求不另带商户标识。以商户本身为操作对象的接口（入驻申请 `/merchants/{merchantId}/application`、删除商户 `DELETE /merchants/{merchantId}`）在路径里带 `merchantId`，那是操作对象、不是上下文，不改变也不依赖当前商户。
 
-- **发送**：所有 merchant-current-scoped 读 + 写请求带 header `X-Merchant-Context = 当前 merchantId`（来源 = `getCurrentSession`；切换商户后更新）。它是**守卫、非 selector**——服务端只比对、不据它选商户。
-- **冲突**：`X-Merchant-Context` ≠ 会话当前商户 → 服务端**读不返回错商户数据、写不执行**，`409` + 按两种情形分码：
-  - **会话有当前商户、只是与你发的不同**（如另一标签页已切换）→ **`208001`（`MERCHANT_CONTEXT_CHANGED`）**，body `context.currentMerchantId` = 会话真实当前商户。
-  - **会话没有当前商户**（无可回显者）→ **`409` `208022`（`MERCHANT_NOT_ACCESSIBLE`）**，处置同「商户可访问性」一节：**重跑启动链路、按 `routeTo` 分流**（不是跳登录，会话是好的）。
-- **interceptor 处理**（`208001`）：读 `context.currentMerchantId` → 更新前端当前商户 + 提示用户；**安全读（GET）自动重放**到新当前商户；**写请求不自动重放**（由用户重新发起，杜绝静默跨商户写）。
-- **无当前商户时不要发 merchant-scoped 请求**：该 header 必带且不接受空值，没有当前商户就没有值可发——此时应停在「无可用商户」态或商户选择界面（见上「无当前商户分支」），只调豁免类接口；旧标签页带着已失效的值继续发，就是上面 `208022` 那一支。
-- **豁免**（不带守卫 / 不触发该 409）：`listMerchants`、`switchCurrentMerchant`、`withdrawOnboardingApplication`（path-selector，target 由 path 定）、以及不依赖当前商户的全局 / 公开接口。
+- **当前商户只会是已激活的商户，或首次入驻中 / 被拒的主商户**：`switchCurrentMerchant` 只切到 `ACTIVE` 商户；切换器里未激活的关联商户不切换，带它的 `merchantId` 进入驻向导或审核状态页。这两个页面的出口按当前商户判：当前商户 `ACTIVE`（从切换器进来）给「回首页」，否则（首次入驻）给「回登录页」。
+
+- **当前商户不可访问**时，依赖当前商户的接口返回 `409`·`208022`（`MERCHANT_NOT_ACCESSIBLE`），处置同「商户可访问性」一节：**重跑启动链路、重新分流**。
+- **取不到当前商户**时（登录时，或重跑启动链路时），返回 `403`·`208028`（`NO_USABLE_MERCHANT`）：回登录页显示「商户状态异常，请联系客服」。
+- **多标签页**：切换商户（`switchCurrentMerchant`）后，用浏览器的跨标签页广播（如 `BroadcastChannel`）通知其他标签页刷新到新的当前商户。
+- **新建类操作的结果页回显商户名**，让用户看得到这条记录建在了哪个商户下。
 
 ## HTTP 状态语义
 
@@ -79,7 +89,7 @@
 | `links` | object（可选） | 错误说明 / 后续恢复操作链接 |
 | `traceId` | string（可选） | 串联日志 / 分布式 trace，出错可直连诊断 |
 | `details` | array（可选） | 字段级校验错误 `[{ field, issue }]`，把错误定位到具体字段 |
-| `context` | object（可选） | 该错误专属的结构化上下文（如 stale-tab 冲突回显 `currentMerchantId`、可重试 OTP 回显 `attemptsRemaining`）。**哪些码必带哪些字段，见码表的 `requiredContextFields`**——不要按状态码猜 |
+| `context` | object（可选） | 该错误专属的结构化上下文（如可重试 OTP 回显 `attemptsRemaining`、冷却回显 `cooldownSeconds`）。**哪些码必带哪些字段，见码表的 `requiredContextFields`**——不要按状态码猜 |
 
 必填仅 `code` + `detail`。
 
@@ -108,14 +118,14 @@
 | `7` | 第三方·外部服务 | 微信 / 支付宝 / 银联等超时或返回失败 | 提示渠道繁忙或透传渠道错误 |
 | `8` | 业务·资源 | 请求合法但业务状态不满足 / 资源不存在 | 展示业务错误文案 |
 
-**一次性挑战（OTP / 验证链接 / TOTP）的失败码有两组**——`206006` / `206007` 与 `966002` / `966003`。**两组对前端处置完全相同**，认全即可（分两组是平台内部的记账方式，与你无关）：
+**一次性挑战（OTP / 验证链接 / TOTP）的失败码**，各入口用同一套：
 
 | 情形 | 码 | 你该做什么 |
 |---|---|---|
-| 挑战过期 / 已消费 / 无效 | `410`·`206006` 或 `966002` | 回第一步重新发起，**重输验证码无用** |
-| 该挑战错误尝试超限、已作废 | `423`·`206007` 或 `966003` | 回第一步重新发起，或按提示等冷却 |
+| 挑战过期 / 已消费 / 无效 | `410`·`206006` | 回第一步重新发起，**重输验证码无用** |
+| 该挑战错误尝试超限、已作废 | `423`·`206007` | 回第一步重新发起，或按提示等冷却 |
 | 凭据 / 因子输错，会话仍有效，且这次校验**没有尝试预算** | `403`·`206011` | **留在当前弹窗提示重输，不要跳登录页**；没有剩余次数可显示 |
-| 验证码 / 因子输错，且这次校验**有尝试预算、尚未用完** | `400`·`204010` | 留在原处重输；剩余次数见 `context.attemptsRemaining`，用完则转 `423`·`206007` / `966003` |
+| 验证码 / 因子输错，且这次校验**有尝试预算、尚未用完** | `400`·`204010` | 留在原处重输；剩余次数见 `context.attemptsRemaining`，用完则转 `423`·`206007` |
 | 重发过于频繁 | `429`·`208013` | 按冷却秒数倒计时后才允许再发 |
 
 ⚠️ **有没有尝试预算是那个接口的事，不是因子类型的事**——**一律以该 op 的 `x-error-codes` 是否登记 `204010` 为准**，没登记就不会有剩余次数可显示，别做一个恒为空的计数 UI。共用的 OTP 输入组件请把「剩余次数」做成可选呈现。
@@ -127,25 +137,50 @@
 | **登录 / 登录二次校验**输错（密码 / TOTP） | `400`·`206012` | 留在当前输入框重输，**不跳登录页、不跳回第一步、不清空已填状态** |
 | **登录态**重输当前密码 / TOTP（改密、启停 MFA 等 step-up） | `403`·`206011` | 留在当前弹窗重输，不跳登录页 |
 
-例：`208001` → `XX=20`、`Y=8`（业务·资源）、`ZZZ=001`；`204010` → `Y=4`（参数校验）。
+例：`208002` → `XX=20`、`Y=8`（业务·资源）、`ZZZ=002`；`204010` → `Y=4`（参数校验）。
 
 **兜底次序**：先查码表 → 查不到就按 `Y` 位落默认策略 → 都不行才退到 HTTP status 大类。**不要把 `detail` 当分支依据**（它是诊断串、措辞随时会变）。
 
 ## 商户可访问性（区域分流）
 
-**当前商户能不能进某个区域，由启动链路的 `getOnboardingStatus.routeTo` 裁决——这是唯一真相源**（见上「应用启动链路」）。商户尚未激活时，`routeTo` 会把你送去入驻向导 / 审核状态页 / 拒绝页，**根本走不到**商户后台内的业务页面。所以：
+**当前商户能不能进某个区域，由启动链路裁决**（见上「应用启动链路」）：商户不是 `ACTIVE` 时，会按入驻申请状态被送去入驻向导 / 审核状态页 / 拒绝页，**根本走不到**商户后台内的业务页面。所以：
 
-- **不要从业务端点的错误响应去推断「商户是不是激活了」**，也不要在各页面各自判一遍——那是 `routeTo` 已经裁决过的事。
-- **兜底路径**：stale tab、深链直接进某个业务页、或切商户后状态变了，仍可能在非可访问态调到业务端点。此时服务端返 **`409` · `208022`**（`MERCHANT_NOT_ACCESSIBLE`），**你的动作固定是重跑启动链路、按新的 `routeTo` 分流**，不要跳登录（会话是好的）、也不要提示「无权访问」。
+- **不要从业务端点的错误响应去推断「商户是不是激活了」**，也不要在各页面各自判一遍——启动链路已经裁决过。
+- **兜底路径**：深链直接进某个业务页、或切商户后状态变了，仍可能在非可访问态调到业务端点。此时服务端返 **`409` · `208022`**（`MERCHANT_NOT_ACCESSIBLE`），**你的动作固定是重跑启动链路、重新分流**，不要跳登录（会话是好的）、也不要提示「无权访问」。
 
 ## locale 与本地化
 
 **谁渲染，谁负责本地化**：
 
-- **前端渲染的一切**（页面文案、按钮、状态徽章、错误提示）用你自己的多语言资源，**不需要告诉后端 locale**。
-- **后端产出的文件**（PDF / Excel 导出）是唯一的例外——你拿不到渲染现场，所以这类端点接受 `Accept-Language`（BCP-47），并在响应回 `Content-Language` 告诉你实际渲染用了哪种语言（**以响应头为准，不要回退去猜请求头**）。哪些端点如此，见各端点参数说明。
-- **邮件 / 通知**由后端按收件人偏好渲染，与本次请求无关，传不了也不必传。
+- **前端渲染的一切**（页面文案、按钮、状态徽章、错误提示）用你自己的多语言资源。
+- **所有请求统一带 `Accept-Language`**（BCP-47，页面当前的语言），由统一请求层加，不必逐个接口考虑。它只在两处起作用：
+  - **后端产出的文件**（PDF / Excel 导出）——你拿不到渲染现场，所以这类端点按它渲染，并在响应回 `Content-Language` 告诉你实际用了哪种语言（**以响应头为准，不要回退去猜请求头**）。哪些端点如此，见各端点参数说明。
+  - **账号第一次确定界面语言**——注册、邀请设密、登录时账号还没有语言偏好，就用它记下；之后不再看它。
+- **界面语言是账号的偏好**：登录后按会话返回的 `locale` 显示（换设备也跟着账号走），顶栏切换语言时调 `updateMyProfile` 存回去。登录前的页面按浏览器本地的选择。
+- **邮件 / 通知**由后端渲染，与本次请求无关：发给某个人本人的按这个人的 `locale`，发给商户的按商户语言。
 - **商户自己录入的多语言内容**（如 Payment Link 的 FAQ / Policy）是**数据**不是 locale 问题——字段本身按语言分组返回，按当前语言取用即可。
+- **平台配置里的候选**（`/config/*`：省州、行业、MCC 等）带 `label: { en, zh, fr }`，按当前语言取，缺该语言回落 `en`。资料、申请等业务数据里这些字段只给码，展示名拿码到对应 `/config/*` 里查。`/config/*` 需要时就调，前端不必缓存。
+
+## 接口命名（operationId）
+
+`operationId` 就是生成客户端的方法名，看动词就知道返回什么形状：
+
+- `list…`：集合，返回 `{ items }` 或 `{ total, data }`（见「分页」）。
+- `get…`：单个对象或单例；`get…Counts` 是 chip 计数，`get…Summary` 是汇总。
+- `create…` / `update…` / `delete…`：新建、修改、删除。
+- `upload…File`：上传文件，返回 `fileId`，交给对应的写接口生效（见「文件上传」）。
+- CRUD 表达不了的用业务动词：`login`、`submit`、`resend`、`verify`、`confirm`、`change`（改密码、PIN）、`disable` 等；扫码是 `initiate…` 发起 + `poll…` 轮询；发验证码或确认邮件的第一步是 `request…`。
+
+## 未保存的修改
+
+表单有未保存的修改时，用户要离开就先确认，不静默丢弃：
+
+- 切 tab、点侧边栏或返回、关弹窗或编辑卡（X、遮罩、Cancel）时，弹站内确认框「放弃未保存的修改？」，按钮「放弃修改」/「继续编辑」。不用浏览器原生确认框。
+- 刷新页面、关闭浏览器标签页时，用 `beforeunload` 兜底，那一步只能是浏览器自带的提示。
+- 「有未保存的修改」= 当前表单值与上次从服务端读到（或新建时的初始值）不同；只打开编辑态、没改任何东西不算。
+- 已上传、尚未随保存提交的文件不用前端清理，放弃后由服务端到期清理（见「文件上传」）。
+
+各页在 flows 里注明哪些操作会触发确认。
 
 ## 更新语义（PUT）
 
@@ -171,6 +206,8 @@
 - 响应：`{ total, data[] }`（`total` 总记录数，`data` 当页记录数组）
 - 排序：`sortField` + `sortOrder`，规则见下。
 
+不分页的集合（商户列表、角色候选、店铺码、`/config/*` 候选集等）一律返回 `{ items: [...] }`。所以看键名就知道形状：`data` = 分页、带 `total`；`items` = 全量、不分页。
+
 ## 排序
 
 分页列表统一两个参数（对应表格排序控件的 `{ field, order }`）：
@@ -190,7 +227,7 @@
 
 **所有带 chip 的列表形状一致，前端只需写一个 helper。** 列表本身只返 `{ total, data }`，chip 的项与数字另取一个 `…/counts` 端点，返回 `{ items: [ { value, label, count } ] }`。
 
-**照着 `items` 渲染，不要自己枚举取值。** 项集、顺序、展示名、数字全部由服务端给出——状态、类型这类固定枚举与角色、年份这类由配置或数据决定的，走的是同一个契约，前端一视同仁。某项当期为 `0` 也会返回（那一格不该因为没数据就消失），所以不用自己补空位。
+**照着 `items` 渲染，不要自己枚举取值。** 项集、顺序、展示名、数字全部由服务端给出——状态、类型这类固定枚举与角色这类由配置决定的，走的是同一个契约，前端一视同仁。某项当期为 `0` 也会返回（那一格不该因为没数据就消失），所以不用自己补空位。只有不分页的列表（如月对账单的年份）才由前端在全量数据上自己算 chip。
 
 **chip 就是列表的一个筛选参数**，没有特殊机制：
 
@@ -198,12 +235,14 @@
 - **选 `All` = 不带这个参数**。`All` 不是一个取值。
 - **`All` 那一项由你自己补**，数字 = 其余各项之和。服务端保证 `items` 覆盖该列表不带本维筛选时的全部命中，所以这个和恒等于此时列表的 `total`。
 
-**`label` 是兜底**：有自己的多语言资源就按 `value` 取用，没有（角色名、年份这类）就直接显示它。
+**`label` 是兜底**：有自己的多语言资源就按 `value` 取用，没有（角色名这类）就直接显示它。
 
 **两个别踩的**：
 
 - ⚠️ **counts 端点不收被计维度那个参数**，其余筛选要与列表**传同一组**。切筛选时列表和 counts 一起重发；只重发列表，chip 上的数字就跟列表对不上了。
 - ⚠️ **翻页不必重取 counts**——它按整个命中集算，与 `pageNum` / `pageSize` 无关。
+
+**一页有几个带数字的筛选控件时**（如销售单的状态、核销状态、风险等级），counts 端点一次返回几个数组，键名 = 列表的筛选参数名，每个数组里的项还是 `{ value, label, count }`。这种端点**收齐和列表相同的全部参数**（含被计的那几个维度）；服务端算某一维度时忽略该维度自己的筛选、其余照算，所以每个数字都等于「只把这一项换成选中」之后列表的 `total`。切任一筛选，列表和 counts 一起重发。
 
 ## 幂等
 
@@ -214,52 +253,56 @@
 - **怎么生成**：**一次逻辑操作生成一个键**（如用户点一次「提交」），值取任意不重复字符串（UUID 即可）；**网络失败 / 超时重试时复用同一个键**，这正是幂等键的用途。不要每次请求都新生成（那样重试会变成重复下单），也不要跨不同操作复用。
 - 另有**防重提交**短窗（防双击 / 误触，窗口可配置），独立于业务幂等。
 
-## 文件上传（直传对象存储）
+## 文件上传
 
-**所有上传入口形状一致，前端只需写一个 helper。** 文件字节**不经过本平台 API**，浏览器直接传给对象存储。
+**所有上传入口形状一致，前端只需写一个 helper。** 文件经本平台中转存入对象存储。
 
-**三步**：
+**两步**：
 
-1. **取直传目标** —— `POST <业务前缀>/files/upload-targets`，body 恒为 `{ purpose, fileName, contentType, fileSize }`（**声明值**，不是文件本身）。用途、允许格式与大小上限见该入口 `purpose` 的说明；声明不合规 → `400` 且**不签发目标**。
-2. **提交文件到对象存储** —— `POST` + `multipart/form-data` 到 `action`：把 `fields` 逐项追加，**最后**追加名为 `file` 的文件本体。
+1. **上传** —— `POST <业务前缀>/files`，`multipart/form-data`，字段 `file`（文件本体）+ `purpose`（用途）。返回 `201 { fileId, fileName, fileSize, contentType, previewUrl }`。用途决定允许的格式与大小上限（见 `MerchantFilePurpose` 用途表），前端照表写成常量、选文件时先拦一道（格式放进 `<input accept>`）；最终以服务端为准，不合规 → `400`·`204015`，换一个文件再传。
 
    ```js
    const fd = new FormData()
-   Object.entries(t.fields).forEach(([k, v]) => fd.append(k, v))
-   fd.append('file', file)                        // 必须最后一个
-   let ok = false
-   try { ok = (await fetch(t.action, { method: 'POST', body: fd })).ok } catch { /* 网络 / 跨源被挡：也算没确认 */ }
-   if (!ok) { /* 无法确认成功：不要进第 3 步，重新申请目标 */ }
+   fd.append('purpose', purpose)
+   fd.append('file', file)
+   const r = await api.post(`${prefix}/files`, fd)   // 走统一 client：带会话 cookie 与 X-CSRF-Token
    ```
 
-   这一跳容易写错的地方：
+   ⚠️ **不要手设 `Content-Type`**：`multipart/form-data` 的 `boundary` 由浏览器生成并写进 header，手写后浏览器不再补、服务端解析不出表单。**全局 axios 实例若默认 `application/json`，这个请求要把该 header 删掉**（不是覆盖成 multipart）。
+2. **把 `fileId` 交给业务写操作** —— 上传成功**不等于生效**；`fileId` 随对应的业务写操作提交（保存草稿 / 设置 Logo / 提交结算变更 / 保存设置 / 创建或编辑链接），在那一步文件才归属该业务对象。上传后要立即回显，用响应里的 `previewUrl`。
 
-   - ⚠️ **不要手设 `Content-Type`**。`multipart/form-data` 必须带 `boundary` 才能解析，而 `boundary` 是提交 `FormData` 时由浏览器生成并写进 header 的；一旦手写 `Content-Type: 'multipart/form-data'`，浏览器就**不再补 `boundary`**，存储端拿到没有分隔符的 body、整个表单解析不出来。**全局 axios 实例若默认 `application/json`，这个请求要把该 header 删掉**（不是覆盖成 multipart）。
-   - **`fields` 不得增删或改写**，`file` 必须是最后一个字段（其后的字段会被存储端忽略）。
-   - **判据是「有没有确认到 2xx」，不是「成功还是失败」**。不要只判具体状态码（存储端可能返 `204` 也可能 `201`），也不能只判 `r.ok` —— `fetch` 还会**直接 reject**（网络断开、响应被跨源策略挡住），那时你连状态码都拿不到。**两种情况都算「没确认」**，处理方式相同：不进第 3 步、重新申请目标。
-   - ⚠️ **「没确认」不等于「没传上去」**。这个 POST 不走预检，浏览器是**先把请求发出去**、拿到响应后才判跨源是否放行；被挡住时对象**可能已经存进去了**，只是你读不到响应。所以别把它当成「一定失败」去做补偿逻辑——**平台侧允许这种没被引用的对象存在**，你只管重新申请目标、拿新 `fileId` 走一遍。真正判定文件在不在，是第 3 步由服务端做的。
-   - **失败响应不是本平台的 `ErrorEnvelope`**，是存储端自己的格式——**别交给统一错误 interceptor**，也不必解析它。另外这是**跨源请求，不要带 credentials**（`fetch` 跨源默认不带；axios 全局 `withCredentials: true` 会带，会撞 CORS）。
-3. **把 `fileId` 交回业务接口** —— 直传成功**不等于生效**；`fileId` 要随对应的业务写操作提交（保存草稿 / 使 Logo 生效 / 创建变更请求 / 保存设置 / 创建或编辑链接），**在那一步文件才正式归属该业务对象**。未完成这一步的文件**不会出现在业务读接口里、也不能跨会话取用**；当前会话要预览，用本地选中的文件渲染。
+上传非幂等：每次上传产生新 `fileId`，重试即重新上传。上传后从未被引用的文件由服务端到期清理，前端不用管。
 
-**目标是限时且一次性的**（`expiresAt` 给出失效时刻）。用户选好文件后放置较久、或要传大文件时，可据此提前换一个新目标，不必等失败再回退。**提交失败不要向原目标重试**——重新申请会得到**新的 `fileId`**，后续业务提交须改用新引用。
+**读回来时**：具体字段以各端点 schema 为准，命名有两类——`*Ref` / `*FileId` 是**引用**（可写，提交时用），`*Url` / `*previewUrl` 是**可渲染地址**（`readOnly`，只出不入，不要提交、不要持久化）。**响应同时给出两者时**：不换文件就**不传该引用**（未出现的字段保持原值，见「更新语义」），换文件传新 `fileId`，移除传 `null`；只给地址的响应直接渲染即可。地址分两类：**长效稳定的公开地址**可直接放进页面；**短时效地址**过期即失效，重新读取所在资源即可拿到新的。哪个用途属于哪类，见该入口 `purpose` 的说明。
 
-**第 3 步的两种失败必须分开处理**（这是最容易写错的地方）：
+## 验证码、微信扫码、文件下载
 
-| 响应 | 含义 | 前端动作 |
-|---|---|---|
-| `400`（`204014` `FILE_NOT_IN_PLACE`） | 文件**确定未就位**（第 2 步没成功 / 被存储端拒收）——**终态** | 重走第 1、2 步取**新 `fileId`**，再以新引用提交。**不要**原样重试 |
-| `502` / `504` | **暂时判不出**是否就位 | **不必重传文件**，用**原请求原样重试** |
+这三种交互在多个页面出现，各处入口分开、形状相同，各写一个 helper 即可。
 
-⚠️ **与幂等键的联动**：换了 `fileId` 就是换了请求体，若该业务接口带 `Idempotency-Key`，**必须同时换一个新键**——沿用旧键提交新内容会撞 `409`（`208005`）。
+**验证码**
 
-**读回来时**：具体字段以各端点 schema 为准，命名有两类——`*Ref` / `*FileId` 是**引用**（可写，提交时用），`*Url` / `*previewUrl` 是**可渲染地址**（`readOnly`，只出不入，不要提交、不要持久化）。**响应同时给出两者时**：不换文件就**不传该引用**（未出现的字段保持原值，见「更新语义」），换文件传新 `fileId`，移除传 `null`；只给地址的响应（如使 Logo 生效后回显）直接渲染即可。地址分两类：**长效稳定的公开地址**可直接放进页面；**短时效地址**过期即失效，重新读取所在资源即可拿到新的。哪个用途属于哪类，见该入口 `purpose` 的说明。
+- 发码接口返回 `{ challengeId, deliveredTo, cooldownSeconds, expiresAt }`。重发 = 冷却结束后再调一次发码接口，拿到新的 `challengeId`，旧码作废。
+- 发码与提交是两个接口、码随业务内容一起提交的，请求体里都是 `otp: { challengeId, code }`。
+- `challengeId` 在路径里的（找回密码、忘记退款 PIN、改登录邮箱），请求体里码的键是 `code`。
+- 不暴露账号是否存在的入口（找回密码、注册、重发验证邮件）不返回 `deliveredTo` 与 `expiresAt`，冷却秒数同样叫 `cooldownSeconds`。
+- 失败码见「怎么读 `code`」里一次性挑战那张表。
+
+**微信扫码**
+
+- 发起返回 `{ qrTicket, qrContent, expiresAt }`：用 `qrContent` 自己渲染二维码，拿 `qrTicket` 轮询该入口的结果接口。
+- 轮询恒返回 `200 { status }`：`WAITING` 继续轮询，`EXPIRED` 重新发起；成功态登录是 `ESTABLISHED`，绑定是 `BOUND`。没见过的取值按 `WAITING` 处理。
+
+**文件下载（xlsx / PDF）**
+
+- 导出接口的筛选、搜索、排序参数与对应的列表接口相同，导出的是命中的全部行，不只是当前页。
+- 文件语言按 `Accept-Language`，实际用的语言在响应头 `Content-Language`；文件名在 `Content-Disposition`。
 
 ## 时间 / 金额 / 币种
 
 - **时间戳**（spec 内的 `Timestamp`）：**响应**一律 UTC `Z`（如 `2026-05-19T14:30:00Z`）；**请求 / query 入参**接受任意合法 offset、服务端归一 UTC。**显示时按浏览器时区换算**（就是通常那样 `new Date(...)` 后本地化）。
-- **日期**（spec 内的 `LocalDate`）：`YYYY-MM-DD`、**不带时区**，**按字面收发** —— 直接当字符串显示，**别塞进 `Date`**（负偏移时区会显示成前一天）。它是服务端已经算好并固化下来的一个日期字段，不是从哪个时间戳现截的。
+- **日期**（spec 内的 `LocalDate`）：`YYYY-MM-DD`、**不带时区**，**按字面收发** —— 直接当字符串显示，**别塞进 `Date`**（负偏移时区会显示成前一天）。
   日期区间一律 `from` / `to`（**闭区间、含当日**），`to < from` → `400`；是否必填、有无跨度上限看该端点。
-- ⚠️ **两者互不对应，别互相校验**：同一条记录的时间戳按你本地时区截出的年月日，与它的日期字段可以是不同的两天（日期在服务端按商户所在时区固化，与看它的人在哪儿无关）。按日期筛出来的结果，时间戳看着「不在那天」不是 bug。
+- ⚠️ **时刻按浏览器时区显示，日期按字面显示，两者不要互相换算**。按日期筛出来的行，时刻列显示的日子可能差一天，不是 bug。
 - **金额**：**字符串**类型（避免 JSON Number 精度丢失）；默认最小货币单位的整数字符串（如「分」），scale 由币种 ISO 精度解释（CAD / USD 2 位、JPY 0 位）；接口若用十进制金额字符串（如 `"10.00"`）会在该接口契约显式声明。
 - **币种**：ISO 4217 三字母码（`CAD` / `CNY` / `USD`…）。
 
@@ -272,8 +315,10 @@
 <script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
 document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
 mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
-mermaid.run({querySelector:'.mermaid'});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
 </script>
 </body></html>

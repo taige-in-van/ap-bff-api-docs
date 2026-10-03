@@ -3,6 +3,7 @@
 前端消费的 BFF REST 契约,按 **consumer / module** 两级分目录(如 `merchant/auth/`)。
 
 - 浏览:根 `index.html`(gh-pages 根)或各模块 `<consumer>/<module>/index.html`(ReDoc)。
+- 调用时序:`<consumer>/flows/<NN-name>.html`,按页面组织(每个页面先调谁、后调谁),一份会用到几个模块的接口;先读。
 - codegen / Postman:各模块 `<consumer>/<module>/openapi.yaml`(自包含 OpenAPI 3.1)。
 
 ## ⚠️ 阶段

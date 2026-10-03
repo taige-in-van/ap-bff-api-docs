@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>资料与成员 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 资料与成员 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Business Profile | 侧边栏 Account › Business Profile | [页面：Business Profile](#页面：Business%20Profile) |
+| Users | 侧边栏 Account › Users | [页面：Users](#页面：Users)；[页面：Users · Bind WeChat 弹窗](#页面：Users%20·%20Bind%20WeChat%20弹窗) |
+| My Profile | 头像菜单 My Profile | [页面：My Profile](#页面：My%20Profile)；[页面：My Profile · 改登录邮箱 弹窗](#页面：My%20Profile%20·%20改登录邮箱%20弹窗)（Business Profile 的 Contact 卡也能打开） |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getAccountProfile`](../account/index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | 读 Business Profile（Business Information / Settlement / Contact / Documents） |
+| 2 | [`listIndustryOptions`](../system/index.html#tag/config/operation/listIndustryOptions) | `GET /config/industries` | 行业大类及其 MCC（带三语 `label`） |
+| 3 | [`listCountryOptions`](../system/index.html#tag/config/operation/listCountryOptions) | `GET /config/countries` | 国家及其省州（省州带三语 `label`） |
+| 4 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额，Business Profile 取其中的 Refund Reserve |
+| 5 | [`uploadLogoFile`](../account/index.html#tag/profile/operation/uploadLogoFile) | `POST /account/profile/files` | 上传 Logo 文件 |
+| 6 | [`updateLogo`](../account/index.html#tag/profile/operation/updateLogo) | `PUT /account/profile/logo` | 把已上传的文件设为 Logo（即时生效） |
+| 7 | [`deleteLogo`](../account/index.html#tag/profile/operation/deleteLogo) | `DELETE /account/profile/logo` | 移除 Logo（回到默认首字母图标） |
+| 8 | [`updateBusinessInformation`](../account/index.html#tag/profile/operation/updateBusinessInformation) | `PUT /account/profile/business` | 编辑 Business Information 的可编辑字段（直接生效） |
+| 9 | [`getSettlementConfig`](../system/index.html#tag/config/operation/getSettlementConfig) | `GET /config/settlement` | 结算周期与各币种允许的银行账户制式 |
+| 10 | [`uploadSettlementVoidChequeFile`](../account/index.html#tag/profile/operation/uploadSettlementVoidChequeFile) | `POST /account/profile/settlement/files` | 上传 Void Cheque（改银行字段时） |
+| 11 | [`requestSettlementOtp`](../account/index.html#tag/profile/operation/requestSettlementOtp) | `POST /account/profile/settlement/otp-challenges` | 结算变更第 1 步：发码到 Owner 邮箱 |
+| 12 | [`createSettlementChangeRequest`](../account/index.html#tag/profile/operation/createSettlementChangeRequest) | `POST /account/profile/settlement/change-requests` | 结算变更第 2 步：带码提交（进入审核，旧值继续生效） |
+| 13 | [`updateOwnerContact`](../account/index.html#tag/profile/operation/updateOwnerContact) | `PUT /account/profile/contact` | 编辑联系人（名、姓、职务、电话，直接生效） |
+| 14 | [`listTeamMembers`](../team/index.html#tag/members/operation/listTeamMembers) | `GET /team/members` | 团队成员列表 |
+| 15 | [`getTeamMemberCounts`](../team/index.html#tag/members/operation/getTeamMemberCounts) | `GET /team/members/counts` | 成员列表角色 chip 的各项与计数(不收 roleId；取法见公共约定「列表页顶部的快捷筛选」) |
+| 16 | [`listAssignableRoles`](../team/index.html#tag/roles/operation/listAssignableRoles) | `GET /team/roles` | 可分配角色候选集(含各角色可见分区) |
+| 17 | [`createTeamMember`](../team/index.html#tag/members/operation/createTeamMember) | `POST /team/members` | 新建员工(邮箱格式 → 发邀请链接、账号 `INVITED`；用户名格式 → Owner 直接设临时密码、账号即 `ACTIVE`) |
+| 18 | [`resendInvitation`](../team/index.html#tag/members/operation/resendInvitation) | `POST /team/members/{operatorId}/invitation` | 给邀请中的员工重发邀请 |
+| 19 | [`updateTeamMember`](../team/index.html#tag/members/operation/updateTeamMember) | `PUT /team/members/{operatorId}` | 编辑员工(一次提交同步生效；改已激活员工邮箱走确认链接) |
+| 20 | [`deleteTeamMember`](../team/index.html#tag/members/operation/deleteTeamMember) | `DELETE /team/members/{operatorId}` | 删除员工(软删，可用同登录名再新建) |
+| 21 | [`deleteMemberWechatBinding`](../team/index.html#tag/members/operation/deleteMemberWechatBinding) | `DELETE /team/members/{operatorId}/wechat` | 代成员解绑 WeChat(仅停用该成员的商户后台 WeChat 登录) |
+| 22 | [`initiateMemberWechatBinding`](../team/index.html#tag/members/operation/initiateMemberWechatBinding) | `POST /team/members/{operatorId}/wechat` | 代成员绑 WeChat 发起(返回二维码) |
+| 23 | [`pollMemberWechatBinding`](../team/index.html#tag/members/operation/pollMemberWechatBinding) | `GET /team/members/{operatorId}/wechat/{qrTicket}` | 绑定结果轮询(异设备回告发起端) |
+| 24 | [`updateMyProfile`](../me/index.html#tag/profile/operation/updateMyProfile) | `PUT /me` | 改自己的昵称、界面语言 |
+| 25 | [`getCurrentSession`](../auth/index.html#tag/sessions/operation/getCurrentSession) | `GET /auth/sessions/current` | 当前会话，改完资料后刷新头像菜单与身份栏 |
+| 26 | [`changeMyPassword`](../me/index.html#tag/security/operation/changeMyPassword) | `PUT /me/security/password` | 登录态改密(当前密码校验) |
+| 27 | [`requestLoginEmailChange`](../me/index.html#tag/email/operation/requestLoginEmailChange) | `POST /me/email/changes` | 改登录邮箱发起(返回身份校验方式) |
+| 28 | [`verifyLoginEmailChangeIdentity`](../me/index.html#tag/email/operation/verifyLoginEmailChangeIdentity) | `POST /me/email/changes/{challengeId}/identity` | 改邮箱第 1 步:身份校验 |
+| 29 | [`submitNewLoginEmail`](../me/index.html#tag/email/operation/submitNewLoginEmail) | `POST /me/email/changes/{challengeId}/address` | 改邮箱第 2 步:提交新邮箱 |
+| 30 | [`confirmLoginEmailChange`](../me/index.html#tag/email/operation/confirmLoginEmailChange) | `POST /me/email/changes/{challengeId}/confirmation` | 改邮箱第 3 步:确认(新邮箱的码;一次性、非幂等) |
+| 31 | [`resendLoginEmailChangeCode`](../me/index.html#tag/email/operation/resendLoginEmailChangeCode) | `POST /me/email/changes/{challengeId}/code` | 改邮箱重发当前这一步的码 |
+| 32 | [`getMySecurity`](../me/index.html#tag/security/operation/getMySecurity) | `GET /me/security` | 用户名账号点「Forgot your password?」时看 MFA 开没开 |
+
+---
+
+## 页面：Business Profile
+
+侧边栏 Account › Business Profile。头卡（Logo、Trade Name、Legal Business Name、行业 • MCC、Merchant ID）+ 四张卡：Business Information、Settlement（下方是 Refund Reserved）、Contact Information、Documents。前三张各有 Edit，Documents 只读。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Business Profile(SPA)
+    participant A as 商户后台 BFF
+    participant E as Owner 邮箱
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;1 [getAccountProfile]<br/>GET /account/profile
+        A-->>S: 200 { merchantCode, logoUrl, businessInformation,<br/>settlement, contactInformation, documents }
+    and
+        S->>A: #35;2 [listIndustryOptions]<br/>GET /config/industries
+        A-->>S: 200 { items }
+    and
+        S->>A: #35;3 [listCountryOptions]<br/>GET /config/countries
+        A-->>S: 200 { items }
+    and
+        S->>A: #35;4 [getBalance]<br/>GET /funds/balance
+        A-->>S: 200 { refundReserve, ... }
+    and
+        S->>A: #35;9 [getSettlementConfig]<br/>GET /config/settlement
+        A-->>S: 200 { settlementCycleOptions, bankAccountTypes }
+    end
+    S->>S: 行业、MCC、省州、结算周期按码取 label 显示
+
+    Note over U,A: 换 Logo（头卡上点更换）
+    U->>S: 选一张图片<br/>（前端先拦格式与大小）
+    S->>A: #35;5 [uploadLogoFile]<br/>POST /account/profile/files
+    A-->>S: 201 { fileId, previewUrl }
+    S->>A: #35;6 [updateLogo]<br/>PUT /account/profile/logo
+    A-->>S: 204（头卡换成 previewUrl）
+
+    Note over U,A: 移除 Logo
+    U->>S: 点移除
+    S->>A: #35;7 [deleteLogo]<br/>DELETE /account/profile/logo
+    A-->>S: 204（回到首字母图标）
+
+    Note over U,A: 编辑 Business Information
+    U->>S: 点 Edit，改完点 Save
+    S->>A: #35;8 [updateBusinessInformation]<br/>PUT /account/profile/business
+    A-->>S: 204
+
+    Note over U,E: 编辑 Settlement（弹窗：Void Cheque → 验证码）
+    U->>S: 点 Edit（候选用进页时 #35;9 取的）
+    U->>S: 改完点 Save<br/>改了银行字段才选 Void Cheque
+    S->>A: #35;10 [uploadSettlementVoidChequeFile]<br/>POST /account/profile/settlement/files
+    A-->>S: 201 { fileId }
+    S->>A: #35;11 [requestSettlementOtp]<br/>POST /account/profile/settlement/otp-challenges
+    A->>E: 发 6 位码
+    A-->>S: 202 { challengeId, deliveredTo, cooldownSeconds }
+    U->>S: 输码，点 Submit
+    S->>A: #35;12 [createSettlementChangeRequest]<br/>POST /account/profile/settlement/change-requests
+    A-->>S: 204（进入审核，旧值继续生效）
+    S->>A: #35;1 [getAccountProfile]<br/>GET /account/profile
+    A-->>S: 200（settlement.pendingReview = true）
+
+    Note over U,A: 编辑 Contact Information
+    U->>S: 点 Edit，改完点 Save
+    S->>A: #35;13 [updateOwnerContact]<br/>PUT /account/profile/contact
+    A-->>S: 204
+
+    Note over U,A: 改邮箱（Contact 卡邮箱旁的 Change）：见「页面：My Profile · 改登录邮箱 弹窗」，完成后重调 #35;1
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 上传的文件格式或大小不合规 | `400`·`204015` | 提示换一个文件 |
+| 省州 / 邮编 / 时区 / 电话不合规 | `400`（`details` 指到字段） | 字段红框 |
+| 改时区与已出账的历史数据冲突 | `409`·`208016` | 提示暂时不能改时区；整次保存都没生效，其他字段也要重提 |
+| 验证码错 | `400`·`204010` | 留在弹窗重输，剩余次数见 `context.attemptsRemaining`；重输后提交换新的 `Idempotency-Key`（只有同一次提交的网络重试才复用原键） |
+| 验证码错到上限 / 过期或已用 | `423`·`206007` / `410`·`206006` | 回第 1 步重新发码 |
+| 重发太快 | `429`·`208013` | 等倒计时 |
+| 已有审核中的结算变更 | `409`·`208002` | 重新调 #1，卡片显示审核中 |
+| 结算周期不在候选内 | `400`·`204017` | 重新调 #9 让用户重选，不要回落到第一项 |
+
+- 只改 Store ID / 结算周期时跳过 #10。
+- 字段名与取值和入驻申请对应步骤一致，展示和编辑表单可与入驻向导共用。锁定字段（见 `BusinessInformationView`）只读显示，需修改时联系客服。没有 `logoUrl` 时头卡显示默认首字母图标。
+- Business Information 里的商户语言 `language` 可改、立即生效，决定之后发给商户的通知（邮件、微信、站内信）与之后出具的月对账单的语言，已发出、已出具的不变；它不是界面语言，界面语言是每个账号自己的偏好（见 [flows 03-shell-dashboard「页面：顶栏 · 语言切换 区块」](03-shell-dashboard.html#页面：顶栏%20·%20语言切换%20区块)）。
+- 三张卡的 Edit：Business Information 与 Settlement 按各自保存接口的权限点显示；Contact Information 是 Owner 专属（接口标 `owner`），按 `isOwner` 显示。结算变更的验证码发到 Owner 邮箱，不是 Owner 本人发起时要向 Owner 要码。
+- Settlement 卡的 Legal Business Name 回显 Business Information 的值；Store ID 取 `settlement.storeId`，没有该键就不显示这一行；`pendingReview` 为真时隐藏 Edit、显示审核中提示。编辑弹窗按 `bankAccount.type` 渲染对应表单，账号框用 `accountNumberMasked` 作提示、要重新输入；结算周期初始选中已保存的值，没有才选第一项。
+- 输错码重输要换新的 `Idempotency-Key`，也不会重复建变更：同一商户最多一个审核中的变更，先前那次若其实已成功，重提会得到 `409`·`208002` 或 `410`·`206006`，重调 #1 即可看到审核中。
+- Contact 卡邮箱旁的 Change 仅在当前登录者的 `loginId` 等于 `contactInformation.email` 时显示，流程见「页面：My Profile · 改登录邮箱 弹窗」。
+- Documents 只读，缩略图用 `previewUrl`，图片还是文件按文件名后缀判断，没上传的必传项显示占位。
+- Refund Reserved 区块的 Top Up / Withdraw 两个弹窗见 [flows 05-settlement-statement](05-settlement-statement.html)；本页只读 #4 的 `refundReserve`。
+
+---
+
+## 页面：Users
+
+侧边栏 Account › Users，管理当前商户的登录用户（入口与各按钮按接口的权限点显示）。列表：昵称 + 登录名、角色、微信、最近登录（邀请中显示 Invited + Resend）、创建时间、编辑 / 删除；顶部角色快捷筛选 + 搜索。Owner 行置顶，不能删、角色不能改。
+
+```mermaid
+sequenceDiagram
+    actor U as Owner
+    participant S as Users(SPA)
+    participant A as 商户后台 BFF
+    participant E as 员工邮箱
+
+    U->>S: 打开页面
+    par 并行
+        S->>A: #35;14 [listTeamMembers]<br/>GET /team/members?sortField=createdAt&sortOrder=descend&pageNum=1
+        A-->>S: 200 { total, data: [TeamMember] }
+    and
+        S->>A: #35;15 [getTeamMemberCounts]<br/>GET /team/members/counts
+        A-->>S: 200 { items }（角色 chip，前端自己补 All）
+    and
+        S->>A: #35;16 [listAssignableRoles]<br/>GET /team/roles
+        A-->>S: 200 { items }（新建 / 编辑弹窗的角色与可见分区选项）
+    end
+    Note over S,A: 切 chip / 搜索 / 排序 / 翻页：重新调 #35;14（chip 带 roleId），搜索时 #35;15 同步带 keyword
+
+    Note over U,E: 新建员工（弹窗：Email / Username 两个页签）
+    U->>S: 填昵称、登录名、角色、可见分区；用户名页签另填初始密码
+    S->>A: #35;17 [createTeamMember]<br/>POST /team/members
+    alt 邮箱登录名
+        A->>E: 发邀请设密链接
+        A-->>S: 201 { operatorId, status: INVITED }
+    else 用户名登录名
+        A-->>S: 201 { operatorId, status: ACTIVE }
+    end
+
+    Note over U,E: 邀请中的员工：Resend
+    S->>A: #35;18 [resendInvitation]<br/>POST /team/members/{operatorId}/invitation
+    A->>E: 发新邀请链接，旧链接作废
+    A-->>S: 202 { cooldownSeconds }
+
+    Note over U,E: 编辑员工
+    U->>S: 改昵称 / 角色 / 可见分区 / 登录名；已激活的员工可填新密码
+    S->>A: #35;19 [updateTeamMember]<br/>PUT /team/members/{operatorId}
+    opt 改了已激活员工的登录邮箱
+        A->>E: 向新邮箱发确认链接（员工确认后才切换，见 flows 01-login-registration「页面：确认新登录邮箱」）
+    end
+    A-->>S: 204
+
+    Note over U,A: 删除员工（确认弹窗）
+    S->>A: #35;20 [deleteTeamMember]<br/>DELETE /team/members/{operatorId}
+    A-->>S: 204（该员工全部会话失效）
+
+    Note over U,A: 微信列：未绑定点二维码图标 → 绑定弹窗（见下一节）；已绑定点昵称旁的 × 直接解绑
+    S->>A: #35;21 [deleteMemberWechatBinding]<br/>DELETE /team/members/{operatorId}/wechat
+    A-->>S: 204（该成员不能再用微信登录商户后台，当前会话不受影响）
+
+    Note over S,A: 写操作成功后重新调 #35;14、#35;15 刷新列表与计数
+```
+
+- 角色 chip 按「列表页顶部的快捷筛选」约定：选中某项 = 把它的 `value` 原样作为 `roleId` 传给 `#14`；选 All = 不带 `roleId`，数字由前端把各项相加；`#15` 不收 `roleId`、只随搜索重取，翻页不重取。
+- 角色的权限边界：#16 只返回操作者能分配的角色（权限不超过自己的）。列表里角色不在这个候选集内的成员（权限比自己宽的），不显示编辑、删除、重发、微信绑定 / 解绑入口；权限刚变动的时序差里收到 `403`·`206013`，重拉 #16 与列表。
+- 员工归属建他的商户：在主商户建的能切换到名下的关联商户，在关联商户建的只在本商户；本页列的是当前商户自己的员工。新建时登录名已被别的账号占用 → `409`·`968001`。
+- 改了已激活员工的登录邮箱，员工确认前列表该行显示 `pendingLoginEmail`（切换规则见 `updateTeamMember`）。
+- 邀请中的员工不能在这里设密，走 Resend。
+- 可见分区的复选框文案由前端按 `#16` 给的模块标识取多语言资源（与侧边栏菜单同一套）；不认识的标识显示标识本身。
+- 被运营停用的员工在列表显示 `DISABLED`、只读；`lastLoginAt` 缺席显示「从未登录」。删除后用同一登录名再新建的规则见 `createTeamMember`。
+- 绑定微信（弹窗里扫码 + 轮询）见下一节；解绑在列表行的微信列上，点了直接生效。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 谁能进 Users 页 | 只有 Owner（路由守卫与侧边栏都按角色写死） | 按接口的权限点，Owner 之外的角色也可以被授权 | 现网 Manager 就能管员工；demo 的 Admin 描述文案也写「可管理用户」，与它的代码矛盾，取能放开的一边 |
+| 员工能进的商户 | 一个人只在一个商户 | 主商户的员工可切换到名下全部关联商户，角色随人走；关联商户的员工只在本商户 | 现网父商户的账号就是这样进子商户的 |
+
+---
+
+## 页面：Users · Bind WeChat 弹窗
+
+在 Users 列表的微信列，未绑定的成员（含 Owner 自己）旁边有二维码图标，点开这个弹窗：显示二维码和「等待扫码确认」，被绑定的成员用自己手机上的微信扫码确认。Owner 在电脑上发起、成员在手机上确认，所以弹窗只能靠轮询拿结果。
+
+```mermaid
+sequenceDiagram
+    actor O as Owner
+    participant S as 绑定微信弹窗(SPA)
+    participant A as 商户后台 BFF
+    actor M as 成员（手机微信）
+
+    O->>S: 在成员的微信列点二维码图标
+    S->>A: #35;22 [initiateMemberWechatBinding]<br/>POST /team/members/{operatorId}/wechat
+    A-->>S: 200 { qrTicket, qrContent, expiresAt }
+    S->>S: 用 qrContent 渲染二维码
+    O->>M: 让成员扫码（当面或转发）
+    par 成员在手机上
+        M->>M: 微信扫码，在微信里确认绑定
+    and 弹窗轮询
+        loop 直到不是 WAITING
+            S->>A: #35;23 [pollMemberWechatBinding]<br/>GET /team/members/{operatorId}/wechat/{qrTicket}
+            A-->>S: 200 { status: WAITING / BOUND / EXPIRED }
+        end
+    end
+    Note over S,A: BOUND：关弹窗，重调 #35;14 刷新列表<br/>EXPIRED：提示后可重新调 #35;22 换码再来，同时重调 #35;14
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 该成员已绑定微信 | `409`·`968003` | 关弹窗，重调 #14 刷新列表 |
+| 二维码过期 | `200 { status: EXPIRED }` | 提示过期，可重新发起；重调 #14 刷新列表 |
+| 重新发起时成员已被删除 | #22 `403` | 关弹窗，重调 #14 |
+
+- 成员扫码后没绑成的（被拦下、在微信里取消、确认时成员已被删除或停用、同一微信被别人抢先绑定），弹窗一直显示等待直到过期，原因只在成员自己的微信里说明：二维码可能被转发，看弹窗的人未必是被绑定的本人。
+- 弹窗结束时重调 #14：成员确认得晚、结果没赶上轮询的，绑定照样成立，刷新后能看到；成员被删除或停用的，列表里也看得到。
+- 绑定成功即该成员能在商户后台扫码登录，列表里 `wechatBound` 为真。解绑在 Users 列表上（#21），只停用他在商户后台的微信登录，不影响他在别处的微信绑定。
+- 与扫码登录同一套形状（`WechatQrChallenge` + `WechatPollStatus`），前端可共用一个「展示二维码 + 轮询」组件，只按状态分支，不必为票据本身有问题另开一路。
+
+---
+
+## 页面：My Profile
+
+头像菜单「My Profile」进入，全员可用。三块：身份栏（昵称、角色、登录名）、Personal Information（改昵称；邮箱账号可点 Change 改登录邮箱，用户名账号只读）、Change Password（含「Forgot your password?」）。进入页面不调接口：展示数据都来自启动链路已取的 `getCurrentSession`。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as My Profile(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面（不调接口，用 getCurrentSession 的 displayName / roleName / loginId）
+
+    Note over U,A: 改昵称
+    U->>S: 改 Nick Name，点 Save Changes
+    S->>A: #35;24 [updateMyProfile]<br/>PUT /me
+    A-->>S: 204
+    S->>A: #35;25 [getCurrentSession]<br/>GET /auth/sessions/current（刷新头像菜单与身份栏）
+    A-->>S: 200
+
+    Note over U,A: 改登录邮箱（仅邮箱账号，点 Change）：见「页面：My Profile · 改登录邮箱 弹窗」
+
+    Note over U,A: 改密码
+    U->>S: 输当前密码 + 新密码 + 确认密码（前端校验 5 条规则和两次一致），点 Update Password
+    S->>A: #35;26 [changeMyPassword]<br/>PUT /me/security/password
+    A-->>S: 204（其他会话失效，当前会话保留）
+```
+
+- 改密码时当前密码错 `403`·`206011`，留在表单重输，不跳登录页。「Forgot your password?」走 [flows 01-login-registration「页面：Forgot Password」](01-login-registration.html#页面：Forgot%20Password)的两个接口（`requestPasswordReset`、`confirmPasswordReset`），在弹窗里完成：邮箱账号（`loginId` 含 `@`）点 Send code 发邮箱码；用户名账号先调 #32，`mfaEnabled` 为真就直接输验证器码，为假则不能自助重置，提示找 Owner 在成员管理里重设。重置成功后该用户所有会话失效，含当前这个，回登录页。Security 页改密表单里的同名入口与此同一个弹窗。
+
+---
+
+## 页面：My Profile · 改登录邮箱 弹窗
+
+两个入口：My Profile 的 Personal Information 里点 Change（仅邮箱账号，用户名账号只读）；Business Profile 的 Contact 卡邮箱旁点 Change（仅当登录者就是 Owner 本人，改的是同一个值）。弹窗三步：验身份 → 填新邮箱 → 输新邮箱的码。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 改登录邮箱弹窗(SPA)
+    participant A as 商户后台 BFF
+    participant EO as 旧邮箱
+    participant EN as 新邮箱
+
+    U->>S: 点 Change
+    S->>A: #35;27 [requestLoginEmailChange]<br/>POST /me/email/changes
+    A-->>S: 201 { challengeId, identityVerification: MFA_TOTP / OLD_EMAIL_OTP }
+    opt OLD_EMAIL_OTP
+        A->>EO: 发 6 位码
+    end
+    U->>S: 第 1 步：输验证器码或旧邮箱的码
+    S->>A: #35;28 [verifyLoginEmailChangeIdentity]<br/>POST /me/email/changes/{challengeId}/identity
+    A-->>S: 204
+    U->>S: 第 2 步：输新邮箱
+    S->>A: #35;29 [submitNewLoginEmail]<br/>POST /me/email/changes/{challengeId}/address
+    A->>EN: 发 6 位码
+    A-->>S: 202 { otpDelivery }
+    U->>S: 第 3 步：输新邮箱的码
+    S->>A: #35;30 [confirmLoginEmailChange]<br/>POST /me/email/changes/{challengeId}/confirmation
+    A->>EO: 安全通知：登录邮箱已改
+    A-->>S: 204（登录邮箱已更新，会话不受影响）
+    S->>A: #35;25 [getCurrentSession]<br/>GET /auth/sessions/current（刷新登录名）
+    A-->>S: 200
+    Note over S,A: 旧邮箱或新邮箱的码没收到：冷却结束后<br/>#35;31 [resendLoginEmailChangeCode]<br/>POST /me/email/changes/{challengeId}/code，重发当前这一步的码
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 验证器码错（第 1 步） | `403`·`206011` | 留在弹窗重输 |
+| 邮箱码错、还有次数（第 1 步旧邮箱码 / 第 3 步新邮箱码） | `400`·`204010` | 留在弹窗重输，剩余次数见 `context.attemptsRemaining` |
+| 邮箱码错到上限 | `423`·`206007` | 回第 1 步重新发起 |
+| 这次改邮箱已过期、已完成，或被新发起的顶掉 | `410`·`206006` | 回第 1 步重新发起 |
+| 新邮箱已被别人使用（第 2 步提交时，或第 3 步确认时被别人抢先） | `409`·`968001` | 回第 2 步换一个邮箱 |
+| 重发太快 | `429`·`208013` | 等倒计时 |
+
+- 从 Business Profile 进来的，完成后再重调 #1 刷新 Contact 卡。
+- 旧邮箱码（#27 返回 `OLD_EMAIL_OTP` 时）与新邮箱码（#29）都按响应里的 `otpDelivery` 显示「码已发到 x***」和重发倒计时。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

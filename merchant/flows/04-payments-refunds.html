@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>订单与退款 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 订单与退款 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。本文另有两条前提：读接口后端查询超时 → `504`（整份失败、不返半截数据，前端展示「暂不可用」）；支付方式、来源、产品形态、状态在接口里都是码，展示名与图标由前端按码取，这几项都是固定枚举，筛选项不另取候选。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Payments | 侧边栏 Order › Payment | [页面：Payments](#页面：Payments)；[页面：Payments · Payment detail 弹窗](#页面：Payments%20·%20Payment%20detail%20弹窗)；[页面：Payments · Refund payment 弹窗](#页面：Payments%20·%20Refund%20payment%20弹窗) |
+| Refunds | 侧边栏 Order › Refund | [页面：Refunds](#页面：Refunds)；[页面：Refunds · Refund detail 弹窗](#页面：Refunds%20·%20Refund%20detail%20弹窗) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listPayments`](../orders/index.html#tag/payments/operation/listPayments) | `GET /orders/payments` | 支付订单列表（分页） |
+| 2 | [`getPaymentSummary`](../orders/index.html#tag/payments/operation/getPaymentSummary) | `GET /orders/payments/summary` | 页头汇总卡（随筛选） |
+| 3 | [`getPaymentCounts`](../orders/index.html#tag/payments/operation/getPaymentCounts) | `GET /orders/payments/counts` | 状态 chip 的各项与计数 |
+| 4 | [`exportPayments`](../orders/index.html#tag/payments/operation/exportPayments) | `GET /orders/payments/export` | 导出当前筛选下的全部订单（xlsx） |
+| 5 | [`getPayment`](../orders/index.html#tag/payments/operation/getPayment) | `GET /orders/payments/{orderId}` | 订单详情（含关联退款、可退额、回调与换汇信息） |
+| 6 | [`getPaymentReceipt`](../orders/index.html#tag/payments/operation/getPaymentReceipt) | `GET /orders/payments/{orderId}/receipt` | 支付收据 PDF |
+| 7 | [`releasePreAuth`](../orders/index.html#tag/payments/operation/releasePreAuth) | `POST /orders/payments/{orderId}/preauth-completion` | 预授权完成（Release） |
+| 8 | [`createRefund`](../orders/index.html#tag/payments/operation/createRefund) | `POST /orders/payments/{orderId}/refunds` | 发起退款（全额或部分，凭 Refund PIN） |
+| 9 | [`requestRefundPinReset`](../account/index.html#tag/refund-pin/operation/requestRefundPinReset) | `POST /account/refund-pin/resets` | 忘记 PIN 第 1 步：发码到 Owner 邮箱 |
+| 10 | [`confirmRefundPinReset`](../account/index.html#tag/refund-pin/operation/confirmRefundPinReset) | `POST /account/refund-pin/resets/{challengeId}/confirmation` | 忘记 PIN 第 2 步：验证码 + 新 PIN |
+| 11 | [`listRefunds`](../orders/index.html#tag/refunds/operation/listRefunds) | `GET /orders/refunds` | 退款列表（分页） |
+| 12 | [`getRefundCounts`](../orders/index.html#tag/refunds/operation/getRefundCounts) | `GET /orders/refunds/counts` | 退款状态 chip 的各项与计数 |
+| 13 | [`exportRefunds`](../orders/index.html#tag/refunds/operation/exportRefunds) | `GET /orders/refunds/export` | 导出当前筛选下的全部退款（xlsx） |
+| 14 | [`getRefund`](../orders/index.html#tag/refunds/operation/getRefund) | `GET /orders/refunds/{refundId}` | 退款详情 |
+| 15 | [`getRefundReceipt`](../orders/index.html#tag/refunds/operation/getRefundReceipt) | `GET /orders/refunds/{refundId}/receipt` | 退款收据 PDF |
+| 16 | [`cancelRefund`](../orders/index.html#tag/refunds/operation/cancelRefund) | `POST /orders/refunds/{refundId}/cancellation` | 撤销审核中的退款 |
+| 17 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额，Payments 页的 To Settle 卡取其中的 `accountBalance` |
+| 18 | [`listDevices`](../devices/index.html#tag/devices/operation/listDevices) | `GET /devices` | Filters 面板里设备筛选的候选 |
+
+---
+
+## 页面：Payments
+
+侧边栏 Orders › Payments。页头五张汇总卡（Gross Sales、Refund Amount、Net Sales、To Settle、Transactions）。工具栏：搜索（订单号、商户订单号、通道交易号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：订单号、支付方式（下面带来源）、金额、状态、时间、备注、操作（Refund、View、Receipt）。日期默认今天。Filters 里的设备是一个输入后搜索的下拉：输入时带 `keyword` 调 #18，不预先取全量；已停用的设备也能选到。候选项显示 `deviceName`，没有名字的显示型号与序列号。选中后把它的 `deviceId` 带进筛选。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Payments(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;1 [listPayments]<br/>GET /orders/payments?from&to&sortField=createdAt&sortOrder=descend
+        A-->>S: 200 { total, data: [{ orderId, paymentMethodFamily, source,<br/>amount, status, createdAt, note,<br/>refundable, remainingRefundable }] }
+    and
+        S->>A: #35;2 [getPaymentSummary]<br/>GET /orders/payments/summary?from&to
+        A-->>S: 200 { grossSales, refundAmount, netSales, transactions }
+    and
+        S->>A: #35;17 [getBalance]<br/>GET /funds/balance
+        A-->>S: 200 { accountBalance }
+    and
+        S->>A: #35;3 [getPaymentCounts]<br/>GET /orders/payments/counts?from&to
+        A-->>S: 200 { items }
+    end
+    Note over S,A: 搜索 / 切 chip / Filters：#35;1、#35;2、#35;3 带同一组筛选重调<br/>（#35;3 不带 status）；排序、翻页只重调 #35;1；#35;17 不随筛选重调
+
+    Note over U,A: 按设备筛选
+    U->>S: 在 Filters 面板的设备框里输入
+    S->>A: #35;18 [listDevices]<br/>GET /devices?keyword
+    A-->>S: 200 { total, data: [{ deviceId, deviceName, model, serialNumber, storeName }] }
+    U->>S: 从结果里选一台，点 Apply
+    S->>S: 把 deviceId 带进筛选，按上一条重调
+
+    Note over U,A: 导出
+    U->>S: 点导出
+    S->>A: #35;4 [exportPayments]<br/>GET /orders/payments/export（带当前筛选与排序）
+    A-->>S: 200 xlsx 文件
+    S->>S: 浏览器下载
+
+    U->>S: 点 View / Refund / Receipt
+    S->>S: 开订单详情弹窗 / 退款弹窗 / 收据弹窗
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 汇总卡或余额取不到 | `5xx` | 对应的卡显示暂不可用，列表照常 |
+
+- To Settle 卡取 #17 的 `accountBalance`，是账户当前的可结算余额，不随筛选变；其余四张卡取 #2。
+- 导出不设行数上限，范围就是当前筛选的日期。
+- 日期筛选必填，按订单创建日；页面默认今天，由前端算出日期传过去。
+- 支付方式、来源、状态的展示名与图标由前端按码取，Filters 里这三项是固定选项、不另取候选。
+- 来源的文案与现网商户后台一致（账单与商品码按新菜单名）：
+
+  | `source` | 英文文案 |
+  |---|---|
+  | `terminal` | Payment Devices |
+  | `app` | Platform APP |
+  | `store_qr` | Store QR Code |
+  | `invoice` | Invoice |
+  | `product_link` | Product Link |
+  | `ticket` | Tickets |
+  | `giftcard` | Gift Card |
+  | `retail_api` | Retail API |
+  | `online_api` | Online API |
+  | `auto_debit` | Auto Debit |
+  | `shopify` | Shopify |
+  | `allvalue` | AllValue |
+- 金额列显示行上的 `amount`，带币种。CNY 标价的订单已成交后显示的是结算币种的数，人民币金额在详情看。
+- 汇总卡不算 `FAILED` 与 `REJECTED` 的行，所以 Transactions 可能小于列表行数；Gross Sales 等于其余各行金额之和。与 Dashboard 的同名卡口径不同，两边不要互相核对。
+- Refund 按行上的 `refundable` 显示，按钮提示用 `remainingRefundable`（还可退多少）；Receipt 在已收款的三种状态下显示。
+- `REJECTED` 的行没有支付方式，显示「—」。
+
+---
+
+## 页面：Payments · Payment detail 弹窗
+
+从列表行的 View 打开，也可以带订单号直接打开（如从 Product Link 的销售单跳过来）。分四块：概要（金额、状态、时间、订单号、Refund 与 Receipt 按钮、已退金额、汇率）、关联退款、订单信息、技术细节（默认折叠）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Payments(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 点 View
+    S->>A: #35;5 [getPayment]<br/>GET /orders/payments/{orderId}
+    A-->>S: 200 { 列表行的字段, pricedAmount, tipAmount, refundedAmount,<br/>product, invoiceNo, linkId, salesOrderId, channelTxnNo,<br/>refunds, callback, fx 等 }
+
+    Note over U,A: 收据（详情里或列表行上的 Receipt）
+    U->>S: 点 Receipt
+    S->>A: #35;6 [getPaymentReceipt]<br/>GET /orders/payments/{orderId}/receipt
+    A-->>S: 200 PDF
+    S->>S: 弹窗内嵌预览，可打印、下载
+
+    Note over U,A: 预授权完成（仅 status = PREAUTH_HOLDING）
+    U->>S: 点 Release，确认
+    S->>A: #35;7 [releasePreAuth]<br/>POST /orders/payments/{orderId}/preauth-completion
+    A-->>S: 204
+    S->>A: 重调 #35;5，列表重调 #35;1、#35;2、#35;3
+
+    U->>S: 点 Refund
+    S->>S: 开退款弹窗
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 订单不存在或不属于当前商户 | `404` | 提示订单不存在 |
+| 取收据时订单不是已收款状态 | `404` | 正确页面下不会出现：Receipt 只在已收款的三种状态下显示 |
+| Release 时订单已不是挂起状态 | `409`·`208010` | 重调 #5，按钮随之消失 |
+| 同一个幂等键用到了别的订单 | `409`·`208005` | 换订单就换新键 |
+
+- Product 一栏显示 `product`（产品形态），每张订单都有；展示名由前端按码取。
+- 详情带了 `invoiceNo` 时可跳到 Invoice Payment 页、把账单号填进搜索框（账单没有单张读取的接口）；带了 `linkId` + `salesOrderId` 时可跳到 Product Link 的销售单详情。礼卡的凭证、风控与重发、作废、处置都在销售单详情里做，这里不重复。
+- 关联退款里 `type` 为 `system_auto` 的行是平台自动退回的多付款项（付款人付了两次，或订单关闭后才到账的那笔）。这一行要标明「重复付款，已由平台退回」，不算进已退金额；已退金额只用 `refundedAmount`，不要把关联退款加总。
+- 点关联退款的行可以打开退款详情（#14），自动退款也能打开。
+- Trade name 一栏取当前商户的名称，不在订单接口里。
+- 响应里没有的可选项（客户、付款账户、商户订单号、通道交易号、小费、回调、汇率等），对应的栏不显示或显示「—」。技术细节里没有 `callback` 时不显示回调一块。
+- 金额：概要的大数字是 `amount`。标价币种与结算币种不同时另显示标价金额 `pricedAmount`。
+- 汇率显示为 1 结算币种 = x CNY。
+- demo 的「Platform Txn ID」一栏显示 `channelTxnNo`，标签改成 Channel Txn ID。
+- 收据与商户 App 里看到的是同一份 PDF。请求带 `Accept-Language`（当前界面语言）。Receipt 只在已收款的三种状态下显示。
+- `releasePreAuth` 带 `Idempotency-Key`，点一次生成一个键。
+
+---
+
+## 页面：Payments · Refund payment 弹窗
+
+从列表行或详情的 Refund 打开。上面是订单摘要（原金额、已退、可退余额），下面填退款金额（可点 Full amount）、备注、6 位 Refund PIN。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Refund(SPA)
+    participant A as 商户后台 BFF
+    participant M as Owner 邮箱
+
+    U->>S: 点 Refund
+    opt 从列表行直接点、手上没有详情
+        S->>A: #35;5 [getPayment]<br/>GET /orders/payments/{orderId}
+        A-->>S: 200
+    end
+    S->>S: 用详情的 pricedAmount、refundedAmount、<br/>remainingRefundable 显示摘要（都是标价币种）
+    U->>S: 填金额、备注、PIN，点 Refund
+    S->>A: #35;8 [createRefund]<br/>POST /orders/payments/{orderId}/refunds { amount, note, refundPin }
+    A-->>S: 201 { refundId, status, failureReason }
+    S->>S: status 为 REVIEWING / CHANNEL_PROCESSING：显示「退款已提交」<br/>status 为 FAILED：显示「退款失败：账户资金不足」
+    S->>A: 重调 #35;1、#35;2、#35;3（详情开着就重调 #35;5）
+
+    Note over U,M: 忘记 PIN（弹窗内切到重置视图）
+    U->>S: 点 Forgot PIN，点 Send code
+    S->>A: #35;9 [requestRefundPinReset]<br/>POST /account/refund-pin/resets
+    A->>M: 发 6 位码
+    A-->>S: 202 { challengeId, cooldownSeconds }
+    U->>S: 填验证码与新 PIN，提交
+    S->>A: #35;10 [confirmRefundPinReset]<br/>POST /account/refund-pin/resets/{challengeId}/confirmation
+    A-->>S: 204
+    S->>S: 回到退款视图，提示 PIN 已更新
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 金额不大于 0 或格式不对 | `400`（`details` 指到字段） | 金额红框；正确页面下已拦住 |
+| 超过可退余额、订单已不可退 | `400`·`204008` | 提示本次不能退，重调 #5 看最新可退额 |
+| PIN 不对 | `403`·`206003` | 提示重输 |
+| PIN 连续输错被锁 | `423`·`206004` | 提示稍后再试 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+| 网关超时 | `502` / `504` | 用同一个键、同样的内容重发，不会退两次 |
+| 重置 PIN 的各种失败 | 见 [flows 10-settings「页面：Security · Refund PIN 区块」](10-settings.html#页面：Security%20·%20Refund%20PIN%20区块) | 同 Security 页 |
+
+- 退款按订单的标价币种发起，摘要与输入框都用标价币种。CNY 标价的订单在列表里显示的是结算币种金额，弹窗里要把标价金额（`pricedAmount`）显示清楚，免得商户按加元的数去填人民币。
+- `remainingRefundable` 只拿来做输入上限；提交时服务端会重新校验，可能已经变了。
+- 订单有没有 Refund 入口只看 `refundable`，不按状态自己判。
+- `201` 只表示退款单已建，要再看 `status`。审核中或处理中显示「已提交」而不是「已成功」，最终成功或失败要之后刷新才看得到。`FAILED` 是账户资金不足，退款没有执行，这笔失败的退款会留在退款列表里；商户补足资金后重新发起，是一笔新的退款、用新的幂等键。
+- `createRefund` 带 `Idempotency-Key`：点一次 Refund 生成一个键。超时或 `208011` 后重发用原键；被拒后改了内容再提交换新键。PIN 不参与幂等比对。
+- 只有 Owner 能重置 PIN（接口标 `owner`）；`isOwner` 为假时不显示 Forgot PIN，提示找 Owner。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多两种：Rejected（平台未受理）、Pre-auth holding（预授权挂起） | 被风控拒掉的订单和店铺码预授权单都要能查到 |
+| 来源 | 八种：Terminal、Store QR、Product QR、Mini Program、Web Checkout、App、Payment Link、API Integration | 十二种，与现网商户后台的来源一致（见上表）；Mini Program、Web Checkout 这类归到产品形态 | 来源沿用现网商户已经在用的分类；小程序、网页是收款方式，不是入口 |
+| 详情的 Product | 四种（账单、商品码、礼卡、票务），其余订单没有 | 每张订单都有，十三种产品形态 | 产品形态是订单的固有属性 |
+| 搜索 | 订单号、金额、备注 | 另可搜商户订单号、通道交易号 | 现网可按商户订单号找单；顾客手里只有钱包账单上的通道交易号 |
+| Filters 面板 | 日期、支付方式、来源、状态 | 多一项设备 | 现网交易页可按设备筛 |
+| 金额列 | 标价金额（CAD 或 CNY） | 已成交的显示结算币种的成交金额，没成交的显示标价金额 | 商户关心的是实际结算的数，行与页头汇总同一个币种、可以对上；现网商户后台的列表也显示结算币种金额 |
+| 详情的 Platform Txn ID | Platform Txn ID | Channel Txn ID，显示通道交易号 | 这一栏是微信、支付宝那边的交易号，不是平台自己的号 |
+| 详情的小费 | 无 | 有小费时单列一行 | 现网详情有这一行 |
+| Release 按钮 | 无 | 挂起中的预授权单上有 | 现网商户后台有这个操作 |
+| 退款成功页 | 「Refund successful」，订单立刻变已退款 | 「退款已提交」，状态等刷新 | 退款要过审核或通道，提交时还没成功 |
+| 收据 | 前端排版，浏览器打印 | 服务端出 PDF，弹窗内嵌预览，可打印、下载 | 同一张订单在商户 App 和后台出的收据要是同一份 |
+
+---
+
+## 页面：Refunds
+
+侧边栏 Orders › Refunds。工具栏：搜索（退款号、商户退款单号、通道退款号、订单号、商户订单号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：退款号、订单号（可点开原订单）、支付方式与来源、退款金额与结算金额、全额还是部分、状态、时间、备注、操作（View、Receipt、Cancel）。日期默认近 30 天。Filters 里的设备候选同 Payments 页（#18）。本页没有汇总卡，也没有发起退款的入口（退款从订单发起）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Refunds(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;11 [listRefunds]<br/>GET /orders/refunds?from&to&sortField=createdAt&sortOrder=descend
+        A-->>S: 200 { total, data: [{ refundId, orderId, paymentMethodFamily, source,<br/>amount, settleAmount, orderAmount, status, createdAt, note }] }
+    and
+        S->>A: #35;12 [getRefundCounts]<br/>GET /orders/refunds/counts?from&to
+        A-->>S: 200 { items }
+    end
+    Note over S,A: 搜索 / 切 chip / Filters：#35;11、#35;12 带同一组筛选重调<br/>（#35;12 不带 status）；排序、翻页只重调 #35;11
+
+    Note over U,A: 按设备筛选
+    U->>S: 在 Filters 面板的设备框里输入
+    S->>A: #35;18 [listDevices]<br/>GET /devices?keyword
+    A-->>S: 200 { total, data: [{ deviceId, deviceName, model, serialNumber, storeName }] }
+    U->>S: 从结果里选一台，点 Apply
+    S->>S: 把 deviceId 带进筛选，按上一条重调
+
+    Note over U,A: 导出
+    U->>S: 点导出
+    S->>A: #35;13 [exportRefunds]<br/>GET /orders/refunds/export（带当前筛选与排序）
+    A-->>S: 200 xlsx 文件
+    S->>S: 浏览器下载
+
+    Note over U,A: 看原订单
+    U->>S: 点行上的订单号
+    S->>A: #35;5 [getPayment]<br/>GET /orders/payments/{orderId}
+    A-->>S: 200 订单详情
+    S->>S: 开订单详情弹窗（与 Payments 页同一个）
+
+    U->>S: 点 View / Receipt / Cancel
+    S->>S: 开退款详情弹窗 / 退款收据弹窗 / 撤销确认
+```
+
+- 导出不设行数上限，范围就是当前筛选的日期。
+- 日期筛选必填，按退款创建日；页面默认近 30 天，由前端算出日期传过去。
+- 支付方式与来源的码、文案、固定选项都与 Payments 页相同；列表里的退款，这两项与原订单的一致。
+- 列表里是从商户账上出钱的退款：后台、App、终端、API、插件、平台代操作发起的，以及撤销已付款订单时系统触发的；平台自动退回的多付款项不在这里，在原订单详情的关联退款里能看到。
+- 行上有两个金额：`amount` 是标价币种的退款金额（发起时填的数），`settleAmount` 是折合的结算币种金额。`settleAmount` 要通道受理后才有，审核中、被拒、已撤销的行没有；标价币种就是结算币种时两个数相同。
+- `amount` 小于 `orderAmount` 的是部分退款，否则是全额退款。
+- 状态六种：审核中、处理中、成功、失败、已拒绝、已撤销。退款提交后没有推送，状态靠重新取列表更新。
+- Receipt 只在 `SUCCESS` 的行显示，Cancel 只在 `REVIEWING` 的行显示。
+
+---
+
+## 页面：Refunds · Refund detail 弹窗
+
+退款详情弹窗从列表行的 View 打开，也可以从订单详情的关联退款打开。显示：退款金额与结算金额、状态、时间、全额还是部分、退款号；支付方式、来源、客户、邮箱、发起入口与操作员、申请时间、完成时间、原订单号、原订单金额、商户退款单号、通道退款号、备注；失败时加失败原因。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Refunds(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 点 View
+    S->>A: #35;14 [getRefund]<br/>GET /orders/refunds/{refundId}
+    A-->>S: 200 { 列表行的字段, type, completedAt,<br/>entryPoint, operatorId, operatorName, customerName, customerEmail,<br/>merchantRefundNo, channelRefundNo, failureReason, channelError }
+    S->>S: 开退款详情弹窗
+
+    Note over U,A: 退款收据（status = SUCCESS）
+    U->>S: 点 Receipt
+    S->>A: #35;15 [getRefundReceipt]<br/>GET /orders/refunds/{refundId}/receipt
+    A-->>S: 200 PDF
+    S->>S: 弹窗内嵌预览，可打印、下载
+
+    Note over U,A: 撤销（status = REVIEWING）
+    U->>S: 点 Cancel 并确认
+    S->>A: #35;16 [cancelRefund]<br/>POST /orders/refunds/{refundId}/cancellation
+    A-->>S: 204
+    S->>S: 重新取列表（#35;11、#35;12）
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 退款不存在或不属于当前商户 | `404` | 提示退款不存在 |
+| 撤销时退款已经送到通道或已有结果 | `409`·`208009` | 提示已不能撤销，重新取列表 |
+| 同一个幂等键用到了别的退款 | `409`·`208005` | 换退款就换新键 |
+| 撤销超时或网关错误 | `502` / `504` | 用原来的幂等键重发 |
+| 取非成功退款的收据 | `404` | 正确页面下不会出现：Receipt 只在成功的行上显示 |
+
+- 详情顶部的时间：有 `completedAt` 显示它，没有显示 `createdAt`。
+- 发起入口按 `entryPoint` 的码显示文案：
+
+  | `entryPoint` | 英文文案 |
+  |---|---|
+  | `merchant_portal` | Merchant Portal |
+  | `merchant_app` | Platform APP |
+  | `pos` | Payment Devices |
+  | `open_api` | API |
+  | `checkout` | Checkout Page |
+  | `channel_inbound` | Static QR |
+  | `plugin_shopify` | Shopify |
+  | `plugin_allvalue` | AllValue |
+  | `plugin_allvalue_xhs` | AllValue (Xiaohongshu) |
+  | `admin_portal` | Platform |
+  | `system` | System |
+- 有 `operatorName` 时在发起入口后面带上操作员；`operatorId` 是 Users 页的成员 ID。开放 API、插件、平台代操作、系统发起的退款没有操作员。
+- 支付方式一栏用退款自己的 `paymentMethodFamily`，不要拿原订单的：自动退回重复支付时，退回的渠道是多付那一笔的，可能与订单的不同。
+- 失败的退款显示失败原因，按 `failureReason` 的码取文案：
+
+  | `failureReason` | 英文文案 |
+  |---|---|
+  | `INSUFFICIENT_FUNDS` | Insufficient account balance |
+  | `CHANNEL_REJECTED` | Declined by the payment channel |
+  | `CHANNEL_UNREACHABLE` | Payment channel unavailable |
+  | `UNCONFIRMED` | Refund could not be confirmed |
+- 带了 `channelError` 时把通道的错误码与描述原样附在失败原因后面，不翻译。
+- 审核被拒（`REJECTED`）没有原因字段，只显示状态。
+- 从订单详情打开的平台自动退款（`type = system_auto`）：标明是平台自动退回的多付款项；发起入口是 `system`，没有操作员，没有 Receipt 与 Cancel。
+- 响应里没有的可选项（结算金额、客户、商户退款单号、通道退款号、完成时间等），对应的栏不显示或显示「—」。
+- 撤销成功后这笔退款占用的可退额度放回，原订单又可以发起退款；对已撤销的退款再撤一次也返回 204。
+- `cancelRefund` 带 `Idempotency-Key`，点一次生成一个键。
+- 退款收据与商户 App 里看到的是同一份 PDF。请求带 `Accept-Language`（当前界面语言）。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 状态 | 成功、失败、已撤销三种 | 多出审核中、处理中、已拒绝，chip 与状态筛选随之多三项 | 退款可能要过平台审核和通道处理，提交时还没有结果 |
+| 搜索 | 退款号、订单号、金额、备注 | 另可搜商户退款单号、通道退款号、商户订单号 | 现网退款页可按这几个号找单 |
+| Filters 面板 | 日期、支付方式、来源、状态 | 多一项设备（原订单的发起设备） | 现网退款页可按设备筛 |
+| 行操作 | View、Receipt | 审核中的行多一个 Cancel | 审核中的退款商户可以撤回（现网在订单行上撤） |
+| Receipt 入口 | 每行都有 | 只在成功的行 | 没退成的没有收据 |
+| 收据 | 前端排版，浏览器打印 | 服务端出 PDF，弹窗内嵌预览 | 与支付收据同理 |
+| 发起人 | 一个字符串（员工邮箱或 customer） | 发起入口加操作员名 | 退款可以从 App、终端、API 发起，这些没有后台账号 |
+| 金额 | 一个退款金额 | 多一个结算币种的金额 | 现网退款列表两个金额都有 |
+| 详情 | 无单号、无失败原因 | 多出商户退款单号、通道退款号；失败时显示原因 | 现网详情有这几项 |
+
+---
+
+## 收据与导出文件的语言
+
+两个收据 PDF 和两个导出 xlsx 的文案是服务端写进文件的，不走前端的多语言：
+
+- 请求带 `Accept-Language`，传当前界面语言（如 `zh-Hans`、`fr-CA`）。
+- 服务端取最接近的语言（`fr-CA` 没有就用 `fr`），实际用的语言在响应头 `Content-Language` 里。
+- 收据是 `inline`（弹窗内嵌预览），导出是 `attachment`（直接下载）。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

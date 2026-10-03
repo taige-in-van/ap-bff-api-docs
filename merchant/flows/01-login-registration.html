@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>登录与注册 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 登录与注册 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。本文的页面都在登录前：调的是公开端点（`security: []`），不带会话、不带 `X-CSRF-Token`，也没有当前商户。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Login | 未登录时打开商户后台；其他页面的「回登录页」 | [页面：Login](#页面：Login) |
+| Forgot Password | Login 页的 Forgot password | [页面：Forgot Password](#页面：Forgot%20Password) |
+| Sign Up | Login 页的 Sign up；带来源参数的注册链接 | [页面：Sign Up](#页面：Sign%20Up) |
+| Verify your email | 注册提交成功后；登录遇 `208029` | [页面：Verify your email](#页面：Verify%20your%20email) |
+| 邮箱激活 | 验证邮件里的链接 | [页面：邮箱激活](#页面：邮箱激活) |
+| Set your password | 邀请邮件里的「Set your password」链接 | [页面：Set your password](#页面：Set%20your%20password) |
+| 确认新登录邮箱 | Owner 改了员工的登录邮箱后，新邮箱收到的确认链接 | [页面：确认新登录邮箱](#页面：确认新登录邮箱) |
+
+## 页面流转
+
+**从注册到登录**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "Sign Up" as SU
+    state "Verify your email" as VE
+    state "邮箱激活" as ACT
+    state "Login" as L
+    state "03-登录后的启动链路" as BOOT
+
+    [*] --> SU: 打开注册页
+    SU --> VE: 注册成功
+    VE --> ACT: 点验证邮件里的链接
+    ACT --> L: Log in
+    L --> VE: 邮箱还没验证
+    L --> BOOT: 登录成功
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class BOOT other
+```
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`login`](../auth/index.html#tag/sessions/operation/login) | `POST /auth/sessions` | 密码登录(200 返回 ESTABLISHED / MFA_REQUIRED；不签发会话的情形走 403 + 码) |
+| 2 | [`completeMfaChallenge`](../auth/index.html#tag/sessions/operation/completeMfaChallenge) | `POST /auth/sessions/mfa` | 登录二次校验(提交 TOTP) |
+| 3 | [`initiateWechatLogin`](../auth/index.html#tag/sessions/operation/initiateWechatLogin) | `POST /auth/sessions/wechat` | 扫码登录发起(拿二维码票据) |
+| 4 | [`pollWechatLogin`](../auth/index.html#tag/sessions/operation/pollWechatLogin) | `GET /auth/sessions/wechat/{qrTicket}` | 扫码登录轮询 |
+| 5 | [`requestPasswordReset`](../auth/index.html#tag/password-resets/operation/requestPasswordReset) | `POST /auth/password-resets` | 找回密码发起(恒 202 反枚举) |
+| 6 | [`confirmPasswordReset`](../auth/index.html#tag/password-resets/operation/confirmPasswordReset) | `POST /auth/password-resets/{challengeId}/confirmation` | 验证码 + 新密码一次提交(唯一核码点;不改 MFA) |
+| 7 | [`registerOwner`](../auth/index.html#tag/registrations/operation/registerOwner) | `POST /auth/registrations` | 自助注册 |
+| 8 | [`resendVerificationEmail`](../auth/index.html#tag/registrations/operation/resendVerificationEmail) | `POST /auth/registrations/verification-email` | 重发验证邮件 |
+| 9 | [`verifyRegistrationEmail`](../auth/index.html#tag/registrations/operation/verifyRegistrationEmail) | `POST /auth/registrations/verification` | 邮箱激活(核对注册密码，不建会话，回登录页) |
+| 10 | [`acceptInvitation`](../auth/index.html#tag/registrations/operation/acceptInvitation) | `POST /auth/registrations/invitation` | 受邀员工设密激活(不建会话，回登录页) |
+| 11 | [`confirmMemberLoginEmail`](../auth/index.html#tag/registrations/operation/confirmMemberLoginEmail) | `POST /auth/registrations/email-confirmation` | 员工确认 Owner 改的新登录邮箱(邮件链接落地页) |
+
+---
+
+## 页面：Login
+
+一张卡片两种模式：账号密码（默认）和扫码（右上角切换）。页面上的「Keep me signed in」对应 `rememberMe`：勾了关掉浏览器后仍保持登录，不勾则随浏览器关闭结束；两种情况都有同一个最长有效期，到期要重新登录。「Forgot password」进忘记密码页，「Sign up」进注册页。进入页面不调接口。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 登录页(SPA)
+    participant A as 商户后台 BFF
+    participant W as 微信
+
+    U->>S: 打开登录页（不调接口）
+
+    Note over U,A: 模式一：账号密码
+    U->>S: 输登录名（邮箱或用户名）+ 密码，勾不勾 Keep me signed in
+    S->>A: #35;1 [login]<br/>POST /auth/sessions
+    alt 未启 MFA
+        A-->>S: 200 { status: ESTABLISHED } + Set-Cookie
+    else 已启 MFA
+        A-->>S: 200 { status: MFA_REQUIRED, mfaChallenge }（未建会话）
+        S->>U: 同一卡片切到「输入验证器 6 位码」
+        U->>S: 输 6 位码
+        S->>A: #35;2 [completeMfaChallenge]<br/>POST /auth/sessions/mfa { mfaChallenge }
+        A-->>S: 200 { status: ESTABLISHED } + Set-Cookie
+    end
+
+    Note over U,W: 模式二：扫码（不追加 MFA）
+    S->>A: #35;3 [initiateWechatLogin]<br/>POST /auth/sessions/wechat
+    A-->>S: 200 { qrTicket, qrContent, expiresAt }
+    S->>S: 用 qrContent 渲染二维码
+    par 用户在手机上
+        U->>W: 微信扫码，在微信里确认登录
+    and 页面轮询
+        loop 直到不是 WAITING
+            S->>A: #35;4 [pollWechatLogin]<br/>GET /auth/sessions/wechat/{qrTicket}
+            A-->>S: 200 { status: WAITING / EXPIRED / ESTABLISHED }
+        end
+    end
+    Note over S,A: EXPIRED：重新调 #35;3 换码继续等<br/>ESTABLISHED：已 Set-Cookie
+
+    Note over S,A: 两种模式登录成功后都走登录后的启动链路决定下一页<br/>（见 flows 03-shell-dashboard「流程：登录后的启动链路」）
+```
+
+失败怎么处理（按错误码分流，三条 `403` 文案各不相同）：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 密码错 / 账号不存在（不区分） | `400`·`206012` | 留在表单提示「登录凭据错误」 |
+| 验证器码错 | `400`·`206012` | 留在输码框重输，不回第一步 |
+| MFA 挑战过期 | `410`·`206006` | 回账号密码步重新登录 |
+| 账号被锁（连续失败） | `423`·`966001` | 提示等冷却 |
+| 邮箱未验证（自助注册待验） | `403`·`208029` | 跳「Verify your email」页，可重发（明文邮箱用表单里的 `loginId`） |
+| 账号被禁用 | `403`·`208027` | 提示「账号已禁用，请联系 Owner 或客服」 |
+| 取不到当前商户（如商户全被冻结或删除） | `403`·`208028` | 提示「商户状态异常，请联系客服」 |
+| 限流 | `429` | 退避 |
+
+- 失败计数与节流在后端，不回前端，页面不显示剩余次数。
+- 受邀但还没设密的员工登录拿到 `206012`，恢复路径是邀请邮件和 Owner 重发。
+- 扫码被拒时页面一直显示等待直到过期，拒绝原因只在扫码本人的微信里说明：二维码可能被转发，看页面的未必是本人。
+
+---
+
+## 页面：Forgot Password
+
+两步：输登录名 → 一屏填完验证码和新密码 → 成功。验证方式按登录名形态定，前端从输入内容就知道该提示哪种码：含 `@` 是邮箱账号，验证码发到该邮箱；否则是用户名账号，用验证器里的 6 位码（没开验证器的用户名账号不能自助重置，提示找 Owner）。进入页面不调接口。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 忘记密码页(SPA)
+    participant A as 商户后台 BFF
+    participant E as 邮箱 / 验证器
+
+    Note over U,A: 第 1 步：输登录名
+    U->>S: 输邮箱或用户名，点 Send Code
+    S->>A: #35;5 [requestPasswordReset]<br/>POST /auth/password-resets
+    A-->>S: 202 { challengeId, cooldownSeconds }（恒 202，不暴露账号是否存在）
+    opt 邮箱账号且账号存在
+        A->>E: 发 6 位验证码到该邮箱
+    end
+
+    Note over U,A: 第 2 步：验证码 + 新密码一屏提交
+    S->>U: 提示：邮箱账号「已发 6 位码到 x***@y.com」/ 用户名账号「输入验证器里的 6 位码」
+    U->>S: 输新密码 + 确认密码（前端校验 5 条规则和两次一致）
+    E-->>U: 邮件里的码 / 验证器里的码
+    U->>S: 最后输 6 位码，点 Reset Password
+    S->>A: #35;6 [confirmPasswordReset]<br/>POST /auth/password-resets/{challengeId}/confirmation
+    A-->>S: 204（码正确才消费，密码已改，该用户所有会话失效）
+    Note over U,S: Resend：冷却结束后重新调 #35;5，得到新 challengeId，旧码作废
+
+    S->>U: 第 3 步：Password Reset!，点 Back to Login 回登录页
+```
+
+- 找回流程只在 `#6` 核一次码，没有单独的核码步：验证器码只在约 30 秒的窗口内有效，且同一个码只能成功验证一次，所以码放在这一屏最后输、输完即提交。
+- 码错 `400`·`204010`（只在码的输入框重输，新密码不用重填）；挑战过期或已作废 `410`·`206006`（回第 1 步）；错码次数超限 `423`·`206007`（回第 1 步）；限流 `429`。
+- `#6` 的响应丢了、重试拿到 `410`·`206006`：密码可能已经改好，提示用户用新密码登录，登录不上再重新发起。
+- 重置后，开了验证器的账号下次登录仍要输验证器码。
+- My Profile 里的「忘记密码」用同样两个接口：登录态下用当前登录名调 `#5`，再在弹窗里一次提交码和新密码调 `#6`。
+
+---
+
+## 页面：Sign Up
+
+从登录页「Sign up」进入，或从带来源参数的注册链接进入（如 Moneris 引导邮件里的 `?ref=MONERIS`，前端把来源预填进 Referred By 并锁定；没有来源参数时 Referred By 可手填）。表单：First / Last Name、Phone（区号 + 号码）、Email（作登录 ID）、Password、Business Title（下拉 Business Owner / Manager / Employee / Other，选 Other 改为自填）、Referred By（可选）、协议勾选。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 注册页(SPA)
+    participant A as 商户后台 BFF
+    participant E as 邮箱
+
+    U->>S: 打开注册页（不调接口，区号候选取自前端参考数据）
+    U->>S: 填表、勾协议，点 Create Account（前端校验邮箱格式、密码 5 条规则、协议已勾）
+    S->>A: #35;7 [registerOwner]<br/>POST /auth/registrations
+    alt 新邮箱，或该邮箱已有待验证账号
+        A-->>S: 201 { cooldownSeconds }
+        A->>E: 发验证邮件（异步，投递失败不阻塞注册）
+        S->>S: 进「验证邮箱页」，带上表单里的 email
+    else 该邮箱已是可登录账号
+        A-->>S: 409·968001
+        S->>U: 提示换邮箱，或去登录页
+    end
+```
+
+- 注册一次建齐：待验证账号（邮箱未验证、不能登录）、申请中的商户、入驻申请草稿。First / Last Name、Phone、Business Title 记在账号上，Referred By 写进商户资料，入驻向导 Step 1 预填。
+- 该邮箱已有待验证账号时再注册按覆盖处理（见 `registerOwner`），页面与新建一样进验证邮箱页；在重发冷却内不发新邮件，旧链接仍有效。
+- 覆盖只改密码和资料，不会让别人掌握激活后的账号：激活时要输入注册密码，以最后一次注册的为准（见「页面：邮箱激活」）。
+- 区号不在服务端白名单内、或其他字段校验不过 `400`，按错误体逐项提示；限流 `429`。
+
+---
+
+## 页面：Verify your email
+
+注册提交成功后进入，或登录时遇 `208029`（邮箱未验证）进入。页面显示「已发验证邮件到 {email}」、Resend 和回登录页的按钮，`email` 用上一页表单里的值。进入页面不调接口。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 验证邮箱页(SPA)
+    participant A as 商户后台 BFF
+    participant E as 邮箱
+
+    U->>S: 从注册页或登录页进入（不调接口）
+    S->>S: 从注册页来：按 cooldownSeconds 倒计时，结束前 Resend 置灰<br/>从登录页来：Resend 直接可点
+    U->>S: 点 Resend
+    S->>A: #35;8 [resendVerificationEmail]<br/>POST /auth/registrations/verification-email
+    A-->>S: 202 { cooldownSeconds }（恒 202，不暴露账号是否存在）
+    opt 账号存在、待验证、不在冷却内
+        A->>E: 发新验证邮件，旧链接作废
+    end
+    S->>S: 重新倒计时
+    Note over U,E: 用户去邮箱点链接，打开「邮箱激活页」
+```
+
+- 重发不延长清理期限：待验证账号从注册时刻起，默认 24 小时（部署参数）未验证即清理，账号和申请中的商户一并标删除，同一邮箱可重新注册。
+- 限流 `429`：退避。
+
+---
+
+## 页面：邮箱激活
+
+邮件里的链接打开这一页，链接带一次性令牌。打开页面只展示、不调接口，这样邮件客户端预取链接不会误激活。页面上有一个「注册密码」输入框，用户输入注册时设的密码后点 Verify Email 才提交。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 邮箱激活页(SPA)
+    participant A as 商户后台 BFF
+    participant E as 邮箱
+
+    U->>S: 点邮件里的链接打开本页（不调接口）
+    U->>S: 输入注册密码，点 Verify Email
+    S->>A: #35;9 [verifyRegistrationEmail]<br/>POST /auth/registrations/verification { token }
+    alt 令牌有效且密码正确，或令牌已用过（账号已激活）
+        opt 首次激活
+            A->>E: 发 Email Verified 通知
+        end
+        A-->>S: 204
+        S->>U: Email verified，点 Log in 回登录页
+    else 密码不对
+        A-->>S: 400·206012（令牌不消费）
+        S->>U: 留在本页，清空密码框重输
+    else 令牌无效、过期或已被重发作废
+        A-->>S: 410·206001
+        S->>U: 提示链接已失效，引导去登录页（登录会被带到验证邮箱页重发）或重新注册
+    end
+    Note over U,A: 用户在登录页用邮箱 + 密码登录，走登录后的启动链路，新商户落到入驻向导
+```
+
+- 激活后回登录页用密码登录；同一链接点第二次仍返回 `204`，页面照常引导去登录。商户和入驻申请草稿在注册时已建好。
+- 密码错误次数达上限 `423`·`206007`：该链接锁定，冷却结束后在验证邮箱页 Resend（从登录页进入）或重新注册拿新链接。忘了密码就重新注册，用新密码确认。
+
+**相对 demo 的改动**
+
+| demo | 本契约 | 原因 |
+|---|---|---|
+| 无此页 | 激活时要输注册密码 | 同一邮箱待验证时允许重复注册覆盖密码，只凭链接激活的话，别人在 Jane 注册后用她的邮箱再注册一次，Jane 点自己的链接就会激活一个对方知道密码的账号 |
+
+---
+
+## 页面：Set your password
+
+Owner 在 Users 页用邮箱新建员工时发出邀请邮件（`createTeamMember`），员工点邮件里的「Set your password」链接打开这一页。链接带一次性令牌和被邀请的邮箱，页面显示「为 {email} 设置密码」。打开页面只展示、不调接口。
+
+```mermaid
+sequenceDiagram
+    actor U as 员工
+    participant S as 邀请设密页(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 点邀请邮件里的链接打开本页（不调接口，邮箱取自链接参数）
+    U->>S: 输新密码 + 确认密码（前端校验 5 条规则和两次一致），点 Set password
+    S->>A: #35;10 [acceptInvitation]<br/>POST /auth/registrations/invitation { token }
+    alt 令牌有效
+        A-->>S: 204（账号已激活）
+        S->>U: You're all set，点 Go to Login 回登录页
+    else 令牌已用过（该员工已激活）
+        A-->>S: 410·206010
+        S->>U: 提示已设置过密码，去登录页
+    else 令牌无效或过期
+        A-->>S: 410·206009
+        S->>U: 提示链接已失效，请联系 Owner 重发邀请
+    end
+```
+
+- 设密成功后员工回登录页自己登录。邮箱随之标为已验证，因为链接只发到这个邮箱。
+- 用过的链接再提交返回 `206010` 而不是 `204`：这次提交带着新密码，返回成功会让员工以为新密码生效了。
+
+---
+
+## 页面：确认新登录邮箱
+
+Owner 在 Users 页改了已激活员工的登录邮箱后，新邮箱收到确认链接，员工点开这一页。打开页面只展示、不调接口；员工点 Confirm 才提交。
+
+```mermaid
+sequenceDiagram
+    actor U as 员工
+    participant S as 确认页(SPA)
+    participant A as 商户后台 BFF
+    participant EO as 员工旧邮箱
+
+    U->>S: 点新邮箱里的链接打开本页（不调接口）
+    U->>S: 点 Confirm
+    S->>A: #35;11 [confirmMemberLoginEmail]<br/>POST /auth/registrations/email-confirmation { token }
+    alt 令牌有效
+        A->>EO: 安全通知：登录邮箱已改
+        A-->>S: 204（已切换为新邮箱）
+        S->>U: 回登录页，用新邮箱登录
+    else 链接无效、过期或已被 Owner 的新改动顶掉
+        A-->>S: 410·206006
+        S->>U: 提示链接已失效，请联系 Owner
+    else 确认前新邮箱已被别人使用
+        A-->>S: 409·968001
+        S->>U: 提示这次改动已作废，请联系 Owner 换一个邮箱
+    end
+```
+
+- 新邮箱确认前不能用来登录或找回密码。
+- 确认后员工回登录页自己登录。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

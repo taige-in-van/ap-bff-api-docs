@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>店铺码 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 店铺码 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Store QR Code（含收款页设置） | 侧边栏 Product › Store QR Code；General 页收款页设置一栏的入口 | [页面：Store QR Code](#页面：Store%20QR%20Code) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listStoreQrcodes`](../products/index.html#tag/qrcodes/operation/listStoreQrcodes) | `GET /products/qrcodes` | 店铺码的各个码（第 1 项是主码） |
+| 2 | [`getPaymentPageSettings`](../products/index.html#tag/qrcodes/operation/getPaymentPageSettings) | `GET /products/qrcodes/page` | 读店铺码收款页设置（Logo、采集项、附加说明、已选支付方式、小费） |
+| 3 | [`listCheckoutOptions`](../products/index.html#tag/checkout/operation/listCheckoutOptions) | `GET /products/checkout/options` | 收银台支付方式候选（展示名、图标、是否已开通、可标价币种） |
+| 4 | [`uploadPaymentPageLogoFile`](../products/index.html#tag/qrcodes/operation/uploadPaymentPageLogoFile) | `POST /products/qrcodes/files` | 上传收款页 Logo（保存设置时生效） |
+| 5 | [`updatePaymentPageSettings`](../products/index.html#tag/qrcodes/operation/updatePaymentPageSettings) | `PUT /products/qrcodes/page` | 保存收款页设置 |
+
+---
+
+## 页面：Store QR Code
+
+侧边栏 Product › Store QR Code；General Settings 的 Checkout Page「Configure →」也进这里。左栏上方是主码卡片（商户名、币种、Pre-Auth 标记、支付方式标识、二维码）和 Download QR Code / More 两个按钮；下面四张配置卡：Branding（Logo）、Customer experience（小费、付款人采集项）、Payment methods、Additional info（附加说明）。右栏是收款页手机版实时预览。有未保存修改时底部出现保存条（Discard / Save changes）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Store QR Code(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;1 [listStoreQrcodes]<br/>GET /products/qrcodes
+        A-->>S: 200 { items: [{ currency, qrType, qrContent, checkoutOptions }] }
+    and
+        S->>A: #35;2 [getPaymentPageSettings]<br/>GET /products/qrcodes/page
+        A-->>S: 200 { logoUrl, logoCustomized, payerInputs, inputLimit,<br/>description, checkoutOptions, tips }
+    and
+        S->>A: #35;3 [listCheckoutOptions]<br/>GET /products/checkout/options
+        A-->>S: 200 { items: [{ checkoutOption, displayName, logoUrl, opened }] }
+    end
+    S->>S: 第 1 项渲染主码卡片，其余放进 More<br/>按码取名字与图标，右栏按设置渲染预览
+
+    Note over U,S: 下载 / 预览 / More（前端用 qrContent 生成二维码，不调接口）
+    U->>S: 点 Download QR Code，在预览弹窗点 Download PNG
+    S->>S: 用 qrContent 生成二维码，下载 PNG
+
+    Note over U,A: 换 Logo
+    U->>S: 选一张图片（前端先拦格式与大小）
+    S->>A: #35;4 [uploadPaymentPageLogoFile]<br/>POST /products/qrcodes/files
+    A-->>S: 201 { fileId, previewUrl }
+    S->>S: 预览换成 previewUrl，fileId 留到保存时作 logoFileId
+
+    Note over U,A: 改小费、采集项、支付方式、附加说明（只改页面状态，出现保存条）
+    U->>S: 点 Save changes
+    S->>A: #35;5 [updatePaymentPageSettings]<br/>PUT /products/qrcodes/page
+    A-->>S: 204
+    par
+        S->>A: #35;2 [getPaymentPageSettings]<br/>GET /products/qrcodes/page
+        A-->>S: 200
+    and
+        S->>A: #35;1 [listStoreQrcodes]<br/>GET /products/qrcodes
+        A-->>S: 200（码上的支付方式随之变化）
+    end
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| Logo 格式或大小不合规 | `400`·`204015` | 提示换一个文件 |
+| 一个支付方式都没选 | `400`·`204005` | 字段红框；正确页面下保存按钮已拦住 |
+| 新勾的方式在保存前已被停用（其间在 Service 页关掉了） | `409`·`208007` | 重调 #3，方式卡片按新状态显示 |
+| 采集项缺了必填项，或自撰标题以 `sys:` 开头 | `409`·`208030` | 采集项字段红框 |
+| 采集项超过 `inputLimit` 项、附加说明超过 300 字符、小费档位超出 0–30% | `400`（`details` 指到字段） | 字段红框；正确页面下输入时已拦住 |
+| 保存返回其他失败 | 按通用错误策略 | 原样重发同一请求体即可 |
+
+- 商户名取启动链路已取的 `listMerchants` 当前商户那一行。
+- 主码卡片照 #1 的第 1 项渲染；More 弹窗按返回顺序列出其余的码。码卡片上的支付方式标识按 `checkoutOptions` 到 #3 取名字与图标；银联码的 `checkoutOptions` 为空，按 `qrType` 显示 UnionPay QRC 标识。
+- 下载 PNG 由前端生成，文件名 `{商户名}-{currency}-{qrType}.png`（商户名同上一条，`qrType` 用字段原值），分辨率不低于 512×512。主码卡片旁的「Linked to」收银台域名由前端按部署写死。
+- Payment methods 卡按 #3 逐项显示，勾选状态取 #2 的 `checkoutOptions`：
+  - `opened` 为假、没勾的：置灰，提示先到 Service 页开通，不能勾；
+  - `opened` 为假、已勾的（选了以后在 Service 页停用）：保持勾选、置灰，提示「已停用，付款人暂时看不到」，可以取消勾选；前端不替商户取消，保存时原样带回，重新开通后自动恢复。
+- Logo：预览显示 #2 的 `logoUrl`，没有就显示占位；`logoCustomized` 为真时显示 Remove，移除即保存时带 `logoFileId: null`，之后付款人看到的是商户 Logo。
+- 小费档位没配置过时，#2 给的是平台默认档位。
+- 采集项：系统项显示为文案只读行（非必填的可删，必填的不可删），自撰项可增删改；合计不超过 #2 返回的 `inputLimit` 项，达到上限就隐藏新增入口。User notes 开关关掉 = 保存时 `payerInputKeys` 给空数组；列表里有必填的系统项时开关不能关。再打开从 #2 读到的列表重新开始；删掉的系统项与关掉开关后保存丢掉的项都加不回来，删之前要确认。
+- #5 按 PUT 部分更新（没带的字段保持原值）。页面点 Save changes 时直接把整份表单发出去（Logo 没换就不带 `logoFileId`），不必算改了哪些字段；只发改过的字段也可以。Discard 回到上次读到的 #2。
+- 出现保存条（有未保存的修改）时离开本页，先弹确认框，见公共约定「未保存的修改」。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 采集项 | 只有 User notes 开关 + 最多 3 个自撰项 | 系统项（如姓名、手机号）也列出来，合计不超过 `inputLimit` 项（部署参数，默认 10）；开关关掉即清空 | 付款人页面实际收系统项，商户要能看到并删掉不想收的 |
+| Branding | 没有 Logo 时是空占位 | 没设收款页 Logo 时显示商户 Logo | 收款页没设 Logo 时付款人看到的是商户 Logo |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

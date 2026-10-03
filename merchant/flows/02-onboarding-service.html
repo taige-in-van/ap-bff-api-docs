@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>入驻与服务开通 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 入驻与服务开通 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。入驻的几页在商户激活前，不在商户后台的框架里（没有侧边栏）；Service 在商户后台里。审核是离线过程，不作为参与方出现，结果在下次登录经启动链路分流。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 入驻向导 | 启动链路判定当前商户的申请为 `DRAFT` / `MORE_INFO_REQUIRED`；顶栏切换器新建关联商户、或点未激活的关联商户 | [页面：入驻向导](#页面：入驻向导)；[流程：新增关联商户后进入向导](#流程：新增关联商户后进入向导) |
+| Review | 入驻向导 Documents 步点 Next | [页面：Review](#页面：Review) |
+| 提交成功、审核状态、拒绝结果 | 首次入驻 Submit 后；启动链路按申请状态分流；顶栏切换器点审核中的关联商户 | [页面：提交成功、审核状态、拒绝结果](#页面：提交成功、审核状态、拒绝结果) |
+| Service | 侧边栏 Account › Service | [页面：Service](#页面：Service) |
+
+## 页面流转
+
+**首次入驻**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "03-登录后的启动链路" as BOOT
+    state st <<choice>>
+    state "入驻向导" as WIZ
+    state "Review" as REV
+    state "提交成功" as OK
+    state "审核状态" as UR
+    state "拒绝结果" as RJ
+    state "01-Login" as L
+
+    BOOT --> st: 当前商户还没开通，看入驻申请
+    st --> WIZ: 草稿 / 待补充
+    st --> UR: 审核中
+    st --> RJ: 被拒
+    WIZ --> REV: Documents 步 Next
+    REV --> OK: Submit
+    OK --> L: 回登录页
+    UR --> L: 回登录页
+    RJ --> L: 回登录页
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class BOOT,L other
+```
+
+**关联商户**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "03-顶栏商户切换器" as SW
+    state "入驻向导" as WIZ
+    state "Review" as REV
+    state "审核状态" as UR
+    state "03-Dashboard" as D
+
+    SW --> WIZ: 新建关联商户，或点草稿 / 待补充的
+    SW --> UR: 点审核中的
+    WIZ --> REV: Documents 步 Next
+    REV --> D: Submit
+    UR --> D: 回首页
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class SW,D other
+```
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getOnboardingApplication`](../merchants/index.html#tag/application/operation/getOnboardingApplication) | `GET /merchants/{merchantId}/application` | 加载商户的入驻申请（状态、各步字段、已完成步骤、只读字段、待补项、已绑定文档） |
+| 2 | [`listCurrencyOptions`](../system/index.html#tag/config/operation/listCurrencyOptions) | `GET /config/currencies` | 结算币种及各币种可选的国家 |
+| 3 | [`listCountryOptions`](../system/index.html#tag/config/operation/listCountryOptions) | `GET /config/countries` | 国家及其省州 |
+| 4 | [`listIndustryOptions`](../system/index.html#tag/config/operation/listIndustryOptions) | `GET /config/industries` | 行业大类及其 MCC |
+| 5 | [`listPaymentMethodOptions`](../system/index.html#tag/config/operation/listPaymentMethodOptions) | `GET /config/payment-methods/{currency}` | 某结算币种的支付方式与标准费率 |
+| 6 | [`getSettlementConfig`](../system/index.html#tag/config/operation/getSettlementConfig) | `GET /config/settlement` | 结算周期与各币种允许的银行账户制式 |
+| 7 | [`updateOnboardingStep`](../merchants/index.html#tag/application/operation/updateOnboardingStep) | `PUT /merchants/{merchantId}/application/steps/{step}` | 分步保存一个步骤 |
+| 8 | [`uploadOnboardingDocumentFile`](../merchants/index.html#tag/application/operation/uploadOnboardingDocumentFile) | `POST /merchants/{merchantId}/application/files` | 上传一份入驻文档（随 documents 步保存时绑定） |
+| 9 | [`submitOnboardingApplication`](../merchants/index.html#tag/application/operation/submitOnboardingApplication) | `POST /merchants/{merchantId}/application/submission` | 提交审核 |
+| 10 | [`getAccountService`](../account/index.html#tag/service/operation/getAccountService) | `GET /account/service` | 读 Service 页（受理模式、Moneris / Clover、Shopify / Allvalue） |
+| 11 | [`updateAcceptanceMode`](../account/index.html#tag/service/operation/updateAcceptanceMode) | `PUT /account/service/modes/{mode}` | 保存一个受理模式（方式开关即时生效，未开通的方式或模式进申请） |
+| 12 | [`uploadStorePhotoFile`](../account/index.html#tag/service/operation/uploadStorePhotoFile) | `POST /account/service/files` | 上传门店内照 / 外照（开通线下模式用） |
+| 13 | [`updateTerminalIntegration`](../account/index.html#tag/service/operation/updateTerminalIntegration) | `PUT /account/service/terminal` | 连接、切换或更新 Moneris / Clover（即时生效） |
+| 14 | [`disableTerminalIntegration`](../account/index.html#tag/service/operation/disableTerminalIntegration) | `DELETE /account/service/terminal` | 停用在用的那家（凭据与 3DS 保留） |
+| 15 | [`updateEcommerceIntegration`](../account/index.html#tag/service/operation/updateEcommerceIntegration) | `PUT /account/service/ecommerce/{provider}` | 接入（进审核）或管理 Shopify / Allvalue |
+
+---
+
+## 页面：入驻向导
+
+启动链路判定当前商户未激活、申请为 `DRAFT` / `MORE_INFO_REQUIRED` 时进入；从顶栏切换器新建关联商户、或点未激活的关联商户时也进入这里（见「流程：新增关联商户后进入向导」）。申请接口的 `{merchantId}`：首次入驻取 `getCurrentSession` 的 `merchantId`，关联商户取进入时带的 `merchantId`。顶部步骤条 Contact / Business / Services / Settlement / Documents，右侧汇总已选支付方式 + Back / Next。
+
+```mermaid
+sequenceDiagram
+    actor U as Owner
+    participant S as 入驻向导(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 进入页面
+    S->>A: #35;1 [getOnboardingApplication]<br/>GET /merchants/{merchantId}/application
+    A-->>S: 200 { status, completedSteps, missingFields }
+    S->>S: 落在第一个未完成的步骤<br/>（补料时落在第一个有待补项的步骤）
+
+    Note over U,A: 进入某一步时取该步的候选（需要时就调）
+    S->>A: #35;2 [listCurrencyOptions]<br/>GET /config/currencies（Business 步）
+    A-->>S: 200 { items }
+    S->>A: #35;3 [listCountryOptions]<br/>GET /config/countries（Business 步）
+    A-->>S: 200 { items }
+    S->>A: #35;4 [listIndustryOptions]<br/>GET /config/industries（Business 步）
+    A-->>S: 200 { items }
+    S->>A: #35;5 [listPaymentMethodOptions]<br/>GET /config/payment-methods/{currency}（Services 步）
+    A-->>S: 200 { items }
+    S->>A: #35;6 [getSettlementConfig]<br/>GET /config/settlement（Settlement 步）
+    A-->>S: 200 { settlementCycleOptions, bankAccountTypes }
+
+    loop 前 4 步每步点 Next
+        S->>A: #35;7 [updateOnboardingStep]<br/>PUT /merchants/{merchantId}/application/steps/{step}?mode=next
+        alt 通过
+            A-->>S: 204
+            S->>S: 进下一步
+        else 字段缺失或格式错
+            A-->>S: 400·204001 details
+            S->>U: 红框 + 错误条，不推进
+        end
+    end
+
+    Note over U,A: Documents 步每个文档位各传一次
+    U->>S: 选文件（前端先拦格式与大小）
+    S->>A: #35;8 [uploadOnboardingDocumentFile]<br/>POST /merchants/{merchantId}/application/files
+    A-->>S: 201 { fileId, previewUrl }
+    U->>S: 点 Next
+    S->>A: #35;7 [updateOnboardingStep]<br/>PUT /merchants/{merchantId}/application/steps/documents?mode=next
+    A-->>S: 204
+    S->>S: 进 Review 页
+
+    Note over U,A: 有未保存修改时离开向导
+    S->>U: 提示是否保存草稿
+    opt 保存
+        S->>A: #35;7 [updateOnboardingStep]<br/>PUT /merchants/{merchantId}/application/steps/{step}?mode=draft
+        A-->>S: 204
+    end
+```
+
+- 草稿存后端：点 Next 用 `mode=next`；在关页面、切商户、去别的页面前提示保存时用 `mode=draft`。Back / 点步骤条不保存。重登录或换设备后按 `completedSteps` 落在第一个未完成的步骤，全部完成进 Review 页；步骤条的完成态也看它。
+- Documents：选文件后先按 `MerchantFilePurpose` 用途表里 `onboarding_document` 的格式与大小上限拦一道（前端常量），再上传；最终以服务端 `204015` 为准，不合规提示换一个文件。只选了线上方式时，门店内照、外照不显示必填标记（必传规则见 `updateOnboardingStep`）。
+- 哪些字段只读看 `readonlyFields`（`<step>.<field>`），不要自己按入驻模式推。
+- Contact：姓名、职务、电话是 Owner 的账号资料，注册时填过的只读，没填的在这里补填；登录邮箱与 Merchant ID（`merchantCode`）只读。Referred By 为 Moneris（不分大小写）时 Moneris MID 与客户经理名必填。
+- Business：先定币种与国家；改国家后省 / 州、时区重选（邮编格式按国家、时区候选按省 / 州，取前端参考数据）。商户语言 `language`（English / Français / 中文）和时区一起填，决定发给商户的通知（邮件、微信、站内信）与月对账单的语言；语言还没填时前端按浏览器语言预选（法语 → Français，中文 → 中文，其余 → English），商户可改，服务端不代填。线上服务类型与网址常显、选填。行业 / MCC 下拉在前端本地搜索（码前缀 + 当前语言名称子串），两级联动（选大类列出 MCC，搜到 MCC 反推大类），MCC 按「名称 (码)」显示。
+- Services：候选用 Business 所选币种调 #5，改了币种重新取；按 `acceptanceMode` 分线下 / 线上两组展示；每项显示 `standardRate`（前端格式化成「1.5% + $0.10 per transaction」），`recommended` 为真的标 Recommended。勾了任一线上方式时，点 Next 先校验 Business 的线上服务类型与网址，缺了提示回 Business 补（服务端同样校验，见 `updateOnboardingStep`）。
+- Settlement：银行账号、Refund PIN 已填看 `accountNumberSet` / `refundPinSet`；两次 PIN 一致前端先校验。银行账户表单按结算币种在 `bankAccountTypes` 里的制式选：只有一个直接渲染该表单，多个先让用户选收款银行所在国。结算周期初始选中已保存的值，没有才选第一项。Legal Business Name 只读回显 Business 的值。
+- 保存拿到 `409`·`208003`（申请已不在可编辑状态）时重调 #1，按新状态进对应页面。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 步骤顺序 | Contact → Services → Business → … | Contact → Business → Services → … | 候选支付方式与标准费率按结算币种不同，要先定币种 |
+| Business · 线上服务类型与网址 | 勾了线上支付方式才出现，默认 Website | 常显、选填、不预选；到 Services 勾了线上方式才必填 | 顺序调换后，填 Business 时还不知道会不会勾线上方式 |
+| Business · 商户语言 | 没有 | 和时区一起填，必填 | 发给商户的通知与月对账单按商户语言出 |
+| Contact · 姓名 / 职务 / 电话 / 邮箱 | 首次入驻全部可改 | 注册时填过的只读，邮箱恒只读 | 这些是 Owner 账号资料，改动走 My Profile / Business Profile |
+| 离开向导 | 自动存在浏览器本地 | 有未保存修改时提示是否保存草稿（存后端） | 草稿要能跨设备、重登录续填 |
+| Documents · 门店内照 / 外照 | 一律必传 | 选了线下方式才必传 | 门店照是线下的开通材料，纯线上商户拍不出门店 |
+
+---
+
+## 页面：Review
+
+Documents 步 Next 后进入，只读汇总 5 步内容与文档缩略图；Back 回 Documents 步，Submit 提交审核。
+
+```mermaid
+sequenceDiagram
+    actor U as Owner
+    participant S as Review 页(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 进入页面
+    S->>A: #35;1 [getOnboardingApplication]<br/>GET /merchants/{merchantId}/application
+    A-->>S: 200 { steps〔账号掩码、文档 previewUrl〕 }
+    U->>S: 点 Submit
+    S->>A: #35;9 [submitOnboardingApplication]<br/>POST /merchants/{merchantId}/application/submission
+    alt 已提交
+        A-->>S: 204
+        Note over S,A: entryMode = FIRST_ONBOARDING → 进「提交成功页」<br/>BRANCH / NEW_LEGAL_ENTITY → 回商户后台首页
+    else 字段或文档不全
+        A-->>S: 400·204001 / 204002 details
+        S->>U: 错误条，点击回跳对应步骤
+    else 状态不可提交
+        A-->>S: 409·208003
+    end
+```
+
+- `details` 写作 `<step>.<field>`，前端按前缀对应到步骤条。
+- 汇总里的展示名与费率都按码从向导里已取的候选集查：支付方式的名称与标准费率用 Business 步所选币种调 #5 取，行业与 MCC 用 #4，国家与省州用 #3，结算周期用 #6。直接进 Review 页（刷新后恢复）时先把这几份候选取回来。
+
+---
+
+## 页面：提交成功、审核状态、拒绝结果
+
+三个都是结果页，都不调接口：
+- **提交成功页**：只在首次入驻 Submit 后出现一次。
+- **审核状态页**、**拒绝结果页**：首次入驻的 Owner 之后每次登录由启动链路（见 [flows 03-shell-dashboard「流程：登录后的启动链路」](03-shell-dashboard.html#流程：登录后的启动链路)）按状态分流进入。审核时效、客服联系方式是前端固定文案。
+- **出口**按当前商户判：首次入驻（当前商户未激活）只有「回登录页」；从顶栏切换器点审核中的关联商户进来的审核状态页（当前商户已激活）是「回首页」。被拒的关联商户不在切换器里，拒绝结果页只会出现在首次入驻。
+
+- 拒绝原因只随拒绝邮件发出，页面不展示。拒绝是终态，原申请不能改回草稿。
+- 补料不发邮件或站内信，审核员电话联系；Owner 重新登录后进入驻向导（关联商户在切换器里显示「待补充」，点击进向导）。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 审核通过后 | 先进「You're approved」激活页（Activate / Skip for now 两个按钮效果相同） | 不设激活页，商户激活即直接进商户后台 | 激活页没有实际内容；开户邮件已告知「账户可用」，无需 Owner 再操作 |
+
+---
+
+## 流程：新增关联商户后进入向导
+
+顶栏商户切换器 Add New Merchant 建商户与草稿（`createMerchant`，见 [flows 03-shell-dashboard「页面：顶栏 · Create a Merchant 弹窗」](03-shell-dashboard.html#页面：顶栏%20·%20Create%20a%20Merchant%20弹窗)），前端带返回的 `merchantId` 进入同一向导；在切换器里点 `DRAFT` / `MORE_INFO_REQUIRED` 的关联商户同样带它的 `merchantId` 进来。两种都不切换当前商户，当前商户仍是原来那个已激活的商户。申请的 `entryMode` 为 `BRANCH` / `NEW_LEGAL_ENTITY`，前端据此区分。与首次入驻的区别：
+- 结算币种在弹窗里已定；Contact 全部只读（Owner 是同一人）。
+- Branch 按主商户预填部分资料、可改。
+- Refund PIN 要重设、文档重新上传。
+- 顶栏有「回首页」，直接回商户后台；Submit 后回首页而不是提交成功页。
+
+多个关联商户各自独立申请，互不阻塞。
+
+---
+
+## 页面：Service
+
+侧边栏 Account › Service。上半是两张受理模式卡片：In-Store Payment、Online e-Commerce，各显示未开通 / 审核中 / 已开通（几个支付方式），线上卡片还显示网址。下半是集成：Moneris、Clover 二选一，Shopify、Allvalue 可同时连，按已连接 / 可连接分两组。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Service(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;10 [getAccountService]<br/>GET /account/service
+        A-->>S: 200 { modes, terminals, ecommerce }
+    and
+        S->>A: #35;5 [listPaymentMethodOptions]<br/>GET /config/payment-methods/{currency}
+        A-->>S: 200 { items }
+    end
+    S->>S: 按码取展示名，候选里读面没有的方式显示「可申请」
+
+    Note over U,A: 管理已开通的模式（弹窗：方式开关，线上还能改服务类型与网址）
+    U->>S: 点已开通的卡片，拨开关 / 勾可申请的方式 / 改网址，点 Save
+    S->>A: #35;11 [updateAcceptanceMode]<br/>PUT /account/service/modes/{mode}
+    A-->>S: 204（开关即时生效，新勾的方式进申请，<br/>改了网址即时生效并进复审）
+
+    Note over U,A: 开通未开通的模式（弹窗：选方式，线下传门店内外照，线上选服务类型、填网址）
+    U->>S: 点未开通的卡片，选方式，选门店内照、外照
+    S->>A: #35;12 [uploadStorePhotoFile]<br/>POST /account/service/files（内照、外照各一次）
+    A-->>S: 201 { fileId }
+    U->>S: 点 Save
+    S->>A: #35;11 [updateAcceptanceMode]<br/>PUT /account/service/modes/{mode}
+    A-->>S: 204（整张开通申请进入审核）
+
+    Note over U,A: 连接 / 管理 Moneris 或 Clover（弹窗：两项凭据 + 3DS）
+    U->>S: 填凭据（管理在用的那家可不填），拨 3DS，点 Save
+    S->>A: #35;13 [updateTerminalIntegration]<br/>PUT /account/service/terminal
+    A-->>S: 204（即时生效，另一家转为保留）
+    U->>S: 在管理弹窗关掉 Activated
+    S->>A: #35;14 [disableTerminalIntegration]<br/>DELETE /account/service/terminal
+    A-->>S: 204（凭据与 3DS 保留）
+
+    Note over U,A: 接入 / 管理 Shopify 或 Allvalue（弹窗：网址 + 支付方式）
+    U->>S: 点 Connect 或 Manage，填网址、拨支付方式，点 Save
+    S->>A: #35;15 [updateEcommerceIntegration]<br/>PUT /account/service/ecommerce/{provider}
+    A-->>S: 204（未接入的进审核，已接入的即时生效，<br/>改了网址即时生效并进复审）
+
+    Note over S,A: 每次保存成功后重新调 #35;10 刷新卡片
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 卡片状态已变（开通或接入正在审核中、该模式已有申请在审又勾了新方式） | `409`·`208003` | 重调 #10 |
+| 还没有已开通的线上方式就接入电商 | `409`·`208003` | 正确页面下 Connect 已置灰，不会出现；出现就重调 #10 |
+| 所选支付方式不在候选内 | `400` | 重调 #10 |
+| 开通材料缺失，网址、服务类型或凭据不合规 | `400`（`details` 指到字段） | 字段红框 |
+| 门店照格式或大小不合规 | `400`·`204015` | 提示换一个文件 |
+
+- 币种取 `listMerchants` 里当前商户那一行的 `currency`，用它调 #5。
+- 卡片按 `modes[].status` 显示：`NOT_CONNECTED` 点开是开通弹窗，`UNDER_REVIEW` 不可点，`ACTIVE` 点开是管理弹窗。方式全关了的 `ACTIVE` 模式，卡片显示 Inactive、0 个方式，照常点进去再打开。
+- 弹窗的方式列表是 #5 里该模式的全部候选：读面 `ACTIVE` 的是开关、显示实际费率 `rate`；`UNDER_REVIEW` 的显示审核中、不可操作；其余显示标准费率，勾上即申请。该模式已有申请在审时，未开通的行置灰。
+- 本页显示费率的地方（实际费率、标准费率、电商集成的费率）都是比例与固定单笔费一起显示，固定费为 0 时只显示比例。
+- 线上模式：`typeOfOnlineService` 为 `WEBSITE` 时显示网址；`websiteUrlUnderReview` 为真时显示「审核中」标记，照常可用。
+- Moneris / Clover：3DS 初始值取读面这家的 `threedsEnabled`，没有则关。管理在用的那家只改 3DS 时凭据框可以留空；停用后重连要重新输入凭据。
+- Shopify / Allvalue：弹窗的方式候选取读面该集成的 `paymentMethods`，逐个显示它的 `rate`。候选为空时 Connect 置灰，提示先开通线上方式；要断开的提示联系客服。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 管理方式弹窗 | 整个目录都能拨 | 已开通的拨开关；未开通的勾上即申请，待审核 | 没进件的方式不能直接收款 |
+| 开通模式弹窗 | 只交材料 | 同时选方式；线下交门店内照、外照两张 | 与入驻 Services 步、Documents 步的线下材料一致，运营按所选进件 |
+| 线上模式开通弹窗 | 只填网址 | 先选线上服务类型，`WEBSITE` 才填网址 | 与入驻向导 Business 步同一组字段 |
+| 改网址（线上模式、电商集成） | 卡片回到审核中、开关禁用 | 新网址即时生效，只显示「审核中」标记，照常可用 | 复审是平台的动作，不中断收款 |
+| 审核被拒 | 无此分支 | 回到未开通，可重新申请 | demo 只模拟了通过 |
+| 电商弹窗的费率 | 前端按基础费率加固定上浮算 | 取接口返回的该集成费率 | 费率由平台计费配置决定 |
+| 没有线上方式时接入电商 | 可以 | Connect 置灰 | 没有线上方式，接上也收不了款 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

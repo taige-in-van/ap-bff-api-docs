@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>账单与商品链接 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 账单与商品链接 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。账单被支付这类状态变化由系统驱动，前端靠重新读取看到。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Invoice Payment | 侧边栏 Product › Invoice Payment | [页面：Invoice Payment](#页面：Invoice%20Payment) |
+| Product Links | 侧边栏 Product › Product Links | [页面：Product Links](#页面：Product%20Links)；[页面：Product Links · Create Product Link 弹窗](#页面：Product%20Links%20·%20Create%20Product%20Link%20弹窗) |
+| Product Link 详情 | Product Links 列表点名称或查看；新建链接成功后 | [页面：Product Link 详情 · Overview 页签](#页面：Product%20Link%20详情%20·%20Overview%20页签)；[页面：Product Link 详情 · Orders 页签](#页面：Product%20Link%20详情%20·%20Orders%20页签) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getInvoiceSummary`](../products/index.html#tag/invoices/operation/getInvoiceSummary) | `GET /products/invoices/summary` | 账单页顶汇总卡（商户全部账单，不随列表筛选变） |
+| 2 | [`listInvoices`](../products/index.html#tag/invoices/operation/listInvoices) | `GET /products/invoices` | 账单列表（分页） |
+| 3 | [`getInvoiceCounts`](../products/index.html#tag/invoices/operation/getInvoiceCounts) | `GET /products/invoices/counts` | 账单状态 chip 的各项与计数 |
+| 4 | [`listCheckoutOptions`](../products/index.html#tag/checkout/operation/listCheckoutOptions) | `GET /products/checkout/options` | 收银台支付方式候选（展示名、图标、是否已开通、可标价币种；店铺码、账单、Product Links 共用，礼卡带 `linkType=giftcard`） |
+| 5 | [`createInvoice`](../products/index.html#tag/invoices/operation/createInvoice) | `POST /products/invoices` | 创建账单 |
+| 6 | [`deleteInvoice`](../products/index.html#tag/invoices/operation/deleteInvoice) | `DELETE /products/invoices/{invoiceNo}` | 删除账单（码与链接立即失效） |
+| 7 | [`listProductLinks`](../products/index.html#tag/links/operation/listProductLinks) | `GET /products/links` | Product Links 列表（分页） |
+| 8 | [`getProductLinkCounts`](../products/index.html#tag/links/operation/getProductLinkCounts) | `GET /products/links/counts` | 类型 chip 的各项与计数 |
+| 9 | [`updateProductLink`](../products/index.html#tag/links/operation/updateProductLink) | `PUT /products/links/{linkId}` | 改链接（含启停、换图） |
+| 10 | [`deleteProductLink`](../products/index.html#tag/links/operation/deleteProductLink) | `DELETE /products/links/{linkId}` | 删除链接（链接与二维码立即失效） |
+| 11 | [`getProductLinkDefaults`](../products/index.html#tag/links/operation/getProductLinkDefaults) | `GET /products/links/defaults` | 新建链接的初始值（买家 / 收件人采集项默认集，按链接类型） |
+| 12 | [`uploadProductLinkFile`](../products/index.html#tag/links/operation/uploadProductLinkFile) | `POST /products/links/files` | 上传 Banner / 品牌 Logo / 商品图（随创建或修改生效） |
+| 13 | [`createProductLink`](../products/index.html#tag/links/operation/createProductLink) | `POST /products/links` | 创建链接 |
+| 14 | [`getProductLink`](../products/index.html#tag/links/operation/getProductLink) | `GET /products/links/{linkId}` | 链接详情 |
+| 15 | [`updateProductLinkPolicies`](../products/index.html#tag/links/operation/updateProductLinkPolicies) | `PUT /products/links/{linkId}/policies` | 改政策条款（同时成为商户默认） |
+| 16 | [`listProductLinkOrders`](../products/index.html#tag/links/operation/listProductLinkOrders) | `GET /products/links/{linkId}/orders` | 该链接的销售单（分页） |
+| 17 | [`getProductLinkOrderCounts`](../products/index.html#tag/links/operation/getProductLinkOrderCounts) | `GET /products/links/{linkId}/orders/counts` | 销售单状态、核销状态、风险等级三个筛选的各项与计数 |
+| 18 | [`getProductLinkOrder`](../products/index.html#tag/links/operation/getProductLinkOrder) | `GET /products/links/{linkId}/orders/{salesOrderId}` | 销售单详情（含凭证、礼卡段、动作日志） |
+| 19 | [`createRefund`](../orders/index.html#tag/payments/operation/createRefund) | `POST /orders/payments/{orderId}/refunds` | 发起退款 |
+| 20 | [`resendProductLinkOrderCredential`](../products/index.html#tag/links/operation/resendProductLinkOrderCredential) | `POST /products/links/{linkId}/orders/{salesOrderId}/credential-redelivery` | 重发凭证邮件（可改收件邮箱） |
+| 21 | [`voidProductLinkOrderVoucher`](../products/index.html#tag/links/operation/voidProductLinkOrderVoucher) | `POST /products/links/{linkId}/orders/{salesOrderId}/voucher-invalidation` | 作废兑换券（礼卡兑换券模式） |
+| 22 | [`disposeProductLinkOrderRisk`](../products/index.html#tag/links/operation/disposeProductLinkOrderRisk) | `POST /products/links/{linkId}/orders/{salesOrderId}/risk-disposition` | 礼卡订单风控处置 |
+
+---
+
+## 页面：Invoice Payment
+
+侧边栏 Product › Invoice Payment。页顶四张汇总卡：Paid / Unpaid / Overdue（各自金额、张数与占比）+ Total Receivables（应收合计、其中未逾期与逾期）。下面是工具栏（按账单号或说明搜索、状态 chip、Filters 弹层〔创建日期区间、金额区间〕、排序、Add Invoice）和分页表格（账单号、金额、创建日期、到期日、说明、状态、查看 / 删除）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Invoice(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;1 [getInvoiceSummary]<br/>GET /products/invoices/summary
+        A-->>S: 200 { paid, unpaid, overdue }（各 count + amounts）
+    and
+        S->>A: #35;2 [listInvoices]<br/>GET /products/invoices?sortField=createdAt&sortOrder=descend
+        A-->>S: 200 { total, data: [{ invoiceNo, amount, status, dueDate,<br/>createdAt, description, paymentUrl, orderId }] }
+    and
+        S->>A: #35;3 [getInvoiceCounts]<br/>GET /products/invoices/counts
+        A-->>S: 200 { items }
+    end
+    Note over S,A: 搜索 / 切 chip / 筛选 / 排序 / 翻页：重调 #35;2（chip 带 status），<br/>搜索与筛选变了 #35;3 同步带上同一组条件
+
+    Note over U,A: 新建账单（弹窗）
+    U->>S: 点 Add Invoice
+    S->>A: #35;4 [listCheckoutOptions]<br/>GET /products/checkout/options
+    A-->>S: 200 { items: [{ opened, pricingCurrencies }] }
+    S->>S: 已开通项的 pricingCurrencies 取并集 = 币种下拉
+    U->>S: 选币种、填金额、选到期日（或 No Due Date）、填说明，点 OK
+    S->>A: #35;5 [createInvoice]<br/>POST /products/invoices
+    A-->>S: 201 { invoiceNo, paymentUrl, ... }
+    S->>S: 打开预览弹窗显示新账单
+    S->>A: 重调 #35;1、#35;2、#35;3
+
+    Note over U,A: 预览 / 复制链接 / 下载海报（前端生成）
+    U->>S: 点行上的查看
+    S->>S: 用该行数据渲染海报预览：商户名、paymentUrl 生成的二维码、金额
+    U->>S: Copy Link
+    S->>S: 复制 paymentUrl
+    U->>S: Download
+    S->>A: #35;4 [listCheckoutOptions]<br/>GET /products/checkout/options（本页已取过可复用）
+    A-->>S: 200 { items }
+    S->>S: 生成海报 PNG（支付方式标识取 opened 为真、<br/>且 pricingCurrencies 含该账单币种的项）
+
+    Note over U,A: 删除（确认弹窗）
+    U->>S: 点行上的删除，确认
+    S->>A: #35;6 [deleteInvoice]<br/>DELETE /products/invoices/{invoiceNo}
+    A-->>S: 204（码与链接立即失效）
+    S->>A: 重调 #35;1、#35;2、#35;3
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 金额缺失或不大于 0、币种不在候选里 | `400`（`details` 指到字段） | 字段红框；正确页面下提交前已拦住 |
+| 到期日早于次日 | `400`·`204004` | 到期日字段红框 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+| 删除时账单已不存在（已被删） | `404` | 重调 #2 |
+
+- 商户名取启动链路已取的 `listMerchants` 当前商户那一行；`invoiceNo` 从 10001 起，直接显示。
+- 创建日期列显示 `createdAt`（时刻，按浏览器时区）；Filters 按创建日期筛出来的行，这一列显示的日子可能与所筛日期差一天，不是 bug。
+- 汇总卡：
+  - 每格显示张数与金额；金额按 `amounts` 逐币种显示（CAD 与 CNY 各一行），不跨币种相加；
+  - 占比按张数算：某格张数 ÷ 三格张数之和；
+  - Total Receivables = 未付 + 逾期，逐币种相加；其中 Current = 未付、Overdue = 逾期。
+- 预览弹窗直接用列表行（或 #5 的响应）渲染，不另调详情接口。`orderId` 只在已付时有，点它跳 Payments 详情。
+- 海报由前端生成（与店铺码下载同一做法）：「SCAN TO PAY」、商户名、`paymentUrl` 生成的二维码、金额、能付这张账单的支付方式标识（#4 里 `opened` 为真、且 `pricingCurrencies` 含该账单 `amount.currency` 的项），文件名 `Invoice_{invoiceNo}.png`。
+- 删除任何状态都可以：码与链接立即失效；已付账单的收款不受影响，只是不再出现在列表和汇总里。删除时付款人正在付的那笔，若之后付成功，按非生效支付自动退款。
+- `createInvoice` 带 `Idempotency-Key`：点一次 OK 生成一个键，同一次提交的网络重试复用原键。
+- 新建弹窗已填了内容又要关掉时，先弹确认框，见公共约定「未保存的修改」。
+- 汇总卡与列表口径不同：汇总是商户全部账单，不随搜索与筛选变；chip 的数字随搜索与筛选变。两边不要互相核对。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 新建弹窗的 Invoice ID | 打开弹窗就显示下一个账单号 | 不预显示，创建成功后在预览弹窗里显示 | 账单号在创建时才分配，并发下预显示的号不一定是最后拿到的 |
+| 排序 | 含 Customer A → Z | 只有创建时间、金额 | 账单上没有客户 |
+| 搜索 | 一个搜索框，没有实际筛选 | 搜账单号与账单说明 | 现网可按编号和备注找账单 |
+| 汇总卡金额与占比 | 各格一个 `$` 金额；占比按金额算；Total Receivables 把已付也加进去 | 金额按标价币种分行；占比按张数算；应收 = 未付 + 逾期 | 不同标价币种不能相加、也不换算；已付的不是应收 |
+
+---
+
+## 页面：Product Links
+
+侧边栏 Product › Product Links。一张列表装三类链接：商品（Product）、票务（Ticket）、礼卡（Gift Card）。工具栏：按名称或 ID 搜索、类型 chip、筛选（启用或停用、创建日期）、排序（最新 / 最早 / 名称）、Create Link。表格列：ID、名称（票务带活动日与场馆，商品与礼卡带条目数）、类型、价格、创建日期、启停开关、查看 / 删除。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Product Links(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;7 [listProductLinks]<br/>GET /products/links?sortField=createdAt&sortOrder=descend
+        A-->>S: 200 { total, data: [{ linkId, type, name, itemPrices,<br/>eventDate, venue, enabled, createdAt }] }
+    and
+        S->>A: #35;8 [getProductLinkCounts]<br/>GET /products/links/counts
+        A-->>S: 200 { items }
+    end
+    Note over S,A: 搜索 / 切 chip / 筛选 / 排序 / 翻页：重调 #35;7（chip 带 type），<br/>搜索与筛选变了 #35;8 同步带上同一组条件
+
+    Note over U,A: 启停（行上的开关）
+    U->>S: 拨开关
+    S->>A: #35;9 [updateProductLink]<br/>PUT /products/links/{linkId} { enabled }
+    A-->>S: 204
+
+    Note over U,A: 删除（确认弹窗）
+    U->>S: 点删除，确认
+    S->>A: #35;10 [deleteProductLink]<br/>DELETE /products/links/{linkId}
+    A-->>S: 204（链接与二维码立即失效）
+    S->>A: 重调 #35;7、#35;8
+
+    U->>S: 点名称或查看
+    S->>S: 进详情页
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 启停或删除时链接已被删 | `404` | 重调 #7、#8 |
+
+- 价格列按类型由前端组：商品一项显示单价、多项显示合计与项数；票务显示票价（多档显示区间）；礼卡逐档列面值（`cardValues`）。`itemPrices` 是在售各项的售价，按创建顺序。
+- 礼卡的开关就是活动开关：关掉后付款人看到活动已结束，再打开时该活动的限购计数重新开始。拨开关前提示商户这一点。
+- 删除任何状态都可以，删后不再出现在列表与 chip 计数里；已成交订单不受影响。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 筛选 | 只有类型 chip | 多出启用或停用、创建日期 | 现网的链接列表可按这两项筛 |
+
+---
+
+## 页面：Product Links · Create Product Link 弹窗
+
+三步：选类型 → 填信息 → 核对后创建。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Product Links(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 点 Create Link，选类型，点 Next
+    par
+        S->>A: #35;4 [listCheckoutOptions]<br/>GET /products/checkout/options?linkType={type}
+        A-->>S: 200 { items: [{ checkoutOption, displayName, logoUrl,<br/>opened, pricingCurrencies }] }
+    and
+        S->>A: #35;11 [getProductLinkDefaults]<br/>GET /products/links/defaults?linkType={type}
+        A-->>S: 200 { buyerInputs, recipientInputs, inputLimit }
+    end
+    S->>S: 币种下拉 = 已开通项 pricingCurrencies 的并集<br/>支付方式按所选币种过滤，采集项按默认集预填
+
+    opt 传图片（三类都有 Banner、礼卡另有品牌 Logo、商品另有商品图）
+        U->>S: 选图片（前端先拦格式与大小）
+        S->>A: #35;12 [uploadProductLinkFile]<br/>POST /products/links/files
+        A-->>S: 201 { fileId, previewUrl }
+        S->>S: 预览换成 previewUrl，fileId 留到创建时带上
+    end
+
+    U->>S: 填完信息，Next 到 Review，点 Create Link
+    S->>A: #35;13 [createProductLink]<br/>POST /products/links
+    A-->>S: 201 { linkId }
+    S->>S: 关弹窗，进详情页
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 必填项缺失、金额不大于 0、条目超过 10 项、礼卡截止日早于今天等可按请求判的错 | `400`（`details` 指到字段） | 字段红框；正确页面下 Next 时已拦住 |
+| 一个支付方式都没选 | `400`·`204005` | 支付方式红框；正确页面下已拦住 |
+| 选的方式在提交前已被停用 | `409`·`208007` | 重调 #4，方式按新状态显示 |
+| 采集项缺了必填项，或自撰标题以 `sys:` 开头 | `409`·`208030` | 采集项红框 |
+| 图片格式或大小不合规 | `400`·`204015` | 提示换一个文件 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+
+- 支付方式按 #4 逐项显示：`opened` 为假的置灰、提示先到 Service 页开通；所选币种不在某项 `pricingCurrencies` 里的，该项不可勾。先勾方式再换币种时，不支持新币种的已勾项自动取消并提示。#4 带 `linkType`：礼卡的候选里支付宝只有一项（线下、线上合并，两个都开通时走线下），商品与票务同店铺码。
+- 采集项：系统项显示为文案只读行（非必填的可删，必填的不可删，如礼卡的收件人邮箱），自撰项可增删；买家、收件人各自不超过 #11 返回的 `inputLimit` 项（修改时取 #14 的），达到上限就隐藏新增入口。收件人只有礼卡有。提交时按 `key` 给全（`buyerInputKeys` / `recipientInputKeys`）。
+- 礼卡的履约模式（发实体卡 / 发兑换券）创建后不能改，在第 2 步明确提示。核销规则只读显示「一次性核销」。截止日的日期选择器以今天为最早可选日。
+- 凭证与收据邮件的语言不在这里设：按付款人下单时的页面语言发，礼卡送礼给收件人的那封也用买家的页面语言。
+- 政策条款不在向导里填：新链接自动带上商户默认，在详情页改。
+- 已填了内容又要关掉弹窗（点 X、点遮罩）时，先弹确认框，见公共约定「未保存的修改」。
+- `createProductLink` 带 `Idempotency-Key`：点一次 Create Link 生成一个键，同一次提交的网络重试复用原键。
+
+---
+
+## 页面：Product Link 详情 · Overview 页签
+
+顶部返回、链接名与价格摘要、类型与启停标签；两个 tab：Overview、Orders。Overview 左栏是一张 Details 卡（名称、ID、创建时间、币种、礼卡活动信息、采集项、Banner、条目、支付方式，一个 Edit / Save 管全部）和一张 Policies & Support 卡（五项条款，各开一个三语弹窗）；右栏是二维码预览、Copy link、Download QR。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 链接详情(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 进详情页
+    S->>A: #35;14 [getProductLink]<br/>GET /products/links/{linkId}
+    A-->>S: 200 { type, name, currency, enabled, paymentUrl, checkoutOptions,<br/>buyerInputs, recipientInputs, inputLimit, notifyMerchantEmail, bannerUrl, policies,<br/>giftcard 或 product 或 ticket }
+    S->>A: #35;4 [listCheckoutOptions]<br/>GET /products/checkout/options?linkType={type}（type 取自 #35;14）
+    A-->>S: 200 { items }
+    S->>S: 按码取支付方式名字与图标，右栏用 paymentUrl 生成二维码
+
+    Note over U,S: Copy link / Download QR（前端用 paymentUrl，不调接口）
+
+    Note over U,A: 编辑 Details（一个 Save 管整张卡）
+    U->>S: 点 Edit，改名称、币种、内容、支付方式、采集项
+    opt 换图（Banner、品牌 Logo、商品图）
+        U->>S: 选图片（前端先拦格式与大小）
+        S->>A: #35;12 [uploadProductLinkFile]<br/>POST /products/links/files
+        A-->>S: 201 { fileId, previewUrl }
+        S->>S: 预览换成 previewUrl，fileId 进草稿
+    end
+    U->>S: 点 Save
+    S->>A: #35;9 [updateProductLink]<br/>PUT /products/links/{linkId}
+    A-->>S: 204
+    S->>A: 重调 #35;14
+
+    Note over U,A: 改一项政策条款（三语弹窗）
+    U->>S: 点 FAQ 等某一项，填三语，点 Save
+    S->>A: #35;15 [updateProductLinkPolicies]<br/>PUT /products/links/{linkId}/policies { faq }
+    A-->>S: 204（同时成为商户默认，之后新建的链接带上）
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 可按请求判的字段错（同新建） | `400`（`details` 指到字段） | 字段红框 |
+| 新勾的方式在保存前已被停用 | `409`·`208007` | 重调 #4，方式按新状态显示 |
+| 采集项不合法（同新建） | `409`·`208030` | 采集项红框 |
+| 可售上限改得低于已售加在途 | `409`·`208031`（`context.committedQuantity`） | 提示「不能低于 N」 |
+| 带回的条目标识不属于本链接 | `409`·`208032` | 重调 #14 后再改 |
+| 链接已被删 | `404` | 回列表 |
+
+- #4 要带链接类型，类型要等 #14 返回才知道（刷新或从外部链接直接打开详情页时，前端只有 `linkId`），所以两个接口先后调，不并行。
+- #9 按 PUT 部分更新：没带的字段保持原值。Save 时把整张 Details 卡发出去即可（内容段只带本类型那个，`fulfillmentMode` 不带）；换过的图带新 `fileId`（`bannerFileId` / `giftcard.brandLogoFileId` / `product.items[].imageFileId`），移除带 `null`，没换就不带。Cancel 丢掉草稿，已上传没用上的文件由服务端到期清理。
+- 编辑态有未保存的修改时，切到 Orders tab、离开页面、点 Cancel，都先弹确认框，见公共约定「未保存的修改」。
+- 改条目时把读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。
+- 已成交的订单自带下单时的内容快照，改名称、价格、币种都不影响它们；只有礼卡的履约模式不能改（前端不给入口，接口也不收）。
+- 支付方式卡：规则同新建；已勾、后来在 Service 页停用的项保持勾选并置灰，提示「已停用，付款人暂时看不到」，保存时原样带回。
+- 政策条款：#15 只改请求里带的那几项，每项按三语整体替换，某语种不填即清空；同一份内容同时成为商户默认。
+
+---
+
+## 页面：Product Link 详情 · Orders 页签
+
+工具栏：按销售单号、支付订单号、买家或收件人、券号、条目名搜索；状态 chip；核销状态下拉（有平台核销的链接才显示：商品、票务、礼卡兑换券模式）；礼卡另有风险等级下拉；日期范围；排序。三个筛选控件的项与数字都取 #17 的同名数组。表格列：销售单号、买家、金额、状态、核销状态、时间、查看；礼卡多出活动名、面值、收件人、卡号或券号掩码、风险标签。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 链接详情(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 切到 Orders
+    par
+        S->>A: #35;16 [listProductLinkOrders]<br/>GET /products/links/{linkId}/orders?sortField=createdAt&sortOrder=descend
+        A-->>S: 200 { total, data: [{ salesOrderId, orderId, buyer, amount, refundedAmount,<br/>status, redemptionStatus, createdAt, 礼卡: campaignName, cardValue, recipient, credentialMasked, riskLevel }] }
+    and
+        S->>A: #35;17 [getProductLinkOrderCounts]<br/>GET /products/links/{linkId}/orders/counts
+        A-->>S: 200 { status, redemptionStatus, riskLevel }
+    end
+    Note over S,A: 搜索 / 切 chip / 筛选 / 排序 / 翻页：重调 #35;16，<br/>搜索与筛选变了 #35;17 同步带上同一组条件（含三个维度自己的）
+
+    Note over U,A: 销售单详情（弹窗）
+    U->>S: 点行上的查看
+    S->>A: #35;18 [getProductLinkOrder]<br/>GET /products/links/{linkId}/orders/{salesOrderId}
+    A-->>S: 200 { …行字段, paymentMethod, buyerInputs, recipientInputs, lines,<br/>ticket 或 giftcard { actions }, vouchers: [{ voucherNo, pin, status }], log }
+
+    opt Refund（giftcard.actions.canRefund，或非礼卡且 status 为 PAID / PARTIALLY_REFUNDED）
+        U->>S: 点 Refund，在退款弹窗确认
+        S->>A: #35;19 [createRefund]<br/>POST /orders/payments/{orderId}/refunds
+        A-->>S: 201
+    end
+    opt Resend Email（canResendEmail）
+        U->>S: 点 Resend Email，改或不改邮箱，确认
+        S->>A: #35;20 [resendProductLinkOrderCredential]<br/>POST …/orders/{salesOrderId}/credential-redelivery { email }
+        A-->>S: 204
+    end
+    opt Void（canVoid，礼卡兑换券模式）
+        U->>S: 点 Void，填原因，确认
+        S->>A: #35;21 [voidProductLinkOrderVoucher]<br/>POST …/orders/{salesOrderId}/voucher-invalidation { reason }
+        A-->>S: 204
+    end
+    opt 风控处置（riskDispositions 非空）
+        U->>S: 点 Set as High Risk / Add to Blacklist / Approval / Remove Blacklist
+        S->>A: #35;22 [disposeProductLinkOrderRisk]<br/>POST …/orders/{salesOrderId}/risk-disposition { action, note }
+        A-->>S: 204
+    end
+    S->>A: 任一动作后重调 #35;18，并重调 #35;16、#35;17
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 重发时凭证已失效、已核销或退款处理中 | `409`·`208019` | 重调 #18，按新状态显示 |
+| 作废时券已核销、已作废或退款处理中 | `409`·`208018` | 重调 #18 |
+| 处置时风险等级已被别人改过 | `409`·`208020` | 重调 #18，按新的可执行动作显示 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+| 退款失败 | 见 [flows 04-payments-refunds「页面：Payments · Refund payment 弹窗」](04-payments-refunds.html#页面：Payments%20·%20Refund%20payment%20弹窗) | 同 Payments 页 |
+
+- 一张销售单 = 付款人的一次选购。没发起支付就过期的是 `CLOSED`，没有 `orderId`，也没有 Refund 入口。
+- 详情弹窗的 Refund 走订单与退款契约的 `createRefund`，用行上的 `orderId`；退款弹窗与 Payments 页同一套。支付侧的通道交易号（`channelTxnNo`）、收据点 `orderId` 跳 Payments 详情看。
+- 详情里的几个号：销售单号 `salesOrderId`、支付订单号 `orderId`（Payment ID）、付款人标识 `customerId`（Customer ID）。Project ID 与礼卡的 Campaign ID 取的都是这条链接的 `linkId`。
+- 核销状态是销售单的一列。礼卡实体卡模式没有平台核销，这种链接不显示核销列，也不显示核销状态下拉。
+- 状态的 Paid 含已核销、已作废的单；要看「已付未核销」就同时选状态 Paid 与核销状态 Not redeemed。部分退款后状态是 `PARTIALLY_REFUNDED`，还能按剩余额继续退。
+- 三个动作按详情 `giftcard.actions` 显示按钮；`#20`、`#21`、`#22` 都带 `Idempotency-Key`，点一次生成一个键。
+- 卡号、券号与 PIN 明文只在 #18 返回，列表只给掩码。
+- Orders tab 标题上的数字取 #16 的 `total`，切到该 tab 时才取。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| Orders 页签的搜索 | 销售单号、支付订单号、渠道单号、买家或收件人、邮箱、券号或卡号 | 另可搜条目名（商品、票档、面值档下单时的名字）；不搜渠道单号 | 现网商品码订单可按商品名搜；搜的是订单上记下的名字，条目后来改名或下架也搜得到。渠道单号在支付侧，去 Payments 页搜 |
+| Orders 页签的状态筛选 | 已核销、已作废是状态的两个值，与 Paid 互斥，一个下拉里选 | 状态与核销状态两个控件，各带数字；Paid 含已核销、已作废的单 | 钱的状态与核销状态是两条轴，一张单两个都有 |
+| 礼卡 Limit per Order | 创建时填每单限购张数；详情页另有按周期的限购 | 每个付款人的限购：张数、累计面值、可选滚动周期；创建时就能填 | 礼卡限购按人计，没有每单上限 |
+| 礼卡的发卡方式 | 创建时选发实体卡或发兑换券，详情页还能改 | 创建后不可改 | 两种模式的库存、核销、发放都不同，已有订单后改不过来 |
+| 礼卡的核销规则 | 下拉可选一次性或部分核销 | 只读显示「一次性核销」 | 现网只有一次性核销 |
+| 礼卡的 Email Language | 商户按活动选邮件语言 | 去掉；按付款人下单页语言发，送礼给收件人也用买家的页面语言 | 以付款人视角决定语言；后端能按每封邮件选语言 |
+| Banner 的保存 | 选完图立即保存，不经 Details 卡的 Save（品牌 Logo 却随 Save） | 所有图片都在编辑态里改，随 Save 生效 | 一页一种保存方式，Cancel 能撤销 |
+| 未保存就离开 | 直接丢掉 | 切 tab、离开页面、关弹窗先确认 | 防止误丢修改 |
+| 票务 | 一个票价与容量 | 多个票档，各有价格、容量与销售窗口；另有开演时刻 | 与可售项模型一致，一档即 demo 的样子 |
+| Transactions tab | 本地造的支付订单 | Orders tab：该链接的销售单，含没付成的单，行上带核销状态 | 链接页看的是谁买了什么、发没发、核没核，主体是销售单；支付事实在 Payments 页看 |
+| Redemptions tab | 按类型三种表：票务检票（闸口）、礼卡按余额扣减、商品发货物流 | 去掉；核销状态与核销时间是销售单的列，凭证明细在销售单详情 | 核销与销售单一一对应、一次性、不是储值；商品没有发货物流 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

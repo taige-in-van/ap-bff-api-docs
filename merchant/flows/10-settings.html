@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设置 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 设置 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| General | 侧边栏 Setting › General | [页面：General](#页面：General) |
+| Security | 侧边栏 Setting › Security；头像菜单 Security | [页面：Security](#页面：Security)；[页面：Security · Refund PIN 区块](#页面：Security%20·%20Refund%20PIN%20区块) |
+| Email Notification | 侧边栏 Setting › Email Notification | [页面：Email Notification](#页面：Email%20Notification)；[页面：Email Notification · Add Email 弹窗](#页面：Email%20Notification%20·%20Add%20Email%20弹窗)；[页面：Email Notification · Bind WeChat 弹窗](#页面：Email%20Notification%20·%20Bind%20WeChat%20弹窗) |
+| Developers | 侧边栏 Setting › Developer | [页面：Developers](#页面：Developers) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getCheckoutSettings`](../products/index.html#tag/checkout/operation/getCheckoutSettings) | `GET /products/checkout` | 收款设置：订单有效期、客户服务费开关 |
+| 2 | [`getAccountProfile`](../account/index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | 商户资料，General 页取其中的时区与语言 |
+| 3 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | Refund Reserved 的金额 |
+| 4 | [`getAccountService`](../account/index.html#tag/service/operation/getAccountService) | `GET /account/service` | 已开通支付方式的费率，客户服务费一栏用 |
+| 5 | [`updateCheckoutSettings`](../products/index.html#tag/checkout/operation/updateCheckoutSettings) | `PUT /products/checkout` | 改收款设置（改哪项传哪项） |
+| 6 | [`updateBusinessInformation`](../account/index.html#tag/profile/operation/updateBusinessInformation) | `PUT /account/profile/business` | 改时区、语言 |
+| 7 | [`getMySecurity`](../me/index.html#tag/security/operation/getMySecurity) | `GET /me/security` | 读自己的账户安全状态(安全等级 + MFA 是否开启) |
+| 8 | [`enrollMfa`](../me/index.html#tag/security/operation/enrollMfa) | `POST /me/security/mfa` | 开启 MFA 第 1 步(输当前密码，返回二维码内容) |
+| 9 | [`confirmMfa`](../me/index.html#tag/security/operation/confirmMfa) | `POST /me/security/mfa/confirmation` | 开启 MFA 第 2 步(输验证器码) |
+| 10 | [`disableMfa`](../me/index.html#tag/security/operation/disableMfa) | `POST /me/security/mfa/deactivation` | 关闭 MFA(输验证器码) |
+| 11 | [`changeMyPassword`](../me/index.html#tag/security/operation/changeMyPassword) | `PUT /me/security/password` | 登录态改密(当前密码校验) |
+| 12 | [`changeRefundPin`](../account/index.html#tag/refund-pin/operation/changeRefundPin) | `PUT /account/refund-pin` | 改 Refund PIN（当前 PIN + 新 PIN） |
+| 13 | [`requestRefundPinReset`](../account/index.html#tag/refund-pin/operation/requestRefundPinReset) | `POST /account/refund-pin/resets` | 忘记 PIN 第 1 步：发码到 Owner 邮箱（脱敏邮箱 + 冷却） |
+| 14 | [`confirmRefundPinReset`](../account/index.html#tag/refund-pin/operation/confirmRefundPinReset) | `POST /account/refund-pin/resets/{challengeId}/confirmation` | 忘记 PIN 第 2 步：码 + 新 PIN |
+| 15 | [`getNotificationSettings`](../notifications/index.html#tag/notifications/operation/getNotificationSettings) | `GET /notifications` | 通知设置：两个通道开关、主邮箱、附加邮箱、微信接收方 |
+| 16 | [`updateNotificationSettings`](../notifications/index.html#tag/notifications/operation/updateNotificationSettings) | `PUT /notifications` | 改通道开关（改哪个传哪个） |
+| 17 | [`deleteNotificationRecipient`](../notifications/index.html#tag/notifications/operation/deleteNotificationRecipient) | `DELETE /notifications/recipients/{recipientId}` | 移除一个附加邮箱或微信接收方 |
+| 18 | [`requestNotificationEmailOtp`](../notifications/index.html#tag/notifications/operation/requestNotificationEmailOtp) | `POST /notifications/emails/otp-challenges` | 加邮箱第 1 步：发验证码到要加的邮箱 |
+| 19 | [`addNotificationEmail`](../notifications/index.html#tag/notifications/operation/addNotificationEmail) | `POST /notifications/emails` | 加邮箱第 2 步：带验证码提交 |
+| 20 | [`initiateNotificationWechatBinding`](../notifications/index.html#tag/notifications/operation/initiateNotificationWechatBinding) | `POST /notifications/wechat` | 绑微信：发起，返回二维码 |
+| 21 | [`pollNotificationWechatBinding`](../notifications/index.html#tag/notifications/operation/pollNotificationWechatBinding) | `GET /notifications/wechat/{qrTicket}` | 绑微信：轮询结果 |
+| 22 | [`getDeveloperSettings`](../system/index.html#tag/developer/operation/getDeveloperSettings) | `GET /developer` | 开发者页：商户号、Gateway Credential 末 4 位、网关地址、商户公钥、平台公钥 |
+| 23 | [`revealGatewayCredential`](../system/index.html#tag/developer/operation/revealGatewayCredential) | `POST /developer/credential/disclosures` | Gateway Credential 完整值 |
+| 24 | [`replaceSigningKey`](../system/index.html#tag/developer/operation/replaceSigningKey) | `PUT /developer/signing-key` | 登记或替换商户公钥 |
+| 25 | [`listPaymentMethodOptions`](../system/index.html#tag/config/operation/listPaymentMethodOptions) | `GET /config/payment-methods/{currency}` | 支付方式的展示名，客户服务费一栏用 |
+
+---
+
+## 页面：General
+
+侧边栏 Settings › General。几栏各管一项商户级设置：收款页设置的入口、客户服务费、订单有效期、时区与语言、Refund Reserved。每栏各自保存，没有整页的保存按钮。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+
+    U->>S: 进入 General（各卡按其接口的权限点显示，没有权限的卡不调它的接口）
+    par
+        S->>A: #35;1 [getCheckoutSettings]<br/>GET /products/checkout
+        A-->>S: 200 { orderExpiryMinutes, customerServiceFeeEnabled }
+    and
+        S->>A: #35;2 [getAccountProfile]<br/>GET /account/profile
+        A-->>S: 200 { businessInformation: { timeZone, language, … } }
+    and
+        S->>A: #35;3 [getBalance]<br/>GET /funds/balance
+        A-->>S: 200 { refundReserve }
+    and
+        S->>A: #35;4 [getAccountService]<br/>GET /account/service
+        A-->>S: 200 { 各受理模式下已开通的支付方式与费率 }
+    end
+
+    Note over U,A: 客户服务费、订单有效期
+    U->>S: 拨动开关，或点 Edit 选一档后 Save
+    S->>A: #35;5 [updateCheckoutSettings]<br/>PUT /products/checkout { customerServiceFeeEnabled } 或 { orderExpiryMinutes }
+    A-->>S: 200 { orderExpiryMinutes, customerServiceFeeEnabled }
+
+    Note over U,A: 时区、语言
+    U->>S: 点 Edit，改好后 Save
+    S->>A: #35;6 [updateBusinessInformation]<br/>PUT /account/profile/business { timeZone } 或 { language }
+    A-->>S: 204
+```
+
+- 收款页设置一栏只是入口，进 Store QR Code 页，不调接口。
+- 客户服务费与订单有效期是同一组收款设置，页面上各自保存，改哪项就只传哪项。
+- 客户服务费一栏的费率取 #4，只在有 #4 的权限点时调；没有的只显示开关，不显示费率区间与明细。费率的取法：各受理模式下 `ACTIVE` 的支付方式各一行，费率是该方式的 `rate`，比例与固定单笔费一起显示（固定费为 0 时只显示比例）。页面上的费率区间取这些行比例费率的最小值到最大值，一行都没有时不显示区间。展示名拿码去 #25 查，币种用当前商户的结算币种（商户切换器列表行的 `currency`）；查不到的方式显示码。
+- 订单有效期的候选档是前端参考数据（分钟数，文案由前端格式化），服务端只校验取值范围。当前值不在候选档里时（比如平台代配的）照常按分钟数显示。
+- 时区与语言是商户资料里的字段，和 Business Profile 页的 Business Information 是同一份数据、同一个保存接口。这个接口只收要改的字段：改时区只提交 `timeZone`，改语言只提交 `language`，不要把读到的整组资料带回去（里面有不可改的字段，带了会被拒）；成功是 `204`，页面用提交的值更新显示。时区的候选与校验见 [flows 09-profile-users「页面：Business Profile」](09-profile-users.html#页面：Business%20Profile)。
+- Refund Reserved 取 #3 的 `refundReserve`；Top Up 与 Withdraw 两个弹窗见 [flows 05-settlement-statement](05-settlement-statement.html)，关闭后重调 #3。
+- 各卡显示与否、能不能改，按 `getCurrentSession` 的 `privileges` 对照各接口的权限点判：没有读接口权限的卡不显示、也不调它的接口；有读没写的只读显示。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 所选有效期超出允许范围 | `400`·`204019` | 按 `context` 里的下限与上限提示，让用户重选 |
+| 改时区与已出账的历史数据冲突 | `409`·`208016` | 提示不能改，保留原值 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 时区候选 | 五个北美时区的显示名 | 按商户所在省州的时区候选 | 与 Business Information 同一份数据、同一套候选 |
+| 语言 | 没有 | 与时区一起出现 | 商户语言是商户级设置，决定发给商户的通知与月对账单 PDF 的语言 |
+| 各卡的可见性 | 看得到 Setting 分区就看得到整页 | 每张卡按它自己接口的权限点显示；没有收款设置或商户资料权限的角色在本页看不到对应的卡 | 这两组数据归收款设置与商户资料，本页只是另一个入口，权限跟数据走 |
+
+---
+
+## 页面：Security
+
+侧边栏 Settings › Security。三块：安全状态（MFA 开没开）、Authentication（改登录密码、改退款 PIN）、Multi-Factor Authentication（开 / 关验证器）。改密码与 My Profile 同一个表单、同一个接口。退款 PIN 是商户级的，时序见「页面：Security · Refund PIN 区块」。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Security(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    S->>A: #35;7 [getMySecurity]<br/>GET /me/security
+    A-->>S: 200 { securityLevel, mfaEnabled, passwordUpdatedAt }
+    S->>S: LOW 时安全状态卡显示「请升级密码」提示与改密入口
+
+    Note over U,A: 开启 MFA（弹窗：输当前密码 → 扫码 → 输码）
+    U->>S: 点 Enable，输当前密码
+    S->>A: #35;8 [enrollMfa]<br/>POST /me/security/mfa
+    A-->>S: 200 { otpauthUri, secret }（未生效）
+    U->>S: 用验证器扫码（或手输 secret），输 6 位码
+    S->>A: #35;9 [confirmMfa]<br/>POST /me/security/mfa/confirmation
+    A-->>S: 204（已开启，下次登录要输验证器码）
+
+    Note over U,A: 关闭 MFA
+    U->>S: 点 Turn off，输验证器码
+    S->>A: #35;10 [disableMfa]<br/>POST /me/security/mfa/deactivation
+    A-->>S: 204
+
+    Note over U,A: 改登录密码（同 My Profile）
+    S->>A: #35;11 [changeMyPassword]<br/>PUT /me/security/password
+    A-->>S: 204
+
+    Note over U,A: 改 / 忘记退款 PIN：见「页面：Security · Refund PIN 区块」
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 开 MFA 时当前密码错；开 / 关 MFA 时验证器码错 | `403`·`206011` | 留在弹窗重输，不跳登录页 |
+| 开 MFA 扫码后太久没确认 | `410`·`206006` | 回第一步重新开启 |
+
+- `LOW` 只会出现在 v1 迁移来的旧密码上（v2 新设的密码都经过 5 条规则校验）。升级提示可在本次会话关掉，下次登录再出现，直到改成达标的密码。
+- 改密码卡上的「上次修改」取 `passwordUpdatedAt`，没有这个键就不显示这一句。
+- 改密码表单里的「Forgot your password?」与 My Profile 的同一个弹窗，见 [flows 09-profile-users「页面：My Profile」](09-profile-users.html#页面：My%20Profile)。
+
+**相对 demo 的改动**
+
+| demo | 本契约 | 原因 |
+|---|---|---|
+| 开启 MFA 直接扫码 | 先输当前密码再扫码 | 会话被人拿到时，对方能绑上自己的验证器；而找回密码不动 MFA，Owner 就再也登不进来 |
+| 安全等级只看 MFA（Strong / Medium） | 服务端给 `LOW` / `MEDIUM` / `STRONG`，`LOW` 时显示「请升级密码」提示 | v1 迁移来的旧密码可能不满足现行规则，要引导用户改掉 |
+
+---
+
+## 页面：Security · Refund PIN 区块
+
+Security 页 Authentication 块里的「改退款 PIN」与「Forgot your PIN?」弹窗。页面其余部分（安全状态、改登录密码、MFA）见「页面：Security」。退款 PIN 是商户级的，该商户全部操作员共用，放在个人的 Security 页是既定的页面安排；改与重置都是 Owner 专属（接口标 `owner`），这一块按 `isOwner` 显示。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Security(SPA)
+    participant A as 商户后台 BFF
+    participant E as Owner 邮箱
+
+    Note over U,A: 改退款 PIN
+    U->>S: 输当前 PIN + 新 PIN + 确认 PIN<br/>（前端校验 6 位数字、两次一致）
+    S->>A: #35;12 [changeRefundPin]<br/>PUT /account/refund-pin
+    A-->>S: 204
+
+    Note over U,E: 忘记退款 PIN（弹窗两步）
+    U->>S: 点 Forgot your PIN?
+    S->>A: #35;13 [requestRefundPinReset]<br/>POST /account/refund-pin/resets
+    A->>E: 发 6 位码
+    A-->>S: 202 { challengeId, cooldownSeconds }
+    U->>S: 输码 + 新 PIN + 确认 PIN
+    S->>A: #35;14 [confirmRefundPinReset]<br/>POST /account/refund-pin/resets/{challengeId}/confirmation
+    A-->>S: 204
+    Note over S,A: 没收到码：冷却结束后重新调 #35;13，得到新 challengeId，旧码作废
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 改 PIN 时当前 PIN 错 | `400` | 留在表单重输 |
+| 当前 PIN 连续错到上限 | `423`·`206004` | 提示等待，剩余秒数见 `context.cooldownSeconds` |
+| 忘记 PIN 的码错、还有次数 | `400`·`204010` | 留在弹窗重输，剩余次数见 `context.attemptsRemaining` |
+| 忘记 PIN 的码错到上限 / 过期或已作废 | `423`·`206007` / `410`·`206006` | 回第一步重新发起 |
+| 重发太快 | `429`·`208013` | 等倒计时 |
+| 改 PIN 时同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+
+- #12 带 `Idempotency-Key`，点一次生成一个键。
+- 确认的响应丢了、重试拿到 `410`·`206006`：PIN 可能已经改好，拿不准就重新发起一次。
+
+---
+
+## 页面：Email Notification
+
+侧边栏 Settings › Email Notification。两段：Email 与 WeChat，各有一个通道开关和一列接收方。Email 一列的第一行是主邮箱（Owner 的登录邮箱，只读），下面是附加邮箱，可移除，末尾 Add Email；WeChat 一列是已绑定的微信（昵称、绑定时间），可移除，末尾 Bind WeChat。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+
+    U->>S: 进入 Notification
+    S->>A: #35;15 [getNotificationSettings]<br/>GET /notifications
+    A-->>S: 200 { emailEnabled, wechatEnabled, primaryEmail,<br/>emails, wechats }
+
+    Note over U,A: 通道开关
+    U->>S: 拨动 Email 或 WeChat 的开关
+    S->>A: #35;16 [updateNotificationSettings]<br/>PUT /notifications { emailEnabled } 或 { wechatEnabled }
+    A-->>S: 204
+
+    Note over U,A: 移除接收方
+    U->>S: 点某个附加邮箱或微信的移除
+    S->>A: #35;17 [deleteNotificationRecipient]<br/>DELETE /notifications/recipients/{recipientId}
+    A-->>S: 204
+```
+
+- 拨哪个开关就只传哪个。关掉一个通道只是不再往这个通道发，接收方照常保留、照常显示。
+- 主邮箱是 Owner 的登录邮箱，这里不能改；Owner 改了登录邮箱，这里跟着变。
+- 移除后把那一行从列表里去掉；`404` 说明已被别人移除，同样去掉。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| WeChat 列表的 Primary 行 | Owner 登录绑定的微信显示成一条 Primary | 没有这一行，列表里只有在本页绑定的微信 | 登录用的微信与接收通知的微信是两套绑定，互不相干 |
+
+---
+
+## 页面：Email Notification · Add Email 弹窗
+
+两步：填邮箱、输入发到这个邮箱的验证码。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+    participant M as 要加的邮箱
+
+    U->>S: 填邮箱，点 Send Code
+    S->>A: #35;18 [requestNotificationEmailOtp]<br/>POST /notifications/emails/otp-challenges { email }
+    A-->>S: 202 { challengeId, cooldownSeconds, expiresAt }
+    A-->>M: 验证码邮件
+    U->>S: 到邮箱取码，回来输入，点 Verify & Add
+    S->>A: #35;19 [addNotificationEmail]<br/>POST /notifications/emails { otp }
+    A-->>S: 201 { recipientId, email }
+    S->>S: 关弹窗，列表加一行
+```
+
+- Resend code：冷却结束后用同一邮箱重调 #18，旧码作废；倒计时按 `cooldownSeconds`。
+- Back 回到第一步可以改邮箱，改了之后重新走 #18。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 邮箱格式不对 | #18 `400` | 输入框下提示 |
+| 邮箱就是主邮箱，或已在附加邮箱里 | #18 或 #19 `409`·`208012` | 提示已在列表里，留在第一步 |
+| 冷却中又点发码 | #18 `429`·`208013` | 按 `context.cooldownSeconds` 倒计时 |
+| 验证码不对 | #19 `400`·`204010` | 提示验证码不对，可重输；剩余次数在 `context.attemptsRemaining` |
+| 验证码已过期 | #19 `410`·`206006` | 提示重新发码 |
+| 错太多次被锁 | #19 `423`·`206007` | 提示重新发码 |
+
+---
+
+## 页面：Email Notification · Bind WeChat 弹窗
+
+弹窗里一个二维码，用要接收通知的那个微信扫码并在微信里确认。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+    participant W as 微信（手机）
+
+    U->>S: 点 Bind WeChat
+    S->>A: #35;20 [initiateNotificationWechatBinding]<br/>POST /notifications/wechat
+    A-->>S: 200 { qrTicket, qrContent, expiresAt }
+    S->>U: 显示二维码
+    U->>W: 扫码并确认
+    loop 每隔几秒，直到不是 WAITING
+        S->>A: #35;21 [pollNotificationWechatBinding]<br/>GET /notifications/wechat/{qrTicket}
+        A-->>S: 200 { status }
+    end
+    S->>A: #35;15 [getNotificationSettings]<br/>GET /notifications
+    A-->>S: 200（刷新微信列表）
+```
+
+- 二维码由前端用 `qrContent` 生成，与扫码登录、成员绑微信是同一种做法。
+- `status`：`WAITING` 继续轮询；`BOUND` 绑定成功，关弹窗；`EXPIRED` 二维码过期，提示重新发起。
+- 不管是 `BOUND`、`EXPIRED` 还是用户自己关了弹窗，结束时都重调 #15 刷新列表：用户在微信里确认得晚、结果没赶上轮询的，绑定照样成立，刷新后能看到。
+- 同一个微信重复绑定不会多出一行。
+
+---
+
+## 页面：Developers
+
+侧边栏 Settings › Developer。上半是两行凭据：Merchant Code（明文）与 Gateway Credential（默认只露末 4 位，可 Reveal、Copy）；下半是接入参数（网关地址、签名类型）与签名密钥（商户自己的公钥、Platform 公钥）。页头有开发者文档的外链。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+
+    U->>S: 进入 Developer
+    S->>A: #35;22 [getDeveloperSettings]<br/>GET /developer
+    A-->>S: 200 { merchantCode, credentialLast4, gatewayUrl,<br/>signingKey, platformPublicKeys }
+
+    Note over U,A: Gateway Credential：Reveal / Copy
+    U->>S: 点 Reveal 或 Copy
+    S->>A: #35;23 [revealGatewayCredential]<br/>POST /developer/credential/disclosures
+    A-->>S: 200 { credential }
+    S-->>U: 显示完整值 / 写入剪贴板
+
+    Note over U,A: 商户公钥：Upload key / Replace
+    U->>S: 粘贴 PEM，Save
+    S->>A: #35;24 [replaceSigningKey]<br/>PUT /developer/signing-key { publicKeyPem }
+    A-->>S: 200 { publicKeyPem, createdAt }
+```
+
+- Merchant Code、商户公钥、Platform 公钥不是秘密，#22 直接给明文，View 与 Copy 不再调接口。
+- Gateway Credential 的完整值只从 #23 拿。Reveal 之后再点 Copy 用页面上已有的值，不重调；没 Reveal 直接点 Copy 就先调 #23。完整值只留在页面内存里，离开页面即丢，不写进本地存储。每次调 #23 服务端都记一条查看记录。
+- 没有 `credentialLast4` = 还没签发凭据，Gateway Credential 一行显示占位，不给 Reveal 与 Copy。凭据的 Created 取 `credentialIssuedAt`。
+- 没有 `signingKey` = 还没登记公钥，显示 Upload key；有则显示 View、Copy、Replace。登记与替换是同一个接口。替换后旧公钥还能用一段时间（默认 24 小时），页面在替换前提示这一点，不做倒计时；提交的公钥与当前这把相同时什么都不变。
+- `platformPublicKeys` 通常只有一把。平台换钥前会提前公布新的一把，这时是两把：带 `activatedAt` 的是正在用的，不带的是即将启用的。两把都显示出来，各带版本号（`keyVersion`）；Platform 的响应与 Webhook 的 `Signature` 头里有同一个版本号，接入方按它选公钥验签。
+- 签名类型是固定的 RSA2，前端直接显示。开发者文档的地址由前端按界面语言选。
+- Gateway Credential 由平台签发，商户不能自己重置；要重置联系平台。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 调 #23 时凭据不存在 | `404` | 重调 #22 |
+| 公钥为空、不是 PEM 或不是 RSA 公钥 | `400`·`204011` | 提示检查公钥内容，留在编辑态 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 凭据表的 Last used 列 | 有 | 去掉 | 不记录凭据的最近使用时间 |
+| 凭据表的 Created 列 | 两行都有 | 只有 Gateway Credential 一行有，取 `credentialIssuedAt` | Merchant Code 是商户标识，不是签发出来的密钥 |
+| Gateway Credential 的 More 菜单（Roll credential、Deactivate） | 有 | 去掉 | 凭据由平台签发与重置，商户只能查看 |
+| Webhooks、Events 两个页签 | 有（空状态） | 去掉 | 通知地址随每笔下单请求传，没有商户级的 Webhook 端点配置，也没有事件列表 |
+| Platform 公钥 | 一把 | 换钥期间两把，各带版本号 | 平台提前公布新公钥，接入方要在启用前配好 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

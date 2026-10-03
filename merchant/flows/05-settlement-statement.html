@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>结算与对账单 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 结算与对账单 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。本文另有两条前提：金额都是商户的结算币种；准备金的充值与取回是资金动作，请求带 `Idempotency-Key`，超时或没收到响应时用原键、原内容重发，不会划两次，不要因为没看到结果就换新键再提一次。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Settlements | 侧边栏 Order › Settlement | [页面：Settlements](#页面：Settlements)；[页面：Settlements · Settlement Details 弹窗](#页面：Settlements%20·%20Settlement%20Details%20弹窗) |
+| Top Up、Withdraw 弹窗 | Business Profile 与 General 页的 Refund Reserved 一栏 | [页面：Business Profile、General · Top Up 弹窗](#页面：Business%20Profile、General%20·%20Top%20Up%20弹窗)；[页面：Business Profile、General · Withdraw 弹窗](#页面：Business%20Profile、General%20·%20Withdraw%20弹窗) |
+| Statement | 侧边栏 Account › Statement | [页面：Statement](#页面：Statement) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额：Account Balance、Refund Reserved、自动补足的目标金额 |
+| 2 | [`listSettlements`](../funds/index.html#tag/settlements/operation/listSettlements) | `GET /funds/settlements` | 结算单列表（分页） |
+| 3 | [`exportSettlements`](../funds/index.html#tag/settlements/operation/exportSettlements) | `GET /funds/settlements/export` | 导出当前筛选下的结算单列表，每张一行（xlsx） |
+| 4 | [`listSettlementDetails`](../funds/index.html#tag/settlements/operation/listSettlementDetails) | `GET /funds/settlements/{settlementId}/details` | 一张结算单的逐笔明细（分页） |
+| 5 | [`exportSettlementDetails`](../funds/index.html#tag/settlements/operation/exportSettlementDetails) | `GET /funds/settlements/{settlementId}/export` | 导出一张结算单：概要加全部逐笔明细（xlsx） |
+| 6 | [`requestRefundReserveOtp`](../funds/index.html#tag/balance/operation/requestRefundReserveOtp) | `POST /funds/balance/reserve/otp-challenges` | 充值第 1 步：发验证码到 Owner 邮箱 |
+| 7 | [`fundRefundReserve`](../funds/index.html#tag/balance/operation/fundRefundReserve) | `POST /funds/balance/reserve/funding` | 充值第 2 步：充值与 / 或改自动补足的目标金额，带验证码 |
+| 8 | [`withdrawRefundReserve`](../funds/index.html#tag/balance/operation/withdrawRefundReserve) | `POST /funds/balance/reserve/withdrawals` | 把准备金取回 Account Balance |
+| 9 | [`getAccountProfile`](../account/index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | 商户资料，Withdraw 弹窗取其中的结算账户 |
+| 10 | [`listStatements`](../funds/index.html#tag/statements/operation/listStatements) | `GET /funds/statements` | 全部月对账单，一个月一张（不分页） |
+| 11 | [`getStatement`](../funds/index.html#tag/statements/operation/getStatement) | `GET /funds/statements/{statementId}` | 月对账单详情：手续费明细行、额外收费、税、本单应收 |
+| 12 | [`listPaymentMethodOptions`](../system/index.html#tag/config/operation/listPaymentMethodOptions) | `GET /config/payment-methods/{currency}` | 支付方式的展示名，对账单明细行拿码来查 |
+| 13 | [`getStatementPdf`](../funds/index.html#tag/statements/operation/getStatementPdf) | `GET /funds/statements/{statementId}/pdf` | 月对账单 PDF |
+
+---
+
+## 页面：Settlements
+
+侧边栏 Order › Settlement。页头三张卡：Last Settled（最近一次已结算的金额、结算日、交易期间）、Account Balance、Refund Reserved。工具栏：搜索（结算单号）、Filters 面板（日期）、排序（日期、金额）、导出。表格列：结算单号、商户与结算账户、Net Sales、Service Fee、Settlement Amount、状态、日期、操作（View、Download）。日期默认近 7 天。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Settlements(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;2 [listSettlements]<br/>GET /funds/settlements?from&to&sortField=settlementDate&sortOrder=descend
+        A-->>S: 200 { total, data: [{ settlementId, settlementDate, periodFrom, periodTo,<br/>netSales, fee, payoutAmount, status, payoutAccount }] }
+    and
+        S->>A: #35;1 [getBalance]<br/>GET /funds/balance
+        A-->>S: 200 { accountBalance, refundReserve, reserveTargetAmount }
+    and
+        S->>A: #35;2 [listSettlements]<br/>GET /funds/settlements?status=SETTLED&pageSize=1&sortField=settlementDate&sortOrder=descend
+        A-->>S: 200 最近一张已结算的结算单（Last Settled 卡）
+    end
+    Note over S,A: 搜索 / Filters / 排序 / 翻页只重调第一个 #35;2，三张卡不随筛选变
+
+    Note over U,A: 导出列表
+    U->>S: 点导出
+    S->>A: #35;3 [exportSettlements]<br/>GET /funds/settlements/export（带当前筛选）
+    A-->>S: 200 xlsx 文件
+    S->>S: 浏览器下载
+
+    Note over U,A: 下载单张结算单
+    U->>S: 点行上的 Download
+    S->>A: #35;5 [exportSettlementDetails]<br/>GET /funds/settlements/{settlementId}/export
+    A-->>S: 200 xlsx 文件
+
+    U->>S: 点 View
+    S->>S: 开结算详情弹窗
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 余额取不到 | `5xx` | 两张余额卡显示暂不可用，列表照常 |
+
+- 一行是一张结算单：某个清算日对本商户的一次出款。
+- 三个金额都是结算币种：
+  - Net Sales 取 `netSales`，是这张结算单里收款减退款。
+  - Service Fee 取 `fee`。
+  - Settlement Amount 取 `payoutAmount`，是实际打到银行的金额。它还包含准备金充值与取回、平台调账等，所以不一定等于 Net Sales 减 Service Fee；手续费按月另收的商户，这个数没有扣手续费。
+- 商户名不在结算单接口里，取当前商户的名称。
+- 结算账户取行上的 `payoutAccount`（银行名加脱敏账号），是这张结算单实际出款的账户，不是商户当前的结算账户；还没出过款的结算单没有这一项，显示「—」。导出文件里的银行账户一列同此。
+- 状态五种：待出款、出款中、已结算、出款失败、已退回。出款失败的会重新出款；被银行退回的钱回到 Account Balance，随下一次结算再出。
+- Last Settled 卡用第二个 #2 的那一行：金额取 `payoutAmount`，日期取 `settlementDate`，交易期间取 `periodFrom` 到 `periodTo`。一张都没有时显示空态。
+- 两个导出都不设行数上限。工具栏的导出是结算单列表（每张一行，末尾合计），不带日期时导出全部；要逐笔明细用行上的 Download。
+- Account Balance 取 `accountBalance`，与 Dashboard、Payments 页的 To Settle 是同一个数；可能为负，表示商户欠平台的钱。
+- Refund Reserved 取 `refundReserve`。
+
+---
+
+## 页面：Settlements · Settlement Details 弹窗
+
+从列表行的 View 打开。上面是这张结算单的概要（结算日、交易期间、Settlement Amount、Service Fee、商户、结算单号），下面是逐笔明细表：类型、订单号与支付方式、Amount、Service Fee、Settlement Amount、时间、备注。右上角可下载。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Settlements(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 点 View
+    S->>S: 概要用列表行上的字段
+    S->>A: #35;4 [listSettlementDetails]<br/>GET /funds/settlements/{settlementId}/details?pageNum=1
+    A-->>S: 200 { total, data: [{ type, orderId, refundId, paymentMethodFamily,<br/>amount, fee, netAmount, occurredAt, note }] }
+    Note over S,A: 翻页重调 #35;4
+
+    U->>S: 点下载
+    S->>A: #35;5 [exportSettlementDetails]<br/>GET /funds/settlements/{settlementId}/export
+    A-->>S: 200 xlsx 文件
+```
+
+- 明细的金额都是不带符号的数，显示成正还是负看 `type`：
+
+  | `type` | 英文文案 | 正负 |
+  |---|---|---|
+  | `PAYMENT` | Payment | + |
+  | `REFUND` | Refund | − |
+  | `REFUND_REVERSAL` | Refund reversal | + |
+  | `RESERVE_DRAWDOWN` | Paid from Refund Reserved | + |
+  | `TOP_UP` | Reserve top up | − |
+  | `AUTO_REPLENISH` | Reserve auto-replenish | − |
+  | `WITHDRAW` | Reserve withdrawal | + |
+  | `PENALTY` | Adjustment (debit) | − |
+  | `COMPENSATION` | Adjustment (credit) | + |
+  | `PROMOTION_WITHDRAWAL` | Promotion payout | + |
+  | `PAYOUT_RETURN` | Returned payout | + |
+- `RESERVE_DRAWDOWN` 是某笔退款里由准备金出的那一段，与它的 `REFUND` 行 `refundId` 相同。两行相抵后才是这笔退款让本次结算少掉的钱。
+- 哪些类型的行带订单号、退款号、支付方式和手续费，以 `SettlementDetail` 各字段的说明为准；没返回的键那一栏为空。
+- `netAmount` 是这一行计入 Settlement Amount 的数。手续费按月另收的商户，`netAmount` 等于 `amount`，`fee` 只是展示。
+
+---
+
+## 页面：Business Profile、General · Top Up 弹窗
+
+Business Profile 与 General Settings 的 Refund Reserved 一栏都能打开，是同一个弹窗。三步：填写（充值金额、快捷金额、自动补足开关与目标金额）、输入发到 Owner 邮箱的验证码、结果。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Top Up(SPA)
+    participant A as 商户后台 BFF
+    participant M as Owner 邮箱
+
+    U->>S: 点 Top Up
+    S->>A: #35;1 [getBalance]<br/>GET /funds/balance
+    A-->>S: 200 { accountBalance, refundReserve, reserveTargetAmount }
+    U->>S: 填充值金额，和 / 或改自动补足，点 Next
+    S->>A: #35;6 [requestRefundReserveOtp]<br/>POST /funds/balance/reserve/otp-challenges
+    A->>M: 发 6 位码
+    A-->>S: 202 { challengeId, deliveredTo, cooldownSeconds, expiresAt }
+    U->>S: 填验证码，点 Confirm
+    S->>A: #35;7 [fundRefundReserve]<br/>POST /funds/balance/reserve/funding { topUpAmount, targetAmount, otp }
+    A-->>S: 200 { topUp: { status, rejectionReason }, balance }
+    S->>S: 显示结果，用返回的 balance 刷新余额
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 验证码不对 | `400`·`204010` | 留在验证码一步重输，`context.attemptsRemaining` 是剩余次数 |
+| 验证码过期 | `410`·`206006` | 重新发码 |
+| 错太多次被锁 | `423`·`206007` | 提示稍后再试 |
+| 发码冷却中 | `429`·`208013` | 按钮倒计时 |
+| 目标金额低于平台规定的下限 | `400`·`204018`（`context.minimumAmount`） | 回填写一步，提示「不能低于 N」；充值也没有划转 |
+| 金额格式不对或两项都没给 | `400`（`details` 指到字段） | 回填写一步，对应字段红框；正确页面下已拦住 |
+| 同一个幂等键改了内容 | `409`·`208005` | 改过金额或设置就换新键 |
+| 网关超时 | `502` / `504` | 用同一个键、同样的内容重发，不会充两次 |
+
+- 充值的钱从 Account Balance 出，`accountBalance` 是可充上限。
+- 充值金额与自动补足至少改一项才能提交。只改自动补足时不传 `topUpAmount`。
+- 自动补足：开着时传 `targetAmount`（目标金额），关掉传 `null`，没改就不传。当前值看 `getBalance` 的 `reserveTargetAmount`，没有这个键就是没开。目标金额有下限，由平台设定、会调整，前端不写死，按 `204018` 带回的数提示。
+- 快捷金额（500、1000、2000、5000）是前端写死的填数入口，不是取值限制。
+- 自动补足是每天结算前跑一次：准备金低于目标金额时从 Account Balance 补，余额不够补多少算多少，第二天再补。保存设置时不会立刻划钱。
+- 提交返回 `200` 后看 `topUp.status`：`POSTED` 充值成功；`REJECTED` 是提交时 Account Balance 已经不够，没有划钱，提示余额不足。自动补足的设置在两种情况下都已保存。
+- 验证码发到 Owner 邮箱，页面用 `deliveredTo` 提示发到了哪里；操作的人不是 Owner 时要找 Owner 要验证码。
+- `fundRefundReserve` 带 `Idempotency-Key`：点一次 Confirm 生成一个键，验证码输错重输、超时重发都用原键。
+
+---
+
+## 页面：Business Profile、General · Withdraw 弹窗
+
+与 Top Up 同一处入口，准备金大于 0 时可点。填金额（可点 Max），显示结算账户，确认后出结果。不需要验证码。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Withdraw(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 点 Withdraw
+    par
+        S->>A: #35;1 [getBalance]<br/>GET /funds/balance
+        A-->>S: 200 { refundReserve }
+    and
+        S->>A: #35;9 [getAccountProfile]<br/>GET /account/profile
+        A-->>S: 200 { settlement }
+    end
+    U->>S: 填金额，点 Withdraw
+    S->>A: #35;8 [withdrawRefundReserve]<br/>POST /funds/balance/reserve/withdrawals { amount }
+    A-->>S: 200 { status, rejectionReason, balance }
+    S->>S: 显示结果，用返回的 balance 刷新余额
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 金额不大于 0 或格式不对 | `400`（`details` 指到字段） | 金额红框；正确页面下已拦住 |
+| 同一个幂等键改了金额 | `409`·`208005` | 改过金额就换新键 |
+| 网关超时 | `502` / `504` | 用同一个键、同样的金额重发，不会取两次 |
+
+- 取回的钱回到 Account Balance，随下一次结算打到结算账户，不是单独一笔转账。弹窗里的结算账户取 #9 的 `settlement`，只供核对。
+- 可取上限是 `refundReserve`；Max 就是把它填进金额。
+- 返回 `200` 后看 `status`：`POSTED` 成功；`REJECTED` 是提交时准备金已经不够（比如刚被一笔退款动用），提示余额不足。
+- `withdrawRefundReserve` 带 `Idempotency-Key`，点一次生成一个键。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 结算单状态 | 只有 Settled | 五种：待出款、出款中、已结算、出款失败、已退回 | 结算单从建出来到钱到账有过程，出款也可能失败或被银行退回 |
+| 搜索 | 结算单号、商户名、金额 | 只搜结算单号 | 列表只有当前商户的结算单；数量不多，按金额搜意义不大 |
+| Settlement Amount | 前端按 Net Sales 减 Service Fee 算 | 直接用接口给的数 | 实际打款额还受准备金划转、平台调账影响 |
+| 列表里的结算账户 | 每行都显示商户当前的结算账户 | 显示这张结算单实际出款的账户 | 商户换过结算账户后，以前的结算单是打到旧账户的 |
+| 详情明细的类型 | Payment、Refund 两种 | 多出准备金划转、平台调账等九种 | 这些也进结算，不列出来合计对不上 |
+| Top Up：余额不够时「等余额够了自动完成」的开关 | 有 | 没有；余额不够直接提示不足 | 自动补足已经是「余额到了自动充」，不需要再有一种排队的充值 |
+| Top Up：保存自动补足后立刻补一次 | 立刻补 | 每天结算前补一次 | 自动补足是每日定时任务 |
+| Withdraw：到账说明 | 「1–2 个工作日到账」，像一笔单独的转账 | 说明钱回到 Account Balance、随下次结算到账 | 取回不单独出款 |
+| Withdraw：最低 10 元 | 有 | 没有下限 | 取回只是账户内划转，没有手续费，不需要下限 |
+
+---
+
+## 页面：Statement
+
+侧边栏 Account › Statement。一个月一张月对账单。工具栏：搜索（月份、对账单号）、年份快捷筛选、排序（月份、金额、手续费）。表格列：月份、销售净额、笔数、手续费、操作（查看、下载 PDF）。点查看打开详情弹窗：对账单号、出具日期、币种、手续费明细行、额外收费与税、合计、Download PDF。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Statement(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    S->>A: #35;10 [listStatements]<br/>GET /funds/statements
+    A-->>S: 200 { items: [{ statementId, statementNo, month, issuedAt,<br/>transactionCount, netSales, refundAmount, fee, netSettlement }] }
+    Note over S: 全部月份一次返回<br/>年份快捷筛选、搜索、排序、翻页都在前端做
+
+    Note over U,A: 查看详情
+    U->>S: 点某一行的查看
+    par
+        S->>A: #35;11 [getStatement]<br/>GET /funds/statements/{statementId}
+        A-->>S: 200 { 行上各字段, feeLines: [{ service, paymentMethods, rate,<br/>transactionCount, netSales, refundAmount, fee }],<br/>charges, taxes, receivableAmount }
+    and
+        S->>A: #35;12 [listPaymentMethodOptions]<br/>GET /config/payment-methods/{currency}
+        A-->>S: 200 { 支付方式的展示名 }
+    end
+
+    Note over U,A: 下载 PDF（列表行与弹窗里都有）
+    U->>S: 点 Download PDF
+    S->>A: #35;13 [getStatementPdf]<br/>GET /funds/statements/{statementId}/pdf
+    A-->>S: 200 application/pdf
+```
+
+**列表**
+
+- `listStatements` 一次返回全部月份（一个月一张，量很小）。年份快捷筛选的各项与计数、搜索、排序、翻页都由前端在这份数据上做：年份取 `month` 的前四位；搜索匹配月份的展示文案与 `statementNo`。
+- 当月没有对账单，月份结束、出具之后才出现。
+
+**详情里各栏取哪个字段**
+
+- 对账单号 `statementNo`，出具日期 `issuedAt`，币种取任一金额的 `currency`。
+- 手续费明细：`feeLines` 已由服务端归并好，一行显示一行。各栏：服务 `service`（有 `paymentMethods` 时带上，文案见下）、笔数 `transactionCount`、销售净额 `netSales`、费率 `rate`（比例与固定单笔费一起显示，固定费为 0 时只显示比例）、手续费 `fee`。
+- 额外收费 `charges`、税 `taxes`、本单应收 `receivableAmount`：返回了才显示。
+- 合计：销售净额 `netSales`、手续费 `fee`、应结净额 `netSettlement`。
+
+**明细行的服务**：分法与 Account › Service 页一致，一行 = 服务 × 费率（比例与固定单笔费合起来算一个费率）。一个服务下各支付方式费率相同时只有一行；费率不同时一个费率一行，行上带 `paymentMethods`。
+
+| `service` | 英文文案 |
+|---|---|
+| `in_store` | In-Store Payment |
+| `online` | Online e-Commerce |
+| `shopify` | Shopify Integration |
+| `allvalue` | AllValue Integration |
+| `allvalue_xhs` | AllValue (Xiaohongshu) |
+
+- 显示规则只有一条：显示服务的文案；行上有 `paymentMethods` 就把这几个支付方式的展示名接在后面，如 `In-Store Payment · WeChat Pay, Alipay`。要不要带支付方式由服务端定，前端不判断。
+- 支付方式的展示名：拿码去 `listPaymentMethodOptions`（币种取对账单金额的币种）查同码项的 `displayName`，与 Service 页同一做法；查不到（如已下线的方式）就显示码。没有任何一行带 `paymentMethods` 时不用调这个接口。
+- 同一支付方式月中调过费率的，会出现在两行里，靠费率区分。
+- 信用卡（Moneris、Clover）的交易不在对账单里：钱由收单机构直接结给商户，平台不收手续费；笔数、销售净额、应结净额都不含卡，只有卡成交的月份不出对账单。页面与 PDF 上都要有一句说明（页面按界面语言、PDF 按商户语言），英文文案：`Credit card transactions are settled directly by your card processor and are not included in this statement.`
+
+额外收费类型的英文文案：`APP_SUBSCRIPTION` Terminal APP Subscription。
+
+**PDF**：出具时生成并存档的那一份，语言是出具时商户资料里的语言（Account › Profile 的 Business Information，入驻时选），不随界面语言变，商户之后改语言也不影响已出具的；和月对账单邮件里的下载是同一个文件，邮件也是这个语言。不附逐笔流水，逐笔看结算单导出与订单导出。
+
+**相对 demo 的改动**
+
+| 项 | demo | 这里 | 为什么 |
+|---|---|---|---|
+| 状态（Issued / Paid） | 详情与 PDF 上有 | 没有 | 对账单本身没有状态；欠平台多少是账户上的余额，不按单结清 |
+| 明细行的维度 | 按 Service 一维（In-Store Payment、Online e-Commerce、Shopify Integration），一个 Service 一行 | 一个 Service 下费率不同时，一个费率一行，并标出是哪几个支付方式 | 费率是按支付方式定的，一个 Service 下可以有多个费率 |
+| 额外收费、税、本单应收 | 没有 | 有就显示 | PDF 上有这些项，弹窗要和 PDF 对得上 |
+| PDF | 前端按当前页面现拼、调浏览器打印 | 取服务端存档的文件 | 已出具的单据要每次拿到同一份 |
+| 信用卡交易 | 没有说明 | 不计入，并有一句说明 | 卡的钱不经平台结算，商户要知道这张单不含卡 |
+
+---
+
+## 导出文件的语言
+
+两个导出 xlsx 的表头与文案是服务端写进文件的：请求带 `Accept-Language`（当前界面语言），实际用的语言在响应头 `Content-Language` 里。月对账单 PDF 不在此列，按出具时的商户语言。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

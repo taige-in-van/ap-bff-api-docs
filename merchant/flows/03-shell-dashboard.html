@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>框架与首页 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 框架与首页 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。本文是登录后每个页面都带着的部分（启动链路、顶栏、头像菜单）和落地页 Dashboard。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 启动链路 | 登录成功后；刷新页面时 | [流程：登录后的启动链路](#流程：登录后的启动链路) |
+| Dashboard | 登录后的落地页；侧边栏 Dashboard | [页面：Dashboard](#页面：Dashboard) |
+| 顶栏 | 商户后台每个页面的顶部 | [页面：顶栏 · 商户切换器 区块](#页面：顶栏%20·%20商户切换器%20区块)；[页面：顶栏 · Create a Merchant 弹窗](#页面：顶栏%20·%20Create%20a%20Merchant%20弹窗)；[页面：顶栏 · 通知铃铛 区块](#页面：顶栏%20·%20通知铃铛%20区块)；[页面：顶栏 · 语言切换 区块](#页面：顶栏%20·%20语言切换%20区块) |
+| Notification | 顶栏的铃铛；Dashboard 的 Notification 一块点 View All | [页面：Notification](#页面：Notification) |
+| 头像菜单 | 顶栏右侧的头像 | [页面：头像菜单 · Sign out](#页面：头像菜单%20·%20Sign%20out) |
+
+## 页面流转
+
+**登录后的启动链路**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "01-Login" as L
+    state "登录后的启动链路" as BOOT
+    state cur <<choice>>
+    state "Dashboard" as D
+    state "02-入驻" as ONB
+
+    L --> BOOT: 登录成功
+    BOOT --> cur: 看当前商户
+    cur --> D: 已开通
+    cur --> ONB: 还没开通
+    cur --> L: 取不到当前商户（208028）
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class L,ONB other
+```
+
+**从顶栏商户切换器出发**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "顶栏商户切换器" as SW
+    state "Create a Merchant 弹窗" as CM
+    state "02-入驻向导" as WIZ
+    state "02-审核状态" as UR
+    state "Dashboard" as D
+
+    SW --> D: 点已开通的商户，切换当前商户
+    SW --> WIZ: 点草稿 / 待补充的商户
+    SW --> UR: 点审核中的商户
+    SW --> CM: Add New Merchant
+    CM --> WIZ: Continue to Onboarding
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class WIZ,UR other
+```
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getCurrentSession`](../auth/index.html#tag/sessions/operation/getCurrentSession) | `GET /auth/sessions/current` | 当前会话（当前商户、权限点、可见分区） |
+| 2 | [`listMerchants`](../merchants/index.html#tag/merchants/operation/listMerchants) | `GET /merchants` | 商户列表（顶栏切换器、启动链路据此分流；`status` = `ACTIVE` 或入驻申请状态） |
+| 3 | [`getOnboardingApplication`](../merchants/index.html#tag/application/operation/getOnboardingApplication) | `GET /merchants/{merchantId}/application` | 读入驻申请，启动链路里用于被拒商户 |
+| 4 | [`switchCurrentMerchant`](../auth/index.html#tag/sessions/operation/switchCurrentMerchant) | `PUT /auth/sessions/current` | 切换当前商户（只切到已激活的商户），返回新会话 |
+| 5 | [`getStatisticsSummary`](../orders/index.html#tag/statistics/operation/getStatisticsSummary) | `GET /statistics/summary` | 日期范围内的收款、退款、净额与支付方式占比 |
+| 6 | [`getStatisticsTrend`](../orders/index.html#tag/statistics/operation/getStatisticsTrend) | `GET /statistics/trend` | 本月或上月的逐日收款额与笔数 |
+| 7 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | To Settle 卡取其中的 `accountBalance` |
+| 8 | [`listRecentPayments`](../orders/index.html#tag/payments/operation/listRecentPayments) | `GET /orders/payments/recent` | 最近收到钱的几笔订单 |
+| 9 | [`listNotices`](../system/index.html#tag/notices/operation/listNotices) | `GET /notices` | 站内信列表（分页）；Dashboard 取最近三条 |
+| 10 | [`deleteMerchant`](../merchants/index.html#tag/merchants/operation/deleteMerchant) | `DELETE /merchants/{merchantId}` | 删除未激活的关联商户 |
+| 11 | [`listCurrencyOptions`](../system/index.html#tag/config/operation/listCurrencyOptions) | `GET /config/currencies` | 结算币种及各币种可选的国家 |
+| 12 | [`createMerchant`](../merchants/index.html#tag/merchants/operation/createMerchant) | `POST /merchants` | 新建关联商户（一律挂在主商户下，不切当前商户） |
+| 13 | [`getNoticeSummary`](../system/index.html#tag/notices/operation/getNoticeSummary) | `GET /notices/summary` | 顶栏铃铛的未读数 |
+| 14 | [`getNotice`](../system/index.html#tag/notices/operation/getNotice) | `GET /notices/{noticeId}` | 站内信详情 |
+| 15 | [`markNoticeRead`](../system/index.html#tag/notices/operation/markNoticeRead) | `PUT /notices/{noticeId}` | 标一条已读 |
+| 16 | [`markAllNoticesRead`](../system/index.html#tag/notices/operation/markAllNoticesRead) | `PUT /notices` | 全部标已读 |
+| 17 | [`updateMyProfile`](../me/index.html#tag/profile/operation/updateMyProfile) | `PUT /me` | 顶栏切换界面语言时存回账号（只传 `locale`） |
+| 18 | [`logout`](../auth/index.html#tag/sessions/operation/logout) | `DELETE /auth/sessions/current` | 退出登录 |
+
+---
+
+## 流程：登录后的启动链路
+
+会话建立后前端按固定链路初始化，决定落到哪一页；页面刷新时同样从这里起步（会话失效则回登录页）。账号密码与扫码登录共用这条链路。
+
+```mermaid
+sequenceDiagram
+    participant S as SPA
+    participant A as 商户后台 BFF
+
+    S->>A: #35;1 [getCurrentSession]<br/>GET /auth/sessions/current
+    alt 会话无效
+        A-->>S: 401
+        S->>S: 回登录页
+    else 取不到当前商户（会话已被服务端结束）
+        A-->>S: 403·208028
+        S->>S: 回登录页，提示「商户状态异常，请联系客服」
+    else
+        A-->>S: 200 { merchantId, privileges, visibleModules, ... }
+        S->>A: #35;2 [listMerchants]<br/>GET /merchants
+        A-->>S: 200 { items: [{ merchantId, status }] }
+        alt 当前商户在列表里
+            S->>S: ACTIVE 进商户后台<br/>DRAFT / MORE_INFO_REQUIRED 进入驻向导<br/>UNDER_REVIEW 进审核状态页
+        else 不在列表里（被拒的商户不进列表）
+            S->>A: #35;3 [getOnboardingApplication]<br/>GET /merchants/{merchantId}/application
+            A-->>S: 200 { status: REJECTED, ... }
+            S->>S: 进拒绝结果页
+        end
+    end
+```
+
+- 当前商户由服务端定（规则见 `login`），只会是已激活的商户，或首次入驻中 / 被拒的主商户；被拒的主商户由启动链路据此进拒绝结果页。
+- 当前商户在会话期间被冻结或删除时，服务端在 #1 里换一个，或在一个都取不到时结束会话、返回 `208028`。前端不做这些判断。
+- 业务接口返回 `409`·`208022`（当前商户不可访问）时，重新走这条链路。
+- 入驻申请接口按「在册且未删除」授权，比商户列表宽：被拒的主商户不在列表里，#3 仍能读到它的申请。
+
+- 导航、入口、按钮、只读态一律按 `privileges` 判；`visibleModules` 只在其上再收窄侧边栏，不拦请求。
+- Owner 专属入口（接口标 `owner` 的，如 Create a Merchant、Owner 联系人、退款 PIN）按 `isOwner` 判；`isOwner` 按当前商户算，切换商户后以新会话为准。两种入口都不要按 `roleName` 写判断：角色随部署配置而变，写死角色名的判断换了配置会静默失效。
+- 进商户后台时落 Dashboard；看不到 Dashboard 时落侧边栏里第一个能看到的页面，由前端按权限决定，服务端不下发落地页。
+
+---
+
+## 页面：Dashboard
+
+登录后的落地页。页头：欢迎语、日期范围（默认今天）。四张卡：Gross Sales、Refund Amount、Net Sales、To Settle。Transaction Volume 趋势（本月 / 上月，金额与笔数两条线）。Transaction History（最近几笔订单，View more 去 Payments）。Payment Distribution（各支付方式的收款占比）。Notification（最近三条通知，View All 去通知中心）。Help & Support（静态链接与 App 下载码）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Dashboard(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;5 [getStatisticsSummary]<br/>GET /statistics/summary?from&to
+        A-->>S: 200 { grossSales, refundAmount, netSales,<br/>distribution: [{ paymentMethodFamily, amount }] }
+    and
+        S->>A: #35;6 [getStatisticsTrend]<br/>GET /statistics/trend?month=current
+        A-->>S: 200 { month, points: [{ date, volume, orders }] }
+    and
+        S->>A: #35;7 [getBalance]<br/>GET /funds/balance
+        A-->>S: 200 { accountBalance }
+    and
+        S->>A: #35;8 [listRecentPayments]<br/>GET /orders/payments/recent?limit
+        A-->>S: 200 { items: [{ orderId, amount, status, createdAt }] }
+    and
+        S->>A: #35;9 [listNotices]<br/>GET /notices?pageSize=3
+        A-->>S: 200 { data: [{ noticeId, title, style, createdAt }] }
+    end
+
+    Note over U,A: 改日期范围：只重取汇总与占比
+    U->>S: 选日期范围
+    S->>A: #35;5 [getStatisticsSummary]<br/>GET /statistics/summary?from&to
+    A-->>S: 200
+
+    Note over U,A: 趋势图切本月 / 上月：只重取趋势
+    U->>S: 点 Last Month
+    S->>A: #35;6 [getStatisticsTrend]<br/>GET /statistics/trend?month=previous
+    A-->>S: 200
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 五个接口里某一个失败或超时 | 该接口的错误响应 | 只把它对应的那一块显示成暂不可用，其余照常；不要拿 0 顶替 |
+| `to` 早于 `from`、日期格式不对 | `400` | 修正日期后重试 |
+
+**各块取哪个字段**
+
+- 欢迎语里的姓名：启动链路已取的登录者 `displayName`，本页不另取；没有昵称时用 `loginId`。
+- 日期范围：用户选什么日期就传什么；页面默认今天，「今天」「近 7 天」这类由前端按本地日历算成具体日期再传，服务端只收起止日期。跨度不设上限。只影响 Gross Sales、Refund Amount、Net Sales 三张卡与 Payment Distribution。
+- Gross Sales `grossSales`，Refund Amount `refundAmount`，Net Sales `netSales`。后两个可能为负，按有符号金额原样显示，不要截成 0 或取绝对值；Net Sales 直接用返回值，不要自己相减。
+- To Settle：`getBalance` 的 `accountBalance`，是当前余额，不随日期范围变；与 Payments 页的 To Settle、Settlements 页的 Account Balance 是同一个数。
+- Payment Distribution：`distribution` 给的是全部有收款的品牌，各项之和等于 `grossSales`，占比由前端算。品牌的文案与图标同 Payments 页的支付方式；要不要把占比小的并成 Others 由前端定。
+- Transaction Volume：`points` 每天一项、已按日期排好、没交易的日子是 0，直接画；横轴的月份取 `month`。趋势只受本月 / 上月切换控制，改页头日期范围不重取。
+- Transaction History：`listRecentPayments` 只给收到钱的订单；行与 Payments 列表的行相同，点开用订单详情。
+- Notification：`listNotices` 取前三条；通知的字段与点开后的处理见「页面：Notification」。
+- 切换当前商户后五个接口都重取。
+
+这一页的数与 Payments 页头汇总卡不是同一个口径：这里收款按成交的日期、退款按退款受理的日期各算各的；Payments 那边是按所筛订单算。两边不要互相核对。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 这里 | 为什么 |
+|---|---|---|---|
+| Payment Distribution | WeChat Pay、Alipay、Others 三片 | 接口给全部品牌的金额 | 哪几家单列、其余是否合并是展示上的取舍 |
+| Transaction History | 四笔订单 | 条数由前端定；只列收到钱的订单 | 失败、被拒的订单没有动钱 |
+
+---
+
+## 页面：顶栏 · 商户切换器 区块
+
+商户后台顶栏左侧，触发器显示当前商户的币种。下拉列出能进的商户（主商户在前），每行显示色块首字母、商户名，右侧是币种（已激活）或状态（草稿 / 待补充 / 审核中）；未激活的行有删除按钮；底部 Add New Merchant 打开 Create a Merchant 弹窗（见下一节）。列表在启动链路里已经取过一次（见「流程：登录后的启动链路」），打开下拉时再取一次，好看到关联商户的最新审核状态。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 顶栏切换器(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开下拉
+    S->>A: #35;2 [listMerchants]<br/>GET /merchants
+    A-->>S: 200 { items: [{ merchantId, tradeName, currency, status }] }
+    S->>S: 按 getCurrentSession.merchantId 标出当前商户
+
+    Note over U,A: 切换到已激活的商户
+    U->>S: 点 ACTIVE 的行
+    S->>A: #35;4 [switchCurrentMerchant]<br/>PUT /auth/sessions/current
+    A-->>S: 200 { merchantId, privileges, visibleModules }
+    S->>S: 进 Dashboard，广播通知其他标签页
+
+    Note over U,A: 打开未激活的关联商户（不切换当前商户）
+    U->>S: 点 DRAFT / MORE_INFO_REQUIRED 的行
+    S->>S: 带它的 merchantId 进入驻向导
+    U->>S: 点 UNDER_REVIEW 的行
+    S->>S: 进它的审核状态页
+
+    Note over U,A: 删除未激活的关联商户（确认弹窗）
+    U->>S: 点行上的删除，确认
+    S->>A: #35;10 [deleteMerchant]<br/>DELETE /merchants/{merchantId}
+    A-->>S: 204
+    S->>A: #35;2 [listMerchants]<br/>GET /merchants
+    A-->>S: 200 { items }
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 切换的目标已不是已激活状态 | `409`·`208003` | 重调 #2，按新状态处理那一行 |
+| 切换 / 删除的目标不在列表里（被删、被冻结、被拒） | `404` | 重调 #2 |
+| 删除时该商户已激活 | `409`·`208003` | 重调 #2 |
+| 删除主商户 | `409`·`208024` | 正确 UI 下不出现（主商户在切换器里一定已激活，不显示删除） |
+
+- 列表里有谁按人分：Owner 是名下全部商户；主商户的员工是主商户加全部关联商户，切过去用同一个角色；关联商户的员工只有本商户，只有一行时不显示下拉。
+- 当前商户以 `getCurrentSession` 的 `merchantId` 为准，不在列表里另给。切换只在 `ACTIVE` 商户之间；未激活的关联商户用它的 `merchantId` 进向导或审核状态页，当前商户不变，向导和审核状态页的出口是「回首页」，直接回商户后台。
+- 新建与删除关联商户是 Owner 专属（接口标 `owner`），入口按 `isOwner` 显示，员工看不到这两个入口。未激活的行显示删除入口；切换器显示时当前商户一定已激活，所以删的不会是当前商户，删完重拉列表即可。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 点审核中的关联商户 | 切进它的商户后台 | 进它的审核状态页，出口「回首页」，当前商户不变 | 未激活的商户不能进商户后台 |
+| 运营打回补件的关联商户 | 无此状态 | 行上显示「待补充」，点击进向导 | demo 没有补件分支 |
+
+---
+
+## 页面：顶栏 · Create a Merchant 弹窗
+
+弹窗里填 Trade Name / DBA、选 Country 与 Currency（按组合联动），再选 Legal Entity：Branch of {主商户名}（按主商户资料预填）或 New legal entity（全新填写）；点 Continue to Onboarding 建商户并进入驻向导。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Create a Merchant(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 在切换器点 Add New Merchant
+    S->>A: #35;11 [listCurrencyOptions]<br/>GET /config/currencies
+    A-->>S: 200 { items }
+    U->>S: 填 Trade Name，选 Country / Currency<br/>与 Branch / New legal entity，点 Continue
+    S->>A: #35;12 [createMerchant]<br/>POST /merchants
+    A-->>S: 201 { merchantId }
+    S->>S: 带 merchantId 进入驻向导（当前商户不变）
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| Country × Currency 组合非法 | `400` | 重调 #11 让用户重选 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+
+- 只有 Owner 能新建：新商户的法人、结算账户与入驻申请都是 Owner 的事，员工不能替 Owner 立新主体。
+- 点一次 Continue 生成一个 `Idempotency-Key`，同一次提交的网络重试复用原键。
+- 进入驻向导之后的流程见 [flows 02-onboarding-service「流程：新增关联商户后进入向导」](02-onboarding-service.html#流程：新增关联商户后进入向导)。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| Branch 选项 | 「Branch of {当前商户名}」，预填当前商户的资料 | 「Branch of {主商户名}」（取切换器列表第一行），预填主商户的资料 | 新商户一律挂在主商户下，关联商户只有两层 |
+
+---
+
+## 页面：顶栏 · 通知铃铛 区块
+
+顶栏铃铛带未读数，点了进 Notification 页。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+
+    loop 铃铛在页面上时，每隔一段时间
+        S->>A: #35;13 [getNoticeSummary]<br/>GET /notices/summary
+        A-->>S: 200 { unreadCount }
+    end
+
+    U->>S: 点铃铛
+    S->>S: 进 Notification 页
+```
+
+- 未读数由铃铛自己定时取：挂载时先取一次，之后每隔一段时间取一次，间隔由前端定（一分钟这个量级就够）；页面不可见时停，回到前台立即取一次。标已读后立即重取一次。别的页面不用管未读数。切换商户后铃铛重新取。
+- 定时取不影响登录状态：会话没有闲置过期，请求不会延长它。
+
+---
+
+## 页面：Notification
+
+站内信列表与详情。列表每行是标题与时间，带样式图标，未读的有标记；点一行进详情（标题、时间、正文）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 商户后台 SPA
+    participant A as BFF
+
+    U->>S: 进 Notification 页
+    S->>A: #35;9 [listNotices]<br/>GET /notices?pageNum=1
+    A-->>S: 200 { total, data: [{ noticeId, title, style, read, createdAt }] }
+
+    U->>S: 点某一行
+    S->>A: #35;14 [getNotice]<br/>GET /notices/{noticeId}
+    A-->>S: 200 { title, style, read, createdAt, body }
+    opt 这条还没读过
+        S->>A: #35;15 [markNoticeRead]<br/>PUT /notices/{noticeId} { read: true }
+        A-->>S: 204
+        S->>A: #35;13 [getNoticeSummary]<br/>GET /notices/summary
+        A-->>S: 200 { unreadCount }
+    end
+
+    Note over U,A: 全部已读
+    U->>S: 点 Mark all as read
+    S->>A: #35;16 [markAllNoticesRead]<br/>PUT /notices { read: true }
+    A-->>S: 204
+    S->>A: #35;13 [getNoticeSummary]<br/>GET /notices/summary
+    A-->>S: 200 { unreadCount }
+```
+
+- 详情是只读的，不会把这条标成已读；页面在拿到详情、且这条 `read` 为假时调 #15。
+- 全部已读只在用户点按钮时调。
+- 已读是整个商户共用一份：任何一个人打开过，对所有人都算已读。
+- 列表按时间从新到旧。图标按 `style`（`success` / `failure` / `warning` / `default`）。
+- 正文 `body` 是服务端处理过的 HTML，前端渲染时仍只放行排版类标签。
+- Dashboard 的最近通知也调 #9，传 `pageSize=3`。
+- 站内信是整个商户共用的收件箱，只收「收件人是商户整体」的通知（平台公告、发给本商户的事件通知）；收件人是某个具体的人的通知（如本人改密码）只发给本人，不进站内信。具体哪些事件产生站内信由后端的事件定义决定，页面照着标题、样式、正文显示，不按事件类型分支。
+- 标题与正文在生成时已按商户语言写好，商户之后改了语言，已有的站内信不变。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 站内信不存在 | #14 `404` | 显示「Notice not found」，给回列表的入口 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 铃铛未读数、列表里的未读标记、全部已读 | 没有 | 有 | 站内信分已读未读，整个商户共用一份 |
+| 个人操作产生的通知（改密码、MFA、改邮箱等） | 进通知列表 | 不进 | 列表是整个商户共用的，个人操作不该让所有人看到 |
+
+---
+
+## 页面：顶栏 · 语言切换 区块
+
+任意已登录页面，顶栏的语言下拉。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as SPA
+    participant A as 商户后台 BFF
+    U->>S: 顶栏选一种语言
+    S->>S: 界面立即切换
+    S->>A: #35;17 [updateMyProfile]<br/>PUT /me { locale }
+    A-->>S: 204
+    Note over S,A: 之后的请求都带新语言的 Accept-Language；<br/>存回失败不回退界面，下次登录按账号里的 locale 显示
+```
+
+- 登录前的页面（登录、注册、忘记密码、各邮件链接落地页）按浏览器本地的选择，没选过按浏览器语言。
+- 登录后按 #1 返回的 `locale` 显示，换了设备也跟着账号走。
+- 顶栏切换语言时调 #17，只传 `{ locale }`。
+- 所有请求统一带 `Accept-Language`（页面当前的语言）。账号还没有 `locale` 时，注册、邀请设密、登录会用它记下第一次的语言，之后只有顶栏切换会改。
+- 这个语言只管界面和发给本人的邮件（验证码、改密码、改邮箱等）；发给商户的通知用商户语言，见 [flows 09-profile-users「页面：Business Profile」](09-profile-users.html#页面：Business%20Profile)。
+
+---
+
+## 页面：头像菜单 · Sign out
+
+任意已登录页面，头像菜单展示 `displayName`（没有昵称时用 `loginId`）和 `roleName`（来自 `getCurrentSession`），菜单项「My Profile」「Security」进对应页面，「Sign out」退出。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as SPA
+    participant A as 商户后台 BFF
+    U->>S: 头像菜单 → Sign out
+    S->>A: #35;18 [logout]<br/>DELETE /auth/sessions/current
+    A-->>S: 204（cookie 已清除）
+    S->>S: 回登录页
+```
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

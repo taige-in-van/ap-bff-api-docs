@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>设备 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 设备 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。设备首次登录激活这类状态变化由系统驱动，前端靠重新读取看到。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| Devices | 侧边栏 Product › Devices | [页面：Devices](#页面：Devices)；[页面：Devices · Bind New Device 弹窗](#页面：Devices%20·%20Bind%20New%20Device%20弹窗) |
+| Device Logs | Devices 列表行上的 View logs；也可以直接打开链接 | [页面：Device Logs](#页面：Device%20Logs) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listDevices`](../devices/index.html#tag/devices/operation/listDevices) | `GET /devices` | 设备列表（分页，不含已解绑的） |
+| 2 | [`getDeviceCounts`](../devices/index.html#tag/devices/operation/getDeviceCounts) | `GET /devices/counts` | 状态 chip 的各项与计数 |
+| 3 | [`listDeviceStores`](../devices/index.html#tag/devices/operation/listDeviceStores) | `GET /devices/stores` | Filters 面板的门店候选（商户用过的门店名） |
+| 4 | [`updateDevice`](../devices/index.html#tag/devices/operation/updateDevice) | `PUT /devices/{deviceId}` | 停用 / 启用 |
+| 5 | [`deleteDevice`](../devices/index.html#tag/devices/operation/deleteDevice) | `DELETE /devices/{deviceId}` | 解绑（待激活的是取消激活） |
+| 6 | [`createDevice`](../devices/index.html#tag/devices/operation/createDevice) | `POST /devices` | 绑定新设备（预登记，待设备首次登录激活） |
+| 7 | [`getDevice`](../devices/index.html#tag/devices/operation/getDevice) | `GET /devices/{deviceId}` | 单台设备（日志页页头） |
+| 8 | [`listDeviceLogs`](../devices/index.html#tag/devices/operation/listDeviceLogs) | `GET /devices/{deviceId}/logs` | 设备日志（分页） |
+| 9 | [`getDeviceLogCounts`](../devices/index.html#tag/devices/operation/getDeviceLogCounts) | `GET /devices/{deviceId}/logs/counts` | 日志类型 chip 的各项与计数 |
+| 10 | [`exportDeviceLogs`](../devices/index.html#tag/devices/operation/exportDeviceLogs) | `GET /devices/{deviceId}/logs/export` | 导出当前筛选下的日志（xlsx） |
+
+---
+
+## 页面：Devices
+
+侧边栏 Product › Devices。工具栏：搜索（设备名、设备 ID、序列号、型号、门店）、状态 chip、Filters 面板（来源、门店、状态、创建日期）、排序、Bind Device。表格列：设备（型号与来源）、序列号、门店、操作员（最近登录的人，下面带固件或 App 版本）、创建日期、最近活跃、状态、操作。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Devices(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;1 [listDevices]<br/>GET /devices?sortField=lastActiveAt&sortOrder=descend
+        A-->>S: 200 { total, data: [{ deviceId, model, source, serialNumber,<br/>storeName, deviceName, operatorEmail, firmwareVersion, appVersion,<br/>status, lastActiveAt, createdAt }] }
+    and
+        S->>A: #35;2 [getDeviceCounts]<br/>GET /devices/counts
+        A-->>S: 200 { items }
+    end
+    Note over S,A: 搜索 / 切 chip / Filters / 排序 / 翻页：重调 #35;1<br/>（chip 与 Filters 里的状态是同一个 status 参数），<br/>筛选变了 #35;2 带同一组筛选
+
+    Note over U,A: 打开 Filters 面板
+    U->>S: 点 Filters
+    S->>A: #35;3 [listDeviceStores]<br/>GET /devices/stores
+    A-->>S: 200 { items }
+
+    Note over U,A: 停用 / 启用（确认弹窗）
+    U->>S: 点 Disable 或 Enable，确认
+    S->>A: #35;4 [updateDevice]<br/>PUT /devices/{deviceId} { enabled }
+    A-->>S: 204
+    S->>A: 重调 #35;1、#35;2
+
+    Note over U,A: 解绑（待激活的行是 Cancel activation）
+    U->>S: 点 Unbind，确认
+    S->>A: #35;5 [deleteDevice]<br/>DELETE /devices/{deviceId}
+    A-->>S: 204
+    S->>A: 重调 #35;1、#35;2
+
+    U->>S: 点 View logs
+    S->>S: 进设备日志页
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 停用或启用时设备还没激活 | `409`·`208003` | 重调 #1、#2 |
+| 操作时设备已被解绑 | `404` | 重调 #1、#2 |
+
+- 在线与否看设备上有没有操作员在用，平台不主动探测设备。所以 Enable 之后没人登录时显示 Offline，不是启用失败，确认框里向商户说明这一点。
+- 行上的动作：待激活的行只有 Cancel activation；其余的行有 View logs、Disable 或 Enable、Unbind。
+- 停用后设备立即不能收款，可以随时再启用。解绑后设备从列表消失，要再用得重新绑定、设备重新登录；已成交的订单与结算不受影响。
+- 来源与状态的展示名由前端按码取。绑定表单的来源下拉没有 `unknown` 这一项。
+- 门店是绑定时自填的文本，Filters 里的门店下拉取 #3，来源与状态下拉是固定项、不另取。
+
+---
+
+## 页面：Devices · Bind New Device 弹窗
+
+一步表单：来源、型号、序列号、门店。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Devices(SPA)
+    participant A as 商户后台 BFF
+    participant D as 收款设备
+
+    U->>S: 点 Bind Device
+    S->>S: 来源下拉三项（平台自有 / Moneris / Clover），<br/>型号下拉是所选来源的常见型号，也可选 Other 自填
+    U->>S: 填完，点 Bind
+    S->>A: #35;6 [createDevice]<br/>POST /devices
+    A-->>S: 201 { deviceId }
+    S->>S: 关弹窗，提示「设备首次登录后自动激活」
+    S->>A: 重调 #35;1、#35;2（新行 status = PENDING_ACTIVATION）
+
+    Note over U,D: 之后在设备上完成，不经过浏览器
+    U->>D: 操作员在这台设备上登录
+    Note over D: 设备报上的序列号与绑定记录对上，设备激活
+    U->>S: 回到 Devices 页
+    S->>A: #35;1 [listDevices]<br/>GET /devices
+    A-->>S: 该行 status = ONLINE
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 必填项缺失或超长 | `400`（`details` 指到字段） | 字段红框；正确页面下已拦住 |
+| 本商户名下已有同一序列号的设备 | `409`·`208021` | 序列号红框，提示到列表里找已有的那条 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+
+- 型号的常见清单是前端参考数据，只为少打字，不是白名单：服务端不校验型号是否在清单里。
+- 别的商户登记过同一序列号时这里不会报错，但设备登录时认领不上，这一行会一直停在待激活。
+- `createDevice` 带 `Idempotency-Key`：点一次 Bind 生成一个键，同一次提交的网络重试复用原键。
+
+---
+
+## 页面：Device Logs
+
+从列表的 View logs 进来，也可以直接打开链接。页头是设备信息（型号、来源、序列号、门店、操作员、状态），下面是类型 chip、搜索、导出按钮和日志表（类型、事件、备注、操作人、时间）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Device Logs(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    par
+        S->>A: #35;7 [getDevice]<br/>GET /devices/{deviceId}
+        A-->>S: 200 { 同列表的一行 }
+    and
+        S->>A: #35;8 [listDeviceLogs]<br/>GET /devices/{deviceId}/logs
+        A-->>S: 200 { total, data: [{ type, severity, event,<br/>notes, actor, timestamp }] }
+    and
+        S->>A: #35;9 [getDeviceLogCounts]<br/>GET /devices/{deviceId}/logs/counts
+        A-->>S: 200 { items }
+    end
+    Note over S,A: 搜索 / 切 chip / 翻页：重调 #35;8（chip 带 type），<br/>搜索变了 #35;9 同步带上 keyword
+
+    Note over U,A: 导出
+    U->>S: 点导出
+    S->>A: #35;10 [exportDeviceLogs]<br/>GET /devices/{deviceId}/logs/export（带当前的 type 与 keyword）
+    A-->>S: 200 xlsx 文件
+    S->>S: 浏览器下载
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 设备不存在或已解绑 | `404` | 显示「Device not found」，给回列表的入口 |
+
+- 类型徽标的颜色按 `severity`。
+- `actor` 是操作员邮箱；系统产生的没有这个字段，前端显示 system。
+- 导出的是当前类型与搜索条件下的全部日志，不只是当前页。文件里的表头语言按 `Accept-Language`。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 设备名 | 无 | 设备有名字时显示在设备一栏，搜索也匹配它；本页暂不提供改名 | 现网商户给设备起了名字，交易页按设备筛选时靠它认设备 |
+| 待激活行的 Regenerate activation QR | 有 | 去掉 | 激活不靠扫码：绑定后设备首次登录即激活，没有激活码 |
+| 状态名 Unbound | Unbound | Pending activation | 这一态是已绑定、等设备登录，叫 Unbound 意思反了 |
+| 日志类型 chip | 五类（含 Firmware、Error） | 三类，照 #9 返回的渲染 | 本期只记交易、连接、登录三类 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

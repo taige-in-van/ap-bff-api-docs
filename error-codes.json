@@ -10,11 +10,6 @@
       "name": "REQUIRED_DOCUMENTS_INCOMPLETE",
       "retryable": false
     },
-    "204003": {
-      "httpStatus": 400,
-      "name": "INVOICE_AMOUNT_INVALID",
-      "retryable": false
-    },
     "204004": {
       "httpStatus": 400,
       "name": "INVOICE_DUE_DATE_INVALID",
@@ -25,24 +20,9 @@
       "name": "PAYMENT_METHOD_SELECTION_EMPTY",
       "retryable": false
     },
-    "204006": {
-      "httpStatus": 400,
-      "name": "CONTENT_CURRENCY_MISMATCH",
-      "retryable": false
-    },
-    "204007": {
-      "httpStatus": 400,
-      "name": "REFUND_AMOUNT_INVALID",
-      "retryable": false
-    },
     "204008": {
       "httpStatus": 400,
       "name": "REFUND_REJECTED",
-      "retryable": false
-    },
-    "204009": {
-      "httpStatus": 400,
-      "name": "EXPORT_RESULT_SET_TOO_LARGE",
       "retryable": false
     },
     "204010": {
@@ -58,29 +38,9 @@
       "name": "SIGNING_KEY_INVALID_PEM",
       "retryable": false
     },
-    "204012": {
-      "httpStatus": 400,
-      "name": "WINDOW_RANGE_TOO_LARGE",
-      "retryable": false
-    },
-    "204013": {
-      "httpStatus": 400,
-      "name": "GIFTCARD_CONTENT_INVALID",
-      "retryable": false
-    },
-    "204014": {
-      "httpStatus": 400,
-      "name": "FILE_NOT_IN_PLACE",
-      "retryable": false
-    },
     "204015": {
       "httpStatus": 400,
-      "name": "FILE_DECLARATION_REJECTED",
-      "retryable": false
-    },
-    "204016": {
-      "httpStatus": 400,
-      "name": "RESERVE_WITHDRAWAL_SELECTOR_INVALID",
+      "name": "FILE_REJECTED",
       "retryable": false
     },
     "204017": {
@@ -90,22 +50,24 @@
     },
     "204018": {
       "httpStatus": 400,
-      "name": "WITHDRAWAL_BELOW_MINIMUM",
+      "name": "RESERVE_TARGET_BELOW_MINIMUM",
+      "requiredContextFields": [
+        "minimumAmount"
+      ],
       "retryable": false
     },
     "204019": {
       "httpStatus": 400,
-      "name": "ORDER_EXPIRY_NOT_IN_OPTIONS",
+      "name": "ORDER_EXPIRY_OUT_OF_RANGE",
+      "requiredContextFields": [
+        "minimumMinutes",
+        "maximumMinutes"
+      ],
       "retryable": false
     },
     "206001": {
       "httpStatus": 410,
       "name": "AUTH_VERIFICATION_TOKEN_INVALID_OR_EXPIRED",
-      "retryable": false
-    },
-    "206002": {
-      "httpStatus": 410,
-      "name": "AUTH_REGISTRATION_ALREADY_ACTIVATED",
       "retryable": false
     },
     "206003": {
@@ -133,11 +95,6 @@
       "name": "CHALLENGE_LOCKED",
       "retryable": false
     },
-    "206008": {
-      "httpStatus": 410,
-      "name": "EXPORT_LINK_EXPIRED",
-      "retryable": false
-    },
     "206009": {
       "httpStatus": 410,
       "name": "INVITATION_TOKEN_INVALID_OR_EXPIRED",
@@ -158,12 +115,9 @@
       "name": "LOGIN_CREDENTIAL_INVALID",
       "retryable": false
     },
-    "208001": {
-      "httpStatus": 409,
-      "name": "MERCHANT_CONTEXT_CHANGED",
-      "requiredContextFields": [
-        "currentMerchantId"
-      ],
+    "206013": {
+      "httpStatus": 403,
+      "name": "TEAM_ROLE_BEYOND_OPERATOR_AUTHORITY",
       "retryable": false
     },
     "208002": {
@@ -176,19 +130,9 @@
       "name": "STATE_PRECONDITION_MISMATCH",
       "retryable": false
     },
-    "208004": {
-      "httpStatus": 409,
-      "name": "BASELINE_DRIFT",
-      "retryable": false
-    },
     "208005": {
       "httpStatus": 409,
       "name": "IDEMPOTENCY_PAYLOAD_CONFLICT",
-      "retryable": false
-    },
-    "208006": {
-      "httpStatus": 409,
-      "name": "INVOICE_HAS_PENDING_PAYMENT",
       "retryable": false
     },
     "208007": {
@@ -224,24 +168,9 @@
       ],
       "retryable": true
     },
-    "208014": {
-      "httpStatus": 409,
-      "name": "GATEWAY_CREDENTIAL_UNAVAILABLE",
-      "retryable": false
-    },
-    "208015": {
-      "httpStatus": 409,
-      "name": "SIGNING_KEY_ROTATION_GRACE_ACTIVE",
-      "retryable": false
-    },
     "208016": {
       "httpStatus": 409,
       "name": "ATTRIBUTION_DAY_SEALED",
-      "retryable": false
-    },
-    "208017": {
-      "httpStatus": 409,
-      "name": "GIFTCARD_FULFILLMENT_MODE_IMMUTABLE",
       "retryable": false
     },
     "208018": {
@@ -269,19 +198,9 @@
       "name": "MERCHANT_NOT_ACCESSIBLE",
       "retryable": false
     },
-    "208023": {
-      "httpStatus": 409,
-      "name": "MERCHANT_HIERARCHY_DEPTH_EXCEEDED",
-      "retryable": false
-    },
     "208024": {
       "httpStatus": 409,
-      "name": "ONBOARDING_WITHDRAWAL_NOT_APPLICABLE",
-      "retryable": false
-    },
-    "208026": {
-      "httpStatus": 409,
-      "name": "ACCEPTANCE_MODE_ALREADY_ACTIVE",
+      "name": "PRIMARY_MERCHANT_NOT_DELETABLE",
       "retryable": false
     },
     "208027": {
@@ -291,15 +210,12 @@
     },
     "208028": {
       "httpStatus": 403,
-      "name": "LOGIN_MERCHANT_SUSPENDED",
+      "name": "NO_USABLE_MERCHANT",
       "retryable": false
     },
     "208029": {
       "httpStatus": 403,
       "name": "LOGIN_EMAIL_UNVERIFIED",
-      "requiredContextFields": [
-        "maskedEmail"
-      ],
       "retryable": false
     },
     "208030": {
