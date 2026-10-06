@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>电商插件订单 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 电商插件订单 —— 调用时序
+
+> 本文说明付款人从电商平台结账页被带到收银台时用的是哪些页面与接口（Shopify、AllValue、WooCommerce）。本文不另立规则：页面规则都在 [03-order-checkout.flows.md](03-order-checkout.html) 与 [00-shared.flows.md](00-shared.html)，按字段有没有来定；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+插件订单没有自己的页面，用的就是订单付款页那一套：
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 订单付款页 | 付款人在店铺结账页选了 Platform，被平台带到入口地址；入口接口返回 `state = PAYABLE`、`paymentStarted` 为 false | [03-order-checkout 页面：订单付款页](03-order-checkout.html#页面：订单付款页) |
+| 链接状态页（已付 / 已失效 / 已关闭） | 入口接口返回 `state` 不是 `PAYABLE`，或 `404` | [00-shared 页面：链接状态页](00-shared.html#页面：链接状态页) |
+| 支付结果页 | 发起支付之后；刷新或付完回来 | [00-shared 页面：支付结果](00-shared.html#页面：支付结果) |
+
+订单在付款人到来之前已经建好，付款人拿到的入口地址与其他订单一样是 `https://<host>/o/{linkToken}`。插件订单没有专属的 `productCode` 值，入口也不返回订单的来源，页面不按它区分插件订单。与 03 相比，需要留意的只有一条：付成功后的回跳地址可能晚于成功才出现（Shopify 订单如此），处理办法就是 03 的「付成功后跳回」。
+
+## 接口
+
+与订单付款页相同的四个，不新增接口：
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openOrderCheckout` | `POST /sessions/order/{linkToken}` | 入口：建立或认回会话，返回订单内容（金额、说明、到期时刻、商户订单号、没付成时返回商户的地址 `cancelUrl`） |
+| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式，每项带总应付 |
+| 3 | `createCheckoutPayment` | `POST /order/payments` | 在这笔订单上发起支付 |
+| 4 | `getCheckoutOrder` | `GET /order` | 订单的当前状态（轮询、结果页）；付成功后跳回商户的地址 `returnUrl` 在这里给 |
+
+---
+
+## 各插件怎么对应到订单付款页
+
+### Shopify 订单
+
+付款人在 Shopify 结账页选 Platform 后被带到入口地址，到的就是订单付款页，付款人在页面上选支付方式。下图是「回跳地址晚于成功才出现」这种情形的示意，页面动作都是 03 的通用规则：
+
+- **付成功后跳回**：成功后地址可能晚到。订单视图（即 `getCheckoutOrder` 返回的 `CheckoutOrder`，下同）带上 `returnUrl` 就自动跳过去；还没带上时显示「付款成功，正在返回商户」并继续轮询，有上限。
+- **返回商户**：入口返回了 `order.cancelUrl`，所以付款页、未成功的各状态、状态页的已失效与已关闭都有「返回商户」。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant X as Shopify 结账页
+    participant S as 订单付款页(SPA)
+    participant C as 收银台后端
+
+    Note over P,C: 平台在付款人到来之前已为这次结账建好订单
+    P->>X: 选 Platform，提交
+    X-->>P: 跳到入口地址
+    P->>C: GET /o/{linkToken}
+    C-->>S: 302 页面地址（微信、支付宝里先经静默授权，详见 00-shared）
+    S->>C: #35;1 [openOrderCheckout]<br/>POST /sessions/order/{linkToken}
+    C-->>S: { state: PAYABLE, productCode, paymentStarted: false, presentation,<br/>order: { amount, description?, expiresAt,<br/>merchantOrderNo?, cancelUrl? } }
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [{ checkoutOption, payable, customerServiceFee? }] }
+    S->>P: 金额、说明、剩余时间、支付方式、「返回商户」
+
+    alt 付款人点「返回商户」
+        S->>X: 跳到 cancelUrl
+    else 付款
+        P->>S: 选方式、点付款
+        S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable }
+        C-->>S: 201 CheckoutOrder { status, nextAction? }
+        S->>P: 按 nextAction 拉起，之后进支付结果页
+        loop 轮询
+            S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
+            C-->>S: CheckoutOrder { status, returnUrl? }
+        end
+        alt SUCCEEDED 且已有 returnUrl
+            S->>X: 自动跳到 returnUrl
+        else SUCCEEDED 但还没有 returnUrl
+            S->>P: 「付款成功，正在返回商户」，继续轮询（有上限）
+        else 未成功（含等待中）
+            S->>P: 等待、重试或换方式，另给「返回商户」（入口的 cancelUrl）
+        end
+    end
+```
+
+各情形（进入时订单已付、付成功时订单视图还没有 `returnUrl`、进入时已到期或已关闭、没有可用支付方式等）的页面动作见 03 的情形表。
+
+### AllValue 订单
+
+AllValue 订单走订单付款页，过程见 [03-order-checkout](03-order-checkout.html#页面：订单付款页)，不重复画图：
+
+- 平台下单时指定了支付方式的，按 03「支付方式」里指定方式的规则；指定的方式是卡时，卡表单与持卡人验证见 00-shared 的 [页面：支付方式选择 · 卡表单 区块](00-shared.html#页面：支付方式选择%20·%20卡表单%20区块) 与 [流程：整页跳转与回跳](00-shared.html#流程：整页跳转与回跳)。
+- 回商户的地址（入口的 `order.cancelUrl`、订单视图的 `returnUrl`）按 03 的通用规则。
+
+### WooCommerce
+
+经托管页付款的 WooCommerce 订单就是开放 API 订单，页面见 [03-order-checkout](03-order-checkout.html#页面：订单付款页)，没有专属内容。
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| Shopify 页面 | 两张专用页面（桌面双列含商品摘要的一张、只有付款区的一张） | 用订单付款页，不带商品摘要 | 入口返回的订单内容只有金额、说明与单号 |
+| 付成功后跳回 | 固定 5 秒倒计时跳回 | 订单视图带上 `returnUrl` 即跳，不设固定等待 | 成功后地址可能晚到 |
+| 返回商户 | 付款页没有返回商户的入口 | 有 `order.cancelUrl` 时给「返回商户」 | 尚未付款或没付成时付款人要能回结账页重来 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

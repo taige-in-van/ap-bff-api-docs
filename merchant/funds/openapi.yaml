@@ -22,7 +22,7 @@ security:
   - cookieAuth: []
 tags:
   - name: balance
-    description: 账户余额：可结算余额、退款准备金余额、自动补足的目标金额；以及退款准备金的充值（要 Owner 邮箱验证码，可同时改自动补足的目标金额）与取回。
+    description: 账户余额：可结算余额、退款准备金余额、自动补足的最低金额；以及退款准备金的充值（要 Owner 邮箱验证码，可同时改自动补足的最低金额）与取回。
   - name: settlements
     description: 结算单：列表与导出，每张结算单的逐笔明细与导出。
   - name: statements
@@ -53,7 +53,7 @@ paths:
                 refundReserve:
                   amount: '500000'
                   currency: CAD
-                reserveTargetAmount:
+                reserveMinimumAmount:
                   amount: '50000'
                   currency: CAD
         default:
@@ -95,9 +95,9 @@ paths:
         - balance
       operationId: fundRefundReserve
       x-required-privilege: account:reserve:create
-      summary: 准备金充值第 2 步：充值与 / 或改自动补足的目标金额
+      summary: 准备金充值第 2 步：充值与 / 或改自动补足的最低金额
       description: |
-        从 Account Balance 向退款准备金充值，和 / 或修改自动补足的目标金额；两项至少给一项，带第 1 步的 `challengeId` 与验证码。
+        从 Account Balance 向退款准备金充值，和 / 或修改自动补足的最低金额；两项至少给一项，带第 1 步的 `challengeId` 与验证码。
 
         验证码：
 
@@ -110,13 +110,13 @@ paths:
         `200` 表示已处理：
 
         - 给了 `topUpAmount` 时看 `topUp.status`：`POSTED` 已划转；`REJECTED` 是 Account Balance 不够，没有划转。
-        - 给了 `targetAmount` 时目标金额已保存，与充值是否成功无关。
+        - 给了 `minimumAmount` 时最低金额已保存，与充值是否成功无关。
 
-        目标金额低于平台规定的下限 → `400`·204018，当前下限在 `context.minimumAmount`；整次提交不生效。
+        最低金额低于平台规定的下限 → `400`·204018，当前下限在 `context.floorAmount`；整次提交不生效。
 
-        目标金额只是保存设置。准备金低于目标金额时，平台每个清算日结算前从 Account Balance 补一次，余额不够就补到有多少算多少。
+        最低金额只是保存设置。准备金低于最低金额时，平台每天从 Account Balance 补一次，余额不够就补到有多少算多少。
 
-        幂等：带 `Idempotency-Key`。比对只看 `topUpAmount` 与 `targetAmount`，不看 `otp`——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不会划两次。改了金额或设置 → 换新键，沿用旧键 → `409`·208005。
+        幂等：带 `Idempotency-Key`。比对只看 `topUpAmount` 与 `minimumAmount`，不看 `otp`——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不会划两次。改了金额或设置 → 换新键，沿用旧键 → `409`·208005。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -128,12 +128,12 @@ paths:
               $ref: '#/components/schemas/RefundReserveFundingRequest'
             examples:
               both:
-                summary: 充值并把目标金额设为 500
+                summary: 充值并把最低金额设为 500
                 value:
                   topUpAmount:
                     amount: '100000'
                     currency: CAD
-                  targetAmount:
+                  minimumAmount:
                     amount: '50000'
                     currency: CAD
                   otp:
@@ -142,7 +142,7 @@ paths:
               turnOff:
                 summary: 只关掉自动补足
                 value:
-                  targetAmount: null
+                  minimumAmount: null
                   otp:
                     challengeId: chl_9f2a7c
                     code: '482915'
@@ -155,7 +155,7 @@ paths:
                 $ref: '#/components/schemas/RefundReserveFundingResult'
               examples:
                 posted:
-                  summary: 充值成功，目标金额已保存
+                  summary: 充值成功，最低金额已保存
                   value:
                     topUp:
                       status: POSTED
@@ -166,11 +166,11 @@ paths:
                       refundReserve:
                         amount: '600000'
                         currency: CAD
-                      reserveTargetAmount:
+                      reserveMinimumAmount:
                         amount: '50000'
                         currency: CAD
                 rejected:
-                  summary: 余额不够，没有划转；目标金额照样保存
+                  summary: 余额不够，没有划转；最低金额照样保存
                   value:
                     topUp:
                       status: REJECTED
@@ -182,7 +182,7 @@ paths:
                       refundReserve:
                         amount: '500000'
                         currency: CAD
-                      reserveTargetAmount:
+                      reserveMinimumAmount:
                         amount: '50000'
                         currency: CAD
         default:
@@ -235,7 +235,7 @@ paths:
                   refundReserve:
                     amount: '470000'
                     currency: CAD
-                  reserveTargetAmount:
+                  reserveMinimumAmount:
                     amount: '50000'
                     currency: CAD
         default:
@@ -720,10 +720,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Money'
           description: 退款准备金余额，不小于 0。它也是可取回的上限。
-        reserveTargetAmount:
+        reserveMinimumAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 自动补足的目标金额。没开自动补足时不返回本键。
+          description: 自动补足的最低金额。没开自动补足时不返回本键。
     SettlementStatus:
       type: string
       description: |
@@ -1095,7 +1095,7 @@ components:
     RefundReserveFundingRequest:
       type: object
       additionalProperties: false
-      description: 准备金充值请求。`topUpAmount` 与 `targetAmount` 至少给一项，都不给 → `400`。金额的币种须是商户的结算币种。
+      description: 准备金充值请求。`topUpAmount` 与 `minimumAmount` 至少给一项，都不给 → `400`。金额的币种须是商户的结算币种。
       required:
         - otp
       properties:
@@ -1103,8 +1103,8 @@ components:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
           description: 充值金额，从 Account Balance 划到准备金。不传就是这次不充值。
-        targetAmount:
-          description: 自动补足的目标金额。传金额 = 开启或改成该金额，不得低于平台规定的下限；传 `null` = 关闭自动补足；不传 = 不改。
+        minimumAmount:
+          description: 自动补足的最低金额。传金额 = 开启或改成该金额，不得低于平台规定的下限；传 `null` = 关闭自动补足；不传 = 不改。
           oneOf:
             - $ref: '#/components/schemas/PositiveMoney'
             - type: 'null'
@@ -1246,7 +1246,7 @@ components:
               type: integer
               minimum: 0
               description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
-            minimumAmount:
+            floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
             minimumMinutes:
@@ -1257,6 +1257,9 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:

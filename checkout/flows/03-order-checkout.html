@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>订单付款页 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 订单付款页 —— 调用时序
+
+> 本文是付款人从扫码或点链接到付款结果的完整一条（动态码、开放 API 托管页；电商插件订单也是这张页，说明见 [06-plugins.flows.md](06-plugins.html)），共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 订单付款页 | 扫动态码，或被商户系统引到托管页，或从电商平台结账页被带过来（见 [06-plugins.flows.md](06-plugins.html)）；入口接口返回 `state = PAYABLE`、`paymentStarted` 为 false | [页面：订单付款页](#页面：订单付款页) |
+| 链接状态页（已付 / 已失效 / 已关闭） | 入口接口返回 `state` 不是 `PAYABLE`，或 `404` | [00-shared 页面：链接状态页](00-shared.html#页面：链接状态页) |
+| 支付结果页 | 发起支付之后；刷新或付完回来 | [00-shared 页面：支付结果](00-shared.html#页面：支付结果) |
+
+订单在付款人到来之前已经建好：动态码是终端或商户系统出码时建的，托管页是商户系统下单时建的。入口地址是 `https://<host>/o/{linkToken}`：付款人打开后，在微信或支付宝里先经渠道静默授权，再 302 到页面地址，页面加载后调入口接口；其余环境直接 302 到页面地址。图里开头「打开入口地址 → 进入收银台」一段是简图，完整过程见 00-shared 的 [流程：打开入口地址](00-shared.html#流程：打开入口地址) 与 [流程：进入收银台](00-shared.html#流程：进入收银台)。动态码、托管页与电商插件订单在付款人这边是同一个页面；入口不返回订单的来源，本文的规则都按字段有没有来定。回跳地址有没有取决于订单：终端出的码没有，商户系统下单的可以有。有的话，尚未付款或没付成时用入口的 `order.cancelUrl`，付成功后用订单视图（即 `getCheckoutOrder` 返回的 `CheckoutOrder`，下同）的 `returnUrl`。商户下单时还可能指定了支付方式。
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openOrderCheckout` | `POST /sessions/order/{linkToken}` | 入口：建立或认回会话，返回订单内容（金额、说明、到期时刻、商户订单号、没付成时返回商户的地址 `cancelUrl`） |
+| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式，每项带总应付 |
+| 3 | `createCheckoutPayment` | `POST /order/payments` | 在这笔订单上发起支付 |
+| 4 | `getCheckoutOrder` | `GET /order` | 订单的当前状态（轮询、结果页）；付成功后跳回商户的地址 `returnUrl` 在这里给 |
+
+---
+
+## 页面：订单付款页
+
+页面内容一次由入口接口给齐：商户名与 Logo、金额 `order.amount`、说明 `order.description`（有才显示）、商户订单号 `order.merchantOrderNo`（有才显示）、到期时刻 `order.expiresAt`（用来显示剩余时间）。付款人没有可填的内容。
+
+- **支付方式**：取方式列表。商户下单时指定了方式的，列表只有那一项；指定的方式在当前环境用不了时列表为空，按 [00-shared 页面：环境引导](00-shared.html#页面：环境引导)处理（有 `order.cancelUrl` 另给「返回商户」）。列表只有一项时也要付款人点付款，页面不自动发起。
+- **到期**：`expiresAt` 到了以后订单不能再付。页面停留到期时显示「订单已失效，请向商户重新获取」（有 `order.cancelUrl` 另给「返回商户」），不必再调接口确认。到期按时刻当场判：订单状态还没更新时，入口返回 `EXPIRED`，发起支付也不发起、返回过期终态。
+- **返回商户**：入口返回了 `order.cancelUrl` 时，下列位置都给「返回商户」，指向它（原样跳转，不加参数）：订单付款页（发起支付之前就给）、当前环境没有可用支付方式时的环境引导页或「暂无可用支付方式」、支付结果页所有未成功的状态（含等待中）、链接状态页的已失效与已关闭。
+- **付成功后跳回**：只看订单视图的 `returnUrl`，有值就自动跳过去（原样跳转，不加参数）。`SUCCEEDED` 时还没有 `returnUrl`、而入口带过 `order.cancelUrl` 的，显示「付款成功，正在返回商户」并继续轮询，轮询有上限（多久由前端定），到上限还没有就停在成功页、不给按钮。入口没带 `order.cancelUrl` 的订单（如终端出的动态码）没有回跳，成功即停在成功页，不为此继续轮询。
+- **进入时订单已付**：入口 `state = PAID`。有会话时取一次订单视图，有 `returnUrl` 就用它给「返回商户」；没有会话，或订单视图里还没有 `returnUrl` 时，有 `order.cancelUrl` 就用它。
+- **没有收据**：订单付款页的成功页不提供收据下载。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 订单付款页(SPA)
+    participant C as 收银台后端
+    participant M as 商户系统
+    participant W as 微信 / 支付宝授权
+
+    Note over P,W: 打开入口地址 → 进入收银台（详见 00-shared）
+    P->>C: 扫码或点链接打开入口地址<br/>GET /o/{linkToken}
+    alt 在微信或支付宝里
+        C-->>W: 302 渠道静默授权
+        W-->>S: 302 页面地址，带 code 与 state
+    else 其余环境
+        C-->>S: 302 页面地址 /pay/<类型>/<编号>
+    end
+    S->>C: #35;1 [openOrderCheckout]<br/>POST /sessions/order/{linkToken}<br/>有授权码就带上
+    C-->>S: { state: PAYABLE, productCode, paymentStarted: false, presentation,<br/>order: { amount, description?, expiresAt,<br/>merchantOrderNo?, cancelUrl? } }
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [{ checkoutOption, payable, customerServiceFee? }] }
+    S->>P: 金额、说明、剩余时间、支付方式、所选方式的总应付<br/>（入口有 cancelUrl 另给「返回商户」）
+
+    Note over P,C: 付款
+    P->>S: 选方式、点付款
+    S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable }
+    C-->>S: 201 CheckoutOrder { status, expiresAt?, nextAction? }
+    S->>P: 按 nextAction 拉起（PC 上钱包类方式是二维码），之后进支付结果页
+
+    Note over P,M: 结果页
+    loop 轮询
+        S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
+        C-->>S: CheckoutOrder { status, returnUrl? }
+    end
+    alt SUCCEEDED 且有 returnUrl
+        S->>M: 自动跳到 returnUrl
+    else SUCCEEDED 且还没有 returnUrl
+        S->>P: 入口带过 cancelUrl 的显示「付款成功，正在返回商户」并继续轮询（有上限），<br/>其余停在成功页
+    else 未成功（含等待中）
+        S->>P: 等待、重试或换方式（入口有 cancelUrl 另给「返回商户」）
+    end
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 进入时订单已付或已授权 | 入口 `state = PAID` | 状态页「这笔订单已付款」；有会话时取一次订单视图，有 `returnUrl` 就用它给「返回商户」；没有会话，或订单视图里还没有 `returnUrl` 时，有 `order.cancelUrl` 就用它 |
+| 进入时订单已到期（含已过到期时刻、状态尚未更新） | 入口 `state = EXPIRED` | 状态页「订单已失效，请向商户重新获取」；有 `order.cancelUrl` 给「返回商户」 |
+| 进入时订单已关闭、失败、已取消或被拒 | 入口 `state = INACTIVE` | 状态页「订单已关闭」；有 `order.cancelUrl` 给「返回商户」 |
+| 链接不存在 | 入口 `404` | 状态页「链接无效」 |
+| 发起时订单刚好到期或已被关闭 | 发起支付 `200`，`CheckoutOrder.status` 为 `EXPIRED` 或 `CLOSED` | 结果页对应文案 |
+| 付成功时订单视图还没有 `returnUrl` | 订单视图 `SUCCEEDED`、不带 `returnUrl` | 入口带过 `order.cancelUrl` 的显示「付款成功，正在返回商户」并继续轮询，带上了就自动跳，到上限还没有就停在成功页、不给按钮；入口没带的直接停在成功页 |
+| 当前环境没有可用的支付方式（含商户指定的方式在当前环境不可用） | 方式列表为空 | 环境引导页或「暂无可用支付方式」；有 `order.cancelUrl` 另给「返回商户」 |
+| 需要付款人标识的托管页在普通浏览器里打开 | 方式列表为空 | 同上 |
+| 另一个人也扫了同一张码 | 入口照常签发新会话（同一笔订单），`paymentStarted` 为 false | 各自是独立会话；后来的人照常进付款页；一方付成功后另一方看到已付款；订单只成交一次 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 订单号 | 付款页标题下显示 Platform 订单号 | 显示商户订单号 `order.merchantOrderNo`（有才显示） | 入口只给商户订单号 |
+| PC 上的钱包方式 | 切到钱包页签就出码 | 点「付款」后才出码（`nextAction.kind = qr`） | 出码就是发起一次支付 |
+| 二维码有效期 | 码固定 5 分钟倒计时，到时可「刷新二维码」 | 不设固定倒计时，剩余时间按订单的 `expiresAt`；订单到期后按结果页的终态处理 | 订单视图只给订单的到期时刻，没有单独的码有效期 |
+
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

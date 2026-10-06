@@ -1,5 +1,107 @@
 {
   "codes": {
+    "104303": {
+      "httpStatus": 400,
+      "name": "PF2_EMAIL_OTP_RETRYABLE",
+      "requiredContextFields": [
+        "attemptsRemaining"
+      ],
+      "retryable": true
+    },
+    "106300": {
+      "httpStatus": 410,
+      "name": "PF2_EMAIL_OTP_EXPIRED_OR_CONSUMED",
+      "retryable": false
+    },
+    "106301": {
+      "httpStatus": 423,
+      "name": "PF2_EMAIL_OTP_LOCKED",
+      "retryable": false
+    },
+    "108102": {
+      "httpStatus": 409,
+      "name": "CHECKOUT_METHOD_NOT_AVAILABLE",
+      "retryable": false
+    },
+    "108103": {
+      "httpStatus": 409,
+      "name": "CHECKOUT_PAYABLE_MISMATCH",
+      "requiredContextFields": [
+        "payable"
+      ],
+      "retryable": false
+    },
+    "108107": {
+      "httpStatus": 409,
+      "name": "CHECKOUT_SAVED_CARD_NOT_AVAILABLE",
+      "retryable": false
+    },
+    "108200": {
+      "httpStatus": 409,
+      "name": "PF1_FORM_NOT_AVAILABLE_FOR_MERCHANT",
+      "retryable": false
+    },
+    "108300": {
+      "httpStatus": 409,
+      "name": "PF2_SALES_ENTRY_NOT_SELLABLE",
+      "retryable": false
+    },
+    "108301": {
+      "httpStatus": 409,
+      "name": "PF2_INVOICE_ALREADY_PAID",
+      "retryable": false
+    },
+    "108302": {
+      "httpStatus": 409,
+      "name": "PF2_INVOICE_EXPIRED",
+      "retryable": false
+    },
+    "108303": {
+      "httpStatus": 409,
+      "name": "PF2_SALES_WINDOW_CLOSED",
+      "retryable": false
+    },
+    "108304": {
+      "httpStatus": 409,
+      "name": "PF2_SOLD_OUT",
+      "retryable": false
+    },
+    "108307": {
+      "httpStatus": 409,
+      "name": "PF2_PURCHASE_QUANTITY_LIMIT_REACHED",
+      "retryable": false
+    },
+    "108308": {
+      "httpStatus": 409,
+      "name": "PF2_PURCHASE_AMOUNT_LIMIT_REACHED",
+      "requiredContextFields": [
+        "purchaseLimit"
+      ],
+      "retryable": false
+    },
+    "108309": {
+      "httpStatus": 409,
+      "name": "PF2_BUYER_EMAIL_VERIFICATION_REQUIRED",
+      "retryable": false
+    },
+    "108324": {
+      "httpStatus": 429,
+      "name": "PF2_EMAIL_OTP_RESEND_COOLDOWN",
+      "requiredContextFields": [
+        "cooldownSeconds"
+      ],
+      "retryable": true
+    },
+    "108325": {
+      "httpStatus": 409,
+      "name": "PF2_GIFTCARD_PURCHASE_BLOCKED",
+      "retryable": false
+    },
+    "108326": {
+      "httpStatus": 409,
+      "name": "PF2_GIFTCARD_PASS_UNAVAILABLE",
+      "retryable": false
+    },
     "204001": {
       "httpStatus": 400,
       "name": "APPLICATION_FIELD_INVALID",
@@ -50,9 +152,9 @@
     },
     "204018": {
       "httpStatus": 400,
-      "name": "RESERVE_TARGET_BELOW_MINIMUM",
+      "name": "RESERVE_MINIMUM_BELOW_FLOOR",
       "requiredContextFields": [
-        "minimumAmount"
+        "floorAmount"
       ],
       "retryable": false
     },

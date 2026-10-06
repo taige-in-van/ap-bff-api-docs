@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商品与票务 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 商品与票务 —— 调用时序
+
+> 本文是付款人从扫码或点链接到付款结果的完整一条，共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 商品付款页 | 扫商品码或点商品链接；入口接口返回 `productCode = PRODUCT_CODE` 且 `state = PAYABLE`、`paymentStarted` 为 false | [页面：商品与票务付款页](#页面：商品与票务付款页) |
+| 票务付款页 | 点票务链接；入口接口返回 `productCode = TICKET`，其余同上 | 同上 |
+| 链接状态页（已下架 / 无效） | 入口接口返回 `state = INACTIVE`，或 `404` | [00-shared 页面：链接状态页](00-shared.html#页面：链接状态页) |
+| 支付结果页（含凭证） | 发起支付之后；刷新或付完回来 | [页面：支付结果 · 凭证](#页面：支付结果%20·%20凭证) |
+
+商品与票务的入口地址是 `https://<host>/q/{qrcodeId}`。图里开头「打开入口地址 → 进入收银台」一段是简图，完整过程见 00-shared 的 [流程：打开入口地址](00-shared.html#流程：打开入口地址) 与 [流程：进入收银台](00-shared.html#流程：进入收银台)。
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回页面内容（商品项或票档、买家采集项、条款） |
+| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式；带上当前选购的小计时每项返回总应付 |
+| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：首次发起时带 `product` 或 `ticket` 块（选购项与买家填写内容），连订单一起建并占用库存 |
+| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态、选购明细与凭证 |
+
+---
+
+## 页面：商品与票务付款页
+
+两种页面是同一套流程，差别只在页面内容：商品页给商品项（名称、描述、图、售价、划线价、余量），票务页给活动信息（活动名、活动日、开演时刻、场馆）和票档。页面内容一次由入口接口给齐：`product { title, bannerUrl?, currency, items, payerInputs, policies? }` 或 `ticket { eventName, eventDate, eventTime?, venue, bannerUrl?, currency, items, payerInputs, policies? }`。
+
+- **可售项**：`items` 每项给 `itemId`、`name`、`price`、`saleStatus`，以及有的话 `description`、`imageUrl`、`originalPrice`、`availableQuantity`。`saleStatus` 是 `ON_SALE` / `SOLD_OUT` / `NOT_STARTED` / `ENDED`，不是 `ON_SALE` 的项不能选。`availableQuantity` 是当前余量，只作提示，不设上限的项不返回。
+- **选购**：付款人给各项选数量，在页面里完成，点付款之前不提交给后端。
+- **总应付**：页面把所选各项的「售价 × 数量」加起来得到小计，作为 `amount`（与店铺码同一个查询参数）取方式列表，每项的 `payable` 是选该方式的总应付。选购变了就重取。还没选任何东西时不带，列表只给方式。会话有订单后不用带，带了不采信。下单时后端只认请求里的 `items` 重算，与 `expectedPayable` 不一致返回 `108103`。
+- **点付款时提交**：首次发起支付时，商品页带 `product { items, collectedFields? }`，票务页带 `ticket { items, collectedFields? }`；`items` 每项是 `itemId` 与 `quantity`。
+- **买家信息**：按 `payerInputs` 渲染，点付款时随块里的 `collectedFields` 提交，规则同店铺码。
+- **条款**：`policies` 是商户写的说明与条款，按页面语言给内容，只展示。
+- **一次进入只下一单**：首次发起支付（会话还没有订单）时，同一次请求里按当时的售价算金额、占用库存、建订单。之后选购和买家信息就定在订单上，重试与换方式只带 `checkoutOption` 与 `expectedPayable`，再带 `product` / `ticket` 块不采信。要改选购，页面丢掉本标签页的会话令牌、重新打开入口地址，原订单留到过期（占用随之释放）。
+- **请求被拒不留痕**：发起支付被拒（`400` / `409`）时不建任何订单、不占库存，付款人留在付款页，重选后再点「付款」。
+- **余量会变**：页面上的余量和可售状态是进入那一刻的。要刷新就重调入口接口。发起支付被拒为售罄或不在销售期时，重调入口接口拿最新内容。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 商品 / 票务付款页(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝授权
+
+    Note over P,W: 打开入口地址 → 进入收银台（详见 00-shared）
+    P->>C: 扫码或点链接打开入口地址<br/>GET /q/{qrcodeId}
+    alt 在微信或支付宝里
+        C-->>W: 302 渠道静默授权
+        W-->>S: 302 页面地址，带 code 与 state
+    else 其余环境
+        C-->>S: 302 页面地址 /pay/<类型>/<编号>
+    end
+    S->>C: #35;1 [openQrcodeCheckout]<br/>POST /sessions/qrcode/{qrcodeId}<br/>有授权码就带上
+    C-->>S: { state: PAYABLE, productCode, paymentStarted: false, presentation,<br/>product 或 ticket: { ..., items, payerInputs, policies? } }
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [{ checkoutOption, displayName, logoUrl? }] }
+    S->>P: 页面内容与支付方式，还没有总应付
+
+    Note over P,C: 选购
+    P->>S: 选各项数量
+    S->>S: 小计 = 各项售价 × 数量之和
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods?amount=
+    C-->>S: { items: [{ checkoutOption, payable, customerServiceFee? }] }
+    S->>P: 按选中的方式显示总应付
+    P->>S: 填买家信息、改选方式
+
+    Note over P,C: 付款
+    P->>S: 点付款
+    S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable,<br/>product 或 ticket: { items: [{ itemId, quantity }], collectedFields? } }
+    alt 可以下单
+        C-->>S: 201 CheckoutOrder { status, expiresAt?, nextAction?, sales }
+        S->>P: 按 nextAction 拉起，之后进支付结果页
+    else 售罄 / 不在销售期
+        C-->>S: 409·108304 / 108303<br/>不建订单，不占库存
+        S->>P: 提示后重调入口接口刷新页面内容
+    else 链接已下架
+        C-->>S: 409·108300<br/>不建订单，不占库存
+        S->>P: 提示「链接已下架」
+    end
+
+    Note over P,C: 结果页
+    S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
+    C-->>S: CheckoutOrder { status, sales: { lines, event?,<br/>voucher?: { kind, voucherNo, pin, qrContent, status } } }
+    S->>P: 成功后显示选购明细与凭证
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 进入时链接已下架，或商户当前不能用这一产品收款 | 入口 `state = INACTIVE` | 状态页「链接已下架」 |
+| 进入时链接已删除 | 入口 `404` | 状态页「链接无效」 |
+| 没选任何项、数量不是正整数、同一项出现两次、买家信息不符合采集项 | `400` 参数校验，`details` 指到字段 | 在对应栏提示；正常情况下本地校验已拦住 |
+| 带了不在当前可售项里的 `itemId`（如停留期间商户下架了这一项） | `400` 参数校验，`details` 指到字段 | 提示后重调入口接口刷新页面内容 |
+| 所选某项余量不够 | `409`·`108304` | 提示售罄，重调入口接口刷新余量 |
+| 所选某项不在销售期 | `409`·`108303` | 提示后重调入口接口 |
+| 停留期间链接被下架或删除 | `409`·`108300` | 提示「链接已下架」 |
+| 停留期间商户改了售价，页面显示的总应付与后端算的不一致 | `409`·`108103`，`context.payable` | 重调入口接口刷新售价，再重取方式列表 |
+| 有订单后回到付款页（卡被拒、支付窗点了取消、换方式） | — | 选购明细按 `getCheckoutOrder` 的 `sales.lines` 显示、不能再改；取方式列表不带 `amount`；重试与换方式只带 `checkoutOption` 与 `expectedPayable`；页面给「重新选购」（改选购 = 丢令牌、重新打开入口地址，原订单留到过期） |
+| 有订单后重试或换方式时链接已下架（停用、删除，或商户当前不能用这一产品收款） | `409`·`108300` | 提示「链接已下架」，不给重试 |
+| 这笔订单到期 | `getCheckoutOrder` 的 `status` 为 `EXPIRED` | 「这次付款已超时」+「重新付款」（同上动作：丢令牌、重新打开入口地址）；占用的库存已释放 |
+| 这笔订单关闭 | `getCheckoutOrder` 的 `status` 为 `CLOSED` | 「这笔付款已关闭」+「重新付款」（同上动作）；占用的库存已释放 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 票务活动信息 | 活动名下有一行副标题 | 没有副标题 | 商户侧没有这项配置 |
+| 票档 | 每档下有一行描述 | 只有名称、售价、可售状态与余量 | 商户侧没有这项配置 |
+| 成功页凭证 | 核销二维码的内容是订单号，下方显示订单号 | 二维码用 `sales.voucher.qrContent`，另以文字显示券号与 PIN | 扫不了码时店员要能手输券号与 PIN |
+
+## 页面：支付结果 · 凭证
+
+`getCheckoutOrder` 在商品与票务会话里带 `sales` 块：
+
+- `sales.lines`：选购明细，每行 `name`、`unitPrice`、`quantity`、`lineTotal`，是下单时定下的内容。票务另带活动信息 `sales.event`（活动名、活动日、开演时刻、场馆）。
+- `sales.voucher`：凭证，付款成功且凭证已生成时返回。`kind` 是 `counter_pickup`（到柜台取货）或 `admission`（现场入场），另给 `voucherNo`、`pin`、`qrContent` 与 `status`（`ISSUED` 可用 / `REDEEMED` 已使用 / `CANCELED` 已失效）。一单一张。凭证未生成、或此刻不能向付款人出示时不返回，页面看到的与「还没生成」相同，不必对付款人解释原因。
+
+结果页按这个顺序判：
+
+1. `getCheckoutOrder` 的 `status` 是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询。
+2. `status` 是 `SUCCEEDED`：成功页 + 选购明细 + 凭证 + 收据下载，凭证段按下表。
+3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`EXPIRED` / `CLOSED` 的「重新付款」是丢令牌、重新打开入口地址。
+
+`SUCCEEDED` 下的凭证段：
+
+| 情形 | 页面动作 |
+|---|---|
+| 有 `sales.voucher` 且 `ISSUED` | 凭证：二维码用 `qrContent` 生成（页面只生成图、不自己拼内容），`voucherNo` 与 `pin` 以文字显示（扫不了码时店员手输） |
+| 还没有 `sales.voucher` | 成功页 + 选购明细，凭证处显示生成中，继续轮询等凭证出现；轮询上限由前端自定，到了就停，保留成功页与选购明细，凭证处不再转圈 |
+| 凭证 `REDEEMED` | 凭证处显示「已使用」 |
+| 凭证 `CANCELED` | 凭证处显示「已失效」（如已退款） |
+
+收据不列选购明细；其余内容同共用的收据，另带凭证段（券号与二维码）。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

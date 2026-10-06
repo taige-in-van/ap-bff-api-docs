@@ -22,13 +22,13 @@
 
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
-| 1 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额：Account Balance、Refund Reserved、自动补足的目标金额 |
+| 1 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额：Account Balance、Refund Reserved、自动补足的最低金额 |
 | 2 | [`listSettlements`](../funds/index.html#tag/settlements/operation/listSettlements) | `GET /funds/settlements` | 结算单列表（分页） |
 | 3 | [`exportSettlements`](../funds/index.html#tag/settlements/operation/exportSettlements) | `GET /funds/settlements/export` | 导出当前筛选下的结算单列表，每张一行（xlsx） |
 | 4 | [`listSettlementDetails`](../funds/index.html#tag/settlements/operation/listSettlementDetails) | `GET /funds/settlements/{settlementId}/details` | 一张结算单的逐笔明细（分页） |
 | 5 | [`exportSettlementDetails`](../funds/index.html#tag/settlements/operation/exportSettlementDetails) | `GET /funds/settlements/{settlementId}/export` | 导出一张结算单：概要加全部逐笔明细（xlsx） |
 | 6 | [`requestRefundReserveOtp`](../funds/index.html#tag/balance/operation/requestRefundReserveOtp) | `POST /funds/balance/reserve/otp-challenges` | 充值第 1 步：发验证码到 Owner 邮箱 |
-| 7 | [`fundRefundReserve`](../funds/index.html#tag/balance/operation/fundRefundReserve) | `POST /funds/balance/reserve/funding` | 充值第 2 步：充值与 / 或改自动补足的目标金额，带验证码 |
+| 7 | [`fundRefundReserve`](../funds/index.html#tag/balance/operation/fundRefundReserve) | `POST /funds/balance/reserve/funding` | 充值第 2 步：充值与 / 或改自动补足的最低金额，带验证码 |
 | 8 | [`withdrawRefundReserve`](../funds/index.html#tag/balance/operation/withdrawRefundReserve) | `POST /funds/balance/reserve/withdrawals` | 把准备金取回 Account Balance |
 | 9 | [`getAccountProfile`](../account/index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | 商户资料，Withdraw 弹窗取其中的结算账户 |
 | 10 | [`listStatements`](../funds/index.html#tag/statements/operation/listStatements) | `GET /funds/statements` | 全部月对账单，一个月一张（不分页） |
@@ -54,7 +54,7 @@ sequenceDiagram
         A-->>S: 200 { total, data: [{ settlementId, settlementDate, periodFrom, periodTo,<br/>netSales, fee, payoutAmount, status, payoutAccount }] }
     and
         S->>A: #35;1 [getBalance]<br/>GET /funds/balance
-        A-->>S: 200 { accountBalance, refundReserve, reserveTargetAmount }
+        A-->>S: 200 { accountBalance, refundReserve, reserveMinimumAmount }
     and
         S->>A: #35;2 [listSettlements]<br/>GET /funds/settlements?status=SETTLED&pageSize=1&sortField=settlementDate&sortOrder=descend
         A-->>S: 200 最近一张已结算的结算单（Last Settled 卡）
@@ -141,7 +141,7 @@ sequenceDiagram
 
 ## 页面：Business Profile、General · Top Up 弹窗
 
-Business Profile 与 General Settings 的 Refund Reserved 一栏都能打开，是同一个弹窗。三步：填写（充值金额、快捷金额、自动补足开关与目标金额）、输入发到 Owner 邮箱的验证码、结果。
+Business Profile 与 General Settings 的 Refund Reserved 一栏都能打开，是同一个弹窗。三步：填写（充值金额、快捷金额、自动补足开关与最低金额）、输入发到 Owner 邮箱的验证码、结果。
 
 ```mermaid
 sequenceDiagram
@@ -152,13 +152,13 @@ sequenceDiagram
 
     U->>S: 点 Top Up
     S->>A: #35;1 [getBalance]<br/>GET /funds/balance
-    A-->>S: 200 { accountBalance, refundReserve, reserveTargetAmount }
+    A-->>S: 200 { accountBalance, refundReserve, reserveMinimumAmount }
     U->>S: 填充值金额，和 / 或改自动补足，点 Next
     S->>A: #35;6 [requestRefundReserveOtp]<br/>POST /funds/balance/reserve/otp-challenges
     A->>M: 发 6 位码
     A-->>S: 202 { challengeId, deliveredTo, cooldownSeconds, expiresAt }
     U->>S: 填验证码，点 Confirm
-    S->>A: #35;7 [fundRefundReserve]<br/>POST /funds/balance/reserve/funding { topUpAmount, targetAmount, otp }
+    S->>A: #35;7 [fundRefundReserve]<br/>POST /funds/balance/reserve/funding { topUpAmount, minimumAmount, otp }
     A-->>S: 200 { topUp: { status, rejectionReason }, balance }
     S->>S: 显示结果，用返回的 balance 刷新余额
 ```
@@ -171,16 +171,16 @@ sequenceDiagram
 | 验证码过期 | `410`·`206006` | 重新发码 |
 | 错太多次被锁 | `423`·`206007` | 提示稍后再试 |
 | 发码冷却中 | `429`·`208013` | 按钮倒计时 |
-| 目标金额低于平台规定的下限 | `400`·`204018`（`context.minimumAmount`） | 回填写一步，提示「不能低于 N」；充值也没有划转 |
+| 最低金额低于平台规定的下限 | `400`·`204018`（`context.floorAmount`） | 回填写一步，提示「不能低于 N」；充值也没有划转 |
 | 金额格式不对或两项都没给 | `400`（`details` 指到字段） | 回填写一步，对应字段红框；正确页面下已拦住 |
 | 同一个幂等键改了内容 | `409`·`208005` | 改过金额或设置就换新键 |
 | 网关超时 | `502` / `504` | 用同一个键、同样的内容重发，不会充两次 |
 
 - 充值的钱从 Account Balance 出，`accountBalance` 是可充上限。
 - 充值金额与自动补足至少改一项才能提交。只改自动补足时不传 `topUpAmount`。
-- 自动补足：开着时传 `targetAmount`（目标金额），关掉传 `null`，没改就不传。当前值看 `getBalance` 的 `reserveTargetAmount`，没有这个键就是没开。目标金额有下限，由平台设定、会调整，前端不写死，按 `204018` 带回的数提示。
+- 自动补足：开着时传 `minimumAmount`（最低金额），关掉传 `null`，没改就不传。当前值看 `getBalance` 的 `reserveMinimumAmount`，没有这个键就是没开。最低金额有下限，由平台设定、会调整，前端不写死，按 `204018` 带回的数提示。
 - 快捷金额（500、1000、2000、5000）是前端写死的填数入口，不是取值限制。
-- 自动补足是每天结算前跑一次：准备金低于目标金额时从 Account Balance 补，余额不够补多少算多少，第二天再补。保存设置时不会立刻划钱。
+- 自动补足是每天结算前跑一次：准备金低于最低金额时从 Account Balance 补，余额不够补多少算多少，第二天再补。保存设置时不会立刻划钱。
 - 提交返回 `200` 后看 `topUp.status`：`POSTED` 充值成功；`REJECTED` 是提交时 Account Balance 已经不够，没有划钱，提示余额不足。自动补足的设置在两种情况下都已保存。
 - 验证码发到 Owner 邮箱，页面用 `deliveredTo` 提示发到了哪里；操作的人不是 Owner 时要找 Owner 要验证码。
 - `fundRefundReserve` 带 `Idempotency-Key`：点一次 Confirm 生成一个键，验证码输错重输、超时重发都用原键。

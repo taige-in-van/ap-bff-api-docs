@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>礼卡 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 礼卡 —— 调用时序
+
+> 本文是付款人从扫码或点链接到付款结果的完整一条，共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 礼卡购买页（选面值、填信息并付款） | 扫礼卡码或点礼卡链接；入口接口返回 `productCode = GIFTCARD` 且 `state = PAYABLE`、`paymentStarted` 为 false | [页面：礼卡购买页](#页面：礼卡购买页) |
+| 链接状态页（活动已结束 / 链接无效） | 入口接口返回 `state = INACTIVE` 或 `EXPIRED`，或 `404` | [00-shared 页面：链接状态页](00-shared.html#页面：链接状态页) |
+| 支付结果页（含邮箱验证与凭证） | 发起支付之后；刷新或付完回来 | [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证) |
+| 我的订单（列表与详情） | 礼卡购买页、「活动已结束」状态页上的入口 | [页面：我的订单](#页面：我的订单) |
+
+礼卡的入口地址是 `https://<host>/q/{qrcodeId}`。图里开头「打开入口地址 → 进入收银台」一段是简图，完整过程见 00-shared 的 [流程：打开入口地址](00-shared.html#流程：打开入口地址) 与 [流程：进入收银台](00-shared.html#流程：进入收银台)。
+
+## 页面流转
+
+灰色节点不在本文，见 [00-shared.flows.md](00-shared.html#页面流转)。
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "进入收银台" as OPEN
+    state "链接状态页" as STATUS
+    state "礼卡购买页" as BUY
+    state "支付结果" as RESULT
+    state "邮箱验证" as VERIFY
+    state "我的订单 · 列表" as LIST
+    state "我的订单 · 详情" as DETAIL
+    state "打开入口地址（后端处理）" as ENTRY
+
+    OPEN --> BUY: 活动进行中，还没发起过支付
+    OPEN --> STATUS: 活动已停用或已过截止日
+    OPEN --> RESULT: 已发起过支付
+    BUY --> RESULT: 点付款
+    RESULT --> BUY: 没付成，换一种方式
+    RESULT --> ENTRY: 重新选购、重新付款
+    RESULT --> VERIFY: 付成功，买家邮箱还没验证
+    BUY --> LIST: 点「我的订单」，或付款时被告知先验证邮箱
+    STATUS --> LIST: 点「我的订单」
+    LIST --> VERIFY: 认不出付款人
+    LIST --> DETAIL: 点一笔订单
+    DETAIL --> VERIFY: 这笔订单等着验证邮箱
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class OPEN,STATUS,ENTRY other
+```
+
+- 邮箱验证不是单独的页面（发码、验码两步），在哪里发起，通过后就回到哪里：结果页接着显示发放结果，列表重新取，详情重新取。
+- 链接状态页在礼卡这里显示「活动已结束」；支付结果在礼卡这里另有发放状态与凭证，见 [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证)。
+- 点付款到结果页之间的拉起、离开收银台再回来，与其他产品相同，见 00-shared。
+- 发起支付时被告知有一笔已付款的订单等着验证邮箱（`108309`），页面带付款人去「我的订单」，在那笔订单的详情里验证，通过后回购买页再点付款。
+- 链接已删除的「链接无效」页没有「我的订单」入口。
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回页面内容（面值档、买家与收件人采集项、条款） |
+| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式；带上所选面值档的实付价时每项返回总应付 |
+| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：首次发起时带 `giftcard` 块（面值档、自购或送礼、买家与收件人填写内容），连订单一起建 |
+| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态、所买面值、发放状态与凭证 |
+| 5 | `requestGiftcardEmailOtp` | `POST /giftcard/email/otp-challenges` | 向一个邮箱发验证码，返回 `challengeId` |
+| 6 | `verifyGiftcardEmailOtp` | `POST /giftcard/email/otp-challenges/{challengeId}/verification` | 提交验证码，通过后这个邮箱记为本付款人已验证 |
+| 7 | `listGiftcardOrders` | `GET /giftcard/orders` | 我的订单列表：本付款人在这条礼卡链接下已付款的订单，可按已完成、处理中、已退款筛 |
+| 8 | `getGiftcardOrder` | `GET /giftcard/orders/{orderId}` | 我的订单详情：一笔订单的所买面值、发放状态与凭证 |
+| 9 | `createGiftcardAlipayPass` | `POST /giftcard/orders/{orderId}/alipay-pass` | 存入支付宝卡包：返回一个跳转地址，页面整页跳过去，由支付宝完成存入；只对 `alipayPassAvailable` 为 `true` 的订单 |
+
+5 至 9 只在礼卡会话里可用。`state` 为 `INACTIVE` / `EXPIRED` 的礼卡入口照样签发会话；还没有订单的这类会话只能调这五个，取方式列表返回空列表，不能发起支付。已有订单的会话不受这条限制：照常查订单、走结果页，要发起新的支付时被 `108300` / `108303` 拒。活动已结束时 9 照常可用，本会话的订单与本付款人在这条链接下的已付款订单都能存入。链接已删除的，7、8 一律 `404`，即使会话因已有订单被认回；9 只能用于本会话的这笔订单，其余 `404`；5、6 对已有订单的会话仍可用，但只能验这笔订单的买家邮箱（发码带了别的邮箱返回 `400`），让已付款的订单仍能完成验证、继续发放。
+
+---
+
+## 页面：礼卡购买页
+
+页面内容一次由入口接口给齐：`giftcard { name, brandName, brandLogoUrl?, slogan?, bannerUrl?, currency, promotionType, items, payerInputs, recipientInputs, policies? }`。
+
+- **面值档**：`items` 每项给 `itemId`、`cardValue`（面值）、`price`（实付价）、`saleStatus`。`promotionType` 是 `discount`（折扣活动）时，有折扣的档另给 `listPrice` 与 `discountAmount`；是 `bonus_card`（赠卡活动）时每档另给 `bonusAmount`，商户另写了赠卡说明的再给 `bonusNotes`。`saleStatus` 是 `ON_SALE` / `SOLD_OUT`，售罄的档不能选；它是进入那一刻的值，要刷新就重调入口接口。
+- **一单一张**：付款人只选一个面值档，没有数量。要买多张就分多次买。
+- **自购与送礼**：付款人选「自己用」（`purchaseMode = self`）或「送人」（`purchaseMode = gift`）。买家信息按 `payerInputs` 渲染，送礼时另按 `recipientInputs` 渲染收件人信息。两组里各有一项邮箱，都是必填。
+- **总应付**：页面把所选面值档的 `price` 作为 `amount` 取方式列表，每项的 `payable` 是选该方式的总应付。换面值档就重取。会话有订单后不用带，带了不采信。下单时后端只认 `giftcard.itemId` 重算，与 `expectedPayable` 不一致返回 `108103`。
+- **点付款时提交**：首次发起支付（会话还没有订单）时带 `giftcard { itemId, purchaseMode, collectedFields, recipientFields? }`。`collectedFields` 是买家信息，键取 `payerInputs[].key`；`recipientFields` 是收件人信息，键取 `recipientInputs[].key`，`purchaseMode = gift` 时必带。每项值是字符串，不超过 200 字。同一次请求里判限购与购买黑名单、占用销量、建订单。
+- **一次进入只下一单**：订单建好后面值、自购或送礼、填写内容就定在订单上，重试与换方式只带 `checkoutOption` 与 `expectedPayable`，再带 `giftcard` 块不采信。要改，页面丢掉本标签页的会话令牌、重新打开入口地址，原订单留到过期。
+- **请求被拒不留痕**：发起支付被拒（`400` / `409`）时不建任何订单、不占销量与限购额度，付款人留在购买页。
+- **限购**：商户可以给活动设每人张数上限与累计面值上限，超了发起支付返回 `108307` / `108308`。认得出的付款人按人算，不分用哪种方式付；在普通浏览器里认不出付款人时，与同一链接下其他认不出付款人的购买合在一起算。付款前不要求验证邮箱，支付方式也不因限购而变。
+- **购买黑名单**：在礼卡购买黑名单里的付款人不能买。首次发起支付时判：会话认得出的付款人在黑名单里，或本次填的买家邮箱或收件人邮箱是被拉黑的，任一命中返回 `108325`；认不出付款人时只看邮箱。有订单后的重试、换方式不判。这个错误不带 `context`、`detail` 不含原因，页面给中性的提示（如「暂时无法购买，请联系商户」），不要告诉付款人原因。
+- **条款**：`policies` 是商户写的说明与条款，按页面语言给内容，只展示。
+- **邮件语言**：凭证邮件按首次发起支付时带的页面语言（`createCheckoutPayment` 的 `Accept-Language` 头）发，送礼给收件人的那封也是。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 礼卡购买页(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝授权
+
+    Note over P,W: 打开入口地址 → 进入收银台（详见 00-shared）
+    P->>C: 扫码或点链接打开入口地址<br/>GET /q/{qrcodeId}
+    alt 在微信或支付宝里
+        C-->>W: 302 渠道静默授权
+        W-->>S: 302 页面地址，带 code 与 state
+    else 其余环境
+        C-->>S: 302 页面地址 /pay/<类型>/<编号>
+    end
+    S->>C: #35;1 [openQrcodeCheckout]<br/>POST /sessions/qrcode/{qrcodeId}<br/>有授权码就带上
+    C-->>S: { state: PAYABLE, productCode: GIFTCARD, paymentStarted: false, presentation,<br/>giftcard: { name, currency, promotionType, items,<br/>payerInputs, recipientInputs, policies? } }
+    S->>P: 面值档与活动内容
+
+    Note over P,C: 选面值
+    P->>S: 选一个面值档，点下一步
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods?amount=
+    C-->>S: { items: [{ checkoutOption, payable, customerServiceFee? }] }
+    S->>P: 订单摘要、自购或送礼、信息栏、支付方式与总应付
+
+    Note over P,C: 填信息并付款
+    P->>S: 选自购或送礼，填买家信息（送礼另填收件人），点付款
+    S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable,<br/>giftcard: { itemId, purchaseMode,<br/>collectedFields, recipientFields? } }
+    alt 可以下单
+        C-->>S: 201 CheckoutOrder { status, expiresAt?, nextAction?, sales }
+        S->>P: 按 nextAction 拉起，之后进支付结果页
+    else 有一笔已付款订单等着验证邮箱
+        C-->>S: 409·108309<br/>不建订单
+        S->>P: 提示先验证邮箱，带去「我的订单」验证那笔订单
+    else 超过限购
+        C-->>S: 409·108307 / 108308（108308 带 context.purchaseLimit）<br/>不建订单
+        S->>P: 提示已达购买上限
+    else 付款人在购买黑名单里，或买家 / 收件人邮箱被拉黑
+        C-->>S: 409·108325<br/>不建订单
+        S->>P: 中性提示「暂时无法购买，请联系商户」，不说原因
+    else 售罄 / 活动已截止 / 活动已停用
+        C-->>S: 409·108304 / 108303 / 108300<br/>不建订单
+        S->>P: 售罄时重调入口接口刷新，其余提示「活动已结束」
+    end
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 进入时活动已停用，或商户当前不能用这一产品收款 | 入口 `state = INACTIVE` | 状态页「活动已结束」，给「我的订单」入口 |
+| 进入时已过活动截止日 | 入口 `state = EXPIRED` | 同上 |
+| 进入时链接已删除 | 入口 `404` | 状态页「链接无效」，没有「我的订单」入口 |
+| 没选面值档、没带 `purchaseMode`、送礼没带 `recipientFields`、填写内容不符合采集项 | `400` 参数校验，`details` 指到字段 | 在对应栏提示；正常情况下本地校验已拦住 |
+| 带了不在当前面值档里的 `itemId`（如停留期间商户删了这一档） | `400` 参数校验，`details` 指到字段 | 提示后重调入口接口刷新页面内容 |
+| 所选面值档售罄 | `409`·`108304` | 提示售罄，重调入口接口刷新 |
+| 停留期间活动过了截止日 | `409`·`108303` | 提示「活动已结束」 |
+| 停留期间活动被停用或删除，或商户变为不能用这一产品收款 | `409`·`108300` | 提示「活动已结束」 |
+| 已达张数上限 | `409`·`108307` | 提示已达购买上限 |
+| 已达累计面值上限 | `409`·`108308`，`context.purchaseLimit` | 提示已达购买上限，带出限额金额与币种 |
+| 认不出付款人（不在微信或支付宝里、本会话也没验证过邮箱）时达到上限 | `409`·`108307` / `108308` | 额度是同一链接下所有认不出付款人的购买合用的，可能是别人买满了；提示已达购买上限，并给出能认出他的两条路：在微信或支付宝里打开再买，或先在「我的订单」里验证邮箱再买（验过之后按他自己的额度算）；不要断言「你已买满」 |
+| 会话认得出的付款人在礼卡购买黑名单里，或本次填的买家邮箱或收件人邮箱被拉黑 | `409`·`108325` | 给中性的提示（如「暂时无法购买，请联系商户」），不要告诉付款人原因；留在购买页 |
+| 本付款人在这条链接下有一笔已付款、因买家邮箱没验证而没发放的订单 | `409`·`108309` | 提示先验证邮箱，带去「我的订单」，在那笔订单的详情里验证（见 [页面：我的订单](#页面：我的订单)），通过后回购买页再点付款 |
+| 停留期间商户改了价，页面显示的总应付与后端算的不一致 | `409`·`108103`，`context.payable` | 重调入口接口刷新，再重取方式列表 |
+| 有订单后回到购买页（卡被拒、支付窗点了取消、换方式） | — | 所买面值按 `getCheckoutOrder` 的 `sales.giftcard.cardValue` 显示（`sales.lines` 是礼卡名与实付价）、不能再改；取方式列表不带 `amount`；重试与换方式只带 `checkoutOption` 与 `expectedPayable`；页面给「重新选购」（丢令牌、重新打开入口地址，原订单留到过期） |
+| 设了限购的活动，付款人丢开一笔还没付成的订单重新选购 | 新的首次发起可能 `409`·`108307` / `108308` | 那笔订单在过期前仍占着额度；上限提示要能涵盖这种情形（如「你有未完成的订单，稍后再试」），不要断言「你已买满」 |
+| 有订单后重试或换方式时活动已停用、已删除或已过截止日 | `409`·`108300` / `108303` | 提示「活动已结束」，不给重试 |
+| 这笔订单到期或关闭 | `getCheckoutOrder` 的 `status` 为 `EXPIRED` / `CLOSED` | 「这次付款已超时」或「这笔付款已关闭」+「重新付款」（同上动作）；占用的销量与限购额度已释放 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 成功页凭证 | 付完立刻显示卡号、PIN 与条码 | 买家邮箱没验证过的（如在普通浏览器里付），先验证邮箱，通过后发放、显示凭证 | 礼卡发放前要确认买家邮箱 |
+| 我的订单 | 打开直接列出 | 认不出付款人时先验证邮箱再列 | 订单按付款人归属 |
+| 一笔订单的卡数 | 一笔订单可含多张同面值卡 | 一单一张，赠卡另出一张 | 购买页不选数量 |
+| 面值档 | 档上有「Best Deal」角标 | 没有 | 商户侧没有这项配置 |
+
+## 页面：支付结果 · 邮箱验证与凭证
+
+`getCheckoutOrder` 在礼卡会话里带 `sales` 块：
+
+- `sales.lines`：一行，礼卡名与实付价，是下单时定下的内容。
+- `sales.giftcard { purchaseMode, cardValue, listPrice?, discountAmount?, bonusAmount?, buyerEmail, recipientEmail?, fulfillmentStatus, vouchers?, alipayPassAvailable? }`：`cardValue` 是所买面值，一定返回；`listPrice`、`discountAmount`、`bonusAmount` 是下单时定下的划线价、折扣额与赠送额，折扣活动有折扣时给前两项、页面显示划线价与折扣额，赠卡活动给第三项、页面显示赠送额，没有就不显示；`recipientEmail` 送礼时才有；`alipayPassAvailable` 只在这笔订单可以存入支付宝卡包时返回、值为 `true`（见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)）。`fulfillmentStatus` 是这笔订单的发放状态，付款成功后才返回。`vouchers` 是凭证列表，只在自购且 `fulfillmentStatus` 为 `SENT` / `REDEEMED` 时返回；送礼不返回；此刻不能向付款人出示时也不返回，页面看到的与「已发送到邮箱」相同，不必对付款人解释原因。
+
+结果页按这个顺序判：
+
+1. `getCheckoutOrder` 的 `status` 是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询。
+2. `status` 是 `SUCCEEDED`：成功页 + 所买面值 + 下载收据（同商品与票务），发放段按下表的 `fulfillmentStatus`。
+3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`EXPIRED` / `CLOSED` 的「重新付款」是丢令牌、重新打开入口地址。
+
+`SUCCEEDED` 下的发放段：
+
+| `fulfillmentStatus` | 含义 | 自购 | 送礼 |
+|---|---|---|---|
+| `VERIFICATION_REQUIRED` | 买家邮箱还没验证，验过才发放 | 显示 `buyerEmail`，走下面的验证邮箱 | 同左 |
+| `PROCESSING` | 正在评估或发放 | 「付款成功，礼卡正在发放」，继续轮询；轮询上限由前端自定，到了就停，保留这句 | 同左 |
+| `ON_HOLD` | 暂未发放，等人工处理 | 「订单正在处理，如有疑问请联系商户」，不说明原因 | 同左 |
+| `SENT` | 已发出、未使用 | 有 `vouchers` 时显示凭证（见下）；没有时「礼卡已发送到 {buyerEmail}」 | 「礼卡已发送给 {recipientEmail}」，不显示卡号与 PIN |
+| `REDEEMED` | 已使用 | 同 `SENT`，凭证处另标「已使用」 | 同 `SENT`，另标「已使用」 |
+| `VOIDED` | 已作废 | 「礼卡已作废」 | 同左 |
+| `REFUNDED` | 已退款 | 「订单已退款」 | 同左 |
+
+凭证段（自购且有 `vouchers`）：每张给 `kind`（`main` 主卡 / `bonus` 赠卡）、`voucherNo`、`pin`、`faceAmount`（面值），有的再给 `bonusAmount` 与 `qrContent`。
+
+- `voucherNo` 是卡号或券号，与 `pin`、面值一起以文字显示。
+- 有 `qrContent` 的是兑换券：用 `qrContent` 生成二维码（页面只生成图、不自己拼内容）。一张券同时承载主卡与赠卡时另给 `bonusAmount`，一并显示。
+- 没有 `qrContent` 的：用 `voucherNo` 生成 Code 128 条码。赠卡单独一张，`kind = bonus`。
+- 订单的 `alipayPassAvailable` 为 `true`、页面又在支付宝里时，另给存入支付宝卡包的入口，见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 支付结果页(SPA)
+    participant C as 收银台后端
+
+    S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
+    C-->>S: CheckoutOrder { status: SUCCEEDED,<br/>sales: { lines, giftcard: { purchaseMode, cardValue,<br/>buyerEmail, fulfillmentStatus, vouchers?,<br/>alipayPassAvailable? } } }
+    alt fulfillmentStatus = VERIFICATION_REQUIRED
+        S->>P: 显示买家邮箱，提示验证后才发放
+        P->>S: 点发送验证码
+        S->>C: #35;5 [requestGiftcardEmailOtp]<br/>POST /giftcard/email/otp-challenges { email }
+        C-->>S: 202 { challengeId, deliveredTo, cooldownSeconds, expiresAt }
+        S->>P: 码已发到 deliveredTo，按 cooldownSeconds 倒计时
+        P->>S: 输入邮件里的验证码
+        S->>C: #35;6 [verifyGiftcardEmailOtp]<br/>POST /giftcard/email/otp-challenges/{challengeId}/verification { code }
+        alt 验证码正确
+            C-->>S: 204
+            loop fulfillmentStatus 为 PROCESSING，到轮询上限为止
+                S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
+                C-->>S: { sales: { giftcard: { fulfillmentStatus, vouchers? } } }
+            end
+            S->>P: 按发放段显示
+        else 验证码不对，还有次数
+            C-->>S: 400·104303，context.attemptsRemaining
+            S->>P: 留在原处重输，显示剩余次数
+        else 挑战已过期或已用过 / 错的次数用完
+            C-->>S: 410·106300 / 423·106301
+            S->>P: 请付款人重新发码
+        end
+    else 其余
+        S->>P: 按发放段显示，自购且有 vouchers 时显示凭证
+    end
+```
+
+- **验证的是哪个邮箱**：结果页上是这笔订单的 `buyerEmail`，付款人不能改。
+- **发码与验码**：发码返回 `{ challengeId, deliveredTo, cooldownSeconds, expiresAt }`，验码把 `challengeId` 放进路径、请求体只带 `code`。形状与失败码的读法同平台的验证码约定。
+- **重发**：按 `cooldownSeconds` 倒计时，结束后再调一次发码，拿到新的 `challengeId`，旧码作废；倒计时没走完就调，返回 `429`·`108324`，剩余秒数在 `context.cooldownSeconds`，按它重新倒计时。
+- **通过之后**：这个邮箱记到本会话付款人名下，之后在认得出他的会话里用同一邮箱买不用再验（新开的浏览器会话认不出他，付完仍要验一次）；会话此前认不出付款人的，从此认得出；这条礼卡链接下，在普通浏览器里用卡等方式付、买家邮箱是这个邮箱的订单归到本付款人名下；本付款人名下因为这个邮箱没验证而没发放的订单随即继续。
+- **在微信或支付宝里付的订单**：买家邮箱从没验证过的，属于当时那个微信或支付宝账号，要在认得出这个账号的会话里才看得到、验得了，通常是回到微信或支付宝里打开；在认不出它的浏览器里验证同一个邮箱不会让它继续。
+- **链接已删除**：已有订单的会话照样在结果页发码、验码，验的就是这笔订单的 `buyerEmail`。
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 发码成功 | `202`，`{ challengeId, deliveredTo, cooldownSeconds, expiresAt }` | 提示码已发到 `deliveredTo`，按 `cooldownSeconds` 倒计时，倒计时结束前「重发」不可点 |
+| 倒计时没走完就再发 | 发码 `429`·`108324`，`context.cooldownSeconds` | 按返回的秒数重新倒计时 |
+| 发送次数超过平台限制 | 发码通用 `429`（不带业务码） | 提示稍后再试 |
+| 链接已删除时发码带的不是这笔订单的买家邮箱 | 发码 `400` 参数校验 | 正常情况下不会出现：结果页上邮箱固定为 `buyerEmail` |
+| 验证码不对，还有尝试次数 | 验码 `400`·`104303`，`context.attemptsRemaining` | 留在原处重输，显示剩余次数 |
+| 挑战已过期、已用过或不存在 | 验码 `410`·`106300` | 请付款人重新发码，重输无用 |
+| 错的次数用完、挑战作废 | 验码 `423`·`106301` | 请付款人重新发码（倒计时没走完时等它走完） |
+
+## 流程：存入支付宝卡包
+
+自购的订单发放后，付款人可以把凭证存入支付宝卡包；送礼的订单没有。支付结果页与「我的订单」详情都适用。
+
+- **何时提供入口**：订单的 `sales.giftcard.alipayPassAvailable` 为 `true`，且页面在支付宝里（入口返回的 `acceptanceEnv = alipay_internal`）。两项缺一就不提供。订单能不能存由后端判、页面不自己算；在不在支付宝里由页面判，接口不按环境拒绝。
+- **怎么存**：调 `createGiftcardAlipayPass`，路径里的 `orderId` 取这笔订单的订单号，没有请求体；拿到 `redirectUrl` 整页跳过去，由支付宝完成存入。每次都重新调、拿新地址，不要缓存。
+- **哪些订单能操作**：本会话的订单（认不出付款人时也可以），或本付款人在这条礼卡链接下的已付款订单；其余 `404`。活动已结束的会话照常可用；链接已删除时只有本会话的这笔订单可用。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 支付结果页 / 订单详情(SPA)
+    participant C as 收银台后端
+    participant A as 支付宝
+
+    Note over P,C: 页面在支付宝里，订单的 alipayPassAvailable 为 true
+    P->>S: 选择存入支付宝卡包
+    S->>C: #35;9 [createGiftcardAlipayPass]<br/>POST /giftcard/orders/{orderId}/alipay-pass
+    alt 可以存入
+        C-->>S: 200 { redirectUrl }
+        S->>A: 整页跳到 redirectUrl
+        A-->>P: 支付宝完成存入
+    else 订单此刻不能存入
+        C-->>S: 409·108326
+        S->>P: 提示暂时不能存入，重取订单
+    else 认不出这笔订单
+        C-->>S: 404
+        S->>P: 结果页重取订单，详情回到列表
+    end
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 不在支付宝里，或订单没返回 `alipayPassAvailable` | — | 不提供入口 |
+| 可以存入 | `200`，`{ redirectUrl }` | 整页跳到 `redirectUrl` |
+| 订单此刻不能存入：送礼的订单、还没发放、暂未发放（`ON_HOLD`）、凭证不向付款人出示（没返回 `vouchers`）、有退款在处理、已作废、已退款，或这张礼卡没有开通支付宝卡包 | `409`·`108326` | 提示暂时不能存入，重取订单；`alipayPassAvailable` 不再返回时入口随之撤掉 |
+| 订单不存在、不是本付款人的，或链接已删除而订单不是本会话的 | `404` | 结果页重取订单，详情回到列表 |
+
+## 页面：我的订单
+
+入口在礼卡购买页与「活动已结束」状态页上；链接已删除的「链接无效」页没有。列出本付款人在这条礼卡链接下已付款的订单，别的链接下的不列。
+
+- **认人**：靠会话里的付款人身份。在微信或支付宝里打开的，进入时已经认出，直接列；其余环境要先验一次邮箱：列表返回 `409`·`108309` 时，页面请付款人输入邮箱，走发码、验码，通过后再取列表，本会话之后不用再验。验证通过后，在普通浏览器里付、买家邮箱是这个邮箱的订单也会列出来；在微信或支付宝里付、邮箱从没验证过的订单不会列出来，要回到微信或支付宝里打开查看。
+- **列表**：`listGiftcardOrders`，分页照通用约定（请求带 `pageNum`、`pageSize`，返回 `total` 与 `data`），按付款时刻从新到旧。每行给 `orderId`、`paidAt`、`name`、`cardValue`、`amount`（这笔订单的标价金额，不含客户服务费）、`purchaseMode`、`fulfillmentStatus`，不带卡号、券号与 PIN。
+- **按状态筛**：页面的筛选项有「全部」「已完成」「处理中」「已退款」。「全部」不带参数，其余三项各对应 `statusGroup` 的一个取值，一次只带一个：`completed` 已完成 = `SENT`、`REDEEMED`；`processing` 处理中 = `VERIFICATION_REQUIRED`、`PROCESSING`、`ON_HOLD`；`refunded` 已退款 = `REFUNDED`。`VOIDED`（已作废）不属于任何一组，只在「全部」里出现。带筛选时 `total` 是筛选后的条数。
+- **详情**：点一行调 `getGiftcardOrder`，返回 `orderId`、`paidAt`、`amount`（标价金额）、`payable`（实付总额，含客户服务费，「支付金额」取它）、`checkoutOption` 与 `checkoutOptionDisplayName`（有才返回），以及与订单视图同形的 `sales { lines, giftcard }`。划线价、折扣额与赠送额（`sales.giftcard.listPrice` / `discountAmount` / `bonusAmount`）的显示同结果页，没有就不显示；发放段与凭证的显示同 [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证)：自购且 `SENT` / `REDEEMED` 时有 `vouchers`，送礼没有。`alipayPassAvailable` 为 `true`、页面又在支付宝里时，详情同样给存入支付宝卡包的入口，见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)。
+- **等着验证的那笔**：`fulfillmentStatus` 为 `VERIFICATION_REQUIRED` 的订单，在详情里按它的 `buyerEmail` 走发码、验码，通过后重取详情。发起支付被 `108309` 拒后带过来的，也是在这里验。
+- **活动已结束的会话**：`state` 为 `INACTIVE` / `EXPIRED` 的礼卡会话照样能调列表、详情、发码、验码与存入支付宝卡包。
+- **链接已删除**：列表、详情一律 `404`，即使会话因已有订单被认回；已有订单的会话仍可在支付结果页验证这笔订单的买家邮箱（见 [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证)），也仍可把这笔订单存入支付宝卡包。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 我的订单(SPA)
+    participant C as 收银台后端
+
+    P->>S: 在礼卡购买页或「活动已结束」页点「我的订单」
+    S->>C: #35;7 [listGiftcardOrders]<br/>GET /giftcard/orders?pageNum=&pageSize=
+    alt 已认出付款人
+        C-->>S: { total, data: [{ orderId, paidAt, name, cardValue,<br/>amount, purchaseMode, fulfillmentStatus }] }
+    else 认不出付款人
+        C-->>S: 409·108309
+        P->>S: 输入邮箱
+        S->>C: #35;5 [requestGiftcardEmailOtp]<br/>POST /giftcard/email/otp-challenges { email }
+        C-->>S: 202 { challengeId, deliveredTo, cooldownSeconds, expiresAt }
+        P->>S: 输入邮件里的验证码
+        S->>C: #35;6 [verifyGiftcardEmailOtp]<br/>POST /giftcard/email/otp-challenges/{challengeId}/verification { code }
+        C-->>S: 204
+        S->>C: #35;7 [listGiftcardOrders]<br/>GET /giftcard/orders?pageNum=&pageSize=
+        C-->>S: { total, data }
+    end
+    S->>P: 订单列表
+    opt 切换筛选
+        P->>S: 选「已完成」「处理中」或「已退款」（「全部」不带 statusGroup）
+        S->>C: #35;7 [listGiftcardOrders]<br/>GET /giftcard/orders?pageNum=&pageSize=&statusGroup=<br/>completed / processing / refunded 取一个
+        C-->>S: { total, data }，total 是筛选后的条数
+    end
+    P->>S: 点一笔订单
+    S->>C: #35;8 [getGiftcardOrder]<br/>GET /giftcard/orders/{orderId}
+    C-->>S: { orderId, paidAt, amount, payable, checkoutOption?,<br/>checkoutOptionDisplayName?,<br/>sales: { lines, giftcard: { purchaseMode, cardValue,<br/>buyerEmail, recipientEmail?, fulfillmentStatus, vouchers?,<br/>alipayPassAvailable? } } }
+    S->>P: 详情，自购且已发放时显示凭证
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 认不出付款人 | 列表 `409`·`108309` | 输入邮箱、验证，通过后重取列表 |
+| 发码成功 | 发码 `202`，`{ challengeId, deliveredTo, cooldownSeconds, expiresAt }` | 提示码已发到 `deliveredTo`，按 `cooldownSeconds` 倒计时 |
+| 倒计时没走完就再发 | 发码 `429`·`108324`，`context.cooldownSeconds` | 按返回的秒数重新倒计时 |
+| 验证码不对，还有尝试次数 | 验码 `400`·`104303`，`context.attemptsRemaining` | 留在原处重输，显示剩余次数 |
+| 挑战已过期、已用过或不存在 | 验码 `410`·`106300` | 请付款人重新发码，重输无用 |
+| 错的次数用完、挑战作废 | 验码 `423`·`106301` | 请付款人重新发码 |
+| 还没有已付款的订单 | 列表 `total` 为 0、`data` 为空 | 「还没有订单」 |
+| 带了 `statusGroup`、这一组没有订单 | 列表 `total` 为 0、`data` 为空 | 这一组下显示「没有订单」 |
+| 验证邮箱后进入列表 | 列表照常返回，可能为空 | 列表下方常驻一句提示：在微信或支付宝里付款的订单请回到微信或支付宝里打开查看，其余订单请用下单时填的邮箱验证；列表为空时另显示「还没有订单」 |
+| 链接已删除 | 列表、详情 `404` | 「链接无效」 |
+| 取的订单不是本付款人在这条链接下的已付款订单 | 详情 `404` | 回到列表 |
+| 详情里 `fulfillmentStatus` 为 `VERIFICATION_REQUIRED` | — | 按 `buyerEmail` 发码、验码，通过后重取详情 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

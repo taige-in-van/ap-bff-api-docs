@@ -7,7 +7,7 @@
 <h1>BFF API 契约</h1>
 <p>前端消费的 BFF REST 契约,按 consumer / module 分目录。</p>
 <p class="warn">⚠️ <strong>design / review 阶段</strong>契约 —— 实现前可能调整;可据此并行开发,勿当冻结契约。</p>
-<p class="conv">📐 <a href="conventions.html"><strong>API 基础约定（先读）</strong></a> —— 错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额，所有模块共用。<br>🔢 <a href="error-codes.json"><strong>error-codes.json</strong></a> —— 错误码表（每个 <code>code</code> 的含义〔<code>name</code>，可当 i18n key〕/ 对应 HTTP 状态 / 能否重试 / 必带 <code>context</code> 字段；<strong>「该怎么处理」不在表里，看返回它的那个接口的说明</strong>），非 2xx 一律按 <code>code</code> 分流。</p>
+<p class="conv">📐 <a href="conventions.html"><strong>API 基础约定（商户后台先读）</strong></a> —— 错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额，商户后台各模块共用；收银台的跨接口约定（会话、调用顺序、金额、错误）写在其契约顶部说明里。<br>🔢 <a href="error-codes.json"><strong>error-codes.json</strong></a> —— 错误码表（每个 <code>code</code> 的含义〔<code>name</code>，可当 i18n key〕/ 对应 HTTP 状态 / 能否重试 / 必带 <code>context</code> 字段；<strong>「该怎么处理」不在表里，看返回它的那个接口的说明</strong>），非 2xx 一律按 <code>code</code> 分流。</p>
 <h2>商户后台 (Merchant Portal)</h2>
 <h3>调用时序（按页面，先读）</h3>
 <ul>
@@ -35,6 +35,21 @@
     <li><a href="merchant/funds/index.html">资金</a> <small>(v2.0.0)</small> — <a href="merchant/funds/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/notifications/index.html">通知设置</a> <small>(v2.0.0)</small> — <a href="merchant/notifications/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/system/index.html">系统</a> <small>(v2.0.0)</small> — <a href="merchant/system/openapi.yaml">openapi.yaml</a></li>
+</ul>
+<h2>收银台 (Checkout)</h2>
+<h3>调用时序（按页面，先读）</h3>
+<ul>
+    <li><a href="checkout/flows/00-shared.html">收银台共用环节</a></li>
+    <li><a href="checkout/flows/01-store-qr.html">店铺码</a></li>
+    <li><a href="checkout/flows/02-invoice.html">账单支付</a></li>
+    <li><a href="checkout/flows/03-order-checkout.html">订单付款页</a></li>
+    <li><a href="checkout/flows/04-products-tickets.html">商品与票务</a></li>
+    <li><a href="checkout/flows/05-giftcard.html">礼卡</a></li>
+    <li><a href="checkout/flows/06-plugins.html">电商插件订单</a></li>
+</ul>
+<h3>接口（按资源）</h3>
+<ul>
+    <li><a href="checkout/checkout/index.html">收银台</a> <small>(v2.0.0)</small> — <a href="checkout/checkout/openapi.yaml">openapi.yaml</a></li>
 </ul>
 <p><small>各模块 `openapi.yaml` 自包含可 codegen;变更经本仓 commit 追踪。接口疑问 → 提 issue。</small></p>
 </body></html>

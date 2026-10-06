@@ -229,7 +229,7 @@ sequenceDiagram
 
 | 位置 | demo | 改后 | 为什么 |
 |---|---|---|---|
-| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多两种：Rejected（平台未受理）、Pre-auth holding（预授权挂起） | 被风控拒掉的订单和店铺码预授权单都要能查到 |
+| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多三种：Rejected（平台未受理）、Pre-auth holding（预授权挂起）、Authorized（已授权待请款，卡 / 银联预授权，只看、无行操作） | 被风控拒掉的订单、店铺码预授权单和卡预授权单都要能查到 |
 | 来源 | 八种：Terminal、Store QR、Product QR、Mini Program、Web Checkout、App、Payment Link、API Integration | 十二种，与现网商户后台的来源一致（见上表）；Mini Program、Web Checkout 这类归到产品形态 | 来源沿用现网商户已经在用的分类；小程序、网页是收款方式，不是入口 |
 | 详情的 Product | 四种（账单、商品码、礼卡、票务），其余订单没有 | 每张订单都有，十三种产品形态 | 产品形态是订单的固有属性 |
 | 搜索 | 订单号、金额、备注 | 另可搜商户订单号、通道交易号 | 现网可按商户订单号找单；顾客手里只有钱包账单上的通道交易号 |

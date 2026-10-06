@@ -114,7 +114,7 @@ paths:
       description: |
         与 `listPayments` 用同一组筛选参数、基于同一批订单的合计，金额是商户结算币种（每笔按实际结算金额相加）。
 
-        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态的行金额之和。
+        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED` / `AUTHORIZED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态的行金额之和。
 
         `refundAmount` 是这批订单至今已退的金额（随订单计入，不按退款发生日），`netSales` = `grossSales` − `refundAmount`。
       parameters:
@@ -257,6 +257,9 @@ paths:
                     count: 1
                   - value: PREAUTH_HOLDING
                     label: Pre-auth holding
+                    count: 0
+                  - value: AUTHORIZED
+                    label: Authorized
                     count: 0
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -1055,9 +1058,9 @@ components:
     PaymentStatus:
       type: string
       description: |
-        支付订单的商户可见状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。
+        支付订单的商户可见状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起 · `AUTHORIZED` 已授权待请款。
 
-        前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。收款过程中的中间状态不进列表。
+        前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。`AUTHORIZED` 是卡 / 银联预授权已成功、钱还没扣，请款后转 `PAID`，撤销或到期后不再出现；只能看，没有行操作。收款过程中的中间状态不进列表。
 
         计入汇总的是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING` 四种。
       enum:
@@ -1067,6 +1070,7 @@ components:
         - FAILED
         - REJECTED
         - PREAUTH_HOLDING
+        - AUTHORIZED
     PaymentMethodFamily:
       type: string
       description: 支付方式（品牌）。
@@ -1682,7 +1686,7 @@ components:
               type: integer
               minimum: 0
               description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
-            minimumAmount:
+            floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
             minimumMinutes:
@@ -1693,6 +1697,9 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
     Timestamp:
       type: string
       format: date-time

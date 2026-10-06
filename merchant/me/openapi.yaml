@@ -666,7 +666,7 @@ components:
               type: integer
               minimum: 0
               description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
-            minimumAmount:
+            floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
             minimumMinutes:
@@ -677,6 +677,9 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
     Timestamp:
       type: string
       format: date-time

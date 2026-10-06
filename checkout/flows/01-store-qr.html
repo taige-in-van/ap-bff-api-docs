@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>店铺码 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 店铺码 —— 调用时序
+
+> 本文是付款人从扫码或点链接到付款结果的完整一条，共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 店铺码收款页 | 扫店铺码；入口接口返回 `productCode = STORE_QR` 且 `state = PAYABLE`、`paymentStarted` 为 false | [页面：店铺码收款页](#页面：店铺码收款页) |
+| 支付结果页 | 发起支付之后；刷新或付完回来 | [页面：支付结果 · 收据](#页面：支付结果%20·%20收据)；共用部分见 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) |
+
+图里开头「打开入口地址 → 进入收银台」一段是简图，完整过程见 00-shared 的 [流程：打开入口地址](00-shared.html#流程：打开入口地址) 与 [流程：进入收银台](00-shared.html#流程：进入收银台)。店铺码没有「已付」「已过期」：入口的 `state` 只有 `PAYABLE` 与 `INACTIVE`（码已停用，或商户当前不能用店铺码收款）；码已删除时入口返回 `404`。
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回收款页要显示的内容（商户名、Logo、币种、小费档位、采集项、附加说明） |
+| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式；带上当前金额与小费时每项返回总应付 |
+| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：店铺码首次发起时随请求带 `storeQr` 块（金额、小费与采集内容），连订单一起建 |
+| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态（结果页、收据） |
+
+---
+
+## 页面：店铺码收款页
+
+一个页面，内容有：商户名与 Logo、金额、小费（商户开了才有）、采集项（商户配了才有）、支付方式、附加说明（商户写了才有）、付款按钮。页面内容一次由入口接口给齐，之后只有两种调用：金额或小费变了重取方式列表，点付款时发起支付。采集项填的内容在点付款之前只在页面里，点付款时随发起支付一起提交。
+
+- **金额**：付款人输入，币种取 `storeQr.currency`，小数位随币种。金额必须大于 0。
+- **小费**：`storeQr.tips.enabled` 为 true 时显示。`presets` 是百分比档位，付款人也可以自己填一个金额，或不给。选百分比档时页面按「金额 × 百分比」算出小费金额（四舍五入到币种最小单位），提交的始终是金额；算出来是 0 就不带 `storeQr.tip`。
+- **采集项**：按 `storeQr.payerInputs` 的顺序渲染，每项给标题、控件类型、是否必填、是否要再输一遍确认。提交的 `storeQr.collectedFields` 以各项的 `key` 为键、值为字符串（不超过 200 字）。后端校验必填项都有、没有列表外的键，格式只校验后端认识的系统项，自撰项不校验格式。
+- **总应付**：页面不自己算。金额或小费变了就带着它们重取方式列表，每项的 `payable` 即选该方式的总应付，`customerServiceFee` 是其中加收的客户服务费（没有加收时不返回）。
+- **一次进入只付一笔**：发起支付后金额、小费、采集内容就定在订单上，重试与换方式都是这一笔。换方式引起的客户服务费变化，每次发起按当次方式算，成交后以成交那次为准。要改金额，页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，原订单留到过期。
+- **订单从哪一刻算有**：发起支付返回 `200` / `201`（拿到 `CheckoutOrder`）起本会话就有订单了；返回 `400`、`409` 时没有建订单，付款人还可以改金额、小费和采集项再点。
+- **有订单后回到收款页**（卡被拒留在卡表单、支付窗点了取消、从引导页或第三方网关回来后换方式）：金额、小费按 `getCheckoutOrder` 的 `amount`、`tip` 显示，连同采集项都不能再改；取方式列表不带 `amount` 与 `tip`，每项的 `payable` 按订单上的金额算；页面给「改金额」。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收款页(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝授权
+
+    Note over P,W: 打开入口地址 → 进入收银台（详见 00-shared）
+    P->>C: 扫码打开入口地址<br/>GET /q/{qrcodeId}
+    alt 在微信或支付宝里
+        C-->>W: 302 渠道静默授权
+        W-->>S: 302 页面地址，带 code 与 state
+    else 其余环境
+        C-->>S: 302 页面地址 /pay/<类型>/<编号>
+    end
+    S->>C: #35;1 [openQrcodeCheckout]<br/>POST /sessions/qrcode/{qrcodeId}<br/>有授权码就带上
+    C-->>S: { state: PAYABLE, productCode: STORE_QR, paymentStarted: false,<br/>presentation: { merchantDisplayName, logoUrl? },<br/>storeQr: { currency, tips, payerInputs, description? } }
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [{ checkoutOption, displayName, logoUrl? }] }
+    S->>P: 收款页：金额为空，方式已列出，没有总应付
+
+    Note over P,C: 录入
+    P->>S: 输入金额、选小费
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods?amount=&tip=
+    C-->>S: { items: [{ checkoutOption, payable, customerServiceFee? }] }
+    S->>P: 按选中的方式显示总应付
+    P->>S: 填采集项、改选方式
+    S->>P: 换成该方式的总应付，不调接口
+
+    Note over P,C: 付款
+    P->>S: 点付款
+    S->>S: 本地校验：金额大于 0、必填采集项已填
+    S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable,<br/>storeQr: { amount, tip?, collectedFields? } }
+    C-->>S: 201 CheckoutOrder { status, nextAction? }
+    S->>P: 按 nextAction 拉起，之后进支付结果页（见 00-shared）
+
+    Note over P,C: 结果页上未成功
+    alt 重试
+        S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable }
+        C-->>S: CheckoutOrder
+    else 换方式
+        S->>P: 回到收款页重选方式，再按上面「付款」一段发起
+    else 改金额
+        S->>S: 丢掉会话令牌，重新打开入口地址
+    end
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 金额不大于 0、商户没开小费却带了小费、漏了必填采集项、带了列表外的采集键、系统项格式不对 | `400` 参数校验，`details` 指到字段 | 在对应栏提示；正常情况下本地校验已拦住 |
+| 带金额取方式列表，金额不合法 | `400` 参数校验 | 不显示总应付，在金额栏提示 |
+| 页面显示的总应付与后端此刻算的不一致 | `409`·`108103`，`context.payable` | 重取方式列表、显示新数，付款人再点一次 |
+| 所选方式刚被停用 | `409`·`108102` | 重取方式列表 |
+| 金额超过单笔上限 | `201`，订单 `status = REJECTED` | 结果页「暂时无法完成付款，请联系商户」；刷新后入口的 `paymentStarted` 为 true，仍进结果页 |
+| 会话已有订单，请求里又带了 `storeQr` 块 | 不采信，按订单上的金额发起 | — |
+| 付款期间码被停用 | 已建的订单照常付完；重新进入时入口返回 `INACTIVE` | 链接状态页 |
+| 停留期间商户变为不能用店铺码收款（含有订单后重试、换方式） | `409`·`108200`，不建订单、不发起 | 提示「商户暂停收款」，不给重试 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 金额 | 输入框在页面上限制最多 99999.99 | 页面不设上限；超过单笔上限的付款被拒，结果页「暂时无法完成付款，请联系商户」 | 单笔上限由服务端判，入口不下发 |
+| 成功页 | 有一张推广横幅（下次到店优惠） | 没有 | 商户侧没有这项配置 |
+| 收据 | 带「到柜台核销」二维码（内容是订单号） | 没有核销码 | 店铺码付款不产生凭证 |
+
+## 页面：支付结果 · 收据
+
+用 `getCheckoutOrder` 的数据：`amount`（付款人输入的金额）、`tip`、`customerServiceFee`、`payable`，以及付款人填的备注 `payerNote`（填了才返回）。其余采集项不在付款人的结果页和收据上显示，商户在后台订单详情里看。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

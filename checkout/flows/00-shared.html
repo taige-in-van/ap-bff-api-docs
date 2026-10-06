@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>收银台共用环节 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 收银台共用环节 —— 调用时序
+
+> 各产品的付款页共用的环节写在这里，产品文件引用本文，不重复画图；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 打开入口地址（后端处理，不是页面） | 扫码或点链接 | [流程：打开入口地址](#流程：打开入口地址) |
+| 进入收银台（每个付款页加载时都走） | 上一步落到页面地址；渠道授权回跳；刷新；付完回来 | [流程：进入收银台](#流程：进入收银台) |
+| 授权失败页 | 静默授权自动重试用尽 | [流程：进入收银台](#流程：进入收银台) |
+| 链接状态页（无效 / 已付 / 已过期 / 已停用） | 入口那一跳查不到；入口接口返回 `404` 或 `state` 不是 `PAYABLE` | [页面：链接状态页](#页面：链接状态页) |
+| 环境引导页（请用微信或支付宝扫码） | 手机普通浏览器打开且本入口没有可用方式 | [页面：环境引导](#页面：环境引导) |
+| 支付方式选择（各产品付款页里的一块） | 拿到会话后进付款页 | [页面：支付方式选择](#页面：支付方式选择) |
+| 卡表单（含已存卡） | 支付方式选择里选信用卡或银联卡 | [页面：支付方式选择 · 卡表单 区块](#页面：支付方式选择%20·%20卡表单%20区块) |
+| 发起支付与拉起（后续动作，不是页面） | 付款页点「付款」；结果页点「重试」 | [流程：发起支付](#流程：发起支付) |
+| 在浏览器打开引导 | 微信里选了支付宝 | [页面：在浏览器打开引导](#页面：在浏览器打开引导) |
+| 跳转第三方网关 / 持卡人验证与回来（后续动作，不是页面） | 发起支付或查订单返回 `kind = redirect` 或 `hidden_form` | [流程：整页跳转与回跳](#流程：整页跳转与回跳) |
+| 支付结果页（等待 / 扫码 / 成功 / 未成功 / 终态） | 拉起之后；刷新或付完回来时入口返回 `paymentStarted` 为 true | [页面：支付结果](#页面：支付结果) |
+| 刷新与会话重建 | 刷新、从外部页面回到同一标签页、令牌过期 | [流程：刷新与会话重建](#流程：刷新与会话重建) |
+
+## 页面流转
+
+付款人从扫码到看到结果经过的页面，各产品相同，差别只在中间那张付款页（见各产品文件）。框里的名字与本文的章节名一致（「打开入口地址」「进入收银台」是后端处理与页面加载这两段流程，不是页面；授权失败页写在「流程：进入收银台」里）。灰色节点不在本文：各产品的付款页、收银台之外的页面、商户系统。
+
+**从扫码到落在某一页**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "打开入口地址（后端处理）" as ENTRY
+    state "进入收银台" as OPEN
+    state "授权失败页" as AUTHFAIL
+    state "链接状态页" as STATUS
+    state "各产品的付款页" as PAY
+    state "支付结果" as RESULT
+
+    [*] --> ENTRY: 扫码或点链接
+    ENTRY --> STATUS: 查不到
+    ENTRY --> OPEN: 查到，送到页面地址
+    OPEN --> STATUS: 404，或 state 不是 PAYABLE
+    OPEN --> RESULT: 已发起过支付
+    OPEN --> PAY: 其余
+    OPEN --> AUTHFAIL: 授权重试用尽
+    AUTHFAIL --> OPEN: 点重试
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class PAY other
+```
+
+- 在微信、支付宝里，入口那一跳先经渠道静默授权再到页面地址；入口接口发现缺付款人标识时，页面自动再授权一次后重新调入口接口，见 [流程：进入收银台](#流程：进入收银台)。
+- 任何页面刷新、或从外部回到同一标签页，都重新走「进入收银台」，按会话的情况落到付款页、结果页或链接状态页，见 [流程：刷新与会话重建](#流程：刷新与会话重建)。
+- 礼卡在链接状态页与购买页上另有「我的订单」入口，见 [05-giftcard.flows.md](05-giftcard.html#页面：我的订单)。
+
+**从付款页到结果**
+
+```mermaid
+stateDiagram-v2
+    direction TB
+    state "各产品的付款页" as PAY
+    state "环境引导" as GUIDE
+    state "在浏览器打开引导" as BROWSER
+    state "网关、钱包 App、发卡行验证页" as EXT
+    state "进入收银台" as OPEN
+    state "支付结果" as RESULT
+    state "打开入口地址（后端处理）" as ENTRY
+    state "商户系统" as MERCHANT
+
+    PAY --> GUIDE: 当前环境没有可用方式
+    PAY --> RESULT: 点付款，页内调起或出二维码
+    PAY --> EXT: 点付款，整页跳转或唤起钱包
+    PAY --> BROWSER: 微信里选了支付宝
+    BROWSER --> EXT: 在浏览器里唤起支付宝
+    BROWSER --> PAY: 换一种方式
+    EXT --> OPEN: 付完、取消或放弃后回来
+    OPEN --> RESULT: 认回付款前的会话
+    RESULT --> PAY: 换一种方式
+    RESULT --> ENTRY: 改金额、重新选购、重新付款
+    RESULT --> MERCHANT: 付成功自动跳回，没付成可点「返回商户」
+
+    classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
+    class PAY,EXT,MERCHANT other
+```
+
+- 从收银台之外回来，落的是付款人原来的入口页面地址、带一次性码，凭它认回付款前的会话，见 [流程：整页跳转与回跳](#流程：整页跳转与回跳)。
+- 结果页上的「重试」在结果页直接再次发起；「换一种方式」回到付款页重选方式（在浏览器打开引导页上的「换一种方式」也一样）；两者都在同一笔订单上，需要时同样会离开收银台再回来。「改金额」「重新选购」「重新付款」丢掉本标签页的会话、重新打开入口地址，见 [页面：支付结果](#页面：支付结果)。
+- 回商户系统只有订单入口进来、且带回商户地址的订单才有：付成功自动跳回，没付成时付款页、结果页、链接状态页、环境引导页上另有「返回商户」（图上只画了结果页这一条），见 [03-order-checkout.flows.md](03-order-checkout.html#页面：订单付款页)。
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 静态码入口（店铺码、账单、商品 / 票务 / 礼卡）：换取并登记付款人标识、建立或认回会话、返回页面所需内容 |
+| 2 | `openOrderCheckout` | `POST /sessions/order/{linkToken}` | 已有订单入口（动态码、开放 API 托管页、电商插件订单）：同上 |
+| 3 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 当前可用的支付方式，每项带总应付（首次发起前由查询参数带入：店铺码带 `amount`、`tip`，商品 / 票务带所选各项小计 `amount`，礼卡带所选面值档的 `price` 作为 `amount`）；要填卡的方式另带卡表单参数与已存卡 |
+| 4 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：本会话还没有订单就连订单一起建，请求带本产品那一块（店铺码 `storeQr`：金额、小费与采集内容；商品 / 票务 `product` / `ticket`：选购项与采集内容；账单 `invoice`：备注；礼卡 `giftcard`：面值档、自购或送礼与填写内容）；卡类方式带 `card` 块（卡凭据或已存卡）；返回订单当前状态与拉起动作 |
+| 5 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态（轮询、刷新与回来后重取拉起动作、成功页与收据数据） |
+| 6 | `deleteCheckoutSavedCard` | `DELETE /order/cards/{savedCardId}` | 删除付款人自己的一张已存卡 |
+
+---
+
+## 流程：打开入口地址
+
+付款人扫码或点链接，到浏览器落在付款页面之间的这一段，由收银台后端处理，没有接口调用。付款人碰到的地址分两层：
+
+- **入口地址**：印在立牌上、发给付款人的地址，由收银台后端处理，永久不变，只含一个不透明编号、不带类型。静态码（店铺码、账单码、商品 / 票务 / 礼卡链接）是 `https://<host>/q/{qrcodeId}`；已有订单（动态码、开放 API 托管页、电商插件订单）是 `https://<host>/o/{linkToken}`。
+- **页面地址**：付款人浏览器最终停留的前端页面，带类型段，随时可改、不对外承诺。本文写成 `/pay/<类型>/<编号>`（页面地址由前端定，本文写法只是示意）。
+
+入口地址由后端处理，处理完把浏览器送到页面地址，前端不参与这一跳。前端要知道的只有两点：
+
+- 在微信或支付宝自带浏览器里，后端会先让付款人经过渠道的静默授权，所以页面地址可能带着授权码与 `state` 被打开；其余环境下页面地址不带这两个参数。授权码的参数名随渠道不同：微信是 `code`，支付宝是 `auth_code`；本文的图里统一写作 code。
+- 入口地址查不到对应的码或订单时，后端直接送到「链接无效」页，不经过入口接口。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝授权
+
+    alt 新版入口地址
+        P->>C: 扫码或点链接<br/>GET /q/{qrcodeId} 或 /o/{linkToken}
+    else 旧版发出的地址（旧立牌、旧账单与商品链接等）
+        P->>C: 扫旧立牌或点旧链接<br/>GET 旧版地址
+        Note over C: 按旧版地址认出对应的码或订单<br/>之后与新版入口地址同样处理
+    end
+    alt 查不到
+        C-->>P: 302 链接无效页
+    else 查到，在微信或支付宝里
+        C-->>W: 302 渠道静默授权
+        W-->>S: 302 页面地址，带 code 与 state
+    else 查到，其余环境
+        C-->>S: 302 页面地址 /pay/<类型>/<编号>
+    end
+    Note over P,W: 页面加载后的步骤见「流程：进入收银台」
+```
+
+旧版发出的链接（旧立牌、旧账单与商品链接等）不经过新版入口地址，后端直接按它认出对应的码或订单，再送到同一个页面地址；页面分不出付款人是从新地址还是旧地址来的，也不需要分。
+
+## 流程：进入收银台
+
+浏览器落到页面地址后，页面加载时调一次入口接口，拿到会话和页面要显示的内容，再决定显示付款页、结果页还是链接状态页。首次进入、渠道授权回跳、刷新、付完回来都走这一段。静态码调 `openQrcodeCheckout`，已有订单调 `openOrderCheckout`。
+
+- **请求**：地址上有授权码就带上（`authorizationCode`、`state`）；本标签页 sessionStorage 里有该入口的会话令牌就放请求头 `X-Checkout-Session`。`authorizationCode` 取地址上的 `code`（微信）或 `auth_code`（支付宝）。用过授权码后，前端把地址上的授权码与 `state` 去掉。付款后回来时地址上带的是 `resume`，作为 `resumeCode` 交上去，见「流程：整页跳转与回跳」。
+- **一次调用完成**：换取并登记付款人标识、建立或认回会话、返回页面所需内容。令牌有效且属于本入口时认回同一会话（`200`）；否则签发新会话（`201`，带 `grant`）；不签发会话时（见下两条：`state` 不是 `PAYABLE`，或要重新授权）返回 `200`、不带 `grant`。
+- **`state`**：`PAYABLE` / `PAID` / `EXPIRED` / `INACTIVE`。不是 `PAYABLE` 时不签发新会话，但照常给商户名与 logo；带着有效令牌来的照常认回（比如账单在本会话付成功后刷新，仍能回到成功页）；付款后带着 `resumeCode` 回来的同样认回（见「流程：整页跳转与回跳」）。码已删除时，可认回且已有订单的会话照常认回（`state = INACTIVE`、`paymentStarted` 为 true）。礼卡例外：`INACTIVE` / `EXPIRED` 照样签发会话；还没有订单的这类会话只能用「我的订单」、存入支付宝卡包与邮箱验证（方式列表为空、不能发起支付），见 [05-giftcard.flows.md](05-giftcard.html#页面：我的订单)。已有订单的礼卡会话不受这条限制：照常进支付结果页查订单，要发起新的支付时被 `108300` / `108303` 拒。礼卡链接已删除的，认回的会话不能用「我的订单」（`404`），邮箱验证仍可用、只能验这笔订单的买家邮箱，存入支付宝卡包只能用于本会话的这笔订单。
+- **`paymentStarted`**：这个会话是否已经发起过支付。为 true 时页面直接进支付结果页。
+- **`productCode`**：这个入口是哪种产品（店铺码、账单、商品、票务、礼卡、动态码等），页面按它渲染对应的付款页、选状态页文案。页面地址里的类型段只是前端路由用，与 `productCode` 不一致时以 `productCode` 为准。
+- **静默授权失败要自动重试**：接口发现需要标识但没拿到（没带授权码、授权码失效或已用过、会话重建后标识没了）时不签发会话、只返回 `reauthorizeUrl`，前端自动整页跳过去，回来后再调入口接口。自动重试默认 2 次（可配置），次数记在本标签页 sessionStorage，拿到会话后清零；用尽仍失败进授权失败页，页上的「重试」重新计数再走一遍。
+- **切换页面语言**：入口接口按 `Accept-Language` 给商户配的多语内容（说明与条款 `policies`），实际用的语言见响应头 `Content-Language`；商户录入的单语文本（商品名、采集项标题等）不随语言变。付款人切换语言后，页面带新的 `Accept-Language` 重调本入口的入口接口，请求头照常带会话令牌，认回同一会话、不重新授权；之后发起支付也带新的 `Accept-Language`。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝授权
+
+    P->>S: 打开页面地址
+    S->>S: 读地址上的 code 与 state<br/>读 sessionStorage 里该入口的令牌
+    alt 静态码
+        S->>C: #35;1 [openQrcodeCheckout]<br/>POST /sessions/qrcode/{qrcodeId}
+    else 已有订单
+        S->>C: #35;2 [openOrderCheckout]<br/>POST /sessions/order/{linkToken}
+    end
+    Note over C: 有授权码就换取并登记付款人标识<br/>认回或铸新会话
+    C-->>S: 200 / 201 { state, productCode, presentation,<br/>acceptanceEnv, grant?, reauthorizeUrl?, paymentStarted? }
+    S->>S: 用过授权码就去掉地址上的 code 与 state
+    alt 拿到会话且 paymentStarted 为 true
+        S->>P: 进支付结果页继续查结果
+    else state 不是 PAYABLE
+        S->>P: 链接状态页（显示商户名与 logo）<br/>礼卡另把令牌写入 sessionStorage，给「我的订单」入口
+    else 有 reauthorizeUrl，自动重试未用尽
+        S->>S: 本标签页重试次数加一
+        S->>W: 整页跳 reauthorizeUrl
+        W-->>S: 302 回页面地址，带 code 与 state<br/>再调入口接口
+    else 有 reauthorizeUrl，自动重试已用尽
+        S->>P: 授权失败页（「重试」重新计数）
+    else 其余
+        S->>S: 令牌（grant）写入 sessionStorage
+        S->>S: 重试次数清零
+        S->>P: 按 productCode 渲染对应产品的付款页
+    end
+```
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 编号不存在、链接令牌无效，或码已删除而没有可认回的已有订单会话 | `404`（不区分成因） | 链接状态页「链接无效」，不重试 |
+| 码已删除，带着有效令牌或 `resumeCode`、该会话已有订单 | `200`，`state = INACTIVE`、`paymentStarted` 为 true | 进支付结果页 |
+| 限流 | `429` | 退避后重试 |
+| 带的令牌已过期或不属于本入口 | 按没带处理：签发新会话 `201`；`state` 不是 `PAYABLE` 或要重新授权时不签发 `200` | 拿到新令牌就覆盖 sessionStorage 里的旧令牌；没签发时按上面各支处理 |
+| 自动重新授权用尽仍拿不到标识 | 仍返回 `reauthorizeUrl` | 授权失败页；「重试」重新计数再走一遍 |
+| 付款人切换页面语言 | `200`，认回同一会话；`Content-Language` 是实际给的语言（挑不中时退到入口的默认语言） | 按新返回的内容重新渲染，令牌不变 |
+
+## 页面：链接状态页
+
+一般不调接口，数据来自入口接口返回的 `state`、`productCode` 与 `presentation`（商户名与 logo）；订单入口的 `PAID` 在有会话时取一次订单视图（即 `getCheckoutOrder` 返回的 `CheckoutOrder`，下同；见下表）。入口那一跳直接送来的「链接无效」没有商户信息。文案按产品选（「—」表示该产品不出现这个 `state`）：
+
+| state | 店铺码 | 账单 | 商品 / 票务 | 礼卡 | 动态码 / 开放 API 托管页 / 电商插件订单 |
+|---|---|---|---|---|---|
+| `PAID` | — | 这张账单已付款 | — | — | 这笔订单已付款（有会话时取一次订单视图，有 `returnUrl` 就用它给「返回商户」；没有会话，或订单视图里还没有 `returnUrl` 时，有 `order.cancelUrl` 就用它） |
+| `EXPIRED` | — | 已过付款截止日 | — | 活动已结束（给「我的订单」入口，见 [05](05-giftcard.html#页面：我的订单)） | 订单已失效，请向商户重新获取（入口带 `order.cancelUrl` 时给「返回商户」） |
+| `INACTIVE` | 商户暂停收款 | 账单已停止收款 | 链接已下架 | 活动已结束（同上，给「我的订单」入口） | 订单已关闭（入口带 `order.cancelUrl` 时给「返回商户」） |
+| `404` | 链接无效 | 链接无效（账单已被商户删除也是这句） | 链接无效 | 链接无效 | 链接无效 |
+
+账单在停留期间才变为已付款、已过截止时刻或已删除的，不走本页：发起支付被 `108301` / `108302` / `108300` 拒后页面显示账单状态提示（文案同 02 的结果页判定表），见 [02-invoice.flows.md](02-invoice.html#页面：账单付款页)。
+
+## 页面：环境引导
+
+付款人在手机普通浏览器里打开（用相机扫码最常见），本入口在这个环境下没有可用方式：提示「请用微信或支付宝扫码」。环境用入口接口返回的 `acceptanceEnv`，前端不再按 UA 自判。微信里选了支付宝的引导是另一页，见「页面：在浏览器打开引导」。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+
+    Note over S,C: 入口接口已返回 acceptanceEnv = mobile_h5
+    S->>C: #35;3 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [] }
+    S->>P: 「请用微信或支付宝扫码打开」
+```
+
+| 情形 | 页面动作 |
+|---|---|
+| `acceptanceEnv` = `mobile_h5` 且候选为空 | 本页文案 |
+| `acceptanceEnv` 为其余值且候选为空 | 「暂无可用支付方式」（支付方式选择页的文案） |
+
+订单入口返回了 `order.cancelUrl` 时，上面两种情形都另给「返回商户」，指向它。
+
+## 页面：支付方式选择
+
+付款页拿到会话后调 `listCheckoutPaymentMethods` 取可用方式。每项给收银台选项码、展示名与图标；能不能用、按哪种形态拉起都由服务端按受理环境判，前端只照列表渲染。
+
+- **总应付**：列表每项直接带该方式的 `payable` 与 `customerServiceFee`（总应付可能随方式不同），付款人改选方式时页面换成该项的数，不再调接口。
+- **金额从哪来**：金额已定的会话（订单入口、账单）不用传金额，后端按已定的金额算。金额由付款人在页上定的：店铺码把当前录入的金额与小费作为参数 `amount` 与 `tip` 传上来（都是金额，小费是金额不是档位）；商品 / 票务把所选各项「售价 × 数量」的小计作为 `amount` 传上来；礼卡把所选面值档的 `price` 作为 `amount` 传上来；付款人改了金额、小费、选购或面值档就重取一次列表（前端防抖）。还没录入金额或没选任何项时不传，列表只给方式、不带 `payable`。会话已有订单后不用传，传了也不采信，按订单上的金额算。
+- **这里的数不是承诺**：发起支付时页面把显示的总应付带上，后端重算比对，不一致会拒并给出新数。
+- **空列表**：按「页面：环境引导」处理。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+
+    Note over S,C: 入口接口已签发会话，paymentStarted 为 false
+    S->>C: #35;3 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [{ checkoutOption, displayName,<br/>logoUrl?, payable?, customerServiceFee? }] }
+    alt items 为空
+        S->>P: 环境引导页或「暂无可用支付方式」
+    else 每项带 payable
+        S->>P: 列出方式，按选中项显示总应付
+    else 店铺码还没录入金额或商品 / 票务还没选项（不带 payable）
+        S->>P: 只列出方式
+    end
+    P->>S: 改选另一种方式
+    S->>P: 换成该项的总应付，不调接口
+    opt 店铺码或商品 / 票务：付款人改了金额、小费或选购
+        S->>C: #35;3 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods?amount=&tip=（商品 / 票务只有 amount）
+        C-->>S: { items: [...] } 每项带新的 payable
+    end
+```
+
+| 情形 | 页面动作 |
+|---|---|
+| 列表只有一项 | 照常显示该项与总应付，付款人无需选择 |
+| 停留期间商户停用了某方式 | 列表不主动刷新；发起支付时被拒（`409`·`108102`）再重取列表 |
+
+## 页面：支付方式选择 · 卡表单 区块
+
+付款人在方式列表里选了信用卡或银联卡，页面在本页展开卡表单。这两项在方式列表里各自独立，各自是否出现由商户开通情况决定（可能只有其中一项），怎么摆由前端定。两项的接口形状完全相同，前端用同一个卡表单组件：付款人选了哪一项，就用那一项的参数渲染，提交时带那一项的 `checkoutOption`。前端不按卡号开头判断该走哪一项，银联卡这一项也受理 Visa、Mastercard 等卡。
+
+- **卡的字段放在 `card` 块里**：所选方式带 `cardForm` 时，发起支付带 `card { methodCredential | savedCardId, rememberCard?, holderName?, payerEmail?, browserInfo }`；其余方式不带，带了不采信。
+- **持卡人姓名与邮箱**：该项 `cardForm.holderNameRequired` 为 true 时要填持卡人姓名，`cardForm.emailRequired` 为 true 时要填一个邮箱（持卡人验证要用，不做邮箱验证）。这两项不加密，作为 `card.holderName`、`card.payerEmail` 随发起支付提交；用已存卡付时同样要填、同样提交。付款人在本页别处已经填过邮箱的（如礼卡的买家邮箱），页面可以带出来免得再填。
+- **卡信息在本页填、加密后提交**：卡号、有效期、安全码都在收银台页面自己的输入框里填。点「付款」时，页面用该项 `cardForm.encryptionKey`（公钥）把卡信息加密，密文作为 `card.methodCredential` 调 `createCheckoutPayment`；卡号不以明文离开页面。加密的格式与卡信息的字段名见契约里 `card.methodCredential` 的说明。
+- **卡凭据每次重新生成**：每次点「付款」都重新加密生成，未成功后重试或换卡也一样。
+- **已存卡**：该项支持记住卡、且会话里有可识别的付款人时，该项另带 `savedCards`（可以是空数组），每张卡给 `savedCardId`、`cardBrand`、`cardLast4`、`expiryMonth`、`expiryYear`。带了这个键才显示已存卡与「记住这张卡」，不带就都不显示。用已存卡付带 `card.savedCardId`，不填卡，与 `card.methodCredential` 二选一；用新卡付并要记住时带 `card.rememberCard`，该项不带 `savedCards` 时不采信。
+- **删除已存卡**：调 `deleteCheckoutSavedCard`，一律 `204`（卡已不在也是 `204`），从列表里去掉，不必重取方式列表。
+- **同一张卡重复提交**：同一方式、同一张卡还在等付款人完成时，再点「付款」返回原来的拉起动作；换了卡就是新的一次。
+- **屏幕尺寸**：卡类方式每次发起支付都带 `card.browserInfo { screenWidth, screenHeight }`（取 `screen.width`、`screen.height`），用新卡、用已存卡都带。
+- **持卡人验证**：需要时返回 `status = PENDING` 且 `nextAction.kind` 为 `hidden_form` 或 `redirect`，按「流程：整页跳转与回跳」处理；验证完回到收银台进支付结果页。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+
+    Note over S,C: 方式列表里卡类项带 cardForm<br/>支持记住卡且有付款人时另带 savedCards
+    P->>S: 选信用卡或银联卡
+    S->>P: 按该项 cardForm 展开卡表单
+    opt 该项带 savedCards（可为空）
+        S->>P: 列出已存卡，显示「记住这张卡」
+    end
+    alt 用新卡
+        P->>S: 填卡号、有效期、安全码<br/>需要时填持卡人姓名、邮箱
+        P->>S: 点「付款」
+        S->>S: 用 encryptionKey 加密卡信息
+        S->>C: #35;4 [createCheckoutPayment]<br/>POST /order/payments
+        Note over S,C: 带该项 checkoutOption<br/>card 块带 methodCredential、browserInfo，要记住时再带 rememberCard
+    else 用已存卡
+        P->>S: 选一张已存卡<br/>需要时填持卡人姓名、邮箱，点「付款」
+        S->>C: #35;4 [createCheckoutPayment]<br/>POST /order/payments
+        Note over S,C: 带该项 checkoutOption<br/>card 块带 savedCardId、browserInfo
+    end
+    C-->>S: 201 { status, nextAction?, lastAttemptFailure? }
+    alt SUCCEEDED
+        S->>P: 成功页
+    else UNPAID
+        S->>P: 留在卡表单提示未成功，可换卡再付
+    else PENDING 且 kind = hidden_form 或 redirect
+        S->>P: 持卡人验证（流程：整页跳转与回跳）
+    else PENDING，没有 nextAction
+        S->>P: 进支付结果页轮询
+    end
+    opt 删除已存卡
+        P->>S: 点某张卡的「删除」
+        S->>C: #35;6 [deleteCheckoutSavedCard]<br/>DELETE /order/cards/{savedCardId}
+        C-->>S: 204
+        S->>P: 从列表移除
+    end
+```
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 卡号位数、有效期、安全码不对，或必填的持卡人姓名、邮箱没填 | — | 本页提示，不调接口 |
+| 卡被拒 | `201`，`status = UNPAID`，`lastAttemptFailure = DECLINED` | 留在卡表单，「付款被拒，请换一张卡或换一种方式」 |
+| 付款没有完成 | `201`，`status = UNPAID`，`lastAttemptFailure = INCOMPLETE` | 留在卡表单，可重新填卡或选已存卡再付 |
+| 已受理、结果未出 | `201`，`status = PENDING`，不带 `nextAction` | 进支付结果页轮询 |
+| 同一张卡还在等付款人完成时再点「付款」 | `200`，`status = PENDING`，带原来的拉起动作 | 照它继续（流程：整页跳转与回跳） |
+| 所选已存卡已不能用 | `409`·`108107` | 重取方式列表，提示改用新卡或另一张已存卡 |
+| 总应付已变 / 方式已不可用 | `409`·`108103` / `108102` | 同「流程：发起支付」 |
+| 删除时这张卡已经不在 | `204` | 照常从列表去掉 |
+
+## 流程：发起支付
+
+付款人点「付款」时调 `createCheckoutPayment`，带所选的 `checkoutOption` 和页面上显示的总应付 `expectedPayable`。服务端按当下的配置重算，一致才发起；不一致返回 `409`·`108103` 并在 `context` 里带当前总应付，页面换成新数让付款人再点一次。
+
+- **一个会话一笔订单**：本会话还没有订单（静态码首次付款）就连订单一起建；已有订单则在同一笔订单上发起一次新的尝试。「失败后重试」「换一种方式再付」都走这里，仍是同一笔订单。
+- **请求按产品分块**：每次都带 `checkoutOption` 与 `expectedPayable`。会话还没有订单时另带本产品那一块，块名同入口接口返回的那一块；会话已有订单后不带，带了不采信，重试与换方式只带 `checkoutOption` 与 `expectedPayable`。别的产品的块不采信。订单入口的会话没有产品块。卡类方式另带 `card` 块，见「页面：支付方式选择 · 卡表单 区块」。
+- **店铺码的金额**：店铺码首次发起时带 `storeQr { amount, tip?, collectedFields? }`（金额、小费与采集内容）。
+- **账单的采集内容**：账单首次发起时可带 `invoice { collectedFields? }`（只有备注一项）；没有要填的内容时可以不带。
+- **商品 / 票务的选购与采集内容**：首次发起时带 `product { items, collectedFields? }` 或 `ticket { items, collectedFields? }`（`items` 每项是 `itemId` 与 `quantity`），同一次请求里建订单并占用库存；会话已有订单后选购与买家信息定在订单上。请求被拒（`400` / `409`）时不建订单、不占库存。
+- **礼卡的选购与填写内容**：首次发起时带 `giftcard { itemId, purchaseMode, collectedFields, recipientFields? }`，同一次请求里判限购、建订单，见 [05-giftcard.flows.md](05-giftcard.html#页面：礼卡购买页)。
+- **改金额或换一笔订单**：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理；原订单留到过期。
+- **同一方式的重复点击**：这笔订单上还有同一方式的尝试在等付款人时，返回那次尝试的拉起动作，不另起（网络重试、钱包里取消后再点「付款」都落在这里）。要填卡的方式还要是同一张卡，换了卡就是新的一次。
+- **返回**：订单当前状态 `status` 与拉起动作 `nextAction`，形状与 `getCheckoutOrder` 相同。这笔付款被拒时返回 `status = REJECTED`、不带 `nextAction`。
+- **拉起动作按 `nextAction.kind`**：`jsapi` 用 `sdkParams` 在页内调起支付窗；`qr` 在结果页显示 `qrContent` 的二维码；`app_launch` 跳 `launchUrl` 唤起钱包，唤不起时给 `fallbackUrl`；`open_in_browser` 进「在浏览器打开引导」；`redirect` 整页跳转、`hidden_form` 在看不见的框里提交表单，见「流程：整页跳转与回跳」。
+- **`redirect` 什么时候自动跳**：`redirect` 是在本页这次操作里拿到的（发起支付的返回，或提交隐藏表单后轮询到的）就直接跳；是页面加载后认回会话时拿到的（刷新、付完或取消后回来）不自动跳，在结果页给「继续付款」与「换一种方式」。其余 kind 不受这条限制：页面加载后拿到 `qr` 照常重新显示二维码；拿到 `hidden_form` 不再提交，只轮询等下一步。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝
+
+    P->>S: 点「付款」
+    S->>C: #35;4 [createCheckoutPayment]<br/>POST /order/payments
+    Note over S,C: 请求带 checkoutOption、expectedPayable<br/>首次发起另带本产品那一块：storeQr / invoice /<br/>product / ticket / giftcard<br/>卡类方式另带 card 块
+    C-->>S: 201 { status, nextAction?, lastAttemptFailure? }
+    alt nextAction.kind = jsapi
+        S->>W: 页内调起支付窗（sdkParams）
+        W-->>S: 完成 / 取消 / 失败
+        Note over S: 取消回付款页，完成或失败进支付结果页
+    else kind = qr
+        S->>P: 进支付结果页显示二维码，等手机扫
+    else kind = app_launch
+        S->>W: 跳 launchUrl 唤起钱包 App，之后进支付结果页
+    else kind = open_in_browser
+        S->>P: 在浏览器打开引导页
+    else kind = redirect 或 hidden_form
+        S->>P: 按「流程：整页跳转与回跳」处理
+    else 没有 nextAction，status = UNPAID（卡被拒或没完成）
+        S->>P: 留在付款页的卡表单，可换卡或换方式
+    else 没有 nextAction，其余（如 REJECTED，或已受理在等结果）
+        S->>P: 进支付结果页
+    end
+```
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 支付窗返回「取消」 | — | 回到付款页，可再点「付款」或换方式（不进结果页） |
+| 支付窗返回「失败」 | — | 进结果页，按 `getCheckoutOrder` 的结论显示 |
+| 跳 `launchUrl` 后页面仍停在前台 | — | 提示「未能打开 App」，给 `fallbackUrl` 的按钮；之后进结果页轮询 |
+| 总应付已变（费率调整、换了方式没换数） | `409`·`108103`，`context` 带当前总应付 | 换成新数，付款人再点「付款」 |
+| 所选方式已不可用 | `409`·`108102` | 重取方式列表，提示重选 |
+| 这笔付款被拒 | `201`，`status = REJECTED` | 结果页「暂时无法完成付款，请联系商户」，不带原因与订单号，不给重试 |
+| 订单已不可付（已付 / 已过期 / 已关闭） | `200`，`status` 为对应终态 | 结果页按终态显示 |
+| 账单已付清 / 已过付款截止时刻 / 已删除（含重试、换方式；已经发出去的那次支付不受影响） | `409`·`108301` / `108302` / `108300` | 账单状态提示「这张账单已付款」/「已过付款截止日」/「这张账单已失效」（文案同 02 的结果页判定表），见 [02-invoice.flows.md](02-invoice.html#页面：账单付款页) |
+| 店铺码：商户当前不能用店铺码收款（含重试、换方式） | `409`·`108200` | 提示「商户暂停收款」，不给重试，见 [01-store-qr.flows.md](01-store-qr.html#页面：店铺码收款页) |
+| 订单已到期但状态尚未更新 | `200`，`status = EXPIRED` | 不发起，结果页按终态显示 |
+| 商品 / 票务：余量不够 / 不在销售期（还没有订单时） | `409`·`108304` / `108303` | 不建订单、不占库存；提示后重调入口接口刷新，见 [04-products-tickets.flows.md](04-products-tickets.html#页面：商品与票务付款页) |
+| 商品 / 票务：链接已下架或已删除或商户不能收（含有订单后重试、换方式） | `409`·`108300` | 不建订单、不占库存；提示「链接已下架」，有订单时不给重试，见 [04-products-tickets.flows.md](04-products-tickets.html#页面：商品与票务付款页) |
+| 各产品自己的其他拒绝 | 见各产品文件 | 见各产品文件 |
+
+## 页面：在浏览器打开引导
+
+微信里不能唤起支付宝。发起支付返回 `kind = open_in_browser` 时，页面把 `launchUrl`（与 `fallbackUrl`）写进地址 `#` 之后，提示付款人点右上角「在浏览器打开」。浏览器打开的是同一个地址，页面先看 `#` 之后有没有唤起地址，有就直接唤起支付宝、不调入口接口。付完后支付宝把付款人带回浏览器时，按「流程：整页跳转与回跳」的回跳规则回到原入口并认回会话，浏览器这一边也能直接看到结果；微信里的页面同时按「页面：支付结果」轮询，付款人回到微信也能看到。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(微信内)
+    participant C as 收银台后端
+    participant B as 手机浏览器
+    participant A as 支付宝 App
+
+    Note over S,C: 发起支付返回 kind = open_in_browser
+    S->>S: 把 launchUrl 写进地址的 #35; 之后
+    S->>P: 「点右上角，选在浏览器打开」
+    P->>B: 在浏览器打开当前地址
+    B->>A: 读 #35; 之后的 launchUrl，唤起支付宝
+    A-->>P: 在支付宝里付款
+    A-->>B: 付完回到浏览器，认回会话进结果页
+    loop 微信里的页面一直在查
+        S->>C: #35;5 [getCheckoutOrder]<br/>GET /order
+        C-->>S: { status }
+    end
+    P->>S: 回到微信
+    S->>P: status 为 SUCCEEDED 时进成功页
+```
+
+| 情形 | 页面动作 |
+|---|---|
+| 付款人不去浏览器、改选微信 | 引导页给「换一种方式」，回付款页（同一笔订单上发起新尝试） |
+| 浏览器里唤不起支付宝 | 浏览器页给 `fallbackUrl` 的按钮 |
+| 回到微信时还没轮询到结果 | 继续轮询；「我已完成付款」按钮立即查一次 |
+
+## 流程：整页跳转与回跳
+
+选了要离开收银台的方式（银联网关、支付宝 Online），或卡要做持卡人验证时，发起支付（或查订单）返回 `status = PENDING` 且带 `nextAction`。
+
+- **整页跳转**：`nextAction.kind = redirect` 带 `redirectUrl`、`redirectMethod`（`GET` / `POST`），`POST` 时另带 `redirectForm`（键值都是字符串）。`GET` 时整页跳 `redirectUrl`；`POST` 时页面用 `redirectForm` 的键值生成隐藏表单，整页提交到 `redirectUrl`。银联网关、支付宝 Online、发卡行验证页都用它。字段原样使用，不要改写。
+- **持卡人验证分两步**，都不需要新接口，前端做完动作后照常轮询 `getCheckoutOrder`。第 1 步是设备信息收集：返回 `kind = hidden_form` 时，页面在一个看不见的框里把 `redirectForm` 的键值作为表单提交到 `redirectUrl`，付款人无感；同一个 `hidden_form` 只提交一次，提交后继续轮询订单（轮询期间可能仍返回它，不要再提交），下一步由订单的返回决定，可能直接成功或失败，也可能进入第 2 步。第 2 步是验证页面：返回 `kind = redirect`、`redirectMethod = POST`，照上一条整页提交到发卡行的页面。
+- **回跳**：付款人在那边付完、取消或放弃后，浏览器先回到收银台后端，后端再把它送回**付款人原来的那个入口页面地址**（店铺码的回店铺码的页面，订单入口的回订单入口的页面），地址上带一个一次性的码 `resume`。页面照常调本入口的入口接口，把这个码作为 `resumeCode` 交上去；后端凭它认回付款前的那个会话，在返回里为这个会话另给一枚会话令牌（`grant`，原来的令牌仍可用），`paymentStarted` 为 true，进支付结果页轮询。用过之后前端把地址上的 `resume` 去掉、把令牌存进 sessionStorage，之后刷新就和平常一样。
+- **回来的不一定是原来那个标签页**：钱包 App 付完把付款人带回浏览器时，可能是新开的标签页，也可能是系统默认浏览器，那里的 sessionStorage 没有令牌，凭地址上的一次性码认回。原来的标签页如果还开着，照常轮询、同样会显示结果。本节的回跳规则同样适用于「唤起钱包 App」付完回来、以及「在浏览器打开引导」里浏览器那一边付完回来。
+- `resumeCode` 只能用一次。已用过、已过期或无效时接口不报错，按没带处理（照平常的入口规则走）。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+    participant G as 第三方网关 / 发卡行
+
+    opt kind = hidden_form（持卡人验证第 1 步）
+        S->>G: 在看不见的框里<br/>把 redirectForm 提交到 redirectUrl
+        loop 直到 status 不是 PENDING 或返回 kind = redirect
+            S->>C: #35;5 [getCheckoutOrder]<br/>GET /order
+            C-->>S: { status, nextAction?, lastAttemptFailure? }
+        end
+        Note over S: 已有结论按「页面：支付结果」显示<br/>返回 kind = redirect 时接着整页跳转
+    end
+    Note over S,C: 发起支付或查订单返回 nextAction.kind = redirect
+    alt redirectMethod = GET
+        S->>G: 整页跳 redirectUrl
+    else redirectMethod = POST
+        S->>S: 用 redirectForm 生成隐藏表单
+        S->>G: 整页提交到 redirectUrl
+    end
+    P->>G: 付款或验证，完成、取消或放弃
+    G->>C: 浏览器回到收银台后端
+    C-->>S: 302 原来的入口页面地址，带 resume
+    S->>C: #35;1 或 #35;2 本入口的入口接口<br/>请求带 resumeCode
+    C-->>S: 200 { grant, paymentStarted: true }
+    S->>S: 令牌写入 sessionStorage，去掉地址上的 resume
+    S->>P: 进支付结果页
+    loop status 为 PENDING
+        S->>C: #35;5 [getCheckoutOrder]<br/>GET /order
+        C-->>S: { status, nextAction?, lastAttemptFailure? }
+    end
+```
+
+| 情形 | 订单返回 | 页面动作 |
+|---|---|---|
+| 设备信息收集后订单已有结论 | `SUCCEEDED` 或 `UNPAID` | 不进第 2 步，按「页面：支付结果」显示 |
+| 回来时还没出结果 | `PENDING`，不带 `nextAction` | 结果页「付款处理中」，继续轮询 |
+| 在第三方网关上取消后回来，那边还没关单 | `PENDING`，带同一个 `redirect` | 结果页给「继续付款」（照它再跳一次）和「换一种方式」（回付款页，同一笔订单上发起新的一次） |
+| 卡被拒、持卡人验证未通过 | `UNPAID`，`lastAttemptFailure = DECLINED` | 可换卡或换方式 |
+| 持卡人验证超时或放弃、付款没有完成 | `UNPAID`，`lastAttemptFailure = INCOMPLETE` | 可重试或换方式 |
+| 付款人去了那边没回来 | — | 收银台感知不到；订单按自身结局收敛，付款人回到原来的标签页或刷新时按「流程：刷新与会话重建」看到结果 |
+| 回来落在新标签页或另一个浏览器 | 同上各行 | 与回到原标签页没有区别：都是凭地址上的一次性码认回原会话、进结果页 |
+| 地址上的码已用过或已过期（比如把回来后的地址又打开了一次） | 入口接口按没带处理 | 照平常的入口规则走（可付的回到付款页，不可付的进链接状态页）：订单入口绑回同一笔订单 |
+
+## 页面：支付结果
+
+拉起之后进结果页，轮询 `getCheckoutOrder`，查的是本会话的那笔订单。轮询间隔由前端定；订单到期会收敛成 `EXPIRED`，轮询随之结束，不另设上限。到 `SUCCEEDED` 后一般不再轮询；只有入口返回过 `order.cancelUrl`、而订单视图还没有 `returnUrl` 的订单继续轮询等它，这一段有上限（多久由前端定），到上限还没有就停在成功页。等待态可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。账单会话的 `getCheckoutOrder` 另带账单当前状态：本会话订单还是 `PENDING` 时照共用的等待处理继续轮询、不看账单状态，订单是 `SUCCEEDED` 时显示成功与收据、同样不看账单状态，其余情况再按 [02-invoice.flows.md](02-invoice.html#页面：支付结果%20·%20收据) 的判定表；账单会话先按 02 的规则判，下表账单一列给的是订单各状态下的共用处理。刷新或从外部回到同一标签页时，入口接口返回 `paymentStarted` 为 true，直接进本页；`status` 为 `PENDING` 且带 `nextAction` 时（如 PC 上的二维码）照它重新显示。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+    participant M as 商户页面
+
+    loop status 为 PENDING
+        S->>C: #35;5 [getCheckoutOrder]<br/>GET /order
+        C-->>S: { status, nextAction?, lastAttemptFailure?, returnUrl? }
+    end
+    alt SUCCEEDED
+        S->>P: 成功页（金额构成、订单号、支付时间、方式）
+        opt 付款人点「下载收据」（动态码、托管页与电商插件订单没有）
+            S->>P: 本地生成收据文件
+        end
+        alt 订单视图带 returnUrl
+            S->>M: 跳回 returnUrl
+        else 还没带，而入口带过 cancelUrl
+            S->>P: 「付款成功，正在返回商户」
+            loop 还没有 returnUrl 且未到上限
+                S->>C: #35;5 [getCheckoutOrder]<br/>GET /order
+                C-->>S: { status, returnUrl? }
+            end
+            Note over S: 带上了就跳回 returnUrl，到上限还没有就停在成功页
+        end
+    else UNPAID 且带 lastAttemptFailure
+        S->>P: 「付款未成功」，可重试或换方式
+        P->>S: 重试
+        Note over S: 回到发起支付，仍是同一笔订单
+    else EXPIRED / CLOSED / REJECTED
+        S->>P: 终态提示（文案见下表）
+    end
+```
+
+| status | 店铺码 / 商品 / 票务 / 礼卡 | 账单 | 动态码 / 开放 API 托管页 / 电商插件订单 |
+|---|---|---|---|
+| `PENDING` | 「付款处理中」；有 `nextAction.kind = qr` 时显示二维码；页面加载后拿到 `hidden_form` 时不提交表单，显示处理中并轮询；页面加载后拿到 `redirect` 时给「继续付款」（照它再跳一次）与「换一种方式」 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
+| `SUCCEEDED` | 成功页 + 下载收据（商品 / 票务另有选购明细与凭证段，见 [04 页面：支付结果 · 凭证](04-products-tickets.html#页面：支付结果%20·%20凭证)；礼卡另有发放段、邮箱验证与凭证，见 [05 页面：支付结果 · 邮箱验证与凭证](05-giftcard.html#页面：支付结果%20·%20邮箱验证与凭证)） | 「账单已付款」+ 下载收据 | 订单视图带 `returnUrl` 就自动跳回商户（「正在返回商户」+ 按钮）；还没带、而入口带过 `order.cancelUrl` 时显示「付款成功，正在返回商户」并继续轮询，到上限还没有就停在成功页、不给按钮；入口没带 `order.cancelUrl` 的订单没有回跳，成功即停在成功页 |
+| `UNPAID`（带 `lastAttemptFailure`） | `DECLINED`「付款被拒，请换一种方式」/ `INCOMPLETE`「付款未完成」；重试、换方式；店铺码另有「改金额」，商品 / 票务 / 礼卡另有「重新选购」 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
+| `EXPIRED` | 「这次付款已超时」+「重新付款」（页面丢掉本标签页的会话令牌、重新打开入口地址） | 「这次付款已超时」+「重新付款」（同左） | 「订单已失效，请向商户重新获取」；入口带 `order.cancelUrl` 时给「返回商户」 |
+| `CLOSED` | 「这笔付款已关闭」+「重新付款」（同上：丢令牌、重新打开入口地址） | 账单已付款或已删除的情形见 02 的判定表；其余同左 | 「订单已关闭」；入口带 `order.cancelUrl` 时给「返回商户」 |
+| `REJECTED` | 「暂时无法完成付款，请联系商户」，不给重试 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
+
+任何产品，`autoRefunded` 为 true 时在对应提示后加「您的这笔付款将原路退回」。
+
+「改金额」、「重新选购」与「重新付款」是同一个动作：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，原订单留到过期；账单、商品类的「重新付款」同样如此。店铺码的做法见 [01-store-qr.flows.md](01-store-qr.html#页面：店铺码收款页)。
+
+| 情形 | 页面动作 |
+|---|---|
+| 成功页在微信 / 支付宝里 | 可给「完成」，关闭当前窗口（纯前端） |
+| 付成功后跳回（订单视图的 `returnUrl`，订单入口的订单才可能有） | 原样跳转，不加参数；跳回不代表结果，商户以查单为准。`SUCCEEDED` 后可能稍后才带上：入口带过 `order.cancelUrl` 的订单继续轮询等它，有上限（多久由前端定），到上限还没有就停在成功页；入口没带的订单不为此轮询 |
+| 「返回商户」（入口的 `order.cancelUrl`；发起支付之前（订单付款页、环境引导）、等待付款结果期间、付款未成功、订单已失效或已关闭时都给；进入时订单已付而没有会话，或 `CheckoutOrder` 里没有 `returnUrl` 时也用它） | 原样跳转，不加参数 |
+| 会话已过期（`404`） | 按「流程：刷新与会话重建」重调入口接口 |
+
+## 流程：刷新与会话重建
+
+会话令牌只在请求头里带，前端存本标签页的 sessionStorage（同一标签页跳出到渠道再回来仍在；另开标签页各自一个会话）。刷新或回到同一标签页时，页面重调入口接口，请求头带上令牌认回同一会话；令牌没了或过期，就按页面地址里的编号铸新会话，订单入口会绑回同一笔订单。在微信 / 支付宝里，新会话没有付款人标识时接口返回 `reauthorizeUrl`，按「流程：进入收银台」自动重新授权。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 收银台前端(SPA)
+    participant C as 收银台后端
+
+    P->>S: 刷新，或从外部页面回到同一标签页
+    S->>S: 从 sessionStorage 取该入口的令牌
+    alt 静态码
+        S->>C: #35;1 [openQrcodeCheckout]<br/>POST /sessions/qrcode/{qrcodeId}
+    else 已有订单
+        S->>C: #35;2 [openOrderCheckout]<br/>POST /sessions/order/{linkToken}
+    end
+    Note over S,C: 有令牌时请求头带 X-Checkout-Session
+    alt 令牌有效且属于本入口
+        C-->>S: 200 同一会话 { state, paymentStarted }
+    else 令牌没了 / 过期 / 不属于本入口，可以签发
+        C-->>S: 201 新会话 { state, grant }<br/>订单入口绑回同一笔订单
+    else 要重新授权，或 state 不是 PAYABLE
+        C-->>S: 200 { state, reauthorizeUrl? }，不带 grant
+    end
+    Note over S: paymentStarted 为 true 进支付结果页<br/>有 reauthorizeUrl 走自动重新授权<br/>其余照「流程：进入收银台」渲染
+```
+
+| 情形 | 页面动作 |
+|---|---|
+| 店铺码 / 商品类会话丢失且已经发起过支付 | 新会话没有那笔订单，页面回到录入态（商品 / 票务回到选购态）；前一笔按订单自身结局走。只在付款人自己重新打开原来的码或链接、或令牌过期时发生；付完由钱包、网关或发卡行带回来的情形不走这里，见「流程：整页跳转与回跳」 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

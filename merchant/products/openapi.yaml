@@ -48,14 +48,14 @@ paths:
                 items:
                   - currency: CAD
                     qrType: standard
-                    qrContent: https://cashier.example.com/store/7Kq2mX9pLa
+                    qrContent: https://cashier.example.com/q/7Kq2mX9pLa
                     checkoutOptions:
                       - wechat
                       - alipay
                       - card
                   - currency: CAD
                     qrType: pre_auth
-                    qrContent: https://cashier.example.com/store/Rt4vN8cYwe
+                    qrContent: https://cashier.example.com/q/Rt4vN8cYwe
                     checkoutOptions:
                       - wechat
                       - alipay
@@ -97,7 +97,12 @@ paths:
                     label: 手机号
                     system: true
                     mandatory: false
-                    type: tel
+                    type: phone
+                  - key: sys:notes
+                    label: 备注
+                    system: true
+                    mandatory: false
+                    type: textarea
                   - key: 桌号
                     label: 桌号
                     system: false
@@ -144,6 +149,7 @@ paths:
               payerInputKeys:
                 - sys:name
                 - sys:phone
+                - sys:notes
                 - 桌号
               description: 欢迎光临
               checkoutOptions:
@@ -355,7 +361,7 @@ paths:
                     dueDate: '2026-08-01'
                     createdAt: '2026-07-10T10:00:00Z'
                     description: 8 月服务费
-                    paymentUrl: https://cashier.example.com/bill/Hq7Zp2Kd9x
+                    paymentUrl: https://cashier.example.com/q/Hq7Zp2Kd9x
                     orderId: P100240011
                   - invoiceNo: 10023
                     amount:
@@ -364,7 +370,7 @@ paths:
                     status: OVERDUE
                     dueDate: '2026-07-01'
                     createdAt: '2026-06-10T10:00:00Z'
-                    paymentUrl: https://cashier.example.com/bill/Mw3Xb8Tn4r
+                    paymentUrl: https://cashier.example.com/q/Mw3Xb8Tn4r
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -412,7 +418,7 @@ paths:
                 dueDate: '2026-08-01'
                 createdAt: '2026-07-04T10:00:00Z'
                 description: 8 月服务费
-                paymentUrl: https://cashier.example.com/bill/Jc5Vn1Qe7s
+                paymentUrl: https://cashier.example.com/q/Jc5Vn1Qe7s
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1562,9 +1568,12 @@ paths:
       x-required-privilege: products:order:manage
       summary: 礼卡订单风控处置
       description: |
-        对中、高风险的礼卡订单做人工处置：中风险可 `escalate`（升为高风险）或 `blacklist`（加入礼卡客户风险名单），高风险可 `approve`（放行发放）或 `remove_blacklist`（移出名单）。当前可执行的动作看详情的 `giftcard.actions.riskDispositions`。
+        对礼卡订单做人工处置，当前可执行的动作看详情的 `giftcard.actions.riskDispositions`：
+        - `escalate`（升为高风险）与 `blacklist`（加入黑名单）：订单为中风险时可用，效果相同——付款人进入礼卡购买黑名单、此后不能再买礼卡；这笔订单还没发放的不再发放，已发放的不撤回。
+        - `approve`（放行）：订单为高风险时可用——付款人移出黑名单；订单还没发放的恢复发放。
+        - `remove_blacklist`（移出黑名单）：付款人在黑名单里时，在他的任一礼卡订单上可用——付款人移出黑名单。
 
-        这里的名单是礼卡客户风险资料，只影响该付款人之后的礼卡订单，不影响其他支付。中风险订单的凭证多已交付，升为高风险不撤回已交付的凭证。
+        可用与否只看上面的条件，不看活动当前是否开着订单风险评估。
 
         幂等：同键同请求体重发不重复处置；改动作要换新键，沿用旧键改动作 → `409`·`208005`。换新键提交时风险等级已被别人改过、该动作不再可执行 → `409`·`208020`。
       parameters:
@@ -2051,7 +2060,7 @@ components:
         - high
     RiskDisposition:
       type: string
-      description: '`escalate` 升为高风险 / `blacklist` 加入礼卡客户风险名单 / `approve` 放行发放 / `remove_blacklist` 移出名单。'
+      description: '`escalate` 升为高风险 / `blacklist` 加入礼卡购买黑名单（两者同效）/ `approve` 放行（移出黑名单，未发放的恢复发放）/ `remove_blacklist` 移出黑名单。'
       enum:
         - escalate
         - blacklist
@@ -3072,7 +3081,7 @@ components:
             - ISSUED
             - SUSPENDED
             - CANCELED
-          description: '`PENDING` 待发放 / `ISSUED` 已发放 / `SUSPENDED` 暂停（风控或退款处理中） / `CANCELED` 已取消。'
+          description: '`PENDING` 待发放 / `ISSUED` 已发放 / `SUSPENDED` 发放失败待处理（等重试或人工补发；退款处理中不改这个值） / `CANCELED` 已取消。'
         riskLevel:
           $ref: '#/components/schemas/RiskLevel'
         riskScore:
@@ -3283,7 +3292,7 @@ components:
               type: integer
               minimum: 0
               description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
-            minimumAmount:
+            floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
             minimumMinutes:
@@ -3294,6 +3303,9 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
     CheckoutOption:
       type: string
       minLength: 1

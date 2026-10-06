@@ -12,7 +12,8 @@
 
 ## 鉴权
 
-浏览器持 httpOnly opaque 会话 cookie;非安全方法带 `X-CSRF-Token`(详见「API 基础约定」与契约 description)。
+- 商户后台(`merchant/`):浏览器持 httpOnly opaque 会话 cookie;非安全方法带 `X-CSRF-Token`(详见「API 基础约定」与契约 description)。
+- 收银台(`checkout/`):先调入口接口拿会话令牌,之后每个请求在 `X-Checkout-Session` 头里带上(详见该契约顶部「会话」一节)。
 
 ## 反馈
 

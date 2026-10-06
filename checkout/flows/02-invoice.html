@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>账单支付 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 账单支付 —— 调用时序
+
+> 本文是付款人从扫码或点链接到付款结果的完整一条，共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 账单付款页 | 扫账单码或点账单链接；入口接口返回 `productCode = INVOICE` 且 `state = PAYABLE`、`paymentStarted` 为 false | [页面：账单付款页](#页面：账单付款页) |
+| 链接状态页（已付 / 已过期 / 已停止收款 / 链接无效） | 入口接口返回 `state` 不是 `PAYABLE`，或 `404`（账单已删除） | [00-shared 页面：链接状态页](00-shared.html#页面：链接状态页) |
+| 支付结果页 | 发起支付之后；刷新或付完回来 | [页面：支付结果 · 收据](#页面：支付结果%20·%20收据)；共用部分见 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) |
+
+账单的入口地址是 `https://<host>/q/{qrcodeId}`：付款人打开后，在微信或支付宝里先经渠道静默授权，再 302 到页面地址，页面加载后调入口接口；其余环境直接 302 到页面地址。图里开头「打开入口地址 → 进入收银台」一段是简图，完整过程见 00-shared 的 [流程：打开入口地址](00-shared.html#流程：打开入口地址) 与 [流程：进入收银台](00-shared.html#流程：进入收银台)。
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回账单内容（账单号、金额、说明、截止时刻、备注项） |
+| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式，每项带总应付 |
+| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：首次发起时带付款人备注，连订单一起建；账单已付清、已过截止时刻或已删除时拒绝 |
+| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态，账单会话另带账单当前状态（结果页、收据） |
+
+---
+
+## 页面：账单付款页
+
+金额由商户建账单时定好，付款人不能改。页面内容一次由入口接口给齐：商户名与 Logo、账单号 `invoice.invoiceNo`、金额 `invoice.amount`、说明 `invoice.description`（商户写了才有）、付款截止时刻 `invoice.expiresAt`（商户设了才有）、备注输入（`invoice.payerInputs` 里的那一项）。
+
+- **倒计时**：商户设了 `invoice.expiresAt` 就倒计时到这一刻，没设不显示；归零显示「已过付款截止日」。`invoice.expiresAt` 只用来显示倒计时，不单独显示成截止日期（它是到期日结束的那一刻，格式化成日期会晚一天）。发起支付之后的等待页改用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间，两个倒计时不同时出现。
+- **总应付**：进页面就取方式列表，每项的 `payable` 是选该方式的总应付，`customerServiceFee` 是其中加收的客户服务费。
+- **备注**：付款人可填可不填，点付款时随发起支付的 `invoice.collectedFields` 提交，键用备注项的 `key`。
+- **一张账单只成交一次**：每次进入至多建一笔订单，重试与换方式都在这一笔上。别人已经付清、账单过了截止时刻或被商户删除后，这里再发起会被拒；截止按时刻当场判。已经发出去的那次支付不受影响。
+- **两个人同时付**：两边都在付款途中时不互相拦。先成功的那笔让账单变为已付款，后成功的那笔不成交、原路退回，付款人在结果页看到退款提示（见「页面：支付结果 · 收据」的判定表）。
+
+```mermaid
+sequenceDiagram
+    actor P as 付款人
+    participant S as 账单付款页(SPA)
+    participant C as 收银台后端
+    participant W as 微信 / 支付宝授权
+
+    Note over P,W: 打开入口地址 → 进入收银台（详见 00-shared）
+    P->>C: 扫码或点链接打开入口地址<br/>GET /q/{qrcodeId}
+    alt 在微信或支付宝里
+        C-->>W: 302 渠道静默授权
+        W-->>S: 302 页面地址，带 code 与 state
+    else 其余环境
+        C-->>S: 302 页面地址 /pay/<类型>/<编号>
+    end
+    S->>C: #35;1 [openQrcodeCheckout]<br/>POST /sessions/qrcode/{qrcodeId}<br/>有授权码就带上
+    C-->>S: { state: PAYABLE, productCode: INVOICE, paymentStarted: false,<br/>presentation, invoice: { invoiceNo, amount,<br/>description?, expiresAt?, payerInputs } }
+    S->>C: #35;2 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
+    C-->>S: { items: [{ checkoutOption, payable, customerServiceFee? }] }
+    S->>P: 账单内容、支付方式、所选方式的总应付
+
+    Note over P,C: 付款
+    P->>S: 填备注（可不填）、选方式、点付款
+    S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable,<br/>invoice?: { collectedFields? } }
+    alt 可以付
+        C-->>S: 201 CheckoutOrder { status, nextAction? }
+        S->>P: 按 nextAction 拉起，之后进支付结果页（见 00-shared）
+    else 账单已付清 / 已过截止时刻 / 已删除或商户不能收
+        C-->>S: 409·108301 / 108302 / 108300
+        S->>P: 账单状态提示「这张账单已付款」/「已过付款截止日」/「这张账单已失效」
+    end
+
+    Note over P,C: 结果页
+    S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
+    C-->>S: CheckoutOrder { status, expiresAt?, autoRefunded?,<br/>invoice: { invoiceNo, status }, payerNote? }
+    S->>P: PENDING 继续轮询，SUCCEEDED 显示成功与收据，其余按判定表（见下）
+```
+
+| 情形 | 接口返回 | 页面动作 |
+|---|---|---|
+| 进入时账单已付清 | 入口 `state = PAID` | 状态页「这张账单已付款」 |
+| 进入时已过付款截止时刻 | 入口 `state = EXPIRED` | 状态页「已过付款截止日」 |
+| 进入时商户当前不能用账单收款 | 入口 `state = INACTIVE` | 状态页「账单已停止收款」 |
+| 进入时账单已被商户删除（没有可认回的已有订单会话） | 入口 `404` | 状态页「链接无效」 |
+| 账单删除后刷新或付完回来（本会话已有订单） | 入口 `200`，`state = INACTIVE`、`paymentStarted` 为 true | 进结果页，按下方的判定顺序（本会话这笔已成功的，照常显示成功与收据） |
+| 停留期间别人付清了 | 发起支付 `409`·`108301` | 账单状态提示「这张账单已付款」 |
+| 停留期间过了付款截止时刻 | 发起支付 `409`·`108302` | 账单状态提示「已过付款截止日」 |
+| 停留期间账单被删除，或商户变为不能用账单收款 | 发起支付 `409`·`108300` | 账单状态提示「这张账单已失效」 |
+| 本人付款途中别人先成功，本人这笔随后也成功 | `getCheckoutOrder` 返回 `invoice.status = PAID`、`status = CLOSED`、`autoRefunded = true` | 结果页「这张账单已付款，您的这笔付款将原路退回」 |
+| 同上，本人换设备或重新扫码 | 新会话，入口 `state = PAID` | 状态页「这张账单已付款」，看不到退款提示（退款照常进行） |
+| 本人付款途中别人先成功，本人这笔还没付 | 重试或换方式时 `409`·`108301` | 账单状态提示「这张账单已付款」 |
+| 有订单后回到付款页（卡被拒、支付窗点了取消、换方式） | — | 备注按 `getCheckoutOrder` 的 `payerNote` 显示、不能再改；发起支付不带 `invoice` 块 |
+
+**相对 demo 的改动**
+
+| 位置 | demo | 改后 | 为什么 |
+|---|---|---|---|
+| 付款倒计时 | 打开页面起倒计时 15 分钟，归零提示重新索取账单 | 商户设了付款截止时刻才倒计时，倒到那一刻；没设不显示 | 付款期限由商户建账单时定 |
+| 商户说明 | 账单说明之外另有一段商户说明 | 只显示账单说明 `invoice.description` | 商户侧没有这项配置 |
+
+## 页面：支付结果 · 收据
+
+用 `getCheckoutOrder` 的数据：`amount`（账单金额）、`customerServiceFee`、`payable`、`payerNote`（填了才返回）、`invoice`（`invoiceNo`、`status`）、`autoRefunded`（这次付款已扣款但不生效、将原路退回时为 true）。等待付款时用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。成功页给收据下载；账单没有凭证段。
+
+结果页按这个顺序判：
+
+1. 本会话订单还是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询，不看账单状态。
+2. 本会话订单是 `SUCCEEDED`：「账单已付款」+ 收据下载，不看账单状态。商户事后删除了这张账单，付款人这笔付款的结果和收据不受影响。
+3. 其余情况先看账单、再看这次付款：
+
+| invoice.status | 本会话订单 | 页面 |
+|---|---|---|
+| `PAID` | `autoRefunded` 为 true | 「这张账单已付款，您的这笔付款将原路退回」 |
+| `PAID` | 其余 | 「这张账单已付款」 |
+| `DELETED` | `autoRefunded` 为 true | 「这张账单已失效，您的这笔付款将原路退回」 |
+| `DELETED` | 其余 | 「这张账单已失效」 |
+| `OVERDUE` | 任意 | 「已过付款截止日」 |
+| `UNPAID` | 任意 | 按 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的共用处理 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>
