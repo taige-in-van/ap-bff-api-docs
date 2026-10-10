@@ -22,10 +22,13 @@ security:
   - cookieAuth: []
 tags:
   - name: balance
+    x-displayName: 账户余额
     description: 账户余额：可结算余额、退款准备金余额、自动补足的最低金额；以及退款准备金的充值（要 Owner 邮箱验证码，可同时改自动补足的最低金额）与取回。
   - name: settlements
+    x-displayName: 结算单
     description: 结算单：列表与导出，每张结算单的逐笔明细与导出。
   - name: statements
+    x-displayName: 月对账单
     description: 月对账单：一个月一张，列表、详情与 PDF。只读。
 paths:
   /funds/balance:

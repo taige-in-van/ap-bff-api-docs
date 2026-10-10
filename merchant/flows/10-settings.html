@@ -167,7 +167,7 @@ sequenceDiagram
 
 ## 页面：Security · Refund PIN 区块
 
-Security 页 Authentication 块里的「改退款 PIN」与「Forgot your PIN?」弹窗。页面其余部分（安全状态、改登录密码、MFA）见「页面：Security」。退款 PIN 是商户级的，该商户全部操作员共用，放在个人的 Security 页是既定的页面安排；改与重置都是 Owner 专属（接口标 `owner`），这一块按 `isOwner` 显示。
+Security 页 Authentication 块里的「改退款 PIN」与「Forgot your PIN?」弹窗。页面其余部分（安全状态、改登录密码、MFA）见「页面：Security」。退款 PIN 是商户级的，该商户全部操作员共用，放在个人的 Security 页是既定的页面安排；这一块按 `privileges` 里有没有 `account:refund-pin:manage` 显示。忘记 PIN 的码发到 Owner 邮箱，不是 Owner 本人发起时要向 Owner 要码。
 
 ```mermaid
 sequenceDiagram
@@ -241,7 +241,7 @@ sequenceDiagram
 
 | 位置 | demo | 改后 | 为什么 |
 |---|---|---|---|
-| WeChat 列表的 Primary 行 | Owner 登录绑定的微信显示成一条 Primary | 没有这一行，列表里只有在本页绑定的微信 | 登录用的微信与接收通知的微信是两套绑定，互不相干 |
+| WeChat 列表的 Primary 行 | Owner 登录绑定的微信显示成一条 Primary | 没有这一行，列表里是在本页绑定的微信，以及在商户 App 上给成员绑定的登录微信 | 登录用的微信与接收通知的微信是两套绑定：商户后台上各自独立，商户 App 上给成员绑定 / 解绑微信时同步增删同一个微信的通知接收 |
 
 ---
 

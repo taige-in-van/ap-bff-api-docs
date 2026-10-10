@@ -125,7 +125,7 @@ sequenceDiagram
 - 入驻申请接口按「在册且未删除」授权，比商户列表宽：被拒的主商户不在列表里，#3 仍能读到它的申请。
 
 - 导航、入口、按钮、只读态一律按 `privileges` 判；`visibleModules` 只在其上再收窄侧边栏，不拦请求。
-- Owner 专属入口（接口标 `owner` 的，如 Create a Merchant、Owner 联系人、退款 PIN）按 `isOwner` 判；`isOwner` 按当前商户算，切换商户后以新会话为准。两种入口都不要按 `roleName` 写判断：角色随部署配置而变，写死角色名的判断换了配置会静默失效。
+- Owner 专属入口（接口标 `owner` 的，如 Create a Merchant、Owner 联系人）按 `isOwner` 判；`isOwner` 按当前商户算，切换商户后以新会话为准。两种入口都不要按 `roleNames` 写判断：角色随部署配置而变，写死角色名的判断换了配置会静默失效。
 - 进商户后台时落 Dashboard；看不到 Dashboard 时落侧边栏里第一个能看到的页面，由前端按权限决定，服务端不下发落地页。
 
 ---
@@ -398,7 +398,7 @@ sequenceDiagram
 
 ## 页面：头像菜单 · Sign out
 
-任意已登录页面，头像菜单展示 `displayName`（没有昵称时用 `loginId`）和 `roleName`（来自 `getCurrentSession`），菜单项「My Profile」「Security」进对应页面，「Sign out」退出。
+任意已登录页面，头像菜单展示 `displayName`（没有昵称时用 `loginId`）和 `roleNames` 里的全部角色名（来自 `getCurrentSession`），菜单项「My Profile」「Security」进对应页面，「Sign out」退出。
 
 ```mermaid
 sequenceDiagram

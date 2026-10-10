@@ -19,10 +19,13 @@ security:
   - cookieAuth: []
 tags:
   - name: profile
+    x-displayName: 本人资料
     description: 本人资料：改昵称与界面语言。读「我」走 `getCurrentSession`。
   - name: email
+    x-displayName: 登录邮箱
     description: 改自己的登录邮箱：身份校验 → 提交新邮箱 → 新邮箱收到的码确认；Owner 改自己时同步商户主邮箱。
   - name: security
+    x-displayName: 账户安全
     description: 账户安全：改密、开启与关闭 MFA（验证器）。退款 PIN 在商户资料契约。
 paths:
   /me:

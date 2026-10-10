@@ -1,0 +1,176 @@
+{
+  "codes": {
+    "104500": {
+      "name": "PF4_BARCODE_CREDENTIAL_UNRECOGNIZED",
+      "retryable": false
+    },
+    "107500": {
+      "name": "PF4_BARCODE_CHANNEL_UNAVAILABLE",
+      "requiredContextFields": [
+        "paymentId"
+      ],
+      "retryable": true
+    },
+    "108005": {
+      "name": "PREAUTH_STATE_CONFLICT",
+      "retryable": false
+    },
+    "108014": {
+      "name": "DEVICE_TERMINAL_IDENTITY_CONFLICT",
+      "retryable": false
+    },
+    "108017": {
+      "name": "REFUND_DUPLICATE_SUBMIT",
+      "retryable": false
+    },
+    "108019": {
+      "name": "PREAUTH_RELEASE_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "108025": {
+      "name": "REFUND_ACCEPTANCE_REJECTED",
+      "retryable": false
+    },
+    "108104": {
+      "name": "CORE_NOT_ACCEPTED",
+      "retryable": false
+    },
+    "108105": {
+      "name": "CHECKOUT_QUOTE_UNAVAILABLE",
+      "retryable": false
+    },
+    "108200": {
+      "name": "PF1_FORM_NOT_AVAILABLE_FOR_MERCHANT",
+      "retryable": false
+    },
+    "108205": {
+      "name": "PF1_PAYMENT_METHOD_NOT_ALLOWED_FOR_PATH",
+      "retryable": false
+    },
+    "108311": {
+      "name": "PF2_VOUCHER_NOT_FOUND_OR_CREDENTIAL_MISMATCH",
+      "retryable": false
+    },
+    "108312": {
+      "name": "PF2_VOUCHER_ALREADY_REDEEMED",
+      "retryable": false
+    },
+    "108313": {
+      "name": "PF2_VOUCHER_NOT_REDEEMABLE",
+      "retryable": false
+    },
+    "108314": {
+      "name": "PF2_VOUCHER_REFUND_FROZEN",
+      "retryable": false
+    },
+    "108500": {
+      "name": "PF4_BARCODE_CREDENTIAL_EXPIRED",
+      "requiredContextFields": [
+        "paymentId"
+      ],
+      "retryable": false
+    },
+    "108501": {
+      "name": "PF4_BARCODE_PAYMENT_DECLINED",
+      "requiredContextFields": [
+        "paymentId"
+      ],
+      "retryable": false
+    },
+    "108502": {
+      "name": "PF4_BARCODE_BRAND_NOT_ENABLED",
+      "retryable": false
+    },
+    "204010": {
+      "name": "OTP_RETRYABLE",
+      "requiredContextFields": [
+        "attemptsRemaining"
+      ],
+      "retryable": true
+    },
+    "204020": {
+      "name": "LOGIN_CAPTCHA_INVALID",
+      "retryable": false
+    },
+    "204021": {
+      "name": "LOGIN_SLIDER_REJECTED",
+      "retryable": false
+    },
+    "206003": {
+      "name": "REFUND_PIN_INVALID",
+      "retryable": false
+    },
+    "206004": {
+      "name": "REFUND_PIN_LOCKED",
+      "retryable": false
+    },
+    "206006": {
+      "name": "CHALLENGE_EXPIRED_OR_CONSUMED",
+      "retryable": false
+    },
+    "206007": {
+      "name": "CHALLENGE_LOCKED",
+      "retryable": false
+    },
+    "206011": {
+      "name": "STEP_UP_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "206012": {
+      "name": "LOGIN_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "206013": {
+      "name": "TEAM_ROLE_BEYOND_OPERATOR_AUTHORITY",
+      "retryable": false
+    },
+    "206014": {
+      "name": "TERMINAL_RELOGIN_REQUIRED",
+      "retryable": false
+    },
+    "206015": {
+      "name": "TERMINAL_SIGNATURE_MISMATCH",
+      "retryable": false
+    },
+    "206016": {
+      "name": "TERMINAL_DEVICE_TYPE_UNKNOWN",
+      "retryable": false
+    },
+    "206017": {
+      "name": "PASSWORD_RESET_TARGET_INVALID",
+      "retryable": false
+    },
+    "208027": {
+      "name": "LOGIN_ACCOUNT_DISABLED",
+      "retryable": false
+    },
+    "208028": {
+      "name": "NO_USABLE_MERCHANT",
+      "retryable": false
+    },
+    "208029": {
+      "name": "LOGIN_EMAIL_UNVERIFIED",
+      "retryable": false
+    },
+    "208033": {
+      "name": "TERMINAL_DEVICE_DISABLED",
+      "retryable": false
+    },
+    "208034": {
+      "name": "SWITCH_TARGET_MERCHANT_NOT_ACCESSIBLE",
+      "retryable": false
+    },
+    "208035": {
+      "name": "TERMINAL_VIEW_ONLY",
+      "retryable": false
+    },
+    "208036": {
+      "name": "TERMINAL_VOUCHER_NOT_REDEEMED",
+      "retryable": false
+    },
+    "966001": {
+      "name": "ACCOUNT_LOCKED",
+      "retryable": false
+    }
+  }
+}

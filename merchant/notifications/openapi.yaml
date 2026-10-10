@@ -16,6 +16,7 @@ security:
   - cookieAuth: []
 tags:
   - name: notifications
+    x-displayName: 通知设置
     description: 通知设置：两个通道的开关、附加邮箱（验证码确认后加入）、微信接收方（扫码绑定）。
 paths:
   /notifications:
@@ -289,7 +290,7 @@ components:
             $ref: '#/components/schemas/NotificationEmail'
         wechats:
           type: array
-          description: 接收通知的微信，在本页扫码绑定的；与成员登录用的微信绑定互不相干。
+          description: 接收通知的微信：在本页扫码绑定的，以及在商户 App 上给成员绑定的登录微信（App 上解绑时同步移除）；在商户后台给成员绑定登录微信不会加进来。
           items:
             $ref: '#/components/schemas/NotificationWechat'
     NotificationEmail:

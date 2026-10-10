@@ -19,10 +19,13 @@ security:
   - cookieAuth: []
 tags:
   - name: sessions
+    x-displayName: 登录与会话
     description: 登录与会话：密码登录（已启 MFA 转二次校验）、微信扫码登录、当前会话、切换当前商户、登出。
   - name: password-resets
+    x-displayName: 忘记密码
     description: 忘记密码自助重置：邮箱登录名收邮件验证码、用户名登录名用验证器码；重置不改 MFA。
   - name: registrations
+    x-displayName: 账号开通
     description: 账号开通（公开、无会话）：自助注册与邮箱激活（提交注册建待验证账号并发验证邮件，邮件链接落地页输注册密码后激活，含重发验证邮件）；受邀员工在邀请链接落地页设密激活；员工在确认链接落地页确认 Owner 改的新登录邮箱。都不建会话。
 paths:
   /auth/sessions:
@@ -232,7 +235,8 @@ paths:
                 locale: en
                 isOwner: true
                 merchantId: '1000023'
-                roleName: Owner
+                roleNames:
+                  - Owner
                 privileges:
                   - dashboard:overview:view
                   - orders:payment:view
@@ -284,7 +288,8 @@ paths:
                 locale: en
                 isOwner: true
                 merchantId: '1000024'
-                roleName: Owner
+                roleNames:
+                  - Owner
                 privileges:
                   - dashboard:overview:view
                   - orders:payment:view
@@ -316,7 +321,7 @@ paths:
       description: |
         按 `loginId` 的形态选验证方式：
 
-        - 含 `@` 按邮箱账号：账号存在则往该邮箱发 6 位验证码。
+        - 是合法邮箱格式的按邮箱账号：账号存在则往该邮箱发 6 位验证码。
         - 否则按用户名账号：用验证器（TOTP）里的 6 位码，不发邮件；没开验证器的用户名账号无法自助重置，由 Owner 在成员管理里重设。
 
         恒返 `202`，账号存在与否响应一致。重发 = 冷却结束后再调本接口，得到新 `challengeId`，旧码作废。`429` 为端点 / IP 级限流。
@@ -709,7 +714,7 @@ components:
       properties:
         loginId:
           type: string
-          description: Email or Username（单 input；含 @ 按 email、否则 username）
+          description: Email or Username（单 input；先按用户名精确匹配，匹配不到再按邮箱，不分大小写）
         password:
           type: string
           format: password
@@ -754,7 +759,7 @@ components:
         - isOwner
         - merchantId
         - privileges
-        - roleName
+        - roleNames
       properties:
         operatorId:
           type: string
@@ -762,7 +767,7 @@ components:
         loginId:
           type: string
           readOnly: true
-          description: 登录名：账号有邮箱时返回邮箱（同时有用户名的也返回邮箱），没有邮箱时返回用户名。含 `@` 即有邮箱，可自助改登录邮箱；否则为用户名账号，由 Owner 管理、本人只读
+          description: 登录名：账号有邮箱时返回邮箱（同时有用户名的也返回邮箱），没有邮箱时返回用户名。是邮箱格式即有邮箱，可自助改登录邮箱；否则为用户名账号，由 Owner 管理、本人只读
         displayName:
           type: string
           readOnly: true
@@ -780,10 +785,14 @@ components:
           type: string
           readOnly: true
           description: 当前商户内部 id
-        roleName:
-          type: string
+        roleNames:
+          type: array
+          minItems: 1
           readOnly: true
-          description: 当前登录者主角色的展示名，服务端已解析，Owner 同样给出。与 `TeamMember.roleName` 同源同口径。
+          description: 当前登录者所持全部角色的展示名，一个或多个，服务端已解析，Owner 同样给出。与 `TeamMember.roleNames` 同源同口径。
+          items:
+            type: string
+            minLength: 1
         privileges:
           type: array
           readOnly: true
@@ -968,9 +977,9 @@ components:
     VisibleModules:
       type: array
       description: |
-        **模块可见性偏好**——该用户登录后界面呈现哪些模块。元素是**模块标识**，即权限点串 `模块:资源:动作` 的**第一段**，取值 = 侧边栏的五个分区 `dashboard` / `orders` / `products` / `account` / `settings`（登记在 `privileges.yaml`）。
+        **模块可见性偏好**——该用户登录后界面呈现哪些模块。元素是**模块标识**，即权限点串 `模块:资源:动作` 的**第一段**，取值 = 侧边栏的五个分区 `dashboard` / `orders` / `products` / `account` / `settings`（登记在 `privileges.yaml`；`terminal` 不是侧边栏分区、不在内）。
 
-        **在所选角色已覆盖的模块里挑**：可选项 = `listAssignableRoles` 里该 `roleId` 的 `modules`（换角色即换一组）。**只能减不能增**——本集合应是那组的子集；**不传或空数组 = 不收窄**（该角色覆盖的模块全部呈现）。
+        **在所选角色已覆盖的模块里挑**：可选项 = `listAssignableRoles` 里所选各角色 `modules` 的并集（换角色即换一组）。**只能减不能增**——本集合应是那组的子集；**不传或空数组 = 不收窄**（该角色覆盖的模块全部呈现）。
 
         ⚠️ **这不是权限、不是安全边界**。它只影响界面呈现哪些模块，**不改变任何权限判定、不拦截接口**——被收窄掉的模块，其接口照常受理。真正的边界是 `privileges`；本项在它之上做纯界面收窄，Owner 不适用（恒全部可见）。
       items:

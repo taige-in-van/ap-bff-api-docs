@@ -17,10 +17,13 @@ security:
   - cookieAuth: []
 tags:
   - name: config
+    x-displayName: 平台参考数据
     description: 平台参考数据（与当前商户无关）：币种国家组合、国家与省州、行业与 MCC、支付方式与标准费率、结算周期与账户制式。
   - name: notices
+    x-displayName: 站内信
     description: 站内信：整个商户共用的收件箱，只收发给商户整体的通知，已读也是全商户共用一份。
   - name: developer
+    x-displayName: 开发者接入
     description: 开发者接入：接入凭据（商户号、Gateway Credential）、网关地址、商户自己的签名公钥、平台公钥。
 paths:
   /config/currencies:

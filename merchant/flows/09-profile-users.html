@@ -36,7 +36,7 @@
 | 12 | [`createSettlementChangeRequest`](../account/index.html#tag/profile/operation/createSettlementChangeRequest) | `POST /account/profile/settlement/change-requests` | 结算变更第 2 步：带码提交（进入审核，旧值继续生效） |
 | 13 | [`updateOwnerContact`](../account/index.html#tag/profile/operation/updateOwnerContact) | `PUT /account/profile/contact` | 编辑联系人（名、姓、职务、电话，直接生效） |
 | 14 | [`listTeamMembers`](../team/index.html#tag/members/operation/listTeamMembers) | `GET /team/members` | 团队成员列表 |
-| 15 | [`getTeamMemberCounts`](../team/index.html#tag/members/operation/getTeamMemberCounts) | `GET /team/members/counts` | 成员列表角色 chip 的各项与计数(不收 roleId；取法见公共约定「列表页顶部的快捷筛选」) |
+| 15 | [`getTeamMemberCounts`](../team/index.html#tag/members/operation/getTeamMemberCounts) | `GET /team/members/counts` | 成员列表角色 chip 的各项与计数，另给成员总数(不收 roleId；取法见公共约定「列表页顶部的快捷筛选」) |
 | 16 | [`listAssignableRoles`](../team/index.html#tag/roles/operation/listAssignableRoles) | `GET /team/roles` | 可分配角色候选集(含各角色可见分区) |
 | 17 | [`createTeamMember`](../team/index.html#tag/members/operation/createTeamMember) | `POST /team/members` | 新建员工(邮箱格式 → 发邀请链接、账号 `INVITED`；用户名格式 → Owner 直接设临时密码、账号即 `ACTIVE`) |
 | 18 | [`resendInvitation`](../team/index.html#tag/members/operation/resendInvitation) | `POST /team/members/{operatorId}/invitation` | 给邀请中的员工重发邀请 |
@@ -153,7 +153,7 @@ sequenceDiagram
 
 ## 页面：Users
 
-侧边栏 Account › Users，管理当前商户的登录用户（入口与各按钮按接口的权限点显示）。列表：昵称 + 登录名、角色、微信、最近登录（邀请中显示 Invited + Resend）、创建时间、编辑 / 删除；顶部角色快捷筛选 + 搜索。Owner 行置顶，不能删、角色不能改。
+侧边栏 Account › Users，管理当前商户的登录用户（入口与各按钮按接口的权限点显示）。列表：昵称 + 登录名、角色（取 `roleNames`，一个员工可持多个）、微信、最近登录（邀请中显示 Invited + Resend）、创建时间、编辑 / 删除；顶部角色快捷筛选 + 搜索。Owner 行置顶，不能删、角色不能改。
 
 ```mermaid
 sequenceDiagram
@@ -168,7 +168,7 @@ sequenceDiagram
         A-->>S: 200 { total, data: [TeamMember] }
     and
         S->>A: #35;15 [getTeamMemberCounts]<br/>GET /team/members/counts
-        A-->>S: 200 { items }（角色 chip，前端自己补 All）
+        A-->>S: 200 { items, total }（角色 chip，前端自己补 All、数字取 total）
     and
         S->>A: #35;16 [listAssignableRoles]<br/>GET /team/roles
         A-->>S: 200 { items }（新建 / 编辑弹窗的角色与可见分区选项）
@@ -176,7 +176,7 @@ sequenceDiagram
     Note over S,A: 切 chip / 搜索 / 排序 / 翻页：重新调 #35;14（chip 带 roleId），搜索时 #35;15 同步带 keyword
 
     Note over U,E: 新建员工（弹窗：Email / Username 两个页签）
-    U->>S: 填昵称、登录名、角色、可见分区；用户名页签另填初始密码
+    U->>S: 填昵称、登录名、角色（多选）、可见分区；用户名页签另填初始密码
     S->>A: #35;17 [createTeamMember]<br/>POST /team/members
     alt 邮箱登录名
         A->>E: 发邀请设密链接
@@ -191,7 +191,7 @@ sequenceDiagram
     A-->>S: 202 { cooldownSeconds }
 
     Note over U,E: 编辑员工
-    U->>S: 改昵称 / 角色 / 可见分区 / 登录名；已激活的员工可填新密码
+    U->>S: 改昵称 / 角色（多选，整组替换）/ 可见分区 / 登录名；已激活的员工可填新密码
     S->>A: #35;19 [updateTeamMember]<br/>PUT /team/members/{operatorId}
     opt 改了已激活员工的登录邮箱
         A->>E: 向新邮箱发确认链接（员工确认后才切换，见 flows 01-login-registration「页面：确认新登录邮箱」）
@@ -209,8 +209,9 @@ sequenceDiagram
     Note over S,A: 写操作成功后重新调 #35;14、#35;15 刷新列表与计数
 ```
 
-- 角色 chip 按「列表页顶部的快捷筛选」约定：选中某项 = 把它的 `value` 原样作为 `roleId` 传给 `#14`；选 All = 不带 `roleId`，数字由前端把各项相加；`#15` 不收 `roleId`、只随搜索重取，翻页不重取。
-- 角色的权限边界：#16 只返回操作者能分配的角色（权限不超过自己的）。列表里角色不在这个候选集内的成员（权限比自己宽的），不显示编辑、删除、重发、微信绑定 / 解绑入口；权限刚变动的时序差里收到 `403`·`206013`，重拉 #16 与列表。
+- 角色 chip 按「列表页顶部的快捷筛选」约定：选中某项 = 把它的 `value` 原样作为 `roleId` 传给 `#14`，列出持有该角色的成员；选 All = 不带 `roleId`。成员可持多个角色，各项计数可重叠，所以 All 的数字不把各项相加，取 `#15` 的 `total`。`#15` 不收 `roleId`、只随搜索重取，翻页不重取。
+- 角色的权限边界：#16 只返回操作者能分配的角色（权限不超过自己的，逐个角色判）。列表里有任一角色不在这个候选集内的成员（权限比自己宽的），不显示编辑、删除、重发、微信绑定 / 解绑入口；权限刚变动的时序差里收到 `403`·`206013`，重拉 #16 与列表。
+- 新建、编辑弹窗的角色是多选：提交 `roleIds`，编辑时整组替换；编辑弹窗打开时按该行的 `roleIds` 预勾。可见分区的可选项是所选各角色在 #16 里 `modules` 的并集。
 - 员工归属建他的商户：在主商户建的能切换到名下的关联商户，在关联商户建的只在本商户；本页列的是当前商户自己的员工。新建时登录名已被别的账号占用 → `409`·`968001`。
 - 改了已激活员工的登录邮箱，员工确认前列表该行显示 `pendingLoginEmail`（切换规则见 `updateTeamMember`）。
 - 邀请中的员工不能在这里设密，走 Resend。
@@ -224,6 +225,7 @@ sequenceDiagram
 |---|---|---|---|
 | 谁能进 Users 页 | 只有 Owner（路由守卫与侧边栏都按角色写死） | 按接口的权限点，Owner 之外的角色也可以被授权 | 现网 Manager 就能管员工；demo 的 Admin 描述文案也写「可管理用户」，与它的代码矛盾，取能放开的一边 |
 | 员工能进的商户 | 一个人只在一个商户 | 主商户的员工可切换到名下全部关联商户，角色随人走；关联商户的员工只在本商户 | 现网父商户的账号就是这样进子商户的 |
+| 员工的角色 | 一人一个角色，弹窗单选 | 一人可持多个角色，弹窗多选，权限取各角色的并集；角色快捷筛选的 All 数字取计数接口另给的总数 | 终端用的店长、收银员角色要能与商户后台的角色叠加在同一个员工身上 |
 
 ---
 
@@ -279,7 +281,7 @@ sequenceDiagram
     participant S as My Profile(SPA)
     participant A as 商户后台 BFF
 
-    U->>S: 打开页面（不调接口，用 getCurrentSession 的 displayName / roleName / loginId）
+    U->>S: 打开页面（不调接口，用 getCurrentSession 的 displayName / roleNames / loginId）
 
     Note over U,A: 改昵称
     U->>S: 改 Nick Name，点 Save Changes
@@ -296,7 +298,7 @@ sequenceDiagram
     A-->>S: 204（其他会话失效，当前会话保留）
 ```
 
-- 改密码时当前密码错 `403`·`206011`，留在表单重输，不跳登录页。「Forgot your password?」走 [flows 01-login-registration「页面：Forgot Password」](01-login-registration.html#页面：Forgot%20Password)的两个接口（`requestPasswordReset`、`confirmPasswordReset`），在弹窗里完成：邮箱账号（`loginId` 含 `@`）点 Send code 发邮箱码；用户名账号先调 #32，`mfaEnabled` 为真就直接输验证器码，为假则不能自助重置，提示找 Owner 在成员管理里重设。重置成功后该用户所有会话失效，含当前这个，回登录页。Security 页改密表单里的同名入口与此同一个弹窗。
+- 改密码时当前密码错 `403`·`206011`，留在表单重输，不跳登录页。「Forgot your password?」走 [flows 01-login-registration「页面：Forgot Password」](01-login-registration.html#页面：Forgot%20Password)的两个接口（`requestPasswordReset`、`confirmPasswordReset`），在弹窗里完成：邮箱账号（`loginId` 是邮箱格式）点 Send code 发邮箱码；用户名账号先调 #32，`mfaEnabled` 为真就直接输验证器码，为假则不能自助重置，提示找 Owner 在成员管理里重设。重置成功后该用户所有会话失效，含当前这个，回登录页。Security 页改密表单里的同名入口与此同一个弹窗。
 
 ---
 

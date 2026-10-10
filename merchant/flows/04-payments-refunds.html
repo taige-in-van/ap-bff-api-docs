@@ -223,7 +223,7 @@ sequenceDiagram
 - 订单有没有 Refund 入口只看 `refundable`，不按状态自己判。
 - `201` 只表示退款单已建，要再看 `status`。审核中或处理中显示「已提交」而不是「已成功」，最终成功或失败要之后刷新才看得到。`FAILED` 是账户资金不足，退款没有执行，这笔失败的退款会留在退款列表里；商户补足资金后重新发起，是一笔新的退款、用新的幂等键。
 - `createRefund` 带 `Idempotency-Key`：点一次 Refund 生成一个键。超时或 `208011` 后重发用原键；被拒后改了内容再提交换新键。PIN 不参与幂等比对。
-- 只有 Owner 能重置 PIN（接口标 `owner`）；`isOwner` 为假时不显示 Forgot PIN，提示找 Owner。
+- Forgot PIN 按 `privileges` 里有没有 `account:refund-pin:manage` 显示；没有时不显示，提示找能管理退款 PIN 的人。
 
 **相对 demo 的改动**
 
@@ -293,7 +293,7 @@ sequenceDiagram
 - 行上有两个金额：`amount` 是标价币种的退款金额（发起时填的数），`settleAmount` 是折合的结算币种金额。`settleAmount` 要通道受理后才有，审核中、被拒、已撤销的行没有；标价币种就是结算币种时两个数相同。
 - `amount` 小于 `orderAmount` 的是部分退款，否则是全额退款。
 - 状态六种：审核中、处理中、成功、失败、已拒绝、已撤销。退款提交后没有推送，状态靠重新取列表更新。
-- Receipt 只在 `SUCCESS` 的行显示，Cancel 只在 `REVIEWING` 的行显示。
+- Receipt 只在已受理的退款（`CHANNEL_PROCESSING` 处理中或 `SUCCESS` 成功）的行显示，Cancel 只在 `REVIEWING` 的行显示。
 
 ---
 
@@ -312,7 +312,7 @@ sequenceDiagram
     A-->>S: 200 { 列表行的字段, type, completedAt,<br/>entryPoint, operatorId, operatorName, customerName, customerEmail,<br/>merchantRefundNo, channelRefundNo, failureReason, channelError }
     S->>S: 开退款详情弹窗
 
-    Note over U,A: 退款收据（status = SUCCESS）
+    Note over U,A: 退款收据（已受理的退款，status = CHANNEL_PROCESSING 或 SUCCESS）
     U->>S: 点 Receipt
     S->>A: #35;15 [getRefundReceipt]<br/>GET /orders/refunds/{refundId}/receipt
     A-->>S: 200 PDF
@@ -333,7 +333,7 @@ sequenceDiagram
 | 撤销时退款已经送到通道或已有结果 | `409`·`208009` | 提示已不能撤销，重新取列表 |
 | 同一个幂等键用到了别的退款 | `409`·`208005` | 换退款就换新键 |
 | 撤销超时或网关错误 | `502` / `504` | 用原来的幂等键重发 |
-| 取非成功退款的收据 | `404` | 正确页面下不会出现：Receipt 只在成功的行上显示 |
+| 取未受理退款（审核中、失败、已拒绝、已撤销）的收据 | `404` | 正确页面下不会出现：Receipt 只在已受理的退款（处理中或成功）的行上显示 |
 
 - 详情顶部的时间：有 `completedAt` 显示它，没有显示 `createdAt`。
 - 发起入口按 `entryPoint` 的码显示文案：
@@ -377,7 +377,7 @@ sequenceDiagram
 | 搜索 | 退款号、订单号、金额、备注 | 另可搜商户退款单号、通道退款号、商户订单号 | 现网退款页可按这几个号找单 |
 | Filters 面板 | 日期、支付方式、来源、状态 | 多一项设备（原订单的发起设备） | 现网退款页可按设备筛 |
 | 行操作 | View、Receipt | 审核中的行多一个 Cancel | 审核中的退款商户可以撤回（现网在订单行上撤） |
-| Receipt 入口 | 每行都有 | 只在成功的行 | 没退成的没有收据 |
+| Receipt 入口 | 每行都有 | 只在已受理的退款（处理中或成功）的行 | 没受理或没退成的没有收据 |
 | 收据 | 前端排版，浏览器打印 | 服务端出 PDF，弹窗内嵌预览 | 与支付收据同理 |
 | 发起人 | 一个字符串（员工邮箱或 customer） | 发起入口加操作员名 | 退款可以从 App、终端、API 发起，这些没有后台账号 |
 | 金额 | 一个退款金额 | 多一个结算币种的金额 | 现网退款列表两个金额都有 |

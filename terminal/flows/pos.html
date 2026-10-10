@@ -1,0 +1,912 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POS 终端 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# POS 终端 —— 调用时序
+
+> 调用方是 POS 终端上的应用：Clover、Sunmi 系原生应用（下称「原生」），以及 Ingenico 键盘机上的网页应用（下称「键盘机」）。除核销外，接口的地址与形状和现网一致，现网已安装的版本不需要升级，切换后重新登录一次即可继续使用；核销几页要随新接口改版（见「流程：核销」）。契约见同一发布的《POS 终端》接口文档。
+
+## 域名与前缀
+
+| 域名与前缀 | 用它的端 | 承载的接口 |
+|---|---|---|
+| `https://pay.example.ca/api/v1.0/retail_valid/` | 原生 | 登录验证码、登录、设备注册 |
+| `https://pay.example.ca/api/v1.0/retail/app/` | 原生 | 当前账号与商户配置、小费与手续费设置、退款密码校验、流水与汇总、日结、小票内容 |
+| `https://pay.example.ca/api/v1.0/retail/`（除 `retail/app/` 外） | 原生 | 手续费试算、收款、查订单、退款、预授权释放 |
+| `https://pay.example.ca/api/v1.0/app/device/forget/` | 原生 | 找回密码 |
+| `https://pay.example.ca/api/v1.0/vouchers/`、`https://pay.example.ca/api/v1.0/redemptions` | 原生 | 核销 |
+| `https://retailapi.example.ca/api/v1.0/`，其后的 `retail_valid/`、`retail/`、`retail/app/` 与上面相同 | 键盘机 | 键盘机用到的接口，路径与原生端相同 |
+| `https://pay.example.com`，前缀同上 | 原生（美元区） | 美元区部署用 .com 域名，接口相同 |
+
+## 接口
+
+路径从 `/api/v1.0` 之后写起，大小写与下划线照现网原样。键盘机的请求都发往 retailapi 域名，路径相同。各接口的字段、取值与错误码见契约。
+
+| # | operationId | 域名 | 接口 | 用途 | 调用端 | 流程 |
+|---|---|---|---|---|---|---|
+| 1 | [`getLoginCaptcha`](../pos/index.html#tag/auth/operation/getLoginCaptcha) | pay | `GET /retail_valid/captcha` | 登录页的图形验证码 | 两者 | 登录与设备登记 |
+| 2 | [`signIn`](../pos/index.html#tag/auth/operation/signIn) | pay | `POST /retail_valid/sign_in_check` | 账号、密码加图形验证码登录 | 两者 | 登录与设备登记 |
+| 3 | [`registerDevice`](../pos/index.html#tag/auth/operation/registerDevice) | pay | `POST /retail_valid/devices/{devType}/register` | 登录后按终端序列号登记本机，取得设备凭据 | 两者 | 登录与设备登记 |
+| 4 | [`getCurrentUser`](../pos/index.html#tag/auth/operation/getCurrentUser) | pay | `GET /retail/app/current_user` | 取当前登录账号与商户配置 | 原生 | 登录与设备登记 |
+| 5 | [`getViewOnlyStatus`](../pos/index.html#tag/auth/operation/getViewOnlyStatus) | pay | `GET /retail/app/retail_view` | 查商户是否处于仅查看状态（只能读、不能改） | 原生 | 登录与设备登记 |
+| 6 | [`sendForgotPasswordCode`](../pos/index.html#tag/auth/operation/sendForgotPasswordCode) | pay | `GET /app/device/forget/verify` | 找回密码：向邮箱发验证码 | 原生 | 找回密码 |
+| 7 | [`listForgotPasswordAccounts`](../pos/index.html#tag/auth/operation/listForgotPasswordAccounts) | pay | `GET /app/device/forget/query` | 找回密码：凭验证码列出该邮箱下的账号 | 原生 | 找回密码 |
+| 8 | [`resetForgottenPassword`](../pos/index.html#tag/auth/operation/resetForgottenPassword) | pay | `POST /app/device/forget/reset` | 找回密码：重置登录密码 | 原生 | 找回密码 |
+| 9 | [`getTipConfig`](../pos/index.html#tag/products/operation/getTipConfig) | pay | `GET /retail/app/trade/tip_config` | 读小费开关与预设档位 | 原生 | 设置 |
+| 10 | [`updateTipConfig`](../pos/index.html#tag/products/operation/updateTipConfig) | pay | `PUT /retail/app/modify/tip_config` | 改小费开关与预设档位（对整个商户生效） | 原生 | 设置 |
+| 11 | [`setCustomerSurcharge`](../pos/index.html#tag/products/operation/setCustomerSurcharge) | pay | `PUT /retail/app/modify/retail_surcharge` | 上报「顾客承担手续费」开关（收下不改配置） | 原生 | 设置 |
+| 12 | [`precalculateSurcharge`](../pos/index.html#tag/orders/operation/precalculateSurcharge) | pay | `GET /retail/surcharge_precalculate` | 按金额试算各支付方式的手续费 | 原生 | 收款 |
+| 13 | [`createMicropayOrder`](../pos/index.html#tag/orders/operation/createMicropayOrder) | pay | `POST /retail/micropay` | 扫顾客的付款码收款 | 原生 | 收款 |
+| 14 | [`createQrcodeOrder`](../pos/index.html#tag/orders/operation/createQrcodeOrder) | pay | `POST /retail/qrcode` | 生成动态收款码（微信、支付宝通用），顾客扫码付款 | 两者 | 收款 |
+| 15 | [`createUnionpayQrcodeOrder`](../pos/index.html#tag/orders/operation/createUnionpayQrcodeOrder) | pay | `POST /retail/unionpay/qrcode` | 生成银联动态收款码，顾客扫码付款 | 两者 | 收款 |
+| 16 | [`getOrder`](../pos/index.html#tag/orders/operation/getOrder) | pay | `GET /retail/orders/{orderId}` | 查订单：收款后轮询支付结果，也用于订单详情、退款前后确认订单 | 两者 | 收款 |
+| 17 | [`verifyRefundPassword`](../pos/index.html#tag/orders/operation/verifyRefundPassword) | pay | `PUT /retail/app/refund/passwd/verify` | 退款前校验退款密码 | 两者 | 退款与预授权释放 |
+| 18 | [`refundOrder`](../pos/index.html#tag/orders/operation/refundOrder) | pay | `PUT /retail/orders/{orderId}/refund` | 退款（原生端的调法） | 原生 | 退款与预授权释放 |
+| 19 | [`refundOrderByPost`](../pos/index.html#tag/orders/operation/refundOrderByPost) | pay | `POST /retail/orders/{orderId}/refund` | 退款（键盘机的调法） | 键盘机 | 退款与预授权释放 |
+| 20 | [`releasePreauth`](../pos/index.html#tag/orders/operation/releasePreauth) | pay | `PUT /retail/orders/{orderId}/release_preauth` | 释放预授权 | 原生 | 退款与预授权释放 |
+| 21 | [`listOrders`](../pos/index.html#tag/orders/operation/listOrders) | pay | `GET /retail/app/orders_new` | 交易流水列表；键盘机也用它选可退的订单、按单号后几位找单 | 两者 | 流水、日结与小票 |
+| 22 | [`getTradeSummary`](../pos/index.html#tag/orders/operation/getTradeSummary) | pay | `GET /retail/app/trade_common` | 流水汇总（当日或所选区间）；键盘机用它打印汇总 | 两者 | 流水、日结与小票 |
+| 23 | [`listSubMerchants`](../pos/index.html#tag/orders/operation/listSubMerchants) | pay | `GET /retail/app/sub_partners` | 子商户列表，流水按商户筛选时用 | 原生 | 流水、日结与小票 |
+| 24 | [`getReceiptContent`](../pos/index.html#tag/orders/operation/getReceiptContent) | pay | `GET /retail/app/receipt/content` | 小票打印内容（抬头、页脚、商户名称与地址） | 原生 | 流水、日结与小票 |
+| 25 | [`getDailyReport`](../pos/index.html#tag/orders/operation/getDailyReport) | pay | `GET /retail/app/daily_transactions/date/{yyyyMMdd}` | 某一天的日结报表，用于预览与打印 | 原生 | 流水、日结与小票 |
+| 26 | [`getTransactionPrintData`](../pos/index.html#tag/orders/operation/getTransactionPrintData) | pay | `GET /retail/app/daily_transactions/date` | 所选区间或单笔交易的打印数据 | 原生 | 流水、日结与小票 |
+| 27 | [`getVoucher`](../pos/index.html#tag/products/operation/getVoucher) | pay | `GET /vouchers/{voucherNo}` | 按券号查券（不带 PIN）：核销前看单，也是核销详情 | 原生 | 核销 |
+| 28 | [`redeemVoucher`](../pos/index.html#tag/products/operation/redeemVoucher) | pay | `POST /vouchers/{voucherNo}/redemptions` | 凭 PIN 核销，整单一次 | 原生 | 核销 |
+| 29 | [`listRedemptions`](../pos/index.html#tag/products/operation/listRedemptions) | pay | `GET /redemptions` | 核销记录：本商户已核销的券，按核销时刻倒序 | 原生 | 核销 |
+| 30 | — | — | 并入 #27：详情即查券 | 核销详情 | 原生 | 核销 |
+| 31 | [`updateRedemptionRemark`](../pos/index.html#tag/products/operation/updateRedemptionRemark) | pay | `PUT /vouchers/{voucherNo}/redemption` | 改核销备注（只对已核销的券，覆盖写） | 原生 | 核销 |
+
+## 登录后的每个请求
+
+POS 的请求不带令牌。登记本机（#3）之后，端的每个请求带一组设备头；取图形验证码、登录、登记本机与找回密码（#1、#2、#3、#6、#7、#8）不带。
+
+| 头 | 端填的值 |
+|---|---|
+| `Merchant-Id` | 登录返回的 `client_id` |
+| `Device-Id` | 终端序列号 |
+| `Device-Type` | 终端类别 |
+| `Device-Version` | 应用版本号 |
+| `Device-Token` | 登记本机返回的 `dev_id` |
+| `Global-Sign` | 用登记本机返回的 `dev_id`、`auth_code` 与请求路径算出的签名，算法见契约「凭据」 |
+
+其中 `Device-Version`、`Device-Token` 不是必需的。原生端把签名写成大写、键盘机写成小写；原生端另用一组旧头名把同样的值再带一遍（`client_id`、`device_id`、`client_type`、`device_version`、`device_token`），Clover 版另发 `royalpay_sign`。服务端校验哪些头、设备上的登录什么时候失效、哪些情形回 401，见契约「凭据」「状态码」。
+
+各接口要的权限见契约各接口的 `x-required-privilege` 与「状态码」一节；登录与当前账号（#2、#4）返回的 `role` 的取值见契约 `AccountContext`。
+
+请求被拒时的状态码只有 401 与 400 两个（服务端故障是 5xx）。失败响应体的形状见契约「响应外壳」，端只读其中的 `message`。
+
+| 档 | 情形 | 状态码 | 端的表现 |
+|---|---|---|---|
+| 回登录页 | 契约「状态码」里回 `401` 的情形 | 401 | 原生端清掉本地登录信息与设备密钥，回登录页；重新登录后再登记一次本机 |
+| 登录、登记本机被拒 | 见契约 `signIn`、`registerDevice` | 400 | 见「页面：登录页」的失败表 |
+| 业务性拒绝 | 权限不足、退款密码错、参数不对、状态不允许、操作太频繁等 | 400 | 原生端按 `message` 提示，不清本地数据，不回登录页 |
+
+键盘机不区分状态码：请求失败一律显示所在页面固定的失败文案，不会自动回登录页，要收银员手动退出登录（清本地数据）后重新登录。
+
+## 流程：登录与设备登记
+
+收银员在登录页输账号、密码与图形验证码登录，端随即拿登录返回的 `sign_key` 登记本机，换到设备号与设备密钥，此后的请求都带着由它们算出的签名；之后进首页。登录与登记本机原生端与键盘机相同，首页取仅查看状态只有原生端调。当前账号（#4）在收款页、设置页与订单详情页进页时取，见各页。
+
+### 页面：登录页
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    Note over U,A: 本地没有登录信息（首次使用，或回到登录页之后）
+    U->>T: 打开应用
+    T->>A: #35;1 [getLoginCaptcha]<br/>GET /retail_valid/captcha
+    A-->>T: 200 { key, img }
+    T->>U: 登录页显示图形验证码
+    U->>T: 输账号、密码、验证码
+    T->>A: #35;2 [signIn]<br/>POST /retail_valid/sign_in_check<br/>{ loginId, password, verifyCode, captchaKey: 上一步的 key }
+    A-->>T: 200 账号与商户信息<br/>{ sign_key, client_id, role, client }
+    T->>A: #35;3 [registerDevice]<br/>POST /retail_valid/devices/{devType}/register<br/>请求体是加密后的文本（内含终端序列号与 sign_key）
+    A-->>T: 200 { dev_id, auth_code }
+    T->>T: dev_id 与 auth_code 存本地
+    T->>U: 进首页
+    Note over T,A: 之后每个请求都带设备头与签名 Global-Sign
+```
+
+- **图形验证码（#1）**：原生端不带参数，把 `img` 当 Base64 图片显示；键盘机带 `imgurl=true`，直接显示 `img`。
+- **登录（#2）**：`captchaKey` 用 #1 返回的 `key`。原生端本地留有上次登记得到的 `dev_id` 时，请求里另带 `devId`。端把整包响应存在本地，后面用到其中的 `sign_key`（给 #3）与 `client_id`（给请求头 `Merchant-Id`）。登录进哪个商户见契约 `signIn`。
+- **登记本机（#3）**：路径上的 `devType` 原生端按硬件发（`clover`、`sunmi`、`poynt`、`pax` 等），键盘机发 `ingenico`；请求体按契约 `registerDevice` 的方案加密。端把响应里的 `dev_id` 与 `auth_code` 存本地，用来带设备头、算签名。
+- **之后的请求**：带哪些头、什么时候回登录页，见「登录后的每个请求」。
+
+失败时端的表现：
+
+「端的表现」一列写的是原生端，键盘机见表后。
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #1 取图形验证码失败（网络不通或服务端故障） | 5xx 或无响应 | 提示 `Network Failed!` 并关闭登录页 |
+| #2 被拒（拒绝情形见契约 `signIn`） | 400 | 把响应里的 `message` 原样弹出，并重新取验证码 |
+| #3 被拒（拒绝情形见契约 `registerDevice`） | 400 | 清掉本地登录信息，弹出提示，确认后退出应用；提示内容 Clover 版是固定的 `Register Failed!`，Sunmi 版是响应里的 `message` |
+
+键盘机不区分状态码：#1 失败提示 `Cannot connect to server` 并进失败页；#2 被拒一律提示固定文案 `Incorrect username, password or code.` 并重新取验证码；#3 被拒时它把响应体当作登记结果存下并进首页，之后的请求都会失败。
+
+### 页面：首页
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    alt 登录并登记本机之后
+        T->>U: 进首页
+    else 再次打开应用，本地已有登录信息与设备凭据
+        U->>T: 打开应用
+        T->>T: 只读本地，不登录、不登记
+        T->>U: 进首页
+    else 从其他页回到首页
+        U->>T: 返回首页
+    end
+    Note over T,A: 只有原生端调，键盘机不调
+    T->>A: #35;5 [getViewOnlyStatus]<br/>GET /retail/app/retail_view
+    A-->>T: 200 true 或 false
+    Note over T: true 时关掉收款、退款与小费设置的入口
+```
+
+- **仅查看状态（#5）**：原生端在首页打开和每次回到首页时调，设备凭据就绪后才发；响应体是 `true` 时关掉收款、退款与小费设置的入口。哪些请求被拦以服务端为准，见契约「仅查看状态」。
+- **退出登录**：原生端与键盘机都只清本地数据，不调接口。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #5 遇到登录失效、签名不一致等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+| #5 其他失败 | 400 或 5xx | 没有提示 |
+
+## 流程：找回密码
+
+只有原生端有，从登录页的 Forgot Password 进入。三步：向邮箱发验证码，凭验证码列出这个邮箱能重置的账号，选一个账号重置登录密码。
+
+### 页面：Forgot Password（找回密码）
+
+端上分几屏，标题栏都是 Forgot Password；图里写的是响应 `data` 的内容，外壳见契约「响应外壳」。
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>T: 输邮箱
+    T->>A: #35;6 [sendForgotPasswordCode]<br/>GET /app/device/forget/verify<br/>查询参数 email
+    A-->>T: 200 { ticket }
+    A-->>M: 验证码邮件
+    M-->>U: 查看验证码
+    U->>T: 输验证码
+    T->>A: #35;7 [listForgotPasswordAccounts]<br/>GET /app/device/forget/query<br/>查询参数 email、ticket、ticketVal（验证码）
+    A-->>T: 200 这个邮箱能重置的账号<br/>[{ mchCode, nickName, accounts: [{ username }] }]
+    opt 可选的账号多于一个
+        T->>U: 列出账号
+        U->>T: 选一个账号
+    end
+    U->>T: 输新密码
+    T->>A: #35;8 [resetForgottenPassword]<br/>POST /app/device/forget/reset<br/>{ ticket, ticketValue: 验证码, username, email, newPassword }
+    A-->>T: 200
+    T->>U: 重置成功屏
+```
+
+- **发码（#6）**：端拿响应里的 `ticket` 带给后两步。
+- **验证码**：同一个验证码，端在 #7 里用参数名 `ticketVal`、在 #8 里用 `ticketValue` 带上。
+- **选账号**：只有一个账号时不出这一屏，直接用它的 `username`。
+- **新密码**：端先在本地校验一遍（8 至 20 位、含大写字母），不合规不发请求；服务端另按密码规则校验（见契约 `resetForgottenPassword`），端上通过的仍可能被拒。
+- **重置之后**：进重置成功屏，用新密码重新登录。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #6 邮箱对应不上账号 | 200，与发码成功相同 | 按发码成功处理，只是收不到邮件 |
+| #7、#8 被拒（拒绝情形见契约 `listForgotPasswordAccounts`、`resetForgottenPassword`） | 400 | 把响应里的 `message` 原样提示 |
+
+## 流程：收款
+
+原生端在收款页输金额，按商户的小费预设选小费或不选，再选收款方式——扫顾客的付款码（#13），或出动态码让顾客扫（#14、#15）；之后端轮询查单（#16）直到终态。键盘机从首页 Sales 进收款页输金额，在 Payment types 选支付方式后直接出动态码，不调 #4、#12；由收银核心应用拉起时金额由核心应用带入。键盘机的小费只存在本地。
+
+### 页面：Payment（收款页）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 进收款页
+    T->>A: #35;4 [getCurrentUser]<br/>GET /retail/app/current_user
+    A-->>T: 200 { tip_config, client: { retail_surcharge, … } }
+    U->>T: 输金额，选小费档位或不选
+    opt Sunmi 版点开金额明细
+        T->>A: #35;12 [precalculateSurcharge]<br/>GET /retail/surcharge_precalculate<br/>查询参数 price（元）、currency
+        A-->>T: 200 { Wechat: { cny_total, cny_surcharge, cny_tax }, Alipay: { … } }
+        T->>U: 显示各支付方式的应付与手续费
+    end
+    U->>T: 选收款方式
+    Note over T,A: 扫付款码见「收款结果页（付款码）」，出动态码见「QR Code（收款码页）」
+```
+
+- **当前账号（#4）**：原生端进收款页、设置页、订单详情页时都调，用返回的内容更新本地存的账号与商户信息（角色、显示名、小费预设、顾客承担手续费的开关、营业时段、商户简称、终端号等）。
+- **小费**：收款页按 #4 返回的 `tip_config` 显示小费档位，按所选档位算出小费，下单时作为 `tip` 单独上送，不并进 `amount`。
+- **试算（#12）**：只有 Sunmi 版调，点开金额明细时按金额与收款币种试算；端显示每个品牌的 `cny_total` 与 `cny_surcharge`，收银员用它向顾客报人民币价。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #4 失败 | 400 或 5xx | 响应体能解析时没有提示；解析不了时清掉登录信息并重启应用 |
+| #12 失败（含 5xx、无响应） | 400 或 5xx | Sunmi 版提示「暂无手续费信息」，收款照常 |
+| #4、#12 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：收款结果页（付款码）
+
+只有原生端有。顾客出示付款码（微信、支付宝或银联），收银员在收款页用扫码枪或摄像头读到付款码后下单，端进结果页，每秒查一次订单直到终态，成功后打印小票。
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    actor C as 顾客
+    participant T as POS 应用
+    participant A as 服务端
+
+    C->>T: 出示付款码
+    U->>T: 扫码
+    T->>A: #35;13 [createMicropayOrder]<br/>POST /retail/micropay<br/>{ amount（分）, currency, authCode, tip?（分）, preauth, remark?, … }
+    A-->>T: 200 { order_id, status }
+    T->>U: 进结果页
+    loop 每 1 秒，直到终态
+        T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+        A-->>T: 200 { status, error_message, total_amount, tip_amount, serviceFee, … }
+    end
+    alt status 为 5
+        T->>U: 显示成功，打印小票
+    else status 为 4 或 1
+        T->>U: 显示失败与 error_message
+    else status 为 3
+        T->>U: 显示已关闭
+    end
+```
+
+- **下单（#13）**：端发的字段见图，Poynt 版另带 `clientOrderId`；服务端读哪些、怎么处理见契约 `createMicropayOrder`。端只读响应里的 `order_id`，拿它轮询 #16。
+- **端判终态**：原生端 `status` 大于 2 或等于 1 时停，Poynt 版只在 `status` 大于 4 时停（`status` 的取值见契约 `OrderStatus`）。
+- **超时重发**：端自己的超时是 30 秒，超时后自动把同一请求再发一次；服务端怎么处理重复请求见契约 `createMicropayOrder`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #13 被拒（拒绝情形见契约 `createMicropayOrder`） | 400 | 提示固定文案「下单失败」，不显示 `message`，留在收款页 |
+| #13 网络不通或超时 | 无响应 | 提示「Http Request Error!」；超时的那次请求端会自动重发一次 |
+| #16 单次查询失败 | 400 或 5xx | 没有提示，下一秒继续查 |
+| #13、#16 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：QR Code（收款码页）
+
+原生端与键盘机都有（键盘机的这一页没有标题）。收银员选出码（微信、支付宝通用）或银联码，端按返回内容显示二维码，顾客扫码在手机上付款；端每隔一到两秒查一次订单直到终态。
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    actor C as 顾客
+    participant T as POS 应用
+    participant A as 服务端
+
+    alt 通用码
+        U->>T: 选出码
+        T->>A: #35;14 [createQrcodeOrder]<br/>POST /retail/qrcode<br/>{ amount（分）, currency, tip?（分）, preauth, remark?, … }
+        A-->>T: 200 { order_id, code_url, qrcode_img }
+    else 银联码
+        U->>T: 选银联码
+        T->>A: #35;15 [createUnionpayQrcodeOrder]<br/>POST /retail/unionpay/qrcode<br/>字段同上
+        A-->>T: 200 { order_id, code_url, qrcode_img, currency, channel }
+    end
+    T->>U: 原生端用 code_url 自己画码，键盘机直接显示 qrcode_img
+    C->>T: 扫码，在手机上付款
+    loop 原生端每 2 秒、键盘机每 1 秒，直到终态
+        T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+        A-->>T: 200 { status, … }
+    end
+    alt status 为 5
+        T->>U: 显示成功，打印小票
+    else status 为 1、3 或 4
+        T->>U: 显示失败或已关闭
+    end
+```
+
+- **出码（#14、#15）**：端发的字段见图，键盘机另带 `directpay`；服务端读哪些、手续费与订单有效期怎么算见契约 `createQrcodeOrder`、`createUnionpayQrcodeOrder`。原生端拿 `code_url` 自己画码、不解析，键盘机直接显示 `qrcode_img`。
+- **端判终态**：原生端同「收款结果页（付款码）」；键盘机 `status` 为 1、3、4、5 时停。
+- **中途返回**：端不调关单，收银员中途返回时订单留着，到期关闭。
+- **超时重发**：出码请求超时重发会建两张单，端只显示后一张，前一张到期关闭。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #14、#15 被拒（拒绝情形见契约 `createQrcodeOrder`、`createUnionpayQrcodeOrder`） | 400 | 原生端弹出「出码失败」加 `message`；键盘机进失败页 |
+| #14、#15 网络不通或超时 | 无响应 | 原生端提示错误；键盘机进失败页 |
+| #16 单次查询失败 | 400 或 5xx | 原生端没有提示、继续查；键盘机当作失败，进失败页并停止查询 |
+| 以上各条遇到登录失效等回登录页的情形 | 401 | 原生端回登录页；键盘机进失败页 |
+
+## 流程：设置
+
+只有原生端有设置页，管小费开关与三档预设；键盘机的设置页不调这几个接口，小费只存在本地。「顾客承担手续费」的开关在设置页上已隐藏，#11 只在从旧版本升级后的第一次打开时发一次。
+
+### 页面：Settings（设置页）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 进设置页
+    T->>A: #35;4 [getCurrentUser]<br/>GET /retail/app/current_user
+    A-->>T: 200 账号与商户配置
+    T->>A: #35;9 [getTipConfig]<br/>GET /retail/app/trade/tip_config
+    A-->>T: 200 { enable_tip, tip_preset_value }
+    U->>T: 切换小费开关，或进 Rate of Tipping 改三档预设
+    T->>A: #35;10 [updateTipConfig]<br/>PUT /retail/app/modify/tip_config<br/>{ enable_tip, tip_preset_value }
+    A-->>T: 200 { enable_tip, tip_preset_value }
+
+    Note over U,A: 从旧版本升级后的第一次打开（本地留有旧开关时）
+    T->>A: #35;11 [setCustomerSurcharge]<br/>PUT /retail/app/modify/retail_surcharge<br/>{ retail_surcharge: true }
+    A-->>T: 200 账号与商户配置（与 #35;4 相同）
+```
+
+- **入口**：端只对管理员、店长（`role` 为 1、2）显示设置页；仅查看状态（#5）为 `true` 时关掉小费设置。
+- **当前账号（#4）**：进页时取，同「Payment（收款页）」。
+- **小费（#9、#10）**：端读 `enable_tip` 与 `tip_preset_value` 显示开关与三档；改的时候端要求三档都填，整份发 #10，用响应回填。
+- **顾客承担手续费（#11）**：端只在旧版本升级后的第一次打开时发一次，不读响应。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #4 失败 | 400 或 5xx | 同「Payment（收款页）」 |
+| #10 被拒（拒绝情形见契约 `updateTipConfig`） | 400 | 弹出错误提示 |
+| #11 失败 | 400 或 5xx | 没有提示，下次打开应用再发 |
+| 以上各条遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：退款与预授权释放
+
+订单详情页上的两个动作。原生端对挂起中的预授权订单（`pre_auth` 为 1）只给「释放」按钮，释放后按钮变回「退款」；键盘机只有退款，它自己下的单不会是预授权。输入金额后先验退款密码：原生端每次进入详情页后的第一笔退款要输；键盘机从终端菜单打开时一次打开内只输一次，由 Ingenico 收银核心应用的退款流程拉起时不输。
+
+### 页面：订单详情页
+
+原生端从流水页点一行进入时没有标题栏，扫码退款后进入时标题栏是 Refund Status。
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 进订单详情页
+    T->>A: #35;4 [getCurrentUser]<br/>GET /retail/app/current_user
+    A-->>T: 200 账号与商户配置
+    Note over T: 订单内容取进页前查单（#35;16）的结果
+
+    Note over U,A: 退款
+    U->>T: 点退款，输入退款金额，确认
+    opt 进页后的第一笔退款
+        T->>U: 要求输入退款密码
+        U->>T: 输入 6 位密码
+        T->>A: #35;17 [verifyRefundPassword]<br/>PUT /retail/app/refund/passwd/verify<br/>{ refund_password }
+        A-->>T: 200 空响应
+    end
+    T->>A: #35;18 [refundOrder]<br/>PUT /retail/orders/{orderId}/refund<br/>{ amount（分） }
+    A-->>T: 200 { refund_id, amount, currency, result_code }
+    T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+    A-->>T: 200 { status（6 或 7）, refund_fee, refund_logs, … }
+    T->>U: 显示退款成功，打印退款小票
+
+    Note over U,A: 释放（挂起中的预授权订单）
+    U->>T: 点释放
+    T->>A: #35;20 [releasePreauth]<br/>PUT /retail/orders/{orderId}/release_preauth
+    A-->>T: 200 {}
+    T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+    A-->>T: 200 { status 5, pre_auth 0, … }
+    T->>U: 按钮变回退款
+```
+
+- **当前账号（#4）**：进页时取，同「Payment（收款页）」。
+- **订单内容（#16）**：原生端读 `status`、`error_code`、`error_message`、`order_id`、`order_description`、`order_detail`、`client_order_id`、`currency`、`total_amount`、`display_amount`、`tip_amount`、`serviceFee`、`customer_payment_amount`、`tax_amount`、`coupon_payment_amount`、`exchange_rate`、`channel`、`create_time`、`transaction_time`、`pre_auth`、`refund_fee`、`refund_logs`、`logo_print`、`additional_content`、`orderReference`、`orderReferenceKeys`，各键含义见契约 `RetailOrder`。端按键是否存在判断，拿到 `transaction_time` 就会解析时间。`orderReference` 按 `orderReferenceKeys` 的顺序显示，并打在小票上。
+- **可退金额**：原生端用 `customer_payment_amount` 减 `refund_fee` 得可退金额，决定能不能退与退款金额的上限。
+- **退款（#17、#18）**：`amount` 按分发。端只看 #18 的状态码，成功后用 #16 重查订单。端 15 秒超时后会自动重发一次；服务端怎么处理重复请求见契约 `refundOrder`。
+- **释放（#20）**：无请求体；成功后用 #16 重查，`pre_auth` 变 0 后按钮变回退款。端 5 秒超时后会自动重发一次；服务端怎么处理重复请求见契约 `releasePreauth`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #4 失败 | 400 或 5xx | 同「Payment（收款页）」 |
+| #17 被拒（密码错、锁定等，见契约 `verifyRefundPassword`） | 400 | 清空密码框、弹「Refund Failed」显示 `message` |
+| #18 被拒（拒绝情形见契约 `refundOrder`，含资金不足、进入审核、渠道拒绝） | 400 | 弹「Refund Failed」显示 `message` |
+| #20 被拒（拒绝情形见契约 `releasePreauth`） | 400 | 弹对话框显示 `message` |
+| #17、#18、#20 网络不通或超时 | 无响应 | loading 不消失（现网如此），超时的那次请求端会自动重发一次 |
+| 以上各条遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Refund（退款，键盘机）
+
+键盘机退款的各步标题栏都是 Refund，选退款方式的一页是 Refund types。键盘机的退款走同一组接口：从菜单打开时 #17 验密码后在可退订单列表里选单（列表走 #21，见「Transaction Reports（报表页，键盘机）」），由收银核心应用拉起时不验密码、按单号查单且金额由核心应用带入；退款都调 #19，即 `POST` 到与 #18 相同的路径，成功后用 #16 重查订单进成功页。键盘机用 `total_amount` 减 `refund_fee` 得可退金额，少算了手续费那段，是现网既有。
+
+Poynt 版的退款由 Poynt 收银台发起，金额与订单号来自 Poynt 的交易记录，不验退款密码，其余同原生端。
+
+失败时端的表现（键盘机不区分状态码）：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #17 被拒（密码错、锁定等） | 400 | 显示固定文案「Incorrect password, please try again.」 |
+| #19 被拒（拒绝情形见契约 `refundOrderByPost`） | 400 | 进失败页，显示固定文案「Refund Error」 |
+| #17 网络不通或超时 | 无响应 | 显示固定文案「Incorrect password, please try again.」 |
+| #19 网络不通或超时 | 无响应 | 进失败页，显示固定文案「Refund Error」 |
+
+## 流程：流水、日结与小票
+
+原生端的流水页（Transactions）进页取当天汇总、子商户列表与流水，按日期分组；每个日期组头有「汇总」与「预览 / 打印」两个按钮，分别弹 Summary 与进 Print Orders；流水页菜单里的 Report 进自定义打印。点一行进订单详情（见「流程：退款与预授权释放」），打小票见「Print Receipt（小票）」。键盘机只调 #21 与 #22，见「Transaction Reports（报表页，键盘机）」。
+
+### 页面：Transactions（流水页）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 进流水页
+    T->>A: #35;22 [getTradeSummary]<br/>GET /retail/app/trade_common
+    A-->>T: 200 { total_credit, payment_count, total_debit, refund_count, gross_amount, tip_amount, … }
+    Note over T: 顶部卡片，取设备本地当天
+    T->>A: #35;23 [listSubMerchants]<br/>GET /retail/app/sub_partners
+    A-->>T: 200 [ { client_id, short_name } ]
+    T->>A: #35;21 [listOrders]<br/>GET /retail/app/orders_new
+    A-->>T: 200 { data: [ { order_id, transaction_type, clearing_amount, status, trade_date, trade_time, refund_id, date_total, … } ], pagination }
+    Note over T: 按 trade_date 分组，组头有「汇总」与「预览 / 打印」两个按钮
+    opt 改筛选
+        U->>T: 筛选页选日期区间、仅本设备、状态、渠道、子商户
+        T->>A: #35;21 [listOrders]<br/>GET /retail/app/orders_new
+        A-->>T: 200 { data, pagination }
+        T->>A: #35;22 [getTradeSummary]<br/>GET /retail/app/trade_common
+        A-->>T: 200 { total_credit, total_debit, gross_amount, … }
+        Note over T: 顶部卡片仍取当天，带上所选子商户与仅本设备
+    end
+    loop 上滑翻页，直到没有下一页
+        T->>A: #35;21 [listOrders]<br/>GET /retail/app/orders_new
+        A-->>T: 200 { data, pagination }
+    end
+    U->>T: 点一行
+    T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+    A-->>T: 200 { status, total_amount, refund_fee, refund_logs, … }
+    Note over T: 进订单详情，列表行的 transaction_type 与 refund_id 一并带入，打小票时用
+```
+
+- **哪一天**：端取「今天」时发设备本地的日期；`begin`、`end` 与行上 `trade_date` 的口径见契约 `listOrders`。组头的日期就是 `trade_date`。
+- **行（#21）**：原生端读 `order_id`、`transaction_type`、`clearing_amount`、`status`、`trade_date`、`trade_time`、`refund_id` 等，据 `pre_authorization` 在行上显示「预授权」，据每页里每个日期第一行带的 `date_total` 起一个日期组（不读里面的值）。各键含义见契约 `RetailTransaction`。
+- **分页（#21）**：原生端每页取 10 或 20 行，上滑翻页。
+- **筛选（#21）**：原生端 `status` 发 `ALL`、`SUCCESS`、`ALL_REFUNDED`，`channel` 发 `ALL`、`WECHAT`、`ALIPAY`、`ALIPAYONLINE`、`UNIONPAY`、`UNIONPAYONLINE`，`thisdevice` 默认带 `true`。商户选项「全部」不带 `app_client_ids`，本商户发本商户的 `client_id`，某个子商户发该子商户的 `client_id`。各参数的含义见契约 `listOrders`。
+- **顶部卡片（#22）**：`begin`、`end` 都是设备本地的当天，带上筛选页所选的子商户与仅本设备，改了筛选再取一次。原生端对汇总里的几个键直接做数值运算（含界面上已隐藏的 `display_amount`、`cny_display_amount`、`total_surcharge`、`cny_tip_amount` 与三个计数），缺键会崩；各键含义见契约 `RetailTradeSummary`。
+- **子商户列表（#23）**：进流水页时取一次存在内存里，筛选页的商户选项取它，前面自己补「全部」与本商户两项。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #21 被拒（拒绝情形见契约 `listOrders`） | 400 | 弹出 `message` |
+| #22 顶部卡片取数失败 | 400 或 5xx | 没有提示 |
+| #23 失败 | 400 或 5xx | 没有提示 |
+| 以上各条遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Transactions · Summary 弹窗
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 点某日组头的「汇总」
+    T->>A: #35;22 [getTradeSummary]<br/>GET /retail/app/trade_common
+    A-->>T: 200 { total_credit, total_debit, gross_amount, tip_amount, order_count, logo_print, additional_content, … }
+    T->>U: 弹 Summary，可打印汇总
+```
+
+- **取哪一天（#22）**：`begin`、`end` 都是该组的日期，其余参数同顶部卡片。弹窗显示收款、退款、净额、小费与笔数，可以打印；弹窗上与打印出的日期由端自己写。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #22 失败 | 400 或 5xx | 提示固定的错误文案 |
+| #22 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Print Orders（日结预览）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 点某日组头的「预览 / 打印」
+    T->>A: #35;25 [getDailyReport]<br/>GET /retail/app/daily_transactions/date/{yyyyMMdd}
+    alt 当日有流水
+        A-->>T: 200 { transactions, analysis, channel_analysis, logo_print, additional_content }
+        T->>U: 显示预览
+        opt 选时段
+            U->>T: 选商户营业时段、全天或自选时分
+            T->>A: #35;25 [getDailyReport]<br/>GET /retail/app/daily_transactions/date/{yyyyMMdd}
+            A-->>T: 200 或 400
+            Note over T: 200 刷新预览，400 提示 message
+        end
+        U->>T: 点打印
+        T->>U: 打出日结
+    else 当日无流水
+        A-->>T: 400 { message: No Transactions in date … }
+        T->>U: 预览区显示无数据，不弹提示
+    end
+```
+
+- **日期与时段（#25）**：路径上的日期取组头的日期。原生端的时段选项是登录信息里商户的营业时段（`client.business_hours`），端把选中的一段原样作为 `transDate` 发出；另有「全天」与自选时分。各参数的含义见契约 `getDailyReport`。
+- **预览与打印**：原生端预览上的日期由端自己写，打印时读 `analysis.date`。Clover 版在 Poynt、Pax 等硬件上打印时会读每行的 `system_generate` 与 `remark`。三块内容的含义见契约 `RetailDailyReport`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #25 这一天没有流水 | 400 | 预览区显示无数据，不弹提示 |
+| #25 选时段后被拒（拒绝情形见契约 `getDailyReport`） | 400 | 弹出 `message` |
+| #25 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Report（自定义打印）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 流水页菜单点 Report，选起止日期与时分，点查询
+    T->>A: #35;26 [getTransactionPrintData]<br/>GET /retail/app/daily_transactions/date
+    alt 区间内有流水
+        A-->>T: 200 { transactions（带 transaction_date）, analysis, channel_analysis, logo_print, additional_content }
+        T->>U: 显示预览，按日期分组
+        U->>T: 点打印
+        T->>U: 打出所选区间
+    else 区间内无流水
+        A-->>T: 400 { message: No Transactions }
+        T->>U: 显示无数据，不弹提示
+    end
+```
+
+- **调法（#26）**：原生端只在这一页调它，总带 `transDate` 与设备时区 `timezone`，不带 `order_id`；按每行的 `transaction_date` 分组预览与打印。各参数与行的含义见契约 `getTransactionPrintData`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #26 这一段没有流水 | 400 | 显示无数据，不弹提示 |
+| #26 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Transaction Reports（报表页，键盘机）
+
+键盘机从首页的 Transaction Reports 进入，按日翻页；点某一天进当天的流水（Transaction Details），点一行进 Order Details。键盘机不调 #23 至 #26。
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as 键盘机
+    participant A as 服务端
+
+    U->>T: 进报表页
+    T->>A: #35;21 [listOrders]<br/>GET /retail/app/orders_new
+    A-->>T: 200 { data: [ { order_id, status, create_time, total_amount, refund_fee, channel, … } ], pagination }
+    Note over T: 取设备本地当天，列表一次取全，端按 order_id 去重<br/>行上显示单号末 6 位
+    T->>A: #35;22 [getTradeSummary]<br/>GET /retail/app/trade_common
+    A-->>T: 200 { tip_amount, … }
+    Note over T: 只读汇总的 tip_amount，其余合计由列表行在端上累加
+    opt 打印汇总
+        U->>T: 点打印汇总
+        T->>U: 打出当日汇总
+    end
+    opt 按单号后几位找单
+        U->>T: 输入单号后 6 位
+        T->>A: #35;21 [listOrders]<br/>GET /retail/app/orders_new
+        A-->>T: 200 { data: [ … ] }
+        Note over T: 请求只带单号<br/>端再按 order_id 去重，只留 status 为 5、6、7 的行
+    end
+    U->>T: 点一行
+    Note over T: 先拿列表行渲染详情页
+    T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+    alt 查到
+        A-->>T: 200 { status, total_amount, tip_amount, refund_fee, … }
+        Note over T: 用查单结果覆盖列表行
+    else 查不到
+        A-->>T: 400
+        Note over T: 保留列表行继续显示
+    end
+```
+
+- **取当天（#21）**：`begin`、`end` 都是设备本地的当天，`limit` 发 100000 一次取全。
+- **按单号找（#21）**：只带 `order_id`（单号后 6 位），不带日期。
+- **读的键**：列表行读 `order_id`、`status`、`create_time`、`total_amount`、`refund_fee`、`channel` 等，查单（#16）读 `status`、`order_id`、`channel`、`create_time`、`exchange_rate`、`total_amount`、`tip_amount`、`refund_fee`，对金额直接做数值运算。`Device-Type` 为 `ingenico` 时列表行的 `order_id`、`total_amount`、`refund_fee` 另有改写，见契约 `RetailTransaction`；退款行的拼接单号拿去查单必然查不到，详情页就用列表行显示（图中「查不到」分支）。
+- **报表合计**：合计用列表行的 `total_amount` 减 `refund_fee` 再加 `tip_amount`；键盘机上 `tip_amount` 的取值见契约 `getTradeSummary`。
+
+失败时端的表现（键盘机不区分状态码）：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #21 失败 | 400、5xx 或无响应 | 按没有流水处理，列表为空 |
+| #16 查不到 | 400 | 保留列表行继续显示 |
+
+### 打印：Print Receipt（小票）
+
+小票没有独立的页面，原生端打印时弹出 Print Receipt 选择框（Print For Merchant / Print For Customer）。
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    alt 原生端
+        U->>T: 进收款结果页或订单详情页
+        T->>A: #35;24 [getReceiptContent]<br/>GET /retail/app/receipt/content
+        A-->>T: 200 { head, qr_type, … }
+        Note over T: 每次进这两个页都取一次，head 与 qr_type 存在内存里，打印时读<br/>Clover 进流水页时内存里没有才预取一次
+        T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+        A-->>T: 200 { order_id, transaction_time, channel, total_amount, refund_logs, … }
+        U->>T: 收款或退款成功后打印，或在详情页点打印
+        Note over T: 商户名取登录信息的 short_name，其下几行取 head<br/>时间、渠道、汇率、单号、Auth Code、备注、金额、小费、Total、页脚取查单的<br/>transaction_time、channel、exchange_rate、order_id、client_order_id、order_detail、<br/>display_amount、tip_amount、total_amount、additional_content<br/>退款票的 Refund ID 与金额拿列表行带来的 refund_id 去 refund_logs 里匹配<br/>二维码类型按 qr_type（Sunmi 看，Clover 恒打二维码）<br/>「Payment Successful」「Refund Successful」等文案端写死
+        T->>U: 出小票
+    else 键盘机
+        U->>T: 收款或退款成功后打印
+        T->>A: #35;16 [getOrder]<br/>GET /retail/orders/{orderId}
+        A-->>T: 200 { status, order_id, channel, create_time, total_amount, tip_amount, refund_fee, … }
+        Note over T: 不调 #35;24，商户信息取登录时存在本地的商户资料
+        T->>U: 出小票
+    end
+```
+
+- **小票内容（#24）**：原生端只读 `head` 与 `qr_type`，不读 `footer`，页脚打的是查单返回的 `additional_content`。小票顶部的商户名取登录信息里的 `short_name`，不取 #24 的。各键含义见契约 `getReceiptContent`。
+- **小票的其余内容**：取查单（#16），见图中的说明；原生端时间打 `transaction_time`，键盘机打 `create_time`。收款票还是退款票按列表行带来的 `transaction_type` 定；退款票的 Refund ID 与金额，拿列表行带来的 `refund_id` 去 `refund_logs` 里匹配，Refund ID 打商户退款号，没有时打平台退款号。
+- **键盘机**：不调 #24，商户信息取登录时存在本地的商户资料。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #24 失败 | 400 或 5xx | 没有提示 |
+| #24 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：核销
+
+只有原生端有核销，键盘机没有。首页点 Redeem 进核销首页，核销首页只是入口、不调接口，上面两个入口：Scan for redeem 进核销页，扫券码或手输券号，先按券号查券（#27）看单，再凭 PIN 核销（#28），成功后进核销成功页；Redeem Record 进核销记录（#29），点一行进核销详情（同样是查券，#27），详情页可改备注（#31）与打印。核销的接口与 POS 其他接口同在 pay 域名、同一前缀。Clover 与 Sunmi 两版的请求相同，差别只在扫码方式与打印方式。核销几页要随新接口改版，新旧接口的对照见「相对现网的改动」表后。
+
+### 页面：Redemption（核销页）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 核销首页点 Scan for redeem
+    alt 扫券码
+        U->>T: 点扫码，扫顾客出示的券码
+        Note over T: 码内容是 JSON，取 voucherNo 与 pin<br/>pin 留到核销时用
+    else 手输
+        U->>T: 输入券号，点查询
+    end
+    T->>A: #35;27 [getVoucher]<br/>GET /vouchers/{voucherNo}
+    A-->>T: 200 券视图<br/>{ voucherNo, productKind, linkName, status, redeemable, notRedeemableReason?, amount, lines, ticket?, giftcard?, … }
+    Note over T: 显示券视图<br/>redeemable 为 true 才给「核销」<br/>为 false 时按 notRedeemableReason 显示原因
+    U->>T: 输 PIN（扫码时已取自码内容），点核销
+    T->>A: #35;28 [redeemVoucher]<br/>POST /vouchers/{voucherNo}/redemptions<br/>{ pin, remark? }
+    A-->>T: 200 券视图（已核销）<br/>{ redemptionStatus, redeemedAt, operator, remark?, orderId, lines, … }
+    T->>U: 进核销成功页
+    Note over T: 成功页与两联凭条全取这次响应，不再调接口<br/>点完成关掉核销页
+```
+
+- **查券（#27）**：只凭券号，不带 PIN。扫码时码内容是 `{ voucherNo, pin }`，端先拿 `voucherNo` 查，`pin` 留到核销时带；手输时先输券号查，看过单再输 PIN。`redeemable` 为 `true` 才给「核销」，为 `false` 时按 `notRedeemableReason` 显示原因。券视图各键的含义与取值见契约 `VoucherView`。
+- **金额与时刻**：券视图的金额按 `amount` 的最小币种单位换算显示，时刻按设备本地时区换算显示（单位与时区见契约 `VoucherView`）。
+- **各栏取哪个字段**：类型取 `productKind`（`product` 商品、`ticket` 票务、`giftcard` 礼卡），名称取 `linkName`，编号取 `salesOrderId`，状态取 `status`（销售单状态）与 `redemptionStatus`（核销状态），时间一栏已核销取 `redeemedAt`、未核销取 `paidAt`，金额取 `amount`（顾客实付），商品行取 `lines` 的 `itemName`、`unitPrice`、`quantity`、`lineAmount`，票务的活动名、日期、时间、场地取 `ticket`，礼卡的主卡额、赠卡额与赠卡备注取 `giftcard`，核销员与备注取 `operator`、`remark`，券号取 `voucherNo`；二维码照旧由端拿 `orderId` 画。核销成功页、核销详情与凭条都按这一套取。
+- **核销（#28）**：带 `pin` 与可选的 `remark`；成功页与打印直接用响应里的券视图，不重查。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| 扫到的码不是 `{ voucherNo, pin }` 形式的 JSON | 不发请求 | 提示「Invalid QR Code」 |
+| #27 被拒（拒绝情形见契约 `getVoucher`） | 400 | 提示 `message`，留在核销页重扫或重输 |
+| #27 查到但不可核销 | 200，`redeemable` 为 `false` | 显示券视图与原因，不给「核销」 |
+| #28 被拒（拒绝情形见契约 `redeemVoucher`） | 400 | 提示 `message`，留在核销页 |
+| #27、#28 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+| #27、#28 网络不通或超时 | 无响应 | 提示网络错误；#28 可原样重发（服务端对重复请求的处理见契约 `redeemVoucher`） |
+
+### 页面：Redemption Record（核销记录）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 核销首页点 Redeem Record
+    T->>A: #35;29 [listRedemptions]<br/>GET /redemptions<br/>查询参数 productKind?、page=1、limit
+    A-->>T: 200 { data: [ { voucherNo, salesOrderId, productKind, linkName, amount, redeemedAt, operator } ], pagination }
+    opt 换类型
+        U->>T: 选全部、商品、票务或礼卡
+        T->>A: #35;29 [listRedemptions]<br/>GET /redemptions<br/>productKind 不带、product、ticket 或 giftcard，page=1
+        A-->>T: 200 { data, pagination }
+    end
+    loop 上滑翻页，直到 pagination.hasNextPage 为 false
+        T->>A: #35;29 [listRedemptions]<br/>GET /redemptions
+        A-->>T: 200 { data, pagination }
+    end
+    opt 下拉刷新
+        U->>T: 下拉
+        T->>A: #35;29 [listRedemptions]<br/>GET /redemptions<br/>page=1
+        A-->>T: 200 { data, pagination }
+    end
+    U->>T: 点一行
+    Note over T: 带这行的 voucherNo 进核销详情
+```
+
+- **类型（#29）**：端的类型选项是全部、商品、票务、礼卡，依次不带 `productKind`、带 `product`、`ticket`、`giftcard`；换类型、下拉刷新都从 `page=1` 取。
+- **行（#29）**：读 `voucherNo`、`salesOrderId`、`productKind`、`linkName`、`amount`、`redeemedAt`、`operator`，含义见契约 `RedemptionRow`。点一行拿 `voucherNo` 进详情。
+- **按日分组**：端自己按 `redeemedAt` 换算到设备本地时区后的日期分组。
+- **翻页**：上滑翻页，看 `pagination.hasNextPage`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #29 被拒（拒绝情形见契约 `listRedemptions`） | 400 | 提示 `message`，停止加载 |
+| #29 服务端故障 | 5xx | 提示错误，停止加载 |
+| #29 遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+| #29 网络不通或超时 | 无响应 | 提示网络错误，停止加载 |
+
+### 页面：Redemption Order Details（核销详情）
+
+```mermaid
+sequenceDiagram
+    actor U as 收银员
+    participant T as POS 应用
+    participant A as 服务端
+
+    U->>T: 核销记录里点一行
+    Note over T: 进页同时发下面两个请求
+    T->>A: #35;27 [getVoucher]<br/>GET /vouchers/{voucherNo}<br/>voucherNo 取记录行的
+    A-->>T: 200 券视图<br/>{ linkName, salesOrderId, orderId, status, redemptionStatus, amount, voucherNo, redeemedAt, operator, remark?, lines, … }
+    T->>A: #35;24 [getReceiptContent]<br/>GET /retail/app/receipt/content
+    A-->>T: 200 { head, qr_type, … }
+    Note over T: head 存在内存里，Sunmi 版打印抬头用
+    opt 改备注
+        U->>T: 改备注，点保存
+        T->>A: #35;31 [updateRedemptionRemark]<br/>PUT /vouchers/{voucherNo}/redemption<br/>{ remark }
+        A-->>T: 200 券视图（备注已更新）
+        Note over T: 用响应回填页面
+    end
+    opt 打印
+        alt Clover 版
+            U->>T: 点打印，选商户联或顾客联
+        else Sunmi 版
+            U->>T: 点打印，直接出一张
+        end
+        Note over T: 凭条内容全取券视图<br/>改过备注的，取 #35;31 返回的那份
+        T->>U: 出核销凭条
+    end
+```
+
+- **详情（#27）**：与核销页查券是同一个接口，券号取记录行的 `voucherNo`。不再调查单（#16）：券视图里已有支付订单号 `orderId` 与销售单状态 `status`。各栏取的字段同核销页。
+- **改备注（#31）**：端用响应回填页面，之后打印用新的备注。
+- **打印**：凭条内容全取券视图，各栏取的字段同核销页；抬头照现网，Sunmi 版取 #24 的 `head`，Clover 版取登录时存下的商户名。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #27 被拒（拒绝情形见契约 `getVoucher`） | 400 | 提示 `message`，回到核销记录 |
+| #24 失败 | 400、5xx 或无响应 | 不提示；Sunmi 版凭条沿用内存里已有的 `head`，没有就不打抬头那几行 |
+| #31 被拒（拒绝情形见契约 `updateRedemptionRemark`） | 400 | 提示 `message`，备注不变 |
+| 以上各条遇到登录失效等回登录页的情形 | 401 | 回登录页，见「登录后的每个请求」 |
+| #27、#31 网络不通或超时 | 无响应 | 提示网络错误 |
+
+## 相对现网的改动
+
+除核销外接口的地址与形状照旧，下表只列服务端行为不同的地方。
+
+| 改动 | 现网 | 现在 | 端会感受到什么 |
+|---|---|---|---|
+| 切换上线时重新登录一次 | — | 现网发出的设备密钥不带过来；设备记录保留，一律处于需重新登录 | 原生端的第一个请求收到 401、回登录页，重新登录并登记本机后照常使用；键盘机不会自动回登录页，要手动退出后重新登录 |
+| 请求签名 | 服务端算了签名但不拦，不一致也放行 | 不一致回 401 | 正常使用无感；本地的设备密钥与服务端对不上时原生端回登录页，重新登录并登记后恢复 |
+| 账号在网页端改密或被重置密码、被停用之后 | 回 403，原生端弹错误提示、留在原页，之后每个操作都报错，要手动退出再登录 | 回 401 | 原生端自动回登录页 |
+| 商户被冻结、设备被停用之后 | 回 403，原生端弹错误提示、不回登录页；解冻或重新启用后直接恢复可用 | 回 401；解冻或重新启用后要重新登录 | 原生端自动回登录页 |
+| 请求缺 `Device-Id` 或 `Global-Sign` 头；设备查不到、终端类别不认识、登录的账号不存在 | 缺头回 400，其余回 403，原生端都只弹错误提示 | 一律回 401 | 原生端自动回登录页 |
+| 登录时带的 `devId` 对应的设备已停用 | 回 403 | 回 400，`message` 写明原因 | 原生端照样弹出 `message`，无差别 |
+| 登记本机时 `sign_key` 失效、终端类别不认识、设备已停用 | 回 403 | 回 400，`message` 写明原因 | 原生端照样按「登记被拒」处理，无差别 |
+| 登记本机时请求体解不开（原生端的加密方案） | 回 500 | 回 400 | 原生端照样按「登记被拒」处理，无差别 |
+| 登记本机时这台终端已登记在其他商户名下 | 照样登记，同一台机器在每个登录过的商户下各有一条设备记录 | 一台终端只属于一个商户；序列号已登记在登录者不能访问的商户名下时回 400 | 换商户使用前，要原商户先在商户后台解绑这台终端 |
+| 登录后落在哪个商户 | 一律是账号所属的商户 | 设备已登记在登录者可访问的关联商户名下时，落在设备所属的商户：原生端带了 `devId` 的在登录时落到，没带的在登记本机时转过去 | 主商户的员工在关联商户的终端上登录，直接进该关联商户 |
+| 登录时账号不存在与密码不对 | 两种文案（`User does not exist.` 与 `Incorrect login password`） | 同一个码、同一种文案，不区分 | 原生端弹出的文案不再透露账号是否存在 |
+| 在商户 App 内改密、在 POS 或商户 App 上找回密码重置之后 | 该账号已登录的设备不受影响 | 该账号已登录的设备失效 | 这些设备上原生端回登录页，用新密码重新登录 |
+| 登录锁定 | POS 登录输错密码不锁 | 默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、商户 App 登录共用计数 | 锁定期间登录回 400，原生端弹出写明锁定的文案，键盘机仍是固定文案 |
+| 找回密码：邮箱的含义 | 商户的联系邮箱，列出的是联系邮箱为它的各商户的管理员账号 | 账号自己的邮箱；Owner 的邮箱另可重置本商户的员工账号 | 要填账号自己（或商户 Owner）的邮箱，列出的账号范围随之不同 |
+| 找回密码：发码 | 邮箱不存在时回错误，端提示邮箱不存在 | 不透露邮箱是否存在，一律按发码成功返回 | 邮箱填错时不再有提示，只是收不到邮件 |
+| 找回密码：重置时的校验 | 只核对验证码，不核对所选账号与邮箱的关系；验证码输错不限次数；新密码服务端只限长度 | 核对所选账号在该邮箱能重置的范围内；验证码有错误次数上限；新密码须符合密码规则 | 正常流程无感；验证码连续输错到上限后要重新发码；端上通过的新密码可能被服务端拒绝并提示原因 |
+| 改小费预设（#10） | 不校验档位、不看角色，原样保存 | 三档须是 0 到 30 的整数，要有「收款页设置」的编辑权限，不合规或没有权限回 400 | 端本就要求三档都填，正常无感；填了超过 30 的档位时弹出错误提示 |
+| 「顾客承担手续费」上报（#11） | 写商户的一个单独开关（这个开关不参与计费）；收银员提交回 400 | 收下按成功返回，不改任何配置；没有「收款页设置」的编辑权限时回 400 | 端不读响应、失败也不提示，无差别 |
+| 手续费试算（#12） | 返回三个渠道键、每键八个字段，含按渠道汇率折算的人民币金额 | 只返回微信、支付宝两键、每键三个字段；人民币折算照旧 | 无差别 |
+| 收款币种（#13、#14、#15） | 平台支持的币种都收下，再由渠道判能否下单 | 只收商户结算币种或人民币，其他回 400 | 原生端只在宿主币种与人民币之间切换，正常无感；键盘机的币种写死 `CAD`，美元区部署下会被拒，切换前要核查美元区有无在用的键盘机 |
+| 商户处于仅查看时收款（#13、#14、#15） | 服务端没有专门的仅查看拒绝 | 回 400，`message` 写明商户处于仅查看 | 原生端本就关掉收款入口，正常无感；键盘机出码时进失败页 |
+| 付款码下单什么时候返回（#13） | 订单落库就返回，渠道结果全靠之后的轮询 | 等渠道的首次应答再返回；被拒仍回 400，其中金额不予受理时落一笔不予受理（1）的订单，响应仍是 400；渠道拒绝仍回 200 并给 `order_id`、订单为失败 | 下单请求耗时变长，仍在端的 30 秒超时之内；结果页更快查到终态 |
+| 付款码下单的重复请求（#13） | 不去重：端在 30 秒超时后自动重发的那次会用同一付款码再下一单 | 同一台设备用同一个付款码、同样的金额、币种、小费与预授权标记的重复请求视为同一笔，返回第一次的结果；小费按四舍五入后的值比对 | 超时重发不再重复下单 |
+| 小费取整（#13、#14、#15） | 带小数的 `tip` 截断到分 | 四舍五入到分 | 只影响键盘机（它的小费由乘法算出、可带小数），个别订单的小费可能多 1 分 |
+| 查单的 `order_description`（#16） | 端下单时传的固定标题「Platform Retail Order」 | 订单的产品描述；`order_detail` 没填备注时回落为 `order_description`（同现网） | 结果页与小票上这一栏显示的文字不同 |
+| 下单、出码与查单的响应（#13、#14、#15、#16） | 付款码下单返回订单整行，含顾客付款码原文；出码另带商户编号、商户名称与商户订单号；查单带付款码原文（动态码为码串）与订单扩展参数原文 | 付款码下单只有 `order_id`、`status`；出码只有 `order_id`、`code_url`、`qrcode_img`（银联码另有 `currency`、`channel`）；查单不再返回付款码原文与扩展参数 | 端不读这些字段，无差别 |
+| 通用动态码的码内容（#14） | `/api/v1.0/payment/partners/…/retail_pay` 形式的地址 | 这笔订单的付款链接，格式不同 | 原生端只拿它画码，键盘机显示图片，无差别 |
+| 查单的成功状态（#16） | 支付成功但入账流水还没写入时，把 `status` 先报成 2 | 成功后立即报 5，`exchange_rate` 有就给、没有就不返回 | 结果页更早显示成功 |
+| 查单能查哪些订单（#16） | 当前商户及其子商户；父商户开了「子商户各自退款」时不做这项限制 | 一律只限当前商户及其子商户，其他回 400 | 正常无感 |
+| 退款要先验过退款密码（#18、#19） | 退款密码只由端把门，退款接口不看是否验过 | 本设备本次登录通过 #17 之后才受理退款，没有回 400；退款可由终端自带收银应用拉起的终端类别不查（目前 `poynt` 与 `ingenico`） | 原生端本就先验密码再退，正常无感；Poynt 版与键盘机照旧只靠端的密码页或终端自带收银应用把门 |
+| 退款密码锁定（#17） | 输错不限次数 | 连续错达上限（可配置）后锁定一段时间，锁定期内回 400；锁定期内退款密码校验不通过（商户后台、商户 App、POS 都一样） | 连续输错后一段时间内退不了款，原生端弹出写明锁定的 `message`，键盘机仍是固定文案 |
+| 退款密码校验的超时重发（#17） | 输错不计数 | 端超时后自动重发的那次也计一次失败 | 同一个错密码可能被多计一次失败，离锁定近一步 |
+| 退款的重复提交（#18、#19） | 5 秒内的相同请求回 400，之后不拦 | 同一台设备对同一订单、同样金额的重复请求在 60 秒内（可配置）视为同一笔，返回第一次的结果 | 超时自动重发不再重复退款；60 秒内对同一订单同额连退两次会被合并成一笔 |
+| 挂起中的预授权订单退款（#18、#19） | 服务端放行，靠原生端只给「释放」按钮拦住 | 服务端也回 400，释放后再退 | 无差别 |
+| 退子商户、兄弟商户的订单（#18、#19） | 父商户退子商户订单不限；兄弟商户互退看父商户的「子商户各自退款」开关 | 父商户退子商户订单须运营开启对应策略，没开按不存在回 400；兄弟商户的订单与查单一样不在范围内 | 没开的商户在 POS 上退子商户的订单会被拒；兄弟商户的订单查不到、也退不了 |
+| 查单的 `refund_logs`（#16） | 退款单整行，含失败的退款单 | 只列已受理的退款（处理中与成功），每条只有退款号、金额、币种与时间几项 | 失败的退款不再出现；终端发起的退款，小票上的 Refund ID 打的是平台退款号 |
+| 重复释放预授权（#20） | 第二次回 400 | 同一订单在 60 秒内（可配置）的重复释放请求（不论哪台设备）返回 200，之后回 400 | 端 5 秒超时后自动重发的那次不再显示失败 |
+| 仅查看时释放预授权（#20） | 不拦 | 回 400 | 处于仅查看的商户释放不了，原生端弹出 `message` |
+| 退款时渠道拒绝（#18、#19） | 微信回 500，其他渠道回 400 | 一律回 400，带渠道给的原因 | 各渠道的失败提示一致 |
+| 校验退款密码的权限（#17） | 登录着的任何账号都能校验 | 要有商户后台「发起退款」的权限，没有回 400 | 没有退款权限的账号在输密码这一步就被拒 |
+| 退款（#18、#19）与释放（#20）要有对应权限 | 不看角色 | 要有商户后台「发起退款」「完成或释放预授权」的权限，没有回 400 | 店长、收银员预设都含这两个权限，一般无感 |
+| 流水、汇总与日结按哪一天（#21、#22、#25） | 按商户时区的自然日切；列表按入账时间切，汇总与日结按交易时间切；汇总与日结计入人工流水，列表不计 | 都按商户营业日：收款按付款成功时刻、退款按受理时刻归日，退款按受理当天计；没有人工流水 | 列表、组头汇总与日结的数字对得上；商户设了日切时刻的，切点前的交易归前一营业日 |
+| 父商户设备上的流水与日结（#21、#25、#26） | 只看本商户，`app_client_ids` 不生效，筛选页选了子商户也不起作用 | 不带或为空时含当前商户及其全部子商户；带一个商户号只取那一个，不在范围内回 400 | 父商户设备上的流水、日结默认含子商户的交易；筛选页选子商户开始生效 |
+| 按单号找单（#21 的 `order_id`） | 只在同时带了状态、仅本设备或下单方式时才生效，否则不按单号筛 | 一直生效，模糊匹配订单号与商户订单号 | 键盘机按单号后 6 位找单返回的就是匹配的单；原生端默认带仅本设备，多数时候本就生效 |
+| 清算状态筛选（#21 的 `clearing_status`） | 不生效 | 收下不用 | 无差别 |
+| 子商户列表（#23） | 子商户整行，约 150 个字段，含接口授权码；只排除无效的商户 | 每项只有 `client_id` 与 `short_name`；不列已删除、已冻结、入驻被拒的 | 端只用这两个键；被冻结的子商户不再出现在筛选选项里 |
+| 流水里的退款行（#21、#25、#26） | 退款提交即列出一行，退款失败后这一行不撤 | 只列已受理的退款（处理中或成功） | 失败的退款不再出现在流水与日结里 |
+| 查询天数（#21） | 只在请求带了 `begin` 时才限制，不带时能看到全部历史 | 不带 `begin` 时也限制，起始日不早于当前营业日往前 N 天；限制的是 `role` 为 3 的账号 | 原生端没选日期区间时，`role` 为 3 的账号看不到 N 天以前的流水 |
+| 按权限点判（#13 至 #31） | 不看角色：登录着的账号都能收款、查单与核销 | 按商户后台的权限点判，员工可以持多个角色、权限取并集：收款要终端收款的权限，查单、流水、汇总、小票、日结与打印要看支付订单，查券与核销记录要看商品链接与销售单，核销与改核销备注要管销售单 | 店长、收银员预设都有这些权限，正常无感；只持 Employee 的账号能查单、退款与核销，不能收款；只持 Developer 的还不能核销；要收款得加收银员角色 |
+| 日结按渠道汇总里的退款（#25、#26 的 `channel_analysis`） | 非人民币标价的订单，每个退款行都按整单的订单金额与小费扣减，部分退款时多减 | 按这笔退款额扣减，依次抵扣订单金额、顾客承担的手续费、小费 | 有部分退款时，按渠道的订单金额与小费合计不再偏小 |
+| 手续费类汇总（#22、#25、#26 的 `total_surcharge`、`total_settle_amount`） | 成交即计入 | 只计已完成计费的，刚成交的几笔手续费可能尚未计入 | 原生端流水页已隐藏这两项；Clover 版在 Poynt、Pax 等硬件上打印的日结，刚成交几笔的手续费可能暂未计入 |
+| 流水的分页信息（#21 的 `pagination`） | 十四个键 | 只给 `page`、`limit`、`totalCount`、`totalPages`、`hasNextPage` | 原生端不读这个对象，键盘机按返回的行数判断有没有下一页，无差别 |
+| 核销的接口（#27 至 #31） | 发往 cashier 域名的 `/commodity-orders` 下，用订单的形状 | 改走 pay 域名、与 POS 其他接口同前缀，详情并入查券，请求与响应换成券视图，商品行不再有折扣与赠品；新旧接口逐条对照见表后 | 端要改核销这几页，接新的地址与形状；三种产品的券都能核销 |
+| 查券带不带 PIN（#27） | 券号与 PIN 一起带，PIN 输满 10 位自动查 | 只凭券号查，PIN 只在核销（#28）时带 | 手输时先输券号看单，再输 PIN 核销 |
+| 查不到券（#27） | 回 200、`data` 为 `null`，端显示「对不上」 | 回 400、`code` 为 `108311`；查到但不可核销时回 200、`redeemable` 为 `false` 并给原因 | 端按状态码与 `redeemable` 分开显示 |
+| 核销的拒绝（#28） | 未支付、已关闭、已退款、已核销、不属于本商户、PIN 不对；业务失败是 HTTP 200 加响应体 `status` 为 500 | 新增退款处理中（`108314`，退款没成功之后还能核）与已作废（`108313`）两种；失败一律回 400 并带 `code` | 端按状态码判失败，提示 `message` |
+| 详情与改备注的归属（#27、#31） | 不校验券是否属于本商户 | 只认售出的商户，其他回 400、`code` 为 `108311` | 别的商户的券看不到、改不了 |
+| 核销记录（#29） | 带按日合计 `sum`；类型只能筛票务与礼卡 | 不给 `sum`，日分组端自己按 `redeemedAt` 分；`productKind` 可筛商品、票务、礼卡 | 类型选项多出「商品」 |
+| 核销记录的 `thisdevice`（#29） | 端发，服务端不用 | 不再发 | 无差别 |
+| 仅查看时的核销、改核销备注与设置类请求（#28、#31、#10、#11、#17） | 服务端不拦；原生端关掉收款、退款与小费设置，核销照常 | 都回 400、`code` 为 `208035`；查询照常 | 处于仅查看的商户核销不了、改不了核销备注与小费配置、过不了退款密码校验，原生端弹出 `message`；#11 端不读响应，无感 |
+| 改核销备注的结果（#31） | HTTP 200 就提示保存成功，业务失败（如券未核销）也显示成功 | 失败回 400 带 `message`；成功返回更新后的券视图 | 端能看到失败原因，成功后页面与打印用新备注 |
+
+POS 里只有核销这几条接口与现网不同，端改页面时按下表对照：
+
+| op# | 新接口 | 替代的现网接口（cashier 域名） | 端要改的 |
+|---|---|---|---|
+| 27 | `GET /vouchers/{voucherNo}` | `GET /commodity-orders/redeemable?voucher_no=&write_off_code=` 与 `GET /commodity-orders/{order_id}` | 查券不再带 PIN，查不到判 400 而不是 `data: null`，改读券视图；详情页改为按券号查 |
+| 28 | `POST /vouchers/{voucherNo}/redemptions` | `PATCH /commodity-orders/redeemable`，请求体 `{voucherNo, pin}` | 券号进路径，请求体只剩 `pin` 与可选 `remark`，失败判 400 带 `code` 而不是 200 加 `status: 500`，成功页与打印改读券视图 |
+| 29 | `GET /redemptions` | `GET /commodity-orders?status=4&commodity_scene=&page_no=&page_size=` | 参数名改 `productKind` / `page` / `limit`，外壳改 `data` + `pagination`，日分组端自己按 `redeemedAt` 分，不再读 `sum` |
+| 31 | `PUT /vouchers/{voucherNo}/redemption` | `PATCH /commodity-orders/{order_id}/redeemed-remark`，请求体 `{remark}` | 按券号而不是商品订单号定位，读响应回填、失败提示 `message` |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

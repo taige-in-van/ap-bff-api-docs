@@ -22,8 +22,10 @@ security:
   - cookieAuth: []
 tags:
   - name: merchants
+    x-displayName: 商户
     description: 商户：登录者能进的商户列表、新建关联商户（BRANCH / NEW_LEGAL_ENTITY，一律挂在主商户下）、删除未激活的关联商户。
   - name: application
+    x-displayName: 入驻申请
     description: 入驻申请：一个商户一张，加载、分步保存、上传文档、提交审核（按使用顺序排列）。
 paths:
   /merchants:

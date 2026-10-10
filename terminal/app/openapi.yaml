@@ -1,0 +1,5959 @@
+openapi: 3.1.0
+info:
+  title: 商户 App — 终端面契约
+  version: 1.0.0
+  contact:
+    name: 商户后台 BFF
+  description: |
+    现网已安装的商户手机 App（iOS 与 Android 版）调用的接口。地址、请求头、请求体与响应的形状都与现网一致，端不需要升级。
+
+    ## 域名
+
+    - 多数接口发往 pay 域名（`https://pay.example.ca/api/v1.0/app`）。
+    - 扫码收款等少数接口发往 cashier 域名（`https://cashier.example.ca/api/v1.0/app`），这些接口在各自的 `servers` 里标明。
+    - 美元区商户用 .com 域名（`pay.example.com`、`cashier.example.com`），接口相同。
+
+    ## 凭据
+
+    - 登录前的接口（登录、找回密码四步）不带凭据。找回密码的后两步另须带校验验证码时下发的短时 cookie，见各接口说明。
+    - `signIn` 返回令牌 `token`，是一个不透明的字符串。此后每个请求把它原样放进 `Authorization` 头，不加 `Bearer` 前缀；`registerPushToken` 这一条现网带着 `Bearer ` 前缀，两种写法服务端都接受。
+    - 每个请求另带 `devCid` 头，值是 App 内置的固定值。
+    - 另接受 `version`（App 版本号）与 `Accept-Language`（App 当前语言），都不是必需的。
+    - 令牌从登录时刻起默认 69 天有效（可配置），请求不会延长它，到期须重新登录。切换商户不换令牌。
+
+    令牌在下列情况失效，失效后须重新登录：
+
+    - 退出登录（`signOut`）。
+    - 同一部手机再次登录（按这部手机算，不论账号与商户），上一次登录得到的令牌失效。
+    - 该账号修改了登录密码（任何入口）：发起修改的那一处保持登录，该账号其他设备与会话上的登录失效；用 `changePassword` 改的，这部手机的令牌照常可用。
+    - 该账号经找回密码重置了登录密码：该账号所有设备上的登录都失效。
+    - 该账号被停用，或被移出商户。
+    - 这部手机在该商户下的设备被停用或解绑。
+    - 商户被冻结。
+
+    同一账号可以同时在多部手机上登录，互不影响。
+
+    ## 响应外壳
+
+    - 成功响应都包一层 `{ status, message, data, timestamp, traceId }`，`status` 为 `200`，内容在 `data`；没有内容时 `data` 为 `null`。例外：`releasePreauth` 成功时响应体为空，`downloadPaymentReceipt`、`downloadRefundReceipt`、`downloadMonthlyStatement` 成功时响应体是 PDF 文件本身，都不套这一层；它们失败时照常。
+    - 失败响应的 HTTP 状态不是 2xx，响应体是 `{ status, message, data, timestamp, traceId, code }`：`status` 与 HTTP 状态相同，`message` 是失败原因的文案，`data` 为 `null`，`code` 是整数错误码。
+    - 订单详情与退款详情照现网，没有值的键给 `null`；其余接口没有值时不返回该键。
+
+    ## 状态码
+
+    失败只用下面三档，其余 4xx 不使用。
+
+    | HTTP 状态 | 情形 |
+    |---|---|
+    | `403` | 需要重新登录：令牌无效或已失效、缺凭据头、设备被停用、当前商户被冻结。切换商户时也是这样 |
+    | `400` | 登录被拒（含上一行的设备、商户原因在登录时仍然存在）；切换商户的目标不可访问，或这部手机在目标商户下的设备被停用；权限不足、参数不对、状态不允许、操作太频繁等业务性拒绝 |
+    | `5xx` | 服务端故障 |
+
+    `403` 的 `code`，每个受保护的接口都可能返回，各接口说明里不再重复：
+
+    - `206014` 令牌无效或已失效，或没带凭据头。
+    - `208033` 这部手机在当前商户下的设备已被停用。
+    - `208028` 当前商户已被冻结。
+
+    `400` 的 `code` 见各接口说明；说明里没点名的（参数不合法、操作太频繁等）按 `message` 处理即可。失败响应可能另带 `context`，内容与登记该码的码表所写相同。
+
+    ## 权限
+
+    商户 Owner 拥有全部权限。权限按商户后台的权限点判，各接口标在 `x-required-privilege`；员工可以同时持有多个角色，权限取并集。标 `session` 的接口只要求已登录，包括：目标是登录者本人的操作（修改或重置自己的登录密码，即 `changePassword` 与 `sendPasswordEmailCode`、`resetPasswordWithEmailCode` 的 `type` 为 `login`；改自己的登录邮箱、改自己的显示名、开关自己的收款推送、给自己绑定或解绑微信、查自己的微信绑定结果、看自己的成员信息），读收款通知设置，消息的未读数、公告的列表与详情、把消息标为已读（订单消息列表另须查看支付订单的权限），上传文件，商户列表与切换商户，登记推送令牌与退出登录。权限不足属于业务性拒绝，返回 `400`，`message` 写明需要商户后台的哪项权限。
+
+    ## 仅查看状态
+
+    商户被设为仅查看时，下列请求返回 `400`、`code` 为 `208035`，查询照常：
+
+    - 收款、退款、释放预授权，账单码的新建与关闭、删除。
+    - 改商户的设置与资料：顾客承担手续费、订单有效期、支付方式、收款页设置，商户 Logo、时区、联系方式与地址、银行账户（含发验证码），登录邮箱（发验证码、提交与确认）。
+    - 退款账户充值（含发验证码），通知邮箱的发验证码、添加与删除。
+    - 员工的新增、修改、删除，取绑定微信的二维码。
+    - 退款密码的修改（`changePassword`）与重置（`sendPasswordEmailCode`、`resetPasswordWithEmailCode`），即 `type` 为 `refund` 的那一支。
+
+    下列请求照常可用，其余改状态的请求都拦：登录、登记推送令牌、切换商户、找回密码、修改或重置本人的登录密码（`type` 为 `login`）、开关本人的收款推送、把消息标为已读（含读公告详情）、退出登录，以及上传图片或文件（`uploadImage`，只产生待引用的临时文件）。
+
+    ## 调用时序
+
+    各接口的调用先后与失败时端的表现，见调用时序《商户 App》。
+servers:
+  - url: /api/v1.0/app
+    description: 现网商户 App 接口前缀（pay 域名）
+security:
+  - sessionToken: []
+    devCid: []
+tags:
+  - name: auth
+    x-displayName: 登录与密码
+    description: 登录、找回与修改密码
+  - name: account
+    x-displayName: 商户资料
+    description: 商户资料
+  - name: products
+    x-displayName: 收款设置与码
+    description: 收款设置、门店码与账单码
+  - name: orders
+    x-displayName: 收款、退款与统计
+    description: 收款、退款与统计
+  - name: funds
+    x-displayName: 资金
+    description: 余额、清算与对账单、充值
+  - name: notifications
+    x-displayName: 通知
+    description: 通知设置、消息与公告
+  - name: team
+    x-displayName: 员工
+    description: 员工与微信绑定
+paths:
+  /{devType}/login:
+    post:
+      tags:
+        - auth
+      operationId: signIn
+      summary: 账号密码登录（带滑块验证），同时登记本机
+      description: |
+        校验滑块票据与账号密码，通过后返回令牌。登录不要求二次验证，账号在商户后台开了验证器的也一样。
+
+        `username` 先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写。登录所在的商户是账号的主商户；主商户被冻结时登录被拒，不改进其他商户。
+
+        这部手机在该商户下还没有登记过时（按 `uuid` 与 `devType` 认），登录时顺带登记，返回的 `devId` 就是它的设备编号；登记过的沿用原来的 `devId`。这部手机上一次登录得到的令牌随之失效，不论那次登录的是哪个账号、在哪个商户。
+
+        下列情形返回 `400`：
+
+        - `204021` 滑块票据没通过校验。
+        - `206012` 账号不存在或密码不对，两者不区分。
+        - `966001` 连续登录失败次数过多，账号被锁定。默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、POS 登录共用计数。
+        - `208027` 账号已被停用。
+        - `208029` 账号的邮箱还没有验证。
+        - `208028` 账号的主商户已被冻结。
+        - `208033` 这部手机在该商户下的设备已被停用。
+        - 缺 `uuid`、`username`、`password` 等必填项。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/DevType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignInRequest'
+            example:
+              username: amy.manager
+              password: Str0ng!Pass
+              ticket: t03Kx9mQ2vLzA7nB1cYw8f3Kd0pQzR2vLxA7nB1cYwE4hTg6
+              randstr: '@a7X'
+              uuid: 6F1C2D3E-88A4-4B7C-9E10-2A5D7C3B1F09
+              devcid: 3b0f7c52a1e94d68
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SignInResult'
+              example:
+                status: 200
+                message: Success
+                data:
+                  token: 3f0c9b7e-5a1d-4c62-9e8b-7d2a41f6c0e3
+                  haveChild: true
+                  clientId: 23
+                  devId: '000231006182031482731'
+                  devType: iphone
+                  uuid: 6F1C2D3E-88A4-4B7C-9E10-2A5D7C3B1F09
+                timestamp: '2026-10-06T18:20:31.482+00:00'
+                traceId: 5f1c0a7be2d94c33
+        '400':
+          $ref: '#/components/responses/Rejected'
+      x-error-codes:
+        - 204021
+        - 206012
+        - 208027
+        - 208028
+        - 208029
+        - 208033
+        - 966001
+  /token:
+    put:
+      tags:
+        - auth
+      operationId: registerPushToken
+      x-required-privilege: session
+      summary: 登记本机的推送令牌
+      description: |
+        把本机的推送令牌记到这部手机的设备上，之后的收款、退款提醒推到这个令牌。重复登记以最后一次为准。
+
+        设备按请求头定位：`Device-Id` 不为空时按它找；为空时按 `Merchant-Id`、`Client-Device-Id`、`Device-Type` 三项找。
+
+        下列情形返回 `400`：
+
+        - 找不到设备，或设备不在令牌当前所在的商户名下。
+        - `devToken` 为空。
+      parameters:
+        - name: Device-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: '`signIn` 返回的 `devId`；切换商户之后这一次为空串'
+        - name: Merchant-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 令牌当前所在商户的商户号（登录后是 `clientId`，切换商户后是目标商户的 `client_id`）
+        - name: Device-Type
+          in: header
+          required: false
+          schema:
+            type: string
+          description: '`iphone` 或 `android`'
+        - name: Client-Device-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: 本机的设备标识，同登录时的 `uuid`
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - devToken
+              properties:
+                devToken:
+                  type: string
+                  description: 本机的推送令牌
+            example:
+              devToken: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+      responses:
+        '200':
+          description: 已登记，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-06T18:20:32.015+00:00'
+                traceId: 71b4c2e09d3a4f85
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/merchant/child/{clientMoniker}:
+    get:
+      tags:
+        - auth
+      operationId: listSubMerchants
+      x-required-privilege: session
+      summary: 可切换的商户列表
+      description: |
+        返回登录者可以访问的商户：第一项是登录者所属的商户，其后是他可以切换过去的其他商户。只属于一个商户的账号只返回那一项。
+
+        路径上的 `clientMoniker` 是端当前所在商户的商户代码，列表里与它相同的那一项 `click` 为 `true`。
+      parameters:
+        - name: clientMoniker
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 端当前所在商户的商户代码
+      responses:
+        '200':
+          description: 可访问的商户
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SwitchableMerchant'
+              example:
+                status: 200
+                message: Success
+                data:
+                  - client_id: 23
+                    client_moniker: PINE
+                    short_name: Pine Street Cafe
+                    logo_thumbnail: https://static.example.com/logo/pine-thumb.png
+                    click: true
+                  - client_id: 57
+                    client_moniker: PINE2
+                    short_name: Pine Street Cafe Downtown
+                    click: false
+                timestamp: '2026-10-06T18:20:33.208+00:00'
+                traceId: 0c9e7a51b3d2486f
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /{devType}/login/switch:
+    post:
+      tags:
+        - auth
+      operationId: switchMerchant
+      x-required-privilege: session
+      summary: 切换到另一个商户
+      description: |
+        把令牌的当前商户切到 `username` 指定的商户。切过去仍是登录的那个人，角色不变。响应里的 `token` 就是请求带来的那个令牌，不换新。
+
+        这部手机在目标商户下还没有登记过时（按 `uuid` 与 `devType` 认），切换时顺带登记。
+
+        令牌无效或已失效、当前商户被冻结时与其他受保护接口一样返回 `403`，须重新登录。下列情形返回 `400`，仍留在原来的商户：
+
+        - `208034` 目标商户不在登录者可以访问的范围内。主商户的成员可以切到它的关联商户，关联商户的成员只能在本商户。
+        - `208033` 这部手机在目标商户下的设备已被停用。
+        - 缺 `username` 或 `uuid`。
+      parameters:
+        - $ref: '#/components/parameters/DevType'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SwitchMerchantRequest'
+            example:
+              username: PINE2
+              adminUser: amy.manager
+              uuid: 6F1C2D3E-88A4-4B7C-9E10-2A5D7C3B1F09
+              devcid: 3b0f7c52a1e94d68
+              devType: iphone
+      responses:
+        '200':
+          description: 已切换
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SwitchMerchantResult'
+              example:
+                status: 200
+                message: Success
+                data:
+                  token: 3f0c9b7e-5a1d-4c62-9e8b-7d2a41f6c0e3
+                  haveChile: true
+                timestamp: '2026-10-06T18:25:12.640+00:00'
+                traceId: 2d8e5b90a1c74f36
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208033
+        - 208034
+  /device/forgotPassword/code:
+    get:
+      tags:
+        - auth
+      operationId: sendForgotPasswordCode
+      summary: 找回密码 — 向邮箱发验证码
+      description: |
+        收一个邮箱，返回本次找回的 `ticket`。邮箱对应得上账号时向它发一封带 6 位验证码的邮件；对应不上时不发邮件，响应相同，不透露邮箱是否存在。
+
+        邮箱对应的账号：登录邮箱是它的账号；它是某个商户 Owner 的登录邮箱时，还包括该商户下的员工账号。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ForgotEmail'
+      responses:
+        '200':
+          description: 已受理（邮箱是否存在响应一致）
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    type: object
+                    required:
+                      - ticket
+                    properties:
+                      ticket:
+                        type: string
+                        description: 本次找回的标识，校验验证码时原样带回
+              example:
+                status: 200
+                message: Success
+                data:
+                  ticket: H3KD82MZQ0P7XW5RT1BN
+                timestamp: '2026-10-06T18:30:02.771+00:00'
+                traceId: a4f81d6c2e07493b
+        '400':
+          $ref: '#/components/responses/Rejected'
+      x-error-codes: []
+  /device/forgotPassword/verify:
+    get:
+      tags:
+        - auth
+      operationId: verifyForgotPasswordCode
+      summary: 找回密码 — 校验验证码
+      description: |
+        核对 `ticket` 与验证码。通过后验证码作废，响应下发一个短时 cookie `__Host-app-pwdreset`，它对应这个邮箱的这次校验。带着它，随后的一段时间内（默认 60 秒，可配置）可以用 `listAccountsByEmail` 取一次可重置的账号；`resetForgottenPassword` 同样要求带它。
+
+        cookie 带 `HttpOnly`、`Secure`、`SameSite=Strict`、`Path=/`，自本次校验起有效，有效期与重置凭证相同（默认 10 分钟，可配置）。重新发码并通过校验会换发新的 cookie；重置成功或过期后作废。
+
+        下列情形返回 `400`：
+
+        - `204010` 验证码不对，还可以重输。
+        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，本次找回作废，须重新发码。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ForgotEmail'
+        - name: ticket
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '`sendForgotPasswordCode` 返回的 `ticket`'
+        - name: ticketValue
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 邮件里的 6 位验证码
+      responses:
+        '200':
+          description: 验证码正确，`data` 为 `null`
+          headers:
+            Set-Cookie:
+              description: '`__Host-app-pwdreset=<值>; Max-Age=<重置凭证有效期的秒数>; Path=/; Secure; HttpOnly; SameSite=Strict`。值是不透明的字符串，对应这个邮箱的这次校验'
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-06T18:30:41.336+00:00'
+                traceId: e2b70c9a5d184f61
+        '400':
+          $ref: '#/components/responses/Rejected'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+  /device/accountByEmail:
+    get:
+      tags:
+        - auth
+      operationId: listAccountsByEmail
+      summary: 找回密码 — 按邮箱列出可重置的账号
+      description: |
+        按商户分组返回这个邮箱可以重置的账号。下面三条都满足才返回内容，否则同样返回 `200`，`data` 是空数组：
+
+        - 请求带着 `verifyForgotPasswordCode` 下发的 cookie `__Host-app-pwdreset`，且它对应的校验就是查询参数里这个邮箱的。
+        - 在这次校验之后的一段时间内（默认 60 秒，可配置）。
+        - 这次校验还没有取过。取过之后同一邮箱再请求返回空数组，直到重新发码并通过校验。
+
+        可以重置的账号：登录邮箱是它的账号本身；它是某个商户 Owner 的登录邮箱时，还包括该商户下的员工账号。
+
+        返回的 `accountId` 不是账号的固定编号，而是重置凭证，重置时原样带回。凭证自返回起默认 10 分钟内有效（可配置），只能用一次；重置成功或过期即作废。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ForgotEmail'
+        - $ref: '#/components/parameters/PasswordResetCookie'
+      responses:
+        '200':
+          description: 该邮箱可重置的账号，按商户分组；没带 cookie、cookie 对不上、不在可取的时间内或已经取过为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ForgotMerchantAccounts'
+              example:
+                status: 200
+                message: Success
+                data:
+                  - mchCode: PINE
+                    mchName: Pine Street Cafe
+                    accounts:
+                      - accountId: rst_8f2c61d0a94b4e7c93b5
+                        userName: amy.manager
+                      - accountId: rst_1b7e03c5d2f8496a70c4
+                        userName: cashier01
+                timestamp: '2026-10-06T18:30:41.902+00:00'
+                traceId: 6d0a3f81c7e24b59
+        '400':
+          $ref: '#/components/responses/Rejected'
+      x-error-codes: []
+  /device/forgotPassword/resetPassword:
+    post:
+      tags:
+        - auth
+      operationId: resetForgottenPassword
+      summary: 找回密码 — 重置登录密码
+      description: |
+        凭 `listAccountsByEmail` 返回的 `accountId` 把对应账号的登录密码改为 `newPwd`。请求须带着 `verifyForgotPasswordCode` 下发的 cookie `__Host-app-pwdreset`，且 `accountId` 是带着同一个 cookie 列出的。`accountId` 用过即作废，cookie 随之作废。成功后该账号在所有设备上的登录失效，须用新密码重新登录。
+
+        下列情形返回 `400`：
+
+        - `206017` `accountId` 不是有效的重置凭证（没发过、已用过或已过期），或请求没带 cookie、cookie 已过期、cookie 与 `accountId` 对不上，须从发验证码重新开始。
+        - 新密码不满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）。
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/PasswordResetCookie'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotResetRequest'
+            example:
+              accountId: rst_8f2c61d0a94b4e7c93b5
+              newPwd: N3w!Str0ngPass
+      responses:
+        '200':
+          description: 已重置，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-06T18:31:20.458+00:00'
+                traceId: b93c5e07a2d14f80
+        '400':
+          $ref: '#/components/responses/Rejected'
+      x-error-codes:
+        - 206017
+  /device/updatePassword:
+    put:
+      tags:
+        - auth
+      operationId: changePassword
+      x-required-privilege: session
+      summary: 凭旧密码修改登录密码或退款密码
+      description: |
+        `type` 决定改哪一个：
+
+        - `login`：核对登录者自己的旧登录密码，改为新密码。成功后这部手机保持登录、令牌照常可用；该账号在其他设备与会话上的登录失效，须用新密码重新登录。
+        - `refund`：核对商户的旧退款密码，改为新退款密码。本接口标的 `session` 只覆盖 `login`；`refund` 另须商户后台管理退款密码的权限（`account:refund-pin:manage`）。
+
+        下列情形返回 `400`：
+
+        - `206011` `type` 为 `login` 时旧密码不对。`message` 里含 `Invalid Original Password`。
+        - `type` 为 `refund` 时旧退款密码不对。`message` 里同样含 `Invalid Original Password`。
+        - `206004` `type` 为 `refund` 时旧退款密码连续输错到上限，暂时锁定。
+        - `type` 为 `refund` 而登录者没有管理退款密码的权限。
+        - `208035` `type` 为 `refund` 时商户处于仅查看状态，不能改退款密码。`login` 不受仅查看影响。
+        - 新密码与旧密码相同，或不满足对应的密码规则。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            example:
+              oldpwd: Str0ng!Pass
+              pwd: N3w!Str0ngPass
+              type: login
+      responses:
+        '200':
+          description: 已修改，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-06T18:40:09.127+00:00'
+                traceId: 4a7d1c93e0b25f68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 206004
+        - 206011
+        - 208035
+  /device/sign_out:
+    get:
+      tags:
+        - auth
+      operationId: signOut
+      x-required-privilege: session
+      summary: 退出登录
+      description: 让当前令牌失效。没有参数。
+      responses:
+        '200':
+          description: 已退出，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-06T18:45:55.380+00:00'
+                traceId: f05b2e6d8a91437c
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/merchant/reset/verifyCode:
+    get:
+      tags:
+        - auth
+      operationId: sendPasswordEmailCode
+      x-required-privilege: session
+      summary: 忘记登录密码或退款密码 — 发邮箱验证码
+      description: |
+        向商户 Owner 的登录邮箱发一封带 6 位验证码的邮件，返回本次的 `ticket`。重置（`resetPasswordWithEmailCode`）时带上同样的 `type`、这个 `ticket` 与邮件里的验证码。
+
+        `type` 决定之后重置哪一个：
+
+        - `login`：登录者本人的登录密码。
+        - `refund`：商户的退款密码。本接口标的 `session` 只覆盖 `login`；`refund` 另须商户后台管理退款密码的权限（`account:refund-pin:manage`）。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `type` 不是上面两个取值。
+        - 发得太频繁，还在冷却中。
+        - `type` 为 `refund` 而登录者没有管理退款密码的权限。
+        - `208035` `type` 为 `refund` 时商户处于仅查看状态，不能重置退款密码。`login` 不受仅查看影响。
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - login
+              - refund
+          description: '`login` 登录密码，`refund` 退款密码'
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 收下不用。现网的端发商户的联系邮箱
+      responses:
+        '200':
+          description: 已发码
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmailCodeTicket'
+              example:
+                status: 200
+                message: Success
+                data:
+                  ticket: chl_1f7c3a90e5b24d68
+                timestamp: '2026-10-07T18:50:11.019+00:00'
+                traceId: 6e0d2b84c7a15f93
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/merchant/reset/pwd:
+    post:
+      tags:
+        - auth
+      operationId: resetPasswordWithEmailCode
+      x-required-privilege: session
+      summary: 凭邮箱验证码重置登录密码或退款密码
+      description: |
+        `type` 与 `ticket` 须与 `sendPasswordEmailCode` 那一次相同，`ticketValue` 是邮件里的验证码，验对即作废。`confirmPassword` 收下不用。成功时 `data` 为 `null`。
+
+        - `login`：把登录者本人的登录密码改为 `newPassword`，须满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）。成功后这部手机保持登录、令牌照常可用；该账号在其他设备与会话上的登录失效。
+        - `refund`：把商户的退款密码改为 `newPassword`，须是 6 位数字。本接口标的 `session` 只覆盖 `login`；`refund` 另须商户后台管理退款密码的权限（`account:refund-pin:manage`）。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `204010` 验证码不对，还可以重输。
+        - `206006` `ticket` 无效或与 `type` 对不上，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，须重新发码。
+        - 新密码不满足对应的规则。
+        - `type` 不是上面两个取值。
+        - `type` 为 `refund` 而登录者没有管理退款密码的权限。
+        - `208035` `type` 为 `refund` 时商户处于仅查看状态，不能重置退款密码。`login` 不受仅查看影响。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+            example:
+              type: login
+              ticket: chl_1f7c3a90e5b24d68
+              ticketValue: '518204'
+              newPassword: N3w!Str0ngPass
+              confirmPassword: N3w!Str0ngPass
+      responses:
+        '200':
+          description: 已重置，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T18:51:40.552+00:00'
+                traceId: 0a9f6c12d3e84b57
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+        - 208035
+  /device/mch_info:
+    get:
+      tags:
+        - account
+      operationId: getMerchantInfo
+      x-required-privilege: account:profile:view
+      summary: 商户资料，连同收款页设置与银行账户
+      description: |
+        返回当前商户的资料，连同店铺码收款页设置（`payInfo`）与结算银行账户（`bankInfo`）。没有参数。
+
+        - `contact_name`、`contact_phone`、`contact_email` 是商户 Owner 的姓名、电话与登录邮箱。
+        - `order_expiry_time` 是订单有效期：整小时写成 `Nh`，否则写成分钟数 `Nm`。
+        - `payInfo` 除 `note` 没有值时不返回本键外都返回，键与 `updatePaymentPageSettings` 收的十个键相同，各键的含义见那个接口。
+        - `bankInfo` 在商户还没有结算账户时不返回本键；账号只给末 4 位。
+
+        本接口标的 `account:profile:view` 之外，另须商户后台「收款页设置」的查看权限（`products:checkout:view`）。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台「商户资料」与「收款页设置」的查看权限。
+      responses:
+        '200':
+          description: 商户资料
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MerchantInfo'
+              example:
+                status: 200
+                message: Success
+                data:
+                  mch_code: PINE
+                  company_name: Pine Street Hospitality Ltd.
+                  mch_abbreviation: Pine Street Cafe
+                  service_phone: '6045550199'
+                  address: 456 Market St
+                  city: Vancouver
+                  province: BC
+                  postal_code: V6B 1A1
+                  country: CANADA
+                  contact_name: Amy Chen
+                  contact_phone: '6045550123'
+                  contact_email: amy@pinestreet.example.com
+                  logo_url: https://static.example.com/logo/pine.png
+                  order_expiry_time: 15m
+                  mch_timezone: America/Vancouver
+                  client_pay_surcharge: false
+                  payInfo:
+                    user_info_switch: true
+                    remark_switch: true
+                    remarks_are_required: false
+                    user_input_title: '[{"title":"Table No."}]'
+                    tip_switch: true
+                    tip_preset_value: 10,15,20
+                    note: Thanks for visiting
+                    full_pay_switch: true
+                    child_refund_switch: false
+                    mch_refund_switch: false
+                  bankInfo:
+                    account_number: '****6789'
+                    account_name: Pine Street Hospitality Ltd.
+                    bank_name: Royal Bank of Canada
+                    bank_code: '01234'
+                    bank_id: '003'
+                    prove_url: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.pdf
+                    bank_verify: false
+                    pendingBankInfo: {}
+                timestamp: '2026-10-07T18:05:31.406+00:00'
+                traceId: 9a2e5d07c1f34b68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/upload:
+    post:
+      tags:
+        - account
+      operationId: uploadImage
+      x-required-privilege: session
+      summary: 上传图片或文件，供更换 Logo 与修改银行账户引用
+      description: |
+        上传一个文件，返回它的预览地址 `imgUrl`。文件此时还不生效：把 `imgUrl` 交给 `updateMerchantLogo`（`logo`）或 `updateBankAccount`（`prove_url`）后才被引用；一直没被引用的到期清理。商户处于仅查看状态时照常可用。
+
+        - 表单字段名 `file`；PNG、JPEG 或 PDF，默认不超过 2MB（可配置）。
+        - 被引用时还按用途再校验一次，见那两个接口。
+
+        下列情形返回 `400`：
+
+        - 没有文件，或文件不是 PNG、JPEG、PDF，或超过大小上限。
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 要上传的文件
+      responses:
+        '200':
+          description: 已上传
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UploadedImage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  imgUrl: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.png
+                timestamp: '2026-10-07T19:00:03.118+00:00'
+                traceId: 4b7e1d09a2c36f85
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/mchLogo/update:
+    post:
+      tags:
+        - account
+      operationId: updateMerchantLogo
+      x-required-privilege: account:profile:edit
+      summary: 更换商户 Logo
+      description: |
+        把商户 Logo 换成 `logo` 指向的图片，立即生效。`logo` 是 `uploadImage` 返回的 `imgUrl`，原样带回。只换商户 Logo；收款页单独设了 Logo 的，收款页上不变。`logo` 为空串时什么都不做，照常返回 `200`。成功时 `data` 为 `null`。
+
+        下列情形返回 `400`：
+
+        - `logo` 不是本商户上传得到的地址，或文件已过期清理。
+        - 图片不是 PNG 或 JPEG，或超过大小上限。Logo 图片默认不超过 512KB（可配置）。
+        - `208035` 商户处于仅查看状态，不能改商户资料。
+        - 权限不足：需要商户后台「商户资料」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - logo
+              properties:
+                logo:
+                  type: string
+                  description: '`uploadImage` 返回的 `imgUrl`；空串表示不换'
+            example:
+              logo: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.png
+      responses:
+        '200':
+          description: 已更换，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:01:14.640+00:00'
+                traceId: 8f2c5a31e0b97d46
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/mch/timezone:
+    post:
+      tags:
+        - account
+      operationId: updateMerchantTimezone
+      x-required-privilege: account:profile:edit
+      summary: 修改商户时区
+      description: |
+        把商户时区改为 `timezone`（IANA 时区名，如 `America/Vancouver`），须是商户所在省或州可选的时区。立即生效。成功时 `data` 为 `null`。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `timezone` 不在商户所在省或州的可选时区内。
+        - 改了会与已出账的历史数据冲突，没有改。
+        - `208035` 商户处于仅查看状态，不能改商户资料。
+        - 权限不足：需要商户后台「商户资料」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - timezone
+              properties:
+                timezone:
+                  type: string
+                  description: IANA 时区名
+            example:
+              timezone: America/Toronto
+      responses:
+        '200':
+          description: 已修改，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:02:30.205+00:00'
+                traceId: 2a6d9e04f1c83b57
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/merchant/contact:
+    post:
+      tags:
+        - account
+      operationId: updateMerchantContact
+      x-required-privilege: account:profile:edit
+      summary: 修改联系方式与地址
+      description: |
+        改商户的营业电话与地址，或商户联系人（Owner）的姓名与电话，立即生效。只改请求里带了、且不是空串的字段，空串的字段跳过。成功时 `data` 为 `null`。
+
+        - 公司组：`service_phone`（营业电话）、`address`、`city`、`province`（省或州的代码，如 `BC`）、`post_code`。省或州须属商户所在国家，邮编按商户所在国家的格式校验，电话的区号须在允许的范围内。`country` 收下不用。
+        - 联系人组：`contact_name`、`contact_phone`，改的是商户 Owner 的资料。`contact_name` 按最后一个空格拆成名与姓，没有空格时整串作姓。
+
+        本接口标的 `account:profile:edit` 只覆盖公司组；请求里带了联系人组的字段时，登录者须是商户 Owner。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 字段格式不对：省或州不属于商户所在国家、邮编格式不对、电话不合法。
+        - 带了联系人组的字段而登录者不是商户 Owner，整个请求不生效。
+        - `208035` 商户处于仅查看状态，不能改商户资料。
+        - 权限不足：需要商户后台「商户资料」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantContactRequest'
+            examples:
+              company:
+                summary: 公司组
+                value:
+                  service_phone: '6045550199'
+                  address: 456 Market St
+                  city: Vancouver
+                  province: BC
+                  post_code: V6B 1A1
+                  country: CANADA
+              contact:
+                summary: 联系人组
+                value:
+                  contact_name: Amy Chen
+                  contact_phone: '6045550123'
+      responses:
+        '200':
+          description: 已修改，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:03:45.918+00:00'
+                traceId: 5c0e3b72a9d16f84
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/merchant/bank/verifyCode:
+    get:
+      tags:
+        - account
+      operationId: sendBankEmailCode
+      x-required-privilege: account:settlement:edit
+      summary: 修改银行账户 — 发邮箱验证码（现网没有，旧包不调）
+      description: |
+        向商户 Owner 的登录邮箱发一封带 6 位验证码的邮件，返回本次的 `ticket`。没有参数。修改银行账户（`updateBankAccount`）时把 `ticket` 与邮件里的验证码一起带上。重新发码后旧的验证码作废。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 发得太频繁，还在冷却中。
+        - `208035` 商户处于仅查看状态，不能改银行账户。
+        - 权限不足：需要商户后台「结算信息」的编辑权限。
+      responses:
+        '200':
+          description: 已发码
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmailCodeTicket'
+              example:
+                status: 200
+                message: Success
+                data:
+                  ticket: chl_6a3d0e81f7c24b59
+                timestamp: '2026-10-07T19:05:02.731+00:00'
+                traceId: 9b1f4c60e2d75a38
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/merchant/bank:
+    post:
+      tags:
+        - account
+      operationId: updateBankAccount
+      x-required-privilege: account:settlement:edit
+      summary: 修改银行账户，提交后进入审核
+      description: |
+        提交结算银行账户的修改申请，审核通过后生效；审核期间 `getMerchantInfo` 的 `bankInfo.bank_verify` 为 `true`。成功时 `data` 为 `null`。
+
+        - `bank_code` 是 transit 号（5 位数字），`bank_id` 是 institution 号（3 位数字），`account_number` 是账号（数字）。
+        - `prove_url` 是作废支票（void cheque）的图片或 PDF：`uploadImage` 返回的 `imgUrl`，原样带回；PNG、JPEG 或 PDF，默认不超过 2MB（可配置）。
+        - `ticket` 与 `ticketValue` 是 `sendBankEmailCode` 返回的票据与邮件里的验证码，验对即作废。
+        - `account_name`、`branch` 收下不用。
+
+        同一商户的 `ticket`、`ticketValue` 与银行账户各项都相同的重复请求视为同一笔，返回第一次的结果；其中任何一项不同（含验证码）都按新的请求处理。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 没带 `ticket` 或 `ticketValue`：`message` 提示升级 App 后再修改银行账户。
+        - `204010` 验证码不对，还可以重输。
+        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，须重新发码。
+        - 已有一笔审核中的修改。
+        - `prove_url` 不是本商户上传得到的地址、文件已过期清理，或不是 PNG、JPEG、PDF，或超过大小上限。
+        - 缺 `bank_name`、`bank_code`、`bank_id`、`account_number`、`prove_url`，或格式不对。
+        - `208035` 商户处于仅查看状态，不能改银行账户。
+        - 权限不足：需要商户后台「结算信息」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BankAccountRequest'
+            example:
+              account_name: Pine Street Hospitality Ltd.
+              branch: Main Branch
+              bank_name: Royal Bank of Canada
+              bank_code: '01234'
+              bank_id: '003'
+              account_number: '1234567'
+              prove_url: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.pdf
+              ticket: chl_6a3d0e81f7c24b59
+              ticketValue: '604187'
+      responses:
+        '200':
+          description: 已提交审核，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:06:20.044+00:00'
+                traceId: 3e8a1d75c0f24b69
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+        - 208035
+  /device/sendAndVerify/emailCode:
+    get:
+      tags:
+        - account
+      operationId: sendMerchantEmailCode
+      x-required-privilege: session
+      summary: 修改登录邮箱 — 向当前邮箱发验证码
+      description: |
+        修改登录者本人的登录邮箱分三步：本接口向当前登录邮箱发验证码；`updateMerchantEmail` 带上这个验证码与新邮箱，新邮箱随即收到另一封验证码；`confirmMerchantEmail` 带上新邮箱收到的验证码，完成修改。登录者是商户 Owner 时，商户的联系邮箱随之改变。
+
+        返回本次的 `ticket`。账号开了验证器时不发邮件，下一步填验证器上的码。同一账号同时只有一笔修改在进行，重新发起会作废上一笔。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 登录名不是邮箱的账号不能修改登录邮箱。
+        - `208035` 商户处于仅查看状态，不能修改登录邮箱。
+      parameters:
+        - name: email
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 当前登录邮箱。收下不用
+      responses:
+        '200':
+          description: 已发起
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmailCodeTicket'
+              example:
+                status: 200
+                message: Success
+                data:
+                  ticket: chl_0c5e8b23a7d14f96
+                timestamp: '2026-10-07T19:10:05.317+00:00'
+                traceId: 7f4a2c90b1e35d68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/merchant/email:
+    post:
+      tags:
+        - account
+      operationId: updateMerchantEmail
+      x-required-privilege: session
+      summary: 修改登录邮箱 — 校验当前邮箱的验证码并提交新邮箱
+      description: |
+        `ticket` 与 `ticketValue` 是 `sendMerchantEmailCode` 返回的票据与当前邮箱收到的验证码（开了验证器的填验证器上的码），`email` 是新邮箱。
+
+        按请求头 `version`（App 版本号）分两种：
+
+        - 不低于支持确认步的版本（可配置）：校验通过后向新邮箱发一封带验证码的邮件，返回 `200`、`data` 为 `null`。此时登录邮箱还没有换，新邮箱已收到验证码，接着调 `confirmMerchantEmail` 完成。
+        - 低于这个版本，或没带 `version`：不校验验证码、不向新邮箱发码，直接返回 `400`，`message` 提示升级 App 后再修改，登录邮箱不变。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `204010` 验证码不对，还可以重输。
+        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，须重新发码。
+        - `email` 不是合法的邮箱地址、与当前登录邮箱相同，或已被别人使用。
+        - `208035` 商户处于仅查看状态，不能修改登录邮箱。
+      parameters:
+        - name: version
+          in: header
+          required: false
+          schema:
+            type: string
+          description: App 版本号；低于支持确认步的版本或不带时返回 `400` 提示升级
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantEmailRequest'
+            example:
+              email: owner@pinestreet.example.com
+              ticket: chl_0c5e8b23a7d14f96
+              ticketValue: '391504'
+      responses:
+        '200':
+          description: 新邮箱已收到验证码，`data` 为 `null`；接着调 `confirmMerchantEmail`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:11:20.461+00:00'
+                traceId: 4c2a8e17f0d93b65
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+        - 208035
+  /device/merchant/email/confirm:
+    post:
+      tags:
+        - account
+      operationId: confirmMerchantEmail
+      x-required-privilege: session
+      summary: 修改登录邮箱 — 凭新邮箱收到的验证码完成（现网没有，旧包不调）
+      description: |
+        `updateMerchantEmail` 返回 `200` 之后调。`email` 是新邮箱，须与 `updateMerchantEmail` 提交的相同；`ticketValue` 是新邮箱收到的验证码。通过后登录邮箱换成新邮箱，旧邮箱收到通知，登录不受影响；登录者是商户 Owner 时，商户的联系邮箱随之改变。成功时 `data` 为 `null`。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `204010` 验证码不对，还可以重输。
+        - `206006` 没有进行中的修改，或这笔修改已过期、已作废，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，须重新发码。
+        - `email` 与提交的新邮箱不一致。
+        - 新邮箱在确认前已被别人使用。
+        - `208035` 商户处于仅查看状态，不能修改登录邮箱。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantEmailConfirmRequest'
+            example:
+              email: owner@pinestreet.example.com
+              ticketValue: '276830'
+      responses:
+        '200':
+          description: 已修改，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:12:41.806+00:00'
+                traceId: 1d6b9f03e4a27c58
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+        - 208035
+  /device/cusPaySurcharge:
+    post:
+      tags:
+        - products
+      operationId: setCustomerSurcharge
+      x-required-privilege: products:checkout:edit
+      summary: 开关「顾客承担手续费」
+      description: |
+        打开或关闭商户级的「顾客承担手续费」开关，与商户后台收款页设置里的是同一个开关。只改开关本身：适用于哪些支付方式与入口由运营设定，不随这个开关变化。
+
+        下列情形返回 `400`：
+
+        - `208035` 商户处于仅查看状态，不能改设置。
+        - 权限不足：需要商户后台「收款页设置」的编辑权限。
+        - 缺 `enable`。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CustomerSurchargeRequest'
+            example:
+              enable: true
+      responses:
+        '200':
+          description: 已保存，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-06T19:02:14.305+00:00'
+                traceId: 9c3e17a0b5d24f68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/qrcode:
+    get:
+      tags:
+        - products
+      operationId: getStaticQrcode
+      x-required-privilege: terminal:payment:create
+      summary: 取静态收款码
+      description: |
+        取商户的一张静态收款码，返回码内容与渲染好的二维码图片。可取的有门店码、预授权码、银联码；商户开通人民币时另有人民币门店码与人民币预授权码。
+
+        - `unionpay_mode` 为 `true` 时取银联码；否则按 `currency` 与 `preauth` 取对应的门店码。
+        - `code_url` 是码内容：门店码与预授权码是这个商户店铺码的付款地址；银联码是银联的静态码串，不含金额。
+        - `code_img_url` 是把码内容渲染成的二维码图片。
+
+        下列情形返回 `400`：
+
+        - 请求的码商户没有：没开通人民币、预授权或银联。
+        - `currency` 不是商户的结算币种，也不是 `CNY`。
+        - 权限不足：需要商户后台「终端收款」的权限。
+      parameters:
+        - name: preauth
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: 为 `true` 时取预授权码
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 商户的结算币种或 `CNY`；不带时为商户的结算币种
+        - name: unionpay_mode
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: 为 `true` 时取银联码
+      responses:
+        '200':
+          description: 收款码
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/StaticQrcode'
+              example:
+                status: 200
+                message: Success
+                data:
+                  mch_name: Pine Street Cafe
+                  code_url: https://pay.example.ca/q/7Kq2mX9pLa
+                  code_img_url: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAMgCAIAAADz
+                timestamp: '2026-10-06T19:05:40.712+00:00'
+                traceId: c41e8b62d07a4f35
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/bill/add:
+    put:
+      tags:
+        - products
+      operationId: createBill
+      x-required-privilege: products:invoice:manage
+      summary: 新建账单码
+      description: |
+        为当前商户新建一张账单，返回账单号 `bill_id`。账单号在商户内递增，与商户后台账单列表里的账单号相同。详情与二维码用 `getBillDetail` 取。
+
+        - `bill_amount` 是账单金额，单位是分。
+        - `currency` 只收商户的结算币种或 `CNY`。
+        - `bill_remark` 记为账单说明；空串表示没有说明。
+        - `pre_auth_flag` 为 `true` 时，顾客付这张账单走预授权：付款成功后款项挂起，之后可以释放。
+        - 账单的操作员记为当前登录的账号。
+        - `expiration_time` 定账单的到期日，按下表换算。到期日当天（按商户时区）整日可付，过了到期日不能再付。
+
+        | `expiration_time` | 到期日 |
+        |---|---|
+        | `today` | 当天 |
+        | `24h` | 次日 |
+        | `48h` | 后天 |
+        | `72h` | 没有到期日，一直可付 |
+
+        同一账号在同一商户下用同样的金额、币种、说明、`expiration_time` 与预授权标记重复提交，60 秒内（可配置）返回第一次的结果，不重复建单；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `208035` 商户处于仅查看状态，不能新建账单。
+        - `currency` 不是商户的结算币种，也不是 `CNY`。
+        - `bill_amount` 不是正数，或缺 `bill_amount`、`currency`、`expiration_time`。
+        - `expiration_time` 不是上表里的取值。
+        - `bill_remark` 超过 300 字。
+        - 权限不足：需要商户后台「账单」的管理权限。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillCreateRequest'
+            example:
+              bill_amount: 8800
+              currency: CAD
+              bill_remark: Catering deposit for Oct 12
+              expiration_time: today
+              pre_auth_flag: false
+      responses:
+        '200':
+          description: 已建账单，`data` 里是账单号
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BillCreateResult'
+              example:
+                status: 200
+                message: Success
+                data:
+                  bill_id: '10031'
+                timestamp: '2026-10-07T17:20:11.204+00:00'
+                traceId: 6d2f0b8e41c75a93
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/bill/list:
+    get:
+      tags:
+        - products
+      operationId: listBills
+      x-required-privilege: products:invoice:view
+      summary: 账单码列表，按创建日分组
+      description: |
+        返回当前商户的账单，按创建时刻倒序分页，每页的行按创建日分组。
+
+        - 范围：当前商户的账单，不含子商户；删除（含关闭）了的不列。一张账单一行。
+        - `begin`、`end` 是创建日期，按商户时区的日期原样匹配，不按设备时区换算；`item_key` 是行的创建日期。
+        - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
+
+        行上的 `bill_status`、`order_status`、`cancle_time` 按账单所处的情形给：
+
+        | 情形 | `bill_status` | `order_status` | `cancle_time` |
+        |---|---|---|---|
+        | 未付，有到期日 | `1` | 不返回 | 到付款截止时刻的剩余毫秒 |
+        | 未付，没有到期日 | `1` | 不返回 | `-1` |
+        | 已付 | `2` | `"1"` | 同上两行：有到期日为剩余毫秒，没有为 `-1` |
+        | 过了到期日仍未付 | `2` | 不返回 | `0` |
+
+        付款截止时刻是到期日结束的那一刻（商户时区）；剩余毫秒不为负，过了截止时刻为 `0`。
+
+        下列情形返回 `400`：
+
+        - `begin` 或 `end` 不是合法的 `yyyyMMdd` 日期。
+        - `status` 的取值不认识。
+        - 权限不足：需要商户后台「账单」的查看权限。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ''
+              - '1'
+              - '2'
+          description: |
+            按账单状态筛：
+
+            - `1` 只看未付。
+            - `2` 只看已付或已过期。
+            - 空串或不带时都列。
+        - name: begin
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 起始创建日期，`yyyyMMdd`，含当天；不带时不限下界
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 截止创建日期，`yyyyMMdd`，含当天；不带时不限上界
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页账单，按创建日分组；没有行时 `data.data` 为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BillListPage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalCount: 3
+                    totalPages: 1
+                    lastPage: true
+                  data:
+                    - item_key: '2026-10-07'
+                      item_data:
+                        - bill_id: '10031'
+                          bill_status: 1
+                          currency: CAD
+                          cancle_time: 23869000
+                          bill_amount: 88
+                        - bill_id: '10030'
+                          bill_status: 2
+                          order_status: '1'
+                          currency: CAD
+                          cancle_time: -1
+                          bill_amount: 120.5
+                    - item_key: '2026-10-05'
+                      item_data:
+                        - bill_id: '10027'
+                          bill_status: 2
+                          currency: CNY
+                          cancle_time: 0
+                          bill_amount: 300
+                timestamp: '2026-10-07T17:22:31.019+00:00'
+                traceId: 0c7e5a2d93b14f68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/bill/order_detail/{bill_id}:
+    get:
+      tags:
+        - products
+      operationId: getBillDetail
+      x-required-privilege: products:invoice:view
+      summary: 账单码详情：二维码、账单信息与付款订单
+      description: |
+        返回一张账单的二维码与账单信息（`bill_info`），以及付清它的那笔订单（`data`）。
+
+        - `code_img_url` 是服务端把账单的付款地址画成的二维码图片。
+        - `payways` 是商户当前能受理的支付方式，按请求时的开通情况算。
+        - `data` 只在账单已付时有一组一行，就是付清这张账单的订单；订单详情用 `getTransaction` 取。账单未付，或付款后被自动退回的，`data` 为空数组。
+
+        下列情形返回 `400`：
+
+        - 账单不存在、已删除，或不是当前商户的，不区分。
+        - 权限不足：需要商户后台「账单」的查看权限。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      parameters:
+        - $ref: '#/components/parameters/BillId'
+      responses:
+        '200':
+          description: 账单详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/BillDetail'
+              examples:
+                paid:
+                  summary: 已付的账单
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      bill_info:
+                        code_img_url: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAMgCAIAAADz
+                        mch_company_name: Pine Street Hospitality Ltd.
+                        bill_amount: 120.5
+                        currency: CAD
+                        remark: Private dinner, table for 8
+                        payways:
+                          - wechat
+                          - alipay
+                          - alipayonline
+                          - unionpayonline
+                          - creditcard
+                        bill_status: 2
+                      data:
+                        - item_key: '2026-10-07'
+                          item_data:
+                            - order_id: '202610071402001017'
+                              pay_amount: 120.5
+                              currency: CAD
+                              tran_time: '2026-10-07 14:02:18'
+                    timestamp: '2026-10-07T21:05:44.381+00:00'
+                    traceId: 8f1d3c6a20e74b59
+                unpaid:
+                  summary: 未付的账单
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      bill_info:
+                        code_img_url: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAMgCAIAAADz
+                        mch_company_name: Pine Street Hospitality Ltd.
+                        bill_amount: 88
+                        currency: CAD
+                        remark: Catering deposit for Oct 12
+                        payways:
+                          - wechat
+                          - alipay
+                          - creditcard
+                        bill_status: 1
+                      data: []
+                    timestamp: '2026-10-07T17:20:12.630+00:00'
+                    traceId: 2a9e6f17c3d04b85
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/bill/close/{bill_id}:
+    post:
+      tags:
+        - products
+      operationId: closeBill
+      x-required-privilege: products:invoice:manage
+      summary: 关闭账单码（与删除同一动作）
+      description: |
+        与 `deleteBill` 是同一个动作：删除这张账单。任何状态的账单都可以删；删除后付款地址与二维码立即失效，列表里不再出现。已付账单的收款不受影响；删除时顾客正在进行的付款若之后成功，自动原路退回。没有请求体。
+
+        下列情形返回 `400`：
+
+        - `208035` 商户处于仅查看状态，不能关闭或删除账单。
+        - 账单不存在、已删除，或不是当前商户的，不区分。
+        - 权限不足：需要商户后台「账单」的管理权限。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      parameters:
+        - $ref: '#/components/parameters/BillId'
+      responses:
+        '200':
+          description: 已删除，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T17:30:02.715+00:00'
+                traceId: 5b0e8d34f2a17c69
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/bill/delete/{bill_id}:
+    delete:
+      tags:
+        - products
+      operationId: deleteBill
+      x-required-privilege: products:invoice:manage
+      summary: 删除账单码
+      description: |
+        删除这张账单，与 `closeBill` 是同一个动作。任何状态的账单都可以删；删除后付款地址与二维码立即失效，列表里不再出现。已付账单的收款不受影响；删除时顾客正在进行的付款若之后成功，自动原路退回。没有请求体。
+
+        下列情形返回 `400`：
+
+        - `208035` 商户处于仅查看状态，不能关闭或删除账单。
+        - 账单不存在、已删除，或不是当前商户的，不区分。
+        - 权限不足：需要商户后台「账单」的管理权限。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      parameters:
+        - $ref: '#/components/parameters/BillId'
+      responses:
+        '200':
+          description: 已删除，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T17:31:40.208+00:00'
+                traceId: e3a7c51d08f94b26
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/mch/order_expiry_config:
+    post:
+      tags:
+        - products
+      operationId: updateOrderExpiry
+      x-required-privilege: products:checkout:edit
+      summary: 设置订单有效期
+      description: |
+        `orderExpiryConfig` 是数值加单位：`s` 秒、`m` 分、`h` 小时，如 `30m`、`2h`、`1.5h`。换算成整分钟后设为商户的订单有效期，对各收款入口的订单都生效，与商户后台收款设置里的是同一个。成功时 `data` 为 `null`。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 格式不对，或换算后不是整分钟。
+        - 超出允许的范围，范围写在 `message` 里。
+        - `208035` 商户处于仅查看状态，不能改设置。
+        - 权限不足：需要商户后台「收款页设置」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - orderExpiryConfig
+              properties:
+                orderExpiryConfig:
+                  type: string
+                  description: 数值加单位（`s`、`m`、`h`），换算后须是整分钟
+            example:
+              orderExpiryConfig: 30m
+      responses:
+        '200':
+          description: 已保存，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:20:08.413+00:00'
+                traceId: 6a0c3e95d2b41f87
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/mchPayWay:
+    get:
+      tags:
+        - products
+      operationId: listPaymentMethods
+      x-required-privilege: products:checkout:view
+      summary: 支付方式的开通情况与店铺码收款页上显示的支付方式
+      description: |
+        没有参数。码值与现网相同，对应关系如下：
+
+        | 码 | 支付方式 | 商户后台收款页设置里的选项 |
+        |---|---|---|
+        | `wechat` | 微信支付 | `wechat` |
+        | `alipay` | 支付宝（店内） | `alipay` |
+        | `alipayonline` | 支付宝（线上） | `alipay_online` |
+        | `unionpay` | 银联（店内） | 没有，不在收款页上显示 |
+        | `unionpayonline` | 银联（线上） | `unionpay_online` |
+        | `creditcard` | 信用卡 | `card` |
+
+        - 六个开关是对应支付方式是否已开通，由运营开通，商户不能改：`wxSwitch` 微信支付、`aliSwitch` 支付宝（店内）、`aliOnlineSwitch` 支付宝（线上）、`unionSwitch` 银联（店内）、`unionOnlineSwitch` 银联（线上）、`cardSwitch` 信用卡。
+        - `storePayWay` 是店铺码收款页上给付款人显示的支付方式，与商户后台收款页设置里选的是同一份；不会含 `unionpay`。
+        - `examinePayWays` 是正在开通审核中的支付方式，没有时为空数组。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台「收款页设置」的查看权限。
+      responses:
+        '200':
+          description: 开通情况与收款页上显示的支付方式
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentMethods'
+              example:
+                status: 200
+                message: Success
+                data:
+                  wxSwitch: true
+                  aliSwitch: true
+                  aliOnlineSwitch: false
+                  unionSwitch: true
+                  unionOnlineSwitch: false
+                  cardSwitch: true
+                  storePayWay:
+                    - wechat
+                    - alipay
+                    - creditcard
+                  examinePayWays:
+                    - unionpayonline
+                timestamp: '2026-10-07T19:25:10.632+00:00'
+                traceId: 0e7b4d21c9a38f56
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/openPayWay:
+    post:
+      tags:
+        - products
+      operationId: updatePaymentMethods
+      x-required-privilege: products:checkout:edit
+      summary: 设置店铺码收款页上显示的支付方式
+      description: |
+        `payways` 是半角逗号分隔的码（码值见 `listPaymentMethods`），整组替换店铺码收款页上显示的支付方式，与商户后台收款页设置里选的是同一份。`unionpay` 收下不用。成功时 `data` 为 `null`。
+
+        新加的支付方式须已开通；已选着、后来停用的可以原样保留，付款人看不到它，重新开通后即恢复。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 一项都没有（只有 `unionpay` 也算没有）。
+        - 含不认识的码，或新加的支付方式还没开通。
+        - `208035` 商户处于仅查看状态，不能改设置。
+        - 权限不足：需要商户后台「收款页设置」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payways
+              properties:
+                payways:
+                  type: string
+                  description: 半角逗号分隔的码，如 `wechat,alipay,creditcard`
+            example:
+              payways: wechat,alipay,creditcard
+      responses:
+        '200':
+          description: 已保存，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:26:02.415+00:00'
+                traceId: 5d1a8e60f3b72c94
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/pay_setting/update:
+    post:
+      tags:
+        - products
+      operationId: updatePaymentPageSettings
+      x-required-privilege: products:checkout:edit
+      summary: 保存店铺码收款页设置（付款人填写项、提示语、小费）
+      description: |
+        请求体与 `getMerchantInfo` 返回的 `payInfo` 同形。与商户后台收款页设置是同一份设置；小费是商户级的，终端收款也用同一份。成功时 `data` 为 `null`。
+
+        - `user_info_switch`：为 `true` 时收款页向付款人收姓名与手机号，为 `false` 时不收。
+        - `remark_switch`：为 `true` 时收款页有备注栏；`remarks_are_required` 为 `true` 时备注必填。
+        - `user_input_title`：商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；最多 4 项，每项标题不超过 10 个字符。不带或空数组表示没有自定义填写项。
+        - `tip_switch`、`tip_preset_value`：小费开关与三档预设百分比。`tip_preset_value` 是三个 0 到 30 的整数，半角逗号分隔，如 `10,15,20`；`tip_switch` 为 `false` 时不看它。
+        - `note`：收款页上的提示语；空串或不带表示不设。
+        - `full_pay_switch`、`child_refund_switch`、`mch_refund_switch` 收下不用。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `user_input_title` 不是上述格式、超过 4 项，或有标题超过 10 个字符、以 `sys:` 开头、互相重复。
+        - `tip_switch` 为 `true` 而 `tip_preset_value` 不是三个 0 到 30 的整数。
+        - `208035` 商户处于仅查看状态，不能改设置。
+        - 权限不足：需要商户后台「收款页设置」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaySettingInfo'
+            example:
+              user_info_switch: true
+              remark_switch: true
+              remarks_are_required: false
+              user_input_title: '[{"title":"Table No."}]'
+              tip_switch: true
+              tip_preset_value: 10,15,20
+              note: Thanks for visiting
+              full_pay_switch: true
+              child_refund_switch: false
+              mch_refund_switch: false
+      responses:
+        '200':
+          description: 已保存，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:27:30.118+00:00'
+                traceId: 8b3e0c57a1d94f62
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/micropay:
+    post:
+      tags:
+        - orders
+      operationId: createMicropayOrder
+      x-required-privilege: terminal:payment:create
+      summary: 扫顾客的付款码收款
+      description: |
+        服务端认出付款码的品牌，建订单、向渠道下单，等到渠道的首次应答再返回：付款成功，或渠道在等付款人确认。渠道迟迟不应答时同样返回 `order_id`。订单的结果以 `getTransaction` 查到的为准。下单后默认 60 秒内（可配置）没有结果的，订单关闭（`getTransaction` 的 `orderStatus` 为 `3`）。
+
+        - `amount` 是标价，单位是分。
+        - `currency` 只收商户的结算币种或 `CNY`。
+        - `preauth` 为 `true` 时是预授权：付款成功后款项挂起，之后可以释放，与付款码的品牌无关。
+        - `remark` 记为订单备注，查订单时在 `remarks` 里返回。
+
+        同一部手机用同一个付款码、同样的金额、币种与预授权标记的重复请求视为同一笔，返回第一次的结果；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `104500` 认不出付款码的品牌。
+        - `108502` 商户没有开通这个付款码对应的支付方式。
+        - `108104` 这笔收款不予受理；金额不予受理时落一笔不予受理（`1`）的订单，响应仍是 `400`。
+        - `108105` 算不出这笔收款的手续费。
+        - `208035` 商户处于仅查看状态，不能收款。
+        - `108500` 付款码已失效（过期或已被使用）。订单已建立，记为失败。
+        - `108501` 渠道拒付。订单已建立，记为失败。
+        - `107500` 承接这个付款码的通道暂时不可用。订单已建立，记为失败。
+        - `currency` 不是商户的结算币种，也不是 `CNY`。
+        - `amount` 不是正数，或缺 `currency`、`auth_code`、`amount`。
+        - 权限不足：需要商户后台「终端收款」的权限。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MicropayRequest'
+            example:
+              currency: CAD
+              auth_code: '134567890123456789'
+              amount: 1250
+              remark: Table 6
+              preauth: false
+              expire_time: 1h
+              rate_flag: true
+      responses:
+        '200':
+          description: 已下单。结果以 `getTransaction` 查到的为准
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MicropayResult'
+              example:
+                status: 200
+                message: Success
+                data:
+                  order_id: '202610061902001001'
+                  status: 5
+                timestamp: '2026-10-06T19:02:03.517+00:00'
+                traceId: 3e8b0d27c1f54a96
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 104500
+        - 107500
+        - 108104
+        - 108105
+        - 108500
+        - 108501
+        - 108502
+        - 208035
+  /device/transaction/{orderId}:
+    get:
+      tags:
+        - orders
+      operationId: getTransaction
+      x-required-privilege: orders:payment:view
+      summary: 查订单
+      description: |
+        按订单号查订单。
+
+        `payType` 为 `Credit` 时返回订单本身，`data` 是一个 `TransactionDetail`；为 `Debit` 时返回退款详情，路径段是退款号，`data` 是一个 `RefundDetail`。两种形状互斥，由 `payType` 决定。
+
+        `payType` 为 `Debit` 时，本接口标的 `orders:payment:view` 之外，另须商户后台查看退款单的权限（`orders:refund:view`）。
+
+        只能查当前商户及其子商户的订单与退款。订单详情的金额是元，十进制字符串（`refundFee` 除外，见字段说明）；退款详情的 `refundFee` 是元，数值。时间按商户时区。
+
+        下列情形返回 `400`：
+
+        - 订单不存在，或不属于当前商户及其子商户，两者不区分。
+        - `payType` 为 `Debit` 时退款不存在，或不属于当前商户及其子商户，两者不区分。
+        - 缺 `payType`。
+        - 权限不足：需要商户后台查看支付订单的权限。
+        - 权限不足：`payType` 为 `Debit` 时另需商户后台查看退款单的权限。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: '`payType` 为 `Credit` 时是订单号，即下单返回的 `order_id`；为 `Debit` 时是退款号，即退款返回的 `refund_id`'
+        - name: payType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - Credit
+              - Debit
+          description: |
+            查什么：
+
+            - `Credit`：订单详情，形状见 200 响应。
+            - `Debit`：退款详情，路径段是退款号。
+      responses:
+        '200':
+          description: '`payType` 为 `Credit` 时 `data` 是订单详情 `TransactionDetail`；为 `Debit` 时是退款详情 `RefundDetail`'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    description: '`payType` 为 `Credit` 时是 `TransactionDetail`，为 `Debit` 时是 `RefundDetail`，二选一'
+                    oneOf:
+                      - $ref: '#/components/schemas/TransactionDetail'
+                      - $ref: '#/components/schemas/RefundDetail'
+              examples:
+                credit:
+                  summary: payType=Credit，订单详情
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      payOrderId: '202610061902001001'
+                      mchName: Pine Street Cafe
+                      currency: CAD
+                      payFee: '14.00'
+                      inputFee: '12.50'
+                      tipFee: '1.50'
+                      refundFee: 0
+                      exchangeRate: null
+                      transactionTime: '2026-10-06 12:02:05'
+                      createTime: '2026-10-06 12:02:03'
+                      tranDate: 2026/10/06
+                      tranTime: '12:02:05'
+                      orderStatus: 5
+                      preAuth: false
+                      orderScene: 2
+                      channel: Wechat
+                      gateway: '0'
+                      mchOrderId: null
+                      remarks: Table 6
+                      orderDesc: Pine Street Cafe
+                      orderRules: Table 6
+                    timestamp: '2026-10-06T19:02:06.044+00:00'
+                    traceId: 7a2f5c19e0d34b81
+                debit:
+                  summary: payType=Debit，退款详情
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      refundId: R100240001
+                      refundFee: 5
+                      currency: CAD
+                      refundTime: '2026-10-06 12:30:11'
+                      operator: Alice
+                      refundRemark: null
+                    timestamp: '2026-10-06T19:30:12.108+00:00'
+                    traceId: 7a2f5c19e0d34b82
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/orders/{orderId}:
+    post:
+      tags:
+        - orders
+      operationId: refundOrder
+      x-required-privilege: orders:refund:create
+      summary: 退款（请求里带退款密码）
+      description: |
+        对一笔订单退款，同一个请求里带商户的退款密码。服务端先校验退款密码，再落退款单、提交渠道，拿到渠道的首次应答后返回；返回时退款处理中或已成功。
+
+        - `fee` 是退款金额，单位是元，服务端四舍五入到分。币种是订单的币种，不传。
+        - 可退金额 = 顾客实付总额（金额、小费与顾客承担的手续费之和）− 已退金额。允许部分退、多次退。
+        - 商户可用于退款的资金不够时返回 `400`，见下面的列表。
+        - `refund_password` 是商户的退款密码，全体员工共用。连续输错达到上限（可配置）后锁定一段时间，锁定期内退款密码校验不通过（商户后台、商户 App、POS 都一样）。
+        - `remark` 记为退款备注，查退款详情时在 `refundRemark` 里返回。
+        - 可以退当前商户及其子商户的订单；子商户的订单须运营开了「父商户可退子商户订单」，没开时按订单不存在处理。挂起中的预授权订单（`preAuth` 为真）不用先释放，可以直接退，部分退也可以；退后订单仍挂起，剩余金额在释放后结算。
+
+        `data` 有两种情形：
+
+        - 退款已受理：返回 `refund_id`、`partner_refund_id`、`amount`、`currency`、`result_code`。
+        - 命中审核规则（金额达到审核阈值、成交超过退款周期，或当日退款笔数超限）：退款进入审核，不立即退；返回 `success`（`true`）与 `message`，没有 `refund_id`。审核通过后由服务端完成退款。审核中的退款不计入已退金额，也不出现在退款记录里。
+
+        同一部手机对同一订单、同样金额的重复请求在 60 秒内（可配置）视为同一笔，返回第一次的结果；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 缺 `refund_password`，`message` 为 `Refund password is required.`。
+        - `206003` 退款密码不对，`message` 为 `Invalid refund password.`。
+        - `206004` 退款密码连续输错达到上限，暂时锁定，`message` 里含 `password`。
+        - `208035` 商户处于仅查看状态，不能退款。
+        - `108025` 这笔退款不予受理，不细分原因：订单没有支付成功、已全额退、金额不是正数或超过可退金额、成交超过最大退款期限（可配置）、商户的退款能力被关闭等。
+        - `108017` 同一登录账号对同一订单在极短时间内重复提交（不论金额）。
+        - 权限不足：需要商户后台「发起退款」的权限。
+        - 订单不存在，或不在可退的范围内，两者不区分。
+        - 商户可用于退款的资金不够这笔退款，`message` 里含 `balance`（中文环境含「余额」）。
+        - 渠道拒绝退款，`message` 带渠道给的原因。
+        - 缺 `fee`。
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 要退款的订单号
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefundRequest'
+            example:
+              fee: 5.25
+              refund_password: '135790'
+              remark: Returned one item
+      responses:
+        '200':
+          description: 退款已受理，或已进入审核。两种情形的 `data` 见接口说明与 `RefundResult`
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/RefundResult'
+              examples:
+                accepted:
+                  summary: 退款已受理
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      refund_id: R100240001
+                      partner_refund_id: R100240001
+                      amount: 525
+                      currency: CAD
+                      result_code: SUCCESS
+                    timestamp: '2026-10-06T19:15:21.306+00:00'
+                    traceId: 8b2e4f07c1d93a65
+                reviewing:
+                  summary: 进入审核
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      success: true
+                      message: The refund has been submitted, please wait for the system approval.
+                    timestamp: '2026-10-06T19:15:21.306+00:00'
+                    traceId: 1f6c9a30e7b24d58
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 108017
+        - 108025
+        - 206003
+        - 206004
+        - 208035
+  /device/release/pre_auth/{orderId}:
+    get:
+      tags:
+        - orders
+      operationId: releasePreauth
+      x-required-privilege: orders:preauth:create
+      summary: 释放预授权
+      description: |
+        释放一笔挂起中的预授权订单：解除这笔订单的结算锁，不动渠道、不动资金。没有请求体。成功后订单状态仍是 `5`，`preAuth` 变为假，之后可以正常退款。挂起中的订单不会到期自动释放。
+
+        只能释放当前商户自己的订单，子商户的订单按不存在处理。同一订单在 60 秒内（可配置）的重复释放请求（不论哪台设备）返回第一次的结果；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。之后再释放按「不是挂起中的预授权订单」拒绝。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `108005` 不是挂起中的预授权订单：已释放、已清算，或不是预授权订单。
+        - `108019` 这笔订单是先授权后请款的预授权，没有释放这个动作。
+        - `208035` 商户处于仅查看状态，不能释放。
+        - 权限不足：需要商户后台「完成或释放预授权」的权限。
+        - 订单不存在，或不是当前商户的订单，两者不区分。
+      servers:
+        - url: https://cashier.example.ca/api/v1.0/app
+          description: cashier 域名（加元区）
+        - url: https://cashier.example.com/api/v1.0/app
+          description: cashier 域名（美元区商户）
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 要释放的预授权订单号
+      responses:
+        '200':
+          description: 已释放。响应体为空，不套成功响应的外壳
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 108005
+        - 108019
+        - 208035
+  /device/common:
+    get:
+      tags:
+        - orders
+      operationId: getHomeSummary
+      x-required-privilege: dashboard:overview:view
+      summary: 首页汇总
+      description: |
+        返回当前商户的信息、余额、今天的收款与退款，以及三个品牌的汇率。没有参数。
+
+        - 「今天」是商户当前的营业日，由服务端定。
+        - 今天的三项只算当前商户，不含子商户，也不按设备分：`today_collection` 是今天成交的收款金额合计，`today_count` 是今天成交的收款笔数（一单一笔），`today_Refund` 是今天受理的退款金额合计（处理中或成功，正数）。金额按结算币种，单位是元。
+        - `mch_balance` 是商户的账户余额（可结算余额减去商户欠平台的钱，含预授权挂起中的款项，可能为负），与商户后台余额卡片上的账户余额 `accountBalance` 是同一个量，这里以元计。
+        - 汇率：按商户开通的该品牌与商户的结算币种取最新的汇率，仅供参考。取不到汇率的品牌，`{品牌}_rate` 与 `{品牌}_trend` 都不返回。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台「首页概览」的查看权限。
+      responses:
+        '200':
+          description: 首页汇总
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/HomeSummary'
+              example:
+                status: 200
+                message: Success
+                data:
+                  mch_id: 23
+                  mch_code: PINE
+                  mch_name: Pine Street Cafe
+                  mch_currency: CAD
+                  mch_balance: 1832.4
+                  today_collection: 386.5
+                  today_count: 12
+                  today_Refund: 5.25
+                  alipay_rate: '5.1234'
+                  alipay_trend: 0.0012
+                  wechat_rate: '5.1198'
+                  wechat_trend: -0.0005
+                  unionpayonline_rate: '5.1301'
+                  unionpayonline_trend: 0
+                timestamp: '2026-10-06T20:10:02.118+00:00'
+                traceId: 2b7d40e9c15a4f83
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/transaction/record:
+    get:
+      tags:
+        - orders
+      operationId: listTransactions
+      x-required-privilege: orders:payment:view
+      summary: 交易流水，按日分组
+      description: |
+        返回当前商户及其全部子商户的交易流水，按时间倒序分页，每页的行按营业日分组。
+
+        流水的行：
+
+        - 成交的收款，一单一行，时间是成交时刻。
+        - 受理的退款（处理中或成功），一笔一行，时间是受理时刻。
+        - 未成交、失败、被拒的订单不列；进入审核还没有受理的退款不列。
+
+        日期都按商户营业日：`begin`、`end` 是营业日，原样匹配，不按设备时区换算；`item_key` 是行所属的营业日。时间按商户时区。
+
+        `item_statistics` 是这一个营业日里、与列表同范围同条件的收款合计与退款合计，不只是本页的行。同一个营业日的行跨页时，每一页都有这一天的组，`item_statistics` 相同。
+
+        登录者是 `role` 为 3 的成员（`role` 的取法见 `TerminalRole`）时，最早只能查到当前营业日往前 N 天，N 由运营按商户设置，没有设置时不限；不带 `begin` 或 `begin` 早于它时，早于的部分不返回，不报错。
+
+        下列情形返回 `400`：
+
+        - `begin` 或 `end` 不是合法的 `yyyyMMdd` 日期。
+        - `channel`、`order_status` 的取值不认识。
+        - 带了 `order_id` 又带了 `begin`、`end`，区间超过上限（默认 31 天，可配置）。
+        - 权限不足：需要商户后台查看支付订单的权限。
+      parameters:
+        - name: begin
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 起始营业日，`yyyyMMdd`，含当天；不带时不限下界
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 截止营业日，`yyyyMMdd`，含当天；不带时不限上界
+        - name: channel
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ''
+              - ALL
+              - WECHAT
+              - ALIPAY
+              - ALIPAYONLINE
+              - ALIPAYPLUS
+              - ALIPAYAPS
+              - APSINSTORE
+              - ALIPAYPLUS_ALL
+              - APSCASHIER
+              - CBBANKPAY
+              - UNIONPAY
+              - UNIONPAYONLINE
+              - CREDITCARD
+            default: ALL
+          description: 按支付方式品牌筛；`ALL`、空串或不带时不筛
+        - name: order_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: |
+            搜索框里的内容。订单号、商户订单号、渠道流水号、商品描述、退款原因里包含它的，或订单总额与它相等的，这一行即算匹配；空串按不带处理
+        - name: order_status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - ALL
+              - PAID
+              - ALL_REFUNDED
+              - REFUNDED
+              - PARTIAL_REFUNDED
+              - FULL_REFUNDED
+              - SUCCESS
+              - FAILED
+              - CLOSED
+            default: PAID
+          description: |
+            按行所属订单的状态筛，不带时为 `PAID`：
+
+            - `ALL` 不筛。
+            - `PAID` 状态为 `5`、`6`、`7`。
+            - `ALL_REFUNDED`、`REFUNDED` 状态为 `6`、`7`。
+            - `PARTIAL_REFUNDED` 状态为 `6`。
+            - `FULL_REFUNDED` 状态为 `7`。
+            - `SUCCESS` 状态为 `5`。
+            - `FAILED` 状态为 `1`、`4`；`CLOSED` 状态为 `3`。流水不列未成交的订单，这两个取值查不到行。
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: mch_ids
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 逗号分隔的商户号。收下不用，范围恒为当前商户及其全部子商户
+        - name: order_clear_status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 收下不用。现网取 `readyToClear` 或 `cleared`
+      responses:
+        '200':
+          description: 一页流水，按营业日分组；没有行时 `data.data` 为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/TransactionRecordPage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  data:
+                    - item_key: '2026-10-06'
+                      item_statistics:
+                        tran_total_pay_fee: 14
+                        tran_total_ref_fee: 5.25
+                      item_data:
+                        - order_id: '202610061902001001'
+                          refund_id: R100240001
+                          currency: CAD
+                          channel: Wechat
+                          clear_fee: 5.25
+                          status: 6
+                          preAuth: false
+                          tran_date: '2026-10-06'
+                          tran_time: '12:15:21'
+                        - order_id: '202610061902001001'
+                          currency: CAD
+                          channel: Wechat
+                          clear_fee: 14
+                          status: 6
+                          preAuth: false
+                          tran_date: '2026-10-06'
+                          tran_time: '12:02:05'
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalCount: 2
+                    totalPages: 1
+                    lastPage: true
+                timestamp: '2026-10-06T20:12:40.517+00:00'
+                traceId: 9e4a1c07d3b25f68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/pay_receipt/{order_id}:
+    get:
+      tags:
+        - orders
+      operationId: downloadPaymentReceipt
+      x-required-privilege: orders:payment:view
+      summary: 下载付款收据 PDF
+      description: |
+        返回一笔订单的付款收据，成功时响应体就是 PDF 文件本身，不套成功响应的外壳。
+
+        收据的内容：
+
+        - 抬头：订单所属商户的简称与地址。
+        - 时间（付款成功时刻，商户时区，`yyyy-MM-dd HH:mm:ss`）、下单设备（没有设备时写订单来源）、支付方式、订单号、备注（订单的商品描述）。
+        - 币种、金额（标价）、小费，以及 Total（顾客实付总额）。
+        - 付款人付款时填写的附加信息，有时才有。
+        - 订单号的二维码。
+
+        文字的语言按登录者的语言偏好，没有设置时为英文。
+
+        下列情形返回 `400`：
+
+        - 订单不存在，或不属于当前商户及其子商户，两者不区分。
+        - 订单没有成交，或是挂起中的预授权订单（`preAuth` 为真），不出收据。
+        - 权限不足：需要商户后台查看支付订单的权限。
+      parameters:
+        - name: order_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 订单号
+      responses:
+        '200':
+          description: 付款收据 PDF
+          headers:
+            Content-Disposition:
+              required: true
+              description: '`inline; filename=receipt_{商户代码}_{订单号}.pdf`'
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/refund_receipt/{refund_id}:
+    get:
+      tags:
+        - orders
+      operationId: downloadRefundReceipt
+      x-required-privilege: orders:refund:view
+      summary: 下载退款收据 PDF
+      description: |
+        返回一笔退款的收据，成功时响应体就是 PDF 文件本身，不套成功响应的外壳。
+
+        收据的内容：
+
+        - 抬头：原订单所属商户的简称与地址。
+        - 时间（退款发起时间，商户时区，`yyyy-MM-dd HH:mm:ss`）、原订单的下单设备（没有设备时写订单来源）、支付方式、备注（原订单的商品描述）。
+        - 单号：商户退款号，没有时为平台退款号。
+        - 币种，金额与 Total 都是退款金额。
+
+        文字的语言按登录者的语言偏好，没有设置时为英文。
+
+        下列情形返回 `400`：
+
+        - 退款不存在，或不属于当前商户及其子商户，两者不区分。
+        - 退款不是处理中或成功（例如还在审核、已失败），不出收据。
+        - 权限不足：需要商户后台查看退款单的权限。
+      parameters:
+        - name: refund_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 平台退款号，即流水行的 `refund_id`
+      responses:
+        '200':
+          description: 退款收据 PDF
+          headers:
+            Content-Disposition:
+              required: true
+              description: '`inline; filename=RefundReceipt_{商户代码}_{原订单号}.pdf`'
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/numCount:
+    get:
+      tags:
+        - orders
+      operationId: getAnalyticsCharts
+      x-required-privilege: dashboard:overview:view
+      summary: 数据分析图表
+      description: |
+        返回当前商户及其子商户在一个营业日区间内的收款金额与笔数，按时段分点。
+
+        分点的粒度：
+
+        - `createdStart` 与 `createdEnd` 是同一天：按小时出 24 个点，每个点是商户时区的一个自然小时，从该营业日的起点起顺序排列，`date` 为该小时的 `HH:00`；按成交或受理时刻归点。
+        - `createdEnd` 不早于 `createdStart` 加三个月的那一天：按月出点，`date` 为 `yyyy/MM`，每个月只计区间内的营业日。
+        - 其余：按营业日出点，`date` 为 `yyyy-MM-dd`。
+
+        区间内没有数据的点照样返回，金额与笔数为 `0`。新老客户不做统计，`newCust`、`oldCust` 与 `info` 的三个数恒为 `0`。
+
+        下列情形返回 `400`：
+
+        - `createdStart` 或 `createdEnd` 不是合法的 `yyyyMMdd` 日期。
+        - `createdStart` 晚于 `createdEnd`。
+        - 权限不足：需要商户后台「首页概览」的查看权限。
+      parameters:
+        - name: createdStart
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 起始营业日，`yyyyMMdd`，含当天
+        - name: createdEnd
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 截止营业日，`yyyyMMdd`，含当天
+        - name: mchArray
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 收下不用。现网的端发空串
+      responses:
+        '200':
+          description: 图表数据
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AnalyticsCharts'
+              example:
+                status: 200
+                message: Success
+                data:
+                  list:
+                    - date: '2026-10-04'
+                      payAmount: 412.75
+                      payCount: 15
+                      newCust: 0
+                      oldCust: 0
+                    - date: '2026-10-05'
+                      payAmount: 0
+                      payCount: 0
+                      newCust: 0
+                      oldCust: 0
+                    - date: '2026-10-06'
+                      payAmount: 381.25
+                      payCount: 12
+                      newCust: 0
+                      oldCust: 0
+                  info:
+                    sumCount: 0
+                    oldCount: 0
+                    newCount: 0
+                timestamp: '2026-10-06T20:15:09.774+00:00'
+                traceId: 4c8f2a61e07d3b95
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/account/balance:
+    get:
+      tags:
+        - funds
+      operationId: getAccountBalance
+      x-required-privilege: dashboard:overview:view
+      summary: 待结算余额与退款账户
+      description: |
+        返回当前商户的三个金额，不含子商户，没有参数。都按结算币种，单位是元。
+
+        - `tranBalance`：待结算余额（不含预授权挂起），即还没结算的收款减去退款等扣减后的净额，可能为负。从余额划到退款账户（`rechargeRefundAccount` 的 `balance`）时，余额够不够以服务端提交时的判断为准，不以本值为准。
+        - `rechargeBalance`：退款账户的余额。
+        - `refundQuota`：退款账户的最低金额，退款账户余额低于它时由系统自动补足；没有开自动补足时为 `0`。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台「首页概览」的查看权限。
+      responses:
+        '200':
+          description: 三个金额
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/AccountBalance'
+              example:
+                status: 200
+                message: Success
+                data:
+                  tranBalance: 1520.35
+                  rechargeBalance: 300
+                  refundQuota: 200
+                timestamp: '2026-10-07T18:03:20.118+00:00'
+                traceId: 6b1e0c7f92d34a58
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device//subMchBalance:
+    get:
+      tags:
+        - funds
+      operationId: listSubMerchantBalances
+      x-required-privilege: dashboard:overview:view
+      summary: 当前商户与关联商户的余额
+      description: |
+        返回 `sub_balances`：第一项是当前商户，其后是当前商户名下、登录者可以访问的关联商户（只到下一级）。没有参数。路径中间的双斜杠与现网相同。
+
+        `mch_balance` 是该商户的账户余额，与首页汇总（`getHomeSummary`）的 `mch_balance` 是同一个量：可结算余额减去商户欠平台的钱，含预授权挂起中的款项，可能为负；按该商户的结算币种，单位是元。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台「首页概览」的查看权限。
+      responses:
+        '200':
+          description: 各商户的余额
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SubMerchantBalances'
+              example:
+                status: 200
+                message: Success
+                data:
+                  sub_balances:
+                    - mch_id: '23'
+                      mch_name: Pine Street Cafe
+                      mch_balance: 1832.4
+                    - mch_id: '57'
+                      mch_name: Pine Street Cafe Downtown
+                      mch_balance: -12.5
+                timestamp: '2026-10-07T18:04:05.772+00:00'
+                traceId: 0f3c8a51d2e74b96
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/settlement_log:
+    get:
+      tags:
+        - funds
+      operationId: listSettlements
+      x-required-privilege: orders:settlement:view
+      summary: 清算记录列表，按结算日分组
+      description: |
+        返回结算单，按结算日倒序分页，每页的行按结算日分组。一张结算单一行。
+
+        - 范围：不带 `mch_ids` 时是当前商户及其名下、登录者可以访问的关联商户（只到下一级）；带了只查其中列出的商户，列出的须都在这个范围内。
+        - `begin`、`end` 是结算日，`yyyyMMdd`，含 `end` 当天，按商户时区的日期原样匹配。
+        - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
+        - 行上的 `clear_detail_id` 是结算单号，查清算明细（`getSettlement`）时原样带回。
+
+        下列情形返回 `400`：
+
+        - `mch_ids` 里有不在上述范围内的商户。
+        - `begin` 或 `end` 不是合法的 `yyyyMMdd` 日期。
+        - 权限不足：需要商户后台「结算单」的查看权限。
+      parameters:
+        - name: begin
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 起始结算日，`yyyyMMdd`，含当天；不带时不限下界
+        - name: end
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^[0-9]{8}$
+          description: 截止结算日，`yyyyMMdd`，含当天；不带时不限上界
+        - name: mch_ids
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 逗号分隔的商户号；不带时为当前商户及其可访问的关联商户
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页结算单，按结算日分组；没有行时 `data.data` 为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SettlementListPage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  data:
+                    - item_key: '2026-10-06'
+                      item_data:
+                        - clear_detail_id: stl_7f3a20c1
+                          clear_interval: 2026-10-05 ~ 2026-10-05
+                          gross_amount: 1250.5
+                          clear_total_fee: 1218.25
+                          total_charge: 32.25
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalCount: 1
+                    totalPages: 1
+                    lastPage: true
+                timestamp: '2026-10-07T18:10:02.551+00:00'
+                traceId: 3c9b1f70a6e24d85
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/settlement_log/{id}:
+    get:
+      tags:
+        - funds
+      operationId: getSettlement
+      x-required-privilege: orders:settlement:view
+      summary: 清算明细
+      description: |
+        返回一张结算单的汇总（`clear_summary`）与逐笔明细（`settle_transactions`），不分页。
+
+        - 路径上的 `id` 是清算记录列表行上的 `clear_detail_id`。结算单须在清算记录列表的范围内：当前商户及其名下、登录者可以访问的关联商户。
+        - `settle_transactions` 分 `Credit`、`Debit` 两组，每组是「日期 → 这一天的明细行」：收款归 `Credit`，退款与其他扣减归 `Debit`。退款账户划转、罚款、补偿等不是交易的行按资金方向归组，没有 `order_id`。日期按商户时区，`yyyy-MM-dd`，日期键之间不保证顺序。
+        - 金额都是元，两位小数的十进制字符串。
+        - `channel` 收下不用。
+
+        下列情形返回 `400`：
+
+        - 结算单不存在，或不在上述范围内，两者不区分。
+        - 权限不足：需要商户后台「结算单」的查看权限。
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 结算单号，即清算记录列表行上的 `clear_detail_id`
+        - name: channel
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 收下不用。现网的端发空串
+      responses:
+        '200':
+          description: 结算单的汇总与明细
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SettlementDetail'
+              example:
+                status: 200
+                message: Success
+                data:
+                  clear_summary:
+                    clear_interval: 2026-10-05 ~ 2026-10-05
+                    report_date: '2026-10-06'
+                    gross_amount: '1250.50'
+                    clear_total_fee: '1218.25'
+                    total_surcharge: '32.25'
+                    total_charge: '1300.50'
+                    total_refund: '50.00'
+                  settle_transactions:
+                    Credit:
+                      '2026-10-05':
+                        - order_id: '202610051402001017'
+                          create_time: '2026-10-05 14:02:18'
+                          clearing_amount: '1300.50'
+                          settle_amount: '1267.00'
+                          currency: CAD
+                    Debit:
+                      '2026-10-05':
+                        - order_id: '202610041130002203'
+                          create_time: '2026-10-05 16:40:02'
+                          clearing_amount: '50.00'
+                          settle_amount: '48.75'
+                          currency: CAD
+                timestamp: '2026-10-07T18:11:40.093+00:00'
+                traceId: 8d0e4a62b17c3f59
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/reconciliation:
+    get:
+      tags:
+        - funds
+      operationId: listMonthlyStatements
+      x-required-privilege: account:statement:view
+      summary: 月对账单列表
+      description: |
+        返回一个商户已出具的月对账单，按月份倒序分页，一个月一行。
+
+        - `mch_id` 是要查的商户号，只接受当前商户或其名下、登录者可以访问的关联商户（只到下一级）。
+        - `year` 为四位年份时只列这一年的；空串或不带时都列。
+        - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
+
+        下列情形返回 `400`：
+
+        - `mch_id` 不在上述范围内。
+        - `year` 不是四位数字。
+        - 权限不足：需要商户后台「月对账单」的查看权限。
+      parameters:
+        - name: mch_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: 要查的商户号
+        - name: year
+          in: query
+          required: false
+          schema:
+            type: string
+          description: 四位年份，如 `2026`；空串或不带时不限
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页月对账单；没有行时 `data.data` 为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MonthlyStatementPage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  data:
+                    - months: 2026-09
+                      serviceChargeTotal: 412.86
+                    - months: 2026-08
+                      serviceChargeTotal: 398.1
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalCount: 2
+                    totalPages: 1
+                    lastPage: true
+                timestamp: '2026-10-07T18:12:55.640+00:00'
+                traceId: 5e7c2b90d4a13f86
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/reconciliation/file:
+    get:
+      tags:
+        - funds
+      operationId: downloadMonthlyStatement
+      x-required-privilege: account:statement:view
+      summary: 下载月对账单 PDF
+      description: |
+        返回一个商户某个月的对账单，成功时响应体就是 PDF 文件本身，不套成功响应的外壳。内容是出具时存档的那一份，文字的语言按出具时。
+
+        下列情形返回 `400`：
+
+        - `mch_id` 不是当前商户，也不是其名下、登录者可以访问的关联商户（只到下一级）。
+        - `query_month` 不是 `yyyyMM` 或 `yyyy-MM`，或这个月没有对账单。
+        - 权限不足：需要商户后台「月对账单」的查看权限。
+      parameters:
+        - name: mch_id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: 要查的商户号
+        - name: query_month
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 月份，`yyyyMM`，也接受 `yyyy-MM`
+      responses:
+        '200':
+          description: 月对账单 PDF
+          headers:
+            Content-Disposition:
+              required: true
+              description: '`attachment; filename="{商户代码}_Statement_{yyyy-MM}.pdf"`'
+              schema:
+                type: string
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/mch/sendEmail:
+    get:
+      tags:
+        - funds
+      operationId: sendRechargeEmailCode
+      x-required-privilege: account:reserve:create
+      summary: 退款账户充值 — 发邮箱验证码
+      description: |
+        向商户 Owner 的登录邮箱发一封带 6 位验证码的邮件，返回本次的 `ticket`。没有参数。充值（`rechargeRefundAccount`）时把 `ticket` 与邮件里的验证码一起带上。重新发码后旧的验证码作废。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 发得太频繁，还在冷却中。
+        - `208035` 商户处于仅查看状态，不能充值。
+        - 权限不足：需要商户后台「退款准备金充值」的权限。
+      responses:
+        '200':
+          description: 已发码
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmailCodeTicket'
+              example:
+                status: 200
+                message: Success
+                data:
+                  ticket: chl_4b8e1f0a7c2d4e93
+                timestamp: '2026-10-07T18:20:14.208+00:00'
+                traceId: 2f6d9b31e0c84a57
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/account/recharge:
+    post:
+      tags:
+        - funds
+      operationId: rechargeRefundAccount
+      x-required-privilege: account:reserve:create
+      summary: 退款账户充值，或设置自动补足的最低金额
+      description: |
+        `depositType` 决定做哪一件：
+
+        - `balance`：从余额划 `amount` 到退款账户，立即生效。余额够不够以服务端提交时的判断为准，`getAccountBalance` 的 `tranBalance` 只作参考，两者可能不同。
+        - `auto_deposit`：把退款账户的最低金额设为 `amount`，不动钱；之后退款账户余额低于它时，由系统自动补足。
+
+        `amount` 单位是元，数值或数字串都收。`ticket` 与 `ticketValue` 是 `sendRechargeEmailCode` 返回的票据与邮件里的验证码，验对即作废。`remark` 收下不用。成功时 `data` 为 `null`。
+
+        同一商户的 `ticket`、`ticketValue`、`depositType` 与金额都相同的重复请求，在 60 秒内（可配置）视为同一笔，返回第一次的结果；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。其中任何一项不同（含验证码）都按新的请求处理。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `204010` 验证码不对，还可以重输。
+        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，须重新发码。
+        - `amount` 不是正数，或 `depositType` 不是上面两个取值。
+        - `auto_deposit` 的金额低于平台规定的下限。
+        - `balance` 时余额不足，没有划转。
+        - `208035` 商户处于仅查看状态，不能充值。
+        - 权限不足：需要商户后台「退款准备金充值」的权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RechargeRequest'
+            example:
+              depositType: balance
+              amount: '200.00'
+              ticket: chl_4b8e1f0a7c2d4e93
+              ticketValue: '482913'
+      responses:
+        '200':
+          description: 已完成，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T18:21:02.917+00:00'
+                traceId: 7c0a4e18f3b25d96
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+        - 208035
+  /device/messageNum:
+    get:
+      tags:
+        - notifications
+      operationId: getUnreadCounts
+      x-required-privilege: session
+      summary: 首页的未读消息数
+      description: |
+        返回两类未读数，没有参数。
+
+        - `order_message_count`：订单消息的未读数，即登录者上次把订单消息标为已读之后，当前商户成交的收款（一单一笔）与受理的退款（处理中或成功，一笔一笔）的笔数，不含子商户。已读按登录者本人算，各员工互不影响。登录者没有商户后台查看支付订单的权限（`orders:payment:view`）时为 `0`。
+        - `notice_message_count`：站内信（平台公告与账户事件通知）的未读数。已读按商户算，任一成员读过即算已读。
+      responses:
+        '200':
+          description: 两类未读数
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UnreadCounts'
+              example:
+                status: 200
+                message: Success
+                data:
+                  order_message_count: 3
+                  notice_message_count: 1
+                timestamp: '2026-10-07T18:02:11.304+00:00'
+                traceId: 1d7a3e90c4b25f68
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/order/message/count:
+    get:
+      tags:
+        - notifications
+      operationId: getOrderMessageUnreadCount
+      x-required-privilege: session
+      summary: 消息中心的未读数与最新一条
+      description: |
+        返回两类未读数（口径同 `getUnreadCounts`），以及每类最新的一条未读。没有参数。
+
+        - `order_message`：最新一条未读订单消息，只有 `create_time`（发生时刻，商户时区，`yyyy-MM-dd HH:mm:ss`）。没有未读订单消息时不返回本键。
+        - `notice_message`：最新一条未读站内信的 `title` 与 `send_time`。没有未读站内信时不返回本键。
+
+        登录者没有商户后台查看支付订单的权限（`orders:payment:view`）时，`order_message_count` 为 `0`，`order_message` 不返回。
+      responses:
+        '200':
+          description: 未读数与最新一条
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/MessageCenterSummary'
+              example:
+                status: 200
+                message: Success
+                data:
+                  order_message_count: 3
+                  notice_message_count: 1
+                  order_message:
+                    create_time: '2026-10-07 11:02:05'
+                  notice_message:
+                    title: Settlement Account Change Approved
+                    send_time: '2026-10-06 09:00:00'
+                timestamp: '2026-10-07T18:30:12.440+00:00'
+                traceId: 4a8f1c20e7d93b65
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/order/message:
+    get:
+      tags:
+        - notifications
+      operationId: listOrderMessages
+      x-required-privilege: orders:payment:view
+      summary: 订单消息列表
+      description: |
+        返回当前商户的订单消息：成交的收款一单一行，受理的退款（处理中或成功）一笔一行，不含子商户；按发生时刻倒序分页。收款行的时刻是成交时刻，退款行是受理时刻。
+
+        - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
+        - 本接口不改已读；标为已读用 `markAllMessagesRead`。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台查看支付订单的权限。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页订单消息；没有行时 `data.data` 为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/OrderMessagePage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  data:
+                    - order_id: '202610071102001020'
+                      transaction_type: Credit
+                      amount: 26.5
+                      currency: CAD
+                      channel: Wechat
+                      create_time: '2026-10-07 11:02:05'
+                      mch_name: Pine Street Cafe
+                      remark: Lunch set
+                    - order_id: '202610061902001001'
+                      transaction_type: Debit
+                      amount: 5.25
+                      currency: CAD
+                      create_time: '2026-10-06 12:15:21'
+                      mch_name: Pine Street Cafe
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalCount: 2
+                    totalPages: 1
+                    lastPage: true
+                timestamp: '2026-10-07T18:31:05.118+00:00'
+                traceId: 0b6e3d92a1c74f58
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/notice:
+    get:
+      tags:
+        - notifications
+      operationId: listNotices
+      x-required-privilege: session
+      summary: 公告列表
+      description: |
+        返回当前商户的站内信（平台公告与账户事件通知），已读未读都在，按发送时间从新到旧分页；已撤回的公告不列。
+
+        - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
+        - 本接口不改已读。
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: 一页站内信；没有行时 `data.data` 为空数组
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/NoticePage'
+              example:
+                status: 200
+                message: Success
+                data:
+                  data:
+                    - notice_id: ntc_88a1
+                      title: Refund Reserve Auto-Replenished
+                      content: <p>Your refund reserve was topped up to the minimum amount.</p>
+                      send_time: '2026-10-07 02:00:00'
+                  pagination:
+                    page: 1
+                    limit: 20
+                    totalCount: 1
+                    totalPages: 1
+                    lastPage: true
+                timestamp: '2026-10-07T18:32:40.006+00:00'
+                traceId: 6f2a9c03d8e15b74
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/notice/{noticeId}:
+    get:
+      tags:
+        - notifications
+      operationId: getNotice
+      x-required-privilege: session
+      summary: 公告详情（读后标为已读）
+      description: |
+        返回一条站内信的标题与正文，并把它标为已读（按商户算）。路径上的 `noticeId` 是公告列表行上的 `notice_id`。商户处于仅查看状态时照常可用。
+
+        `content` 是完整的 HTML 文档（`<html><head></head><body>…</body></html>`）。
+
+        下列情形返回 `400`：
+
+        - 站内信不存在，或不属于当前商户，两者不区分。
+      parameters:
+        - name: noticeId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 公告列表行上的 `notice_id`
+      responses:
+        '200':
+          description: 站内信详情
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/NoticeDetail'
+              example:
+                status: 200
+                message: Success
+                data:
+                  notice_title: Refund Reserve Auto-Replenished
+                  content: <html><head></head><body><p>Your refund reserve was topped up to the minimum amount.</p></body></html>
+                timestamp: '2026-10-07T18:33:15.871+00:00'
+                traceId: 9d4b7e21c0a36f85
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/order/message/clear:
+    get:
+      tags:
+        - notifications
+      operationId: markAllMessagesRead
+      x-required-privilege: session
+      summary: 把消息全部标为已读
+      description: |
+        `type` 决定清哪一类：
+
+        - 不带或空串：两类都清。
+        - `order`：订单消息全部标为已读，只对登录者本人生效。
+        - `notice`：当前商户的站内信全部标为已读，对全商户生效。
+        - 其他值：什么都不做，照常返回 `200`。
+
+        成功时 `data` 为 `null`。商户处于仅查看状态时照常可用。
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+          description: '`order`、`notice`，或不带'
+      responses:
+        '200':
+          description: 已标为已读，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T18:34:01.520+00:00'
+                traceId: 1e5c8a73f2b04d96
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/merchant/paymentnotice:
+    get:
+      tags:
+        - notifications
+      operationId: getPaymentNoticeSettings
+      x-required-privilege: session
+      summary: 收款通知设置：本人的推送开关与微信绑定、商户的通知邮箱
+      description: |
+        返回登录者本人的收款推送开关与微信绑定，以及当前商户的收款通知邮箱。没有参数。
+
+        - `paymentNotice`：登录者本人是否接收收款推送。各员工各自开关，用 `setPaymentPushEnabled` 修改。
+        - `wechat_openid`：登录者本人已绑定微信时返回一个非空串，未绑定时不返回本键；值不是微信的标识，只表示已绑定。
+        - `account_id`：登录者本人的账号编号，即 `getWechatBindQrcode` 收的 `account_id`。
+        - `emails`：收款通知邮箱，按邮箱字母序。`main` 为 `true` 的是主邮箱，不能删除。登录者没有商户后台查看通知设置的权限（`settings:notification:view`）时为空数组。
+      responses:
+        '200':
+          description: 收款通知设置
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PaymentNoticeSettings'
+              example:
+                status: 200
+                message: Success
+                data:
+                  paymentNotice: true
+                  wechat_openid: wxb_5c1e7a90
+                  account_id: opr_3f9a1c2e
+                  emails:
+                    - email: amy@pinestreet.example.com
+                      main: true
+                      notice: true
+                    - email: finance@pinestreet.example.com
+                      main: false
+                      notice: true
+                timestamp: '2026-10-07T18:40:22.315+00:00'
+                traceId: 5b9d0e64a1c27f83
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/merchant/paymentnotice/{status}:
+    post:
+      tags:
+        - notifications
+      operationId: setPaymentPushEnabled
+      x-required-privilege: session
+      summary: 开关本人的收款推送
+      description: |
+        路径上的 `status` 为 `1` 打开、`0` 关闭登录者本人的收款推送，不影响其他员工。打开时，提醒推到这个账号登录着的手机，推的是手机当前所在商户的收款与退款（切换商户后以切换后登记的令牌为准）；关闭后不再推。没有请求体，成功时 `data` 为 `null`。商户处于仅查看状态时照常可用。
+
+        下列情形返回 `400`：
+
+        - `status` 不是 `0` 或 `1`。
+      parameters:
+        - name: status
+          in: path
+          required: true
+          schema:
+            type: integer
+            enum:
+              - 0
+              - 1
+          description: '`1` 打开，`0` 关闭'
+      responses:
+        '200':
+          description: 已保存，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T18:41:07.664+00:00'
+                traceId: 8c3f2a17d0e94b56
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/send/emailCode:
+    get:
+      tags:
+        - notifications
+      operationId: sendNoticeEmailCode
+      x-required-privilege: settings:notification:edit
+      summary: 添加通知邮箱 — 向要添加的邮箱发验证码
+      description: |
+        向要添加的邮箱 `email` 发一封带 6 位验证码的邮件，返回本次的 `ticket`。添加（`addNoticeEmail`）时带上同一个邮箱、`ticket` 与验证码。重新发码后同一邮箱的旧验证码作废。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `email` 不是合法的邮箱地址，或已是当前商户的通知邮箱（不分大小写）。
+        - 发得太频繁，还在冷却中。
+        - `208035` 商户处于仅查看状态，不能改通知邮箱。
+        - 权限不足：需要商户后台「通知设置」的编辑权限。
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 要添加的邮箱
+      responses:
+        '200':
+          description: 已发码
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmailCodeTicket'
+              example:
+                status: 200
+                message: Success
+                data:
+                  ticket: chl_9e2a7c41b0d35f86
+                timestamp: '2026-10-07T18:42:30.207+00:00'
+                traceId: 3d7b0f52e9a14c68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/paymentnotice/email:
+    post:
+      tags:
+        - notifications
+      operationId: addNoticeEmail
+      x-required-privilege: settings:notification:edit
+      summary: 添加通知邮箱
+      description: |
+        把 `email` 加为当前商户的收款通知邮箱（不是主邮箱）。`ticket` 与 `ticketValue` 是 `sendNoticeEmailCode` 返回的票据与发到这个邮箱的验证码。成功时 `data` 为 `null`。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `204010` 验证码不对，还可以重输。
+        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
+        - `206007` 验证码输错次数超过上限，须重新发码。
+        - `email` 与发验证码时的邮箱不一致。
+        - `email` 已是当前商户的通知邮箱（不分大小写）。
+        - `208035` 商户处于仅查看状态，不能改通知邮箱。
+        - 权限不足：需要商户后台「通知设置」的编辑权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NoticeEmailAddRequest'
+            example:
+              email: finance@pinestreet.example.com
+              ticket: chl_9e2a7c41b0d35f86
+              ticketValue: '730215'
+      responses:
+        '200':
+          description: 已添加，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T18:43:12.902+00:00'
+                traceId: 7a1e4c96b3d20f58
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 204010
+        - 206006
+        - 206007
+        - 208035
+  /device/del/email:
+    get:
+      tags:
+        - notifications
+      operationId: deleteNoticeEmail
+      x-required-privilege: settings:notification:edit
+      summary: 删除通知邮箱
+      description: |
+        从当前商户的收款通知邮箱里删掉 `email`（不分大小写），之后不再往它发收款通知。主邮箱不能删。成功时 `data` 为 `null`。
+
+        下列情形返回 `400`：
+
+        - `email` 是主邮箱，或不在当前商户的通知邮箱里。
+        - `208035` 商户处于仅查看状态，不能改通知邮箱。
+        - 权限不足：需要商户后台「通知设置」的编辑权限。
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 要删的通知邮箱
+      responses:
+        '200':
+          description: 已删除，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T18:44:05.331+00:00'
+                traceId: 2c8e5a07f1d94b63
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 208035
+  /device/employee/management:
+    get:
+      tags:
+        - team
+      operationId: listEmployees
+      x-required-privilege: account:team:view
+      summary: 员工列表
+      description: |
+        返回当前商户的全部成员，不分页；已删除的不列。登录者本人那一行 `one_self` 为 `true`。
+
+        `role` 是成员在终端上的角色，取值见 `TerminalRole`。
+
+        下列情形返回 `400`：
+
+        - 权限不足：需要商户后台「成员」的查看权限。
+      responses:
+        '200':
+          description: 全部成员
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EmployeeListRow'
+              example:
+                status: 200
+                message: Success
+                data:
+                  - account_id: opr_3f9a1c2e
+                    user_name: amy@pinestreet.example.com
+                    role: 1
+                    one_self: true
+                  - account_id: opr_7b20d4e9
+                    user_name: cashier01
+                    role: 3
+                    one_self: false
+                timestamp: '2026-10-07T19:30:12.540+00:00'
+                traceId: 2f8c5a19e0d36b74
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/employee/management/{account_id}:
+    get:
+      tags:
+        - team
+      operationId: getEmployee
+      x-required-privilege: session
+      summary: 员工详情
+      description: |
+        返回当前商户一名成员的资料。`mch_role` 与员工列表的 `role` 同义。
+
+        - `wechat_open_id`：该成员已绑定微信时返回一个非空串，未绑定时不返回本键；值不是微信的标识，只表示已绑定。
+        - `wechat_name`：已绑定微信的昵称；没有值不返回本键。
+        - `create_time`：成员加入商户的时间，商户时区，`yyyy-MM-dd HH:mm:ss`。
+
+        本接口标的 `session` 只覆盖登录者看自己；看别的成员须有商户后台「成员」的查看权限（`account:team:view`）。
+
+        下列情形返回 `400`：
+
+        - 成员不存在，或不属于当前商户，两者不区分。
+        - 权限不足：看别的成员需要商户后台「成员」的查看权限。
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: 成员资料
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/EmployeeDetail'
+              example:
+                status: 200
+                message: Success
+                data:
+                  account_id: opr_7b20d4e9
+                  user_name: cashier01
+                  nick_name: Kevin
+                  mch_role: 3
+                  wechat_open_id: wxb_91d4e0c7
+                  wechat_name: Kevin W
+                  create_time: '2026-03-14 10:22:05'
+                timestamp: '2026-10-07T19:31:05.207+00:00'
+                traceId: 6c1e9b40d3a25f87
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+  /device/employee/management/add:
+    post:
+      tags:
+        - team
+      operationId: createEmployee
+      x-required-privilege: account:team:manage
+      summary: 新增员工（用户名账号）
+      description: |
+        在当前商户下新建一个用用户名登录的成员。成功时 `data` 为 `null`。
+
+        - `user_name` 是登录名，平台内唯一，不能是邮箱地址；邮箱账号到商户后台邀请。
+        - `pwd` 是初始登录密码，须满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）。
+        - `nick_name` 是显示名。
+        - `role`：`2` 建为店长，`3` 建为收银员。
+        - `contact_phone` 收下不用。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - `user_name` 是邮箱地址，`message` 提示用户名不能是邮箱地址、邮箱账号请到商户后台邀请。
+        - `user_name` 已被使用。
+        - `role` 不是 `2` 或 `3`。
+        - `pwd` 不满足密码规则。
+        - 缺 `user_name`、`pwd`、`nick_name` 或 `role`。
+        - `206013` 要给的角色超出登录者的权限边界：角色的权限须在登录者自己的权限之内。
+        - `208035` 商户处于仅查看状态，不能改员工。
+        - 权限不足：需要商户后台「成员管理」的权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeCreateRequest'
+            example:
+              user_name: cashier02
+              pwd: Str0ng!Pass
+              nick_name: Lily
+              role: 3
+      responses:
+        '200':
+          description: 已新建，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:32:40.019+00:00'
+                traceId: 4e9a2d63b0c18f75
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 206013
+        - 208035
+  /device/employee/management/update:
+    post:
+      tags:
+        - team
+      operationId: updateEmployee
+      x-required-privilege: session
+      summary: 修改员工：角色、显示名、登录密码，或解绑微信
+      description: |
+        `account_id` 指定成员。`delBinding` 为 `true` 时只解绑微信，其余键不看；否则带了的 `role`、`nick_name`、`pwd` 都改。成功时 `data` 为 `null`。
+
+        | 带的键 | 做什么 |
+        |---|---|
+        | `role` | 把成员的角色整组换成店长（`2`）或收银员（`3`） |
+        | `nick_name` | 改显示名 |
+        | `pwd` | 重置登录密码，须满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）；该成员所有设备与会话上的登录随之失效 |
+        | `delBinding` 为 `true` | 解绑该成员的微信：这个微信不能再登录商户后台，当前商户也不再给它发收款通知 |
+
+        Owner 那一行只能改显示名与解绑微信；登录者不能改自己的角色。
+
+        本接口标的 `session` 覆盖登录者改自己的显示名、解绑自己的微信。登录者重置自己的登录密码须有商户后台「成员管理」的权限（`account:team:manage`）；改别的成员也须有这项权限。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 成员不存在，或不属于当前商户，两者不区分。
+        - `role` 不是 `2` 或 `3`；对 Owner 改显示名与解绑微信以外的项；登录者改自己的角色。
+        - 登录者重置自己的登录密码而没有「成员管理」的权限，`message` 提示改用修改密码（`changePassword`）。
+        - `pwd` 不满足密码规则。
+        - 除 `account_id` 外一项都没带。
+        - `206013` 要给的角色、或该成员现有的角色超出登录者的权限边界。
+        - `208035` 商户处于仅查看状态，不能改员工。
+        - 权限不足：改别的成员需要商户后台「成员管理」的权限。
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeUpdateRequest'
+            examples:
+              role:
+                summary: 改角色
+                value:
+                  account_id: opr_7b20d4e9
+                  role: 2
+              unbind:
+                summary: 解绑微信
+                value:
+                  account_id: opr_7b20d4e9
+                  delBinding: true
+      responses:
+        '200':
+          description: 已修改，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:33:51.682+00:00'
+                traceId: 9f0d3b26e7a41c58
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 206013
+        - 208035
+  /device/employee/management/del/{account_id}:
+    get:
+      tags:
+        - team
+      operationId: deleteEmployee
+      x-required-privilege: account:team:manage
+      summary: 删除员工
+      description: |
+        把成员移出当前商户，该成员所有设备与会话上的登录随之失效。没有请求体，成功时 `data` 为 `null`。
+
+        下列情形返回 `400`：
+
+        - 成员不存在，或不属于当前商户，两者不区分。
+        - 要删的是 Owner。
+        - `206013` 该成员现有的角色超出登录者的权限边界。
+        - `208035` 商户处于仅查看状态，不能改员工。
+        - 权限不足：需要商户后台「成员管理」的权限。
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: 已删除，`data` 为 `null`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Envelope'
+              example:
+                status: 200
+                message: Success
+                data: null
+                timestamp: '2026-10-07T19:35:02.903+00:00'
+                traceId: 3a7e1c95f0b24d68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 206013
+        - 208035
+  /device/bind_qrcode/{account_id}:
+    get:
+      tags:
+        - team
+      operationId: getWechatBindQrcode
+      x-required-privilege: session
+      summary: 取绑定微信用的二维码
+      description: |
+        为成员 `account_id` 发起微信绑定，返回二维码图片 `url` 与本次的 `key`。要绑定的人用微信扫码并确认后，这个微信同时成为该成员登录商户后台用的微信，以及当前商户的收款通知接收微信（已经是的不重复加）。绑定结果凭 `key` 向 `getWechatBindStatus` 查。
+
+        - `url` 是二维码图片，PNG 的 data URI（`data:image/png;base64,…`）。
+        - 二维码有有效期，过期后重新调本接口。
+
+        本接口标的 `session` 只覆盖登录者给自己绑定；给别的成员绑定须有商户后台「成员管理」的权限（`account:team:manage`）。
+
+        下列情形返回 `400`，`message` 写明原因：
+
+        - 成员不存在，或不属于当前商户，两者不区分。
+        - 该成员已绑定微信，须先解绑。
+        - `206013` 该成员现有的角色超出登录者的权限边界。
+        - `208035` 商户处于仅查看状态，不能绑定微信。
+        - 权限不足：给别的成员绑定需要商户后台「成员管理」的权限。
+      parameters:
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          description: 二维码与本次的 `key`
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WechatBindQrcode'
+              example:
+                status: 200
+                message: Success
+                data:
+                  url: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAMgCAIAAADz
+                  key: wqt_5e2b8c71a0d34f96
+                timestamp: '2026-10-07T19:36:20.115+00:00'
+                traceId: 7b4f0e28c1d95a63
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes:
+        - 206013
+        - 208035
+  /device/bind_qrcode/status:
+    get:
+      tags:
+        - team
+      operationId: getWechatBindStatus
+      x-required-privilege: session
+      summary: 查微信绑定结果（轮询）
+      description: |
+        按 `key` 查这次绑定的结果。
+
+        - 已绑定：返回 `wechat_openid`，一个非空串；值不是微信的标识。
+        - 还没扫码或还没确认：`data` 是空对象。
+
+        本接口标的 `session` 只覆盖查自己的绑定；查别的成员的须有商户后台「成员管理」的权限（`account:team:manage`）。
+
+        下列情形返回 `400`：
+
+        - `key` 不存在、已过期，或不是在当前商户下发起的。
+        - 权限不足：查别的成员的绑定需要商户后台「成员管理」的权限。
+      parameters:
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+          description: '`getWechatBindQrcode` 返回的 `key`'
+      responses:
+        '200':
+          description: 绑定结果
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                properties:
+                  data:
+                    $ref: '#/components/schemas/WechatBindStatus'
+              examples:
+                bound:
+                  summary: 已绑定
+                  value:
+                    status: 200
+                    message: Success
+                    data:
+                      wechat_openid: wxb_91d4e0c7
+                    timestamp: '2026-10-07T19:36:51.302+00:00'
+                    traceId: 0d6a3f91e2c84b57
+                waiting:
+                  summary: 还没扫码或还没确认
+                  value:
+                    status: 200
+                    message: Success
+                    data: {}
+                    timestamp: '2026-10-07T19:36:22.718+00:00'
+                    traceId: 5c9e2b07a4f13d68
+        '400':
+          $ref: '#/components/responses/Rejected'
+        '403':
+          $ref: '#/components/responses/ReloginRequired'
+      x-error-codes: []
+components:
+  securitySchemes:
+    sessionToken:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: |
+        `signIn` 返回的 `token`，原样放进本请求头，不加 `Bearer` 前缀。`registerPushToken` 现网带着 `Bearer ` 前缀，两种写法都接受。
+
+        令牌是不透明的字符串。
+    devCid:
+      type: apiKey
+      in: header
+      name: devCid
+      description: App 内置的固定值，所有安装都相同，同登录请求体里的 `devcid`。只要求带上，不据它识别身份。
+  parameters:
+    DevType:
+      name: devType
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - iphone
+          - android
+      description: 手机系统：iOS 发 `iphone`，Android 发 `android`
+    ForgotEmail:
+      name: email
+      in: query
+      required: true
+      schema:
+        type: string
+      description: 找回密码用的邮箱
+    PasswordResetCookie:
+      name: __Host-app-pwdreset
+      in: cookie
+      required: false
+      schema:
+        type: string
+      description: '`verifyForgotPasswordCode` 下发的 cookie。没带、已过期或与本次请求对不上时，列账号返回空数组，重置返回 `400`'
+    BillId:
+      name: bill_id
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^[0-9]+$
+      description: 账单号，即 `createBill` 返回的 `bill_id`
+    Page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: 页码，从 1 开始
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 20
+      description: 每页的行数（按行计，不按组计）
+    AccountId:
+      name: account_id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 成员的账号编号，即员工列表行上的 `account_id`
+  responses:
+    Rejected:
+      description: 被拒绝。原因见响应体的 `code` 与 `message`；本接口会返回哪些 `code` 见接口说明。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Failure'
+          example:
+            status: 400
+            message: Wrong Password
+            data: null
+            timestamp: '2026-10-06T18:20:31.482+00:00'
+            traceId: 5f1c0a7be2d94c33
+            code: 206012
+    ReloginRequired:
+      description: 需要重新登录。`code` 的取值见总说明「状态码」一节。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Failure'
+          example:
+            status: 403
+            message: Device registration failed, please log in again
+            data: null
+            timestamp: '2026-10-06T18:20:31.482+00:00'
+            traceId: 5f1c0a7be2d94c33
+            code: 206014
+  schemas:
+    Envelope:
+      type: object
+      description: 成功响应的外壳，内容在 `data`。
+      required:
+        - status
+        - message
+        - timestamp
+        - traceId
+      properties:
+        status:
+          type: integer
+          description: 成功时为 `200`
+        message:
+          type: string
+          description: 成功时为 `Success`
+        data:
+          description: 接口返回的内容；没有内容时为 `null`
+        timestamp:
+          type: string
+          description: 响应生成的时间
+        traceId:
+          type: string
+          description: 本次请求的追踪号
+    Failure:
+      type: object
+      description: 失败响应体。现网的外壳加整数 `code`。
+      required:
+        - status
+        - message
+        - code
+      properties:
+        status:
+          type: integer
+          description: 与 HTTP 状态相同
+        message:
+          type: string
+          description: 失败原因的文案
+        data:
+          type: 'null'
+          description: 恒为 `null`
+        timestamp:
+          type: string
+          description: 响应生成的时间
+        traceId:
+          type: string
+          description: 本次请求的追踪号
+        code:
+          type: integer
+          description: 整数错误码，取值见各接口说明与总说明「状态码」一节
+        context:
+          type: object
+          description: 附加信息，字段与登记该码的码表所写相同，例如 `204010` 带 `attemptsRemaining`（还可以重输的次数）。没有时不返回
+    SignInRequest:
+      type: object
+      required:
+        - username
+        - password
+        - ticket
+        - randstr
+        - uuid
+      properties:
+        username:
+          type: string
+          description: 登录名，用户名或邮箱。先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写
+        password:
+          type: string
+          format: password
+        ticket:
+          type: string
+          description: 滑块验证通过后得到的票据
+        randstr:
+          type: string
+          description: 滑块验证通过后与票据一起得到的随机串
+        uuid:
+          type: string
+          description: 本机的设备标识
+        devcid:
+          type: string
+          description: App 内置的固定值，同 `devCid` 头
+    SignInResult:
+      type: object
+      required:
+        - token
+        - haveChild
+        - clientId
+        - devId
+        - devType
+        - uuid
+      properties:
+        token:
+          type: string
+          description: 令牌，之后原样放进 `Authorization` 头
+        haveChild:
+          type: boolean
+          description: 登录者还有可以切换过去的其他商户时为 `true`
+        clientId:
+          type: integer
+          description: 登录所在商户的商户号
+        devId:
+          type: string
+          description: 这部手机在该商户下的设备编号
+        devType:
+          type: string
+          description: 同路径上的 `devType`
+        uuid:
+          type: string
+          description: 同请求里的 `uuid`
+    SwitchMerchantRequest:
+      type: object
+      required:
+        - username
+        - uuid
+      properties:
+        username:
+          type: string
+          description: 目标商户的商户代码（商户列表里的 `client_moniker`）
+        adminUser:
+          type: string
+          description: 登录时输入的用户名。现网的端会带，服务端不使用它
+        uuid:
+          type: string
+          description: 本机的设备标识，同登录
+        devcid:
+          type: string
+          description: App 内置的固定值，同登录
+        devType:
+          type: string
+          description: 同路径上的 `devType`
+    SwitchMerchantResult:
+      type: object
+      required:
+        - token
+        - haveChile
+      properties:
+        token:
+          type: string
+          description: 令牌，与请求带来的是同一个
+        haveChile:
+          type: boolean
+          description: 登录者还有可以切换过去的其他商户时为 `true`，与登录响应的 `haveChild` 同义。字段名的拼写照现网
+    SwitchableMerchant:
+      type: object
+      required:
+        - client_id
+        - client_moniker
+        - short_name
+        - click
+      properties:
+        client_id:
+          type: integer
+          description: 商户号
+        client_moniker:
+          type: string
+          description: 商户代码，切换时作为 `username` 带回
+        short_name:
+          type: string
+          description: 商户简称
+        logo_thumbnail:
+          type: string
+          description: 商户 logo 缩略图的地址；没有 logo 时不返回
+        click:
+          type: boolean
+          description: 是不是路径上 `clientMoniker` 指的那个商户
+    ForgotMerchantAccounts:
+      type: object
+      description: 一个商户及其下可重置的账号。
+      required:
+        - mchCode
+        - mchName
+        - accounts
+      properties:
+        mchCode:
+          type: string
+          description: 商户代码
+        mchName:
+          type: string
+          description: 商户名称
+        accounts:
+          type: array
+          items:
+            type: object
+            required:
+              - accountId
+              - userName
+            properties:
+              accountId:
+                type: string
+                description: 只能用一次的重置凭证，重置时原样带回；不是账号的固定编号
+              userName:
+                type: string
+                description: 账号的用户名
+    ForgotResetRequest:
+      type: object
+      required:
+        - accountId
+        - newPwd
+      properties:
+        accountId:
+          type: string
+          description: '`listAccountsByEmail` 返回的 `accountId`'
+        newPwd:
+          type: string
+          format: password
+          description: 新的登录密码，至少 8 位，含大写字母、小写字母、数字与特殊字符
+    ChangePasswordRequest:
+      type: object
+      required:
+        - oldpwd
+        - pwd
+        - type
+      properties:
+        oldpwd:
+          type: string
+          format: password
+          description: 旧密码
+        pwd:
+          type: string
+          format: password
+          description: 新密码
+        type:
+          type: string
+          enum:
+            - login
+            - refund
+          description: 改哪一个密码：`login` 登录密码，`refund` 退款密码
+    CustomerSurchargeRequest:
+      type: object
+      required:
+        - enable
+      properties:
+        enable:
+          type: boolean
+          description: '`true` 打开「顾客承担手续费」，`false` 关闭'
+    OrderStatus:
+      type: integer
+      enum:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+      description: |
+        订单状态：
+
+        - `0` 已建单。
+        - `1` 不予受理。
+        - `2` 支付中。
+        - `3` 已关闭（过期、关闭或取消）。
+        - `4` 失败。
+        - `5` 成功；预授权款项挂起中的订单也是 `5`，此时 `preAuth` 为 `true`。
+        - `6` 部分退款。
+        - `7` 全额退款。
+    MicropayRequest:
+      type: object
+      required:
+        - currency
+        - auth_code
+        - amount
+      properties:
+        currency:
+          type: string
+          description: 标价币种，商户的结算币种或 `CNY`
+        auth_code:
+          type: string
+          description: 顾客出示的付款码
+        amount:
+          type: integer
+          minimum: 1
+          description: 标价，单位是分
+        remark:
+          type: string
+          description: 订单备注，可以为空串
+        preauth:
+          type: boolean
+          default: false
+          description: 为 `true` 时是预授权，付款成功后款项挂起、之后可以释放
+        expire_time:
+          type: string
+          description: 收下不用。付款码的有效窗口由服务端定
+        rate_flag:
+          type: boolean
+          description: 收下不用。是否加收顾客承担的手续费看商户级开关
+    MicropayResult:
+      type: object
+      required:
+        - order_id
+        - status
+      properties:
+        order_id:
+          type: string
+          description: 订单号，即 `getTransaction` 的 `orderId`
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+          description: 返回时订单的状态，取值见 `OrderStatus`
+    TransactionDetail:
+      type: object
+      description: 订单详情。金额是元：`refundFee` 是数值，其余金额是十进制字符串。时间按商户时区。
+      required:
+        - payOrderId
+        - mchName
+        - currency
+        - payFee
+        - inputFee
+        - tipFee
+        - refundFee
+        - exchangeRate
+        - transactionTime
+        - createTime
+        - tranDate
+        - tranTime
+        - orderStatus
+        - preAuth
+        - orderScene
+        - channel
+        - gateway
+        - mchOrderId
+        - remarks
+        - orderDesc
+        - orderRules
+      properties:
+        payOrderId:
+          type: string
+          description: 订单号
+        mchName:
+          type: string
+          description: 订单所属商户的简称
+        currency:
+          type: string
+          description: 标价币种
+        payFee:
+          type: string
+          description: 订单总额，即金额加小费
+        inputFee:
+          type: string
+          description: 金额（标价），不含小费
+        tipFee:
+          type: string
+          description: 小费
+        refundFee:
+          type: number
+          description: 已退金额，数值（与现网相同，不是字符串）
+        exchangeRate:
+          type:
+            - string
+            - 'null'
+          description: 汇率；没有时为 `null`
+        transactionTime:
+          type:
+            - string
+            - 'null'
+          description: 成交时间，`yyyy-MM-dd HH:mm:ss`；还没有成交时为 `null`
+        createTime:
+          type: string
+          description: 建单时间，`yyyy-MM-dd HH:mm:ss`
+        tranDate:
+          type:
+            - string
+            - 'null'
+          description: 成交日期，`yyyy/MM/dd`；还没有成交时为 `null`
+        tranTime:
+          type:
+            - string
+            - 'null'
+          description: 成交时刻，`HH:mm:ss`；还没有成交时为 `null`
+        orderStatus:
+          $ref: '#/components/schemas/OrderStatus'
+        preAuth:
+          type: boolean
+          description: 款项是否处于预授权挂起中
+        orderScene:
+          type: integer
+          description: 订单来源的代码，取值与现网相同，例如 `1` POS 终端、`2` 商户 App、`3` 门店码
+        channel:
+          type:
+            - string
+            - 'null'
+          description: 支付方式品牌，如 `Wechat`、`Alipay`、`UnionPay`；顾客还没选定支付方式时为 `null`
+        gateway:
+          type: string
+          description: 受理方式的代码，取值与现网相同
+        mchOrderId:
+          type:
+            - string
+            - 'null'
+          description: 商户订单号；没有时为 `null`
+        remarks:
+          type:
+            - string
+            - 'null'
+          description: 订单备注，即下单时的 `remark`
+        orderDesc:
+          type:
+            - string
+            - 'null'
+          description: 产品描述
+        orderRules:
+          type:
+            - string
+            - 'null'
+          description: 同 `remarks`
+        refundTrans:
+          type: array
+          description: 退款记录，只在 `orderStatus` 为 `6` 或 `7` 时返回；只列已受理的退款（处理中与成功），按创建时间倒序；各项形状与 `payType` 为 `Debit` 的退款详情相同
+          items:
+            $ref: '#/components/schemas/RefundDetail'
+        orderReference:
+          type: object
+          description: 付款人付款时填写的附加信息，键是信息项的名称；没有时不返回
+        orderReferenceKeys:
+          type: array
+          description: '`orderReference` 里各项的先后顺序；没有时不返回'
+          items:
+            type: string
+    RefundRequest:
+      type: object
+      required:
+        - fee
+        - refund_password
+      properties:
+        fee:
+          type: number
+          description: 退款金额，单位是元，服务端四舍五入到分；须为正数且不超过可退金额
+        refund_password:
+          type: string
+          format: password
+          description: 商户的退款密码，6 位
+        remark:
+          type: string
+          maxLength: 300
+          description: 退款备注，可以为空串；查退款详情时在 `refundRemark` 里返回
+    RefundResult:
+      type: object
+      description: |
+        退款的结果，按情形给不同的字段：
+
+        - 退款已受理：`refund_id`、`partner_refund_id`、`amount`、`currency`、`result_code`。
+        - 进入审核：`success` 与 `message`，没有 `refund_id`。
+      properties:
+        refund_id:
+          type: string
+          description: 平台退款号，即 `getTransaction`（`payType` 为 `Debit`）的 `orderId`。仅退款已受理时返回
+        partner_refund_id:
+          type: string
+          description: 与 `refund_id` 相同。仅退款已受理时返回
+        amount:
+          type: integer
+          description: 退款金额，单位是分。仅退款已受理时返回
+        currency:
+          type: string
+          description: 退款币种，即订单的币种。仅退款已受理时返回
+        result_code:
+          type: string
+          enum:
+            - SUCCESS
+            - FINISHED
+          description: |
+            返回时退款的进展，仅退款已受理时返回：
+
+            - `SUCCESS` 已提交渠道，处理中。
+            - `FINISHED` 渠道已确认退款成功。
+        success:
+          type: boolean
+          description: 恒为 `true`。仅进入审核时返回
+        message:
+          type: string
+          description: 说明退款已提交审核的文案。仅进入审核时返回
+    RefundDetail:
+      type: object
+      description: 一笔退款。`payType` 为 `Debit` 时 `getTransaction` 的 `data`，也是订单详情里 `refundTrans` 的元素。
+      required:
+        - refundId
+        - refundFee
+        - currency
+        - refundTime
+        - operator
+        - refundRemark
+      properties:
+        refundId:
+          type: string
+          description: 平台退款号
+        refundFee:
+          type: number
+          description: 退款金额，单位是元，数值
+        currency:
+          type: string
+          description: 退款币种，即订单的币种
+        refundTime:
+          type: string
+          description: 渠道确认退款的时间，还没有确认时是退款单的创建时间；商户时区，`yyyy-MM-dd HH:mm:ss`
+        operator:
+          type:
+            - string
+            - 'null'
+          description: 发起退款的员工的显示名；没有时为 `null`
+        refundRemark:
+          type:
+            - string
+            - 'null'
+          description: 退款备注，即退款时的 `remark`；没有时为 `null`
+    StaticQrcode:
+      type: object
+      required:
+        - mch_name
+        - code_url
+        - code_img_url
+      properties:
+        mch_name:
+          type: string
+          description: 商户简称
+        code_url:
+          type: string
+          description: 码内容。门店码与预授权码是这个商户店铺码的付款地址；银联码是银联的静态码串，不含金额
+        code_img_url:
+          type: string
+          description: 把码内容渲染成的二维码图片，PNG 的 data URI（`data:image/png;base64,…`）
+    HomeSummary:
+      type: object
+      description: 首页汇总。金额按结算币种，单位是元，数值。
+      required:
+        - mch_id
+        - mch_code
+        - mch_name
+        - mch_currency
+        - mch_balance
+        - today_collection
+        - today_count
+        - today_Refund
+      properties:
+        mch_id:
+          type: integer
+          description: 当前商户的商户号
+        mch_code:
+          type: string
+          description: 当前商户的商户代码
+        mch_name:
+          type: string
+          description: 当前商户的简称
+        mch_currency:
+          type: string
+          description: 当前商户的结算币种
+        mch_balance:
+          type: number
+          description: 账户余额：可结算余额减去商户欠平台的钱，含预授权挂起中的款项，可能为负，按结算币种，单位是元。与商户后台余额卡片上的账户余额（`accountBalance`）是同一个量
+        today_collection:
+          type: number
+          description: 今天（当前营业日）成交的收款金额合计
+        today_count:
+          type: integer
+          description: 今天成交的收款笔数，一单一笔
+        today_Refund:
+          type: number
+          description: 今天受理的退款金额合计（处理中或成功），正数。字段名的大小写照现网
+        alipay_rate:
+          type: string
+          description: 支付宝对结算币种的最新汇率，保留 4 位小数（多余的舍去）；取不到时不返回
+        alipay_trend:
+          type: number
+          description: 支付宝最新汇率减去前一次的汇率；没有变化或没有前一次时为 `0`；取不到汇率时不返回
+        wechat_rate:
+          type: string
+          description: 微信支付的最新汇率，写法同 `alipay_rate`；取不到时不返回
+        wechat_trend:
+          type: number
+          description: 微信支付汇率的涨跌，算法同 `alipay_trend`；取不到汇率时不返回
+        unionpayonline_rate:
+          type: string
+          description: 银联在线的最新汇率，写法同 `alipay_rate`；取不到时不返回
+        unionpayonline_trend:
+          type: number
+          description: 银联在线汇率的涨跌，算法同 `alipay_trend`；取不到汇率时不返回
+    TransactionRecordPage:
+      type: object
+      description: 一页流水。
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: 本页的行按营业日分组，组按日期倒序；没有行时为空数组
+          items:
+            $ref: '#/components/schemas/TransactionDayGroup'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    TransactionDayGroup:
+      type: object
+      description: 一个营业日的行。
+      required:
+        - item_key
+        - item_data
+        - item_statistics
+      properties:
+        item_key:
+          type: string
+          description: 营业日，`yyyy-MM-dd`
+        item_data:
+          type: array
+          description: 本页里属于这个营业日的行，按时间倒序
+          items:
+            $ref: '#/components/schemas/TransactionRecord'
+        item_statistics:
+          type: object
+          description: 这个营业日的合计，与列表同范围同条件，不只是本页的行。按结算币种，单位是元，数值
+          required:
+            - tran_total_pay_fee
+            - tran_total_ref_fee
+          properties:
+            tran_total_pay_fee:
+              type: number
+              description: 收款合计
+            tran_total_ref_fee:
+              type: number
+              description: 退款合计，正数
+    TransactionRecord:
+      type: object
+      description: 流水的一行：一笔成交的收款，或一笔受理的退款。时间按商户时区。
+      required:
+        - order_id
+        - currency
+        - channel
+        - clear_fee
+        - status
+        - preAuth
+        - tran_date
+        - tran_time
+      properties:
+        order_id:
+          type: string
+          description: 订单号；退款行是原订单的订单号
+        refund_id:
+          type: string
+          description: 平台退款号，只在退款行返回
+        currency:
+          type: string
+          description: 订单的标价币种
+        channel:
+          type: string
+          description: 支付方式品牌，取值同订单详情的 `channel`
+        clear_fee:
+          type: number
+          description: |
+            这一行的金额，单位是元，数值：
+
+            - 收款行是成交金额，按结算币种；人民币标价的订单取订单总额（人民币）。
+            - 退款行是这笔退款的金额（正数），按订单的标价币种。
+        status:
+          $ref: '#/components/schemas/OrderStatus'
+          description: 所属订单当前的状态，取值见 `OrderStatus`
+        preAuth:
+          type: boolean
+          description: 所属订单的款项是否处于预授权挂起中
+        tran_date:
+          type: string
+          description: 这一行所属的营业日，`yyyy-MM-dd`，与所在组的 `item_key` 相同
+        tran_time:
+          type: string
+          description: 收款行是成交时刻，退款行是受理时刻；`HH:mm:ss`
+    AnalyticsCharts:
+      type: object
+      description: 数据分析图表的数据。
+      required:
+        - list
+        - info
+      properties:
+        list:
+          type: array
+          description: 按时段的点，按时间先后排列；粒度见接口说明
+          items:
+            $ref: '#/components/schemas/AnalyticsPoint'
+        info:
+          type: object
+          description: 新老客户的统计。不提供，三个数恒为 `0`
+          required:
+            - sumCount
+            - oldCount
+            - newCount
+          properties:
+            sumCount:
+              type: integer
+              description: 恒为 `0`
+            oldCount:
+              type: integer
+              description: 恒为 `0`
+            newCount:
+              type: integer
+              description: 恒为 `0`
+    AnalyticsPoint:
+      type: object
+      description: 一个时段的点。金额按结算币种，单位是元，数值。
+      required:
+        - date
+        - payAmount
+        - payCount
+        - newCust
+        - oldCust
+      properties:
+        date:
+          type: string
+          description: 时段的标签：按小时为 `HH:00`，按日为 `yyyy-MM-dd`，按月为 `yyyy/MM`
+        payAmount:
+          type: number
+          description: 这个时段成交的收款金额减去受理的退款金额
+        payCount:
+          type: integer
+          description: 这个时段成交的收款笔数，一单一笔
+        newCust:
+          type: integer
+          description: 恒为 `0`
+        oldCust:
+          type: integer
+          description: 恒为 `0`
+    BillCreateRequest:
+      type: object
+      required:
+        - bill_amount
+        - currency
+        - expiration_time
+      properties:
+        bill_amount:
+          type: integer
+          minimum: 1
+          description: 账单金额，单位是分
+        currency:
+          type: string
+          description: 账单币种，商户的结算币种或 `CNY`
+        bill_remark:
+          type: string
+          maxLength: 300
+          description: 账单说明，可以为空串；详情里以 `remark` 返回
+        expiration_time:
+          type: string
+          enum:
+            - today
+            - 24h
+            - 48h
+            - 72h
+          description: |
+            有效期，换算成到期日：
+
+            - `today` 到期日为当天。
+            - `24h` 到期日为次日。
+            - `48h` 到期日为后天。
+            - `72h` 没有到期日。
+        pre_auth_flag:
+          type: boolean
+          default: false
+          description: 为 `true` 时顾客付这张账单走预授权，付款成功后款项挂起、之后可以释放
+    BillCreateResult:
+      type: object
+      required:
+        - bill_id
+      properties:
+        bill_id:
+          type: string
+          pattern: ^[0-9]+$
+          description: 账单号，纯数字的字符串，商户内递增、从 10001 起，与商户后台账单列表里的账单号相同
+    BillListPage:
+      type: object
+      description: 一页账单。
+      required:
+        - pagination
+        - data
+      properties:
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        data:
+          type: array
+          description: 本页的行按创建日期分组，组按日期倒序；没有行时为空数组
+          items:
+            $ref: '#/components/schemas/BillDayGroup'
+    BillDayGroup:
+      type: object
+      description: 一个创建日期的账单。
+      required:
+        - item_key
+        - item_data
+      properties:
+        item_key:
+          type: string
+          description: 创建日期，`yyyy-MM-dd`，按商户时区
+        item_data:
+          type: array
+          description: 本页里这一天创建的账单，按创建时刻倒序
+          items:
+            $ref: '#/components/schemas/BillListRow'
+    BillListRow:
+      type: object
+      description: 列表的一行，一张账单。各情形下 `bill_status`、`order_status`、`cancle_time` 的取值见 `listBills` 的说明。
+      required:
+        - bill_id
+        - bill_status
+        - currency
+        - cancle_time
+        - bill_amount
+      properties:
+        bill_id:
+          type: string
+          pattern: ^[0-9]+$
+          description: 账单号，纯数字的字符串
+        bill_status:
+          type: integer
+          enum:
+            - 1
+            - 2
+          description: '`1` 未付；`2` 已付，或过了到期日仍未付'
+        order_status:
+          type: string
+          enum:
+            - '1'
+          description: 恒为 `"1"`，表示账单已付；账单未付时不返回
+        currency:
+          type: string
+          description: 账单币种
+        cancle_time:
+          type: integer
+          description: 到付款截止时刻（到期日结束的那一刻，商户时区）的剩余毫秒，过了为 `0`；没有到期日为 `-1`。字段名的拼写照现网
+        bill_amount:
+          type: number
+          description: 账单金额，单位是元，两位小数的数值
+    BillDetail:
+      type: object
+      description: 账单详情。
+      required:
+        - bill_info
+        - data
+      properties:
+        bill_info:
+          $ref: '#/components/schemas/BillInfo'
+        data:
+          type: array
+          description: 付清这张账单的订单，按付款日期分组；账单已付时一组一行，未付或付款后被自动退回时为空数组
+          items:
+            $ref: '#/components/schemas/BillOrderDayGroup'
+    BillInfo:
+      type: object
+      description: 账单的二维码与账单信息。
+      required:
+        - code_img_url
+        - mch_company_name
+        - bill_amount
+        - currency
+        - payways
+        - bill_status
+      properties:
+        code_img_url:
+          type: string
+          description: 账单的二维码图片，PNG 的 data URI（`data:image/png;base64,…`）；码内容是这张账单的付款地址，与商户后台账单的付款链接相同
+        mch_company_name:
+          type: string
+          description: 商户的公司名
+        bill_amount:
+          type: number
+          description: 账单金额，单位是元，两位小数的数值
+        currency:
+          type: string
+          description: 账单币种
+        remark:
+          type: string
+          description: 账单说明，即新建时的 `bill_remark`；没有时不返回
+        payways:
+          type: array
+          description: 商户当前能受理的支付方式，按请求时的开通情况算；码值的命名与现网相同
+          items:
+            type: string
+            enum:
+              - wechat
+              - alipay
+              - alipayonline
+              - unionpayonline
+              - creditcard
+        bill_status:
+          type: integer
+          enum:
+            - 1
+            - 2
+          description: '`1` 未付；`2` 已付，或过了到期日仍未付'
+    BillOrderDayGroup:
+      type: object
+      description: 一个付款日期的订单。
+      required:
+        - item_key
+        - item_data
+      properties:
+        item_key:
+          type: string
+          description: 付款成功那天的日期，`yyyy-MM-dd`，按商户时区
+        item_data:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillOrderRow'
+    BillOrderRow:
+      type: object
+      description: 付清这张账单的订单。
+      required:
+        - order_id
+        - pay_amount
+        - currency
+        - tran_time
+      properties:
+        order_id:
+          type: string
+          description: 订单号，即 `getTransaction`（`payType` 为 `Credit`）的 `orderId`
+        pay_amount:
+          type: number
+          description: 付款金额，单位是元，数值
+        currency:
+          type: string
+          description: 订单币种
+        tran_time:
+          type: string
+          description: 付款成功的时间，按商户时区，`yyyy-MM-dd HH:mm:ss`
+    Pagination:
+      type: object
+      description: 分页信息，按行计。
+      required:
+        - page
+        - limit
+        - totalCount
+        - totalPages
+        - lastPage
+      properties:
+        page:
+          type: integer
+          description: 本页的页码
+        limit:
+          type: integer
+          description: 每页的行数
+        totalCount:
+          type: integer
+          description: 符合条件的总行数
+        totalPages:
+          type: integer
+          description: 总页数
+        lastPage:
+          type: boolean
+          description: 本页是不是最后一页
+    UnreadCounts:
+      type: object
+      required:
+        - order_message_count
+        - notice_message_count
+      properties:
+        order_message_count:
+          type: integer
+          minimum: 0
+          description: 订单消息的未读数，按登录者本人算
+        notice_message_count:
+          type: integer
+          minimum: 0
+          description: 站内信的未读数，按商户算
+    AccountBalance:
+      type: object
+      description: 当前商户的待结算余额与退款账户。按结算币种，单位是元，数值。
+      required:
+        - tranBalance
+        - rechargeBalance
+        - refundQuota
+      properties:
+        tranBalance:
+          type: number
+          description: 待结算余额（不含预授权挂起）：还没结算的收款减去退款等扣减后的净额，可能为负
+        rechargeBalance:
+          type: number
+          description: 退款账户的余额
+        refundQuota:
+          type: number
+          description: 退款账户的最低金额；没有开自动补足时为 `0`
+    SubMerchantBalances:
+      type: object
+      required:
+        - sub_balances
+      properties:
+        sub_balances:
+          type: array
+          description: 第一项是当前商户，其后是当前商户名下、登录者可以访问的关联商户
+          items:
+            $ref: '#/components/schemas/SubMerchantBalance'
+    SubMerchantBalance:
+      type: object
+      required:
+        - mch_id
+        - mch_balance
+      properties:
+        mch_id:
+          type: string
+          description: 商户号，数字串
+        mch_name:
+          type: string
+          description: 商户简称；没有值不返回本键
+        mch_balance:
+          type: number
+          description: 账户余额，与首页汇总的 `mch_balance` 是同一个量：可结算余额减去商户欠平台的钱，含预授权挂起中的款项，可能为负；按该商户的结算币种，单位是元
+    MerchantInfo:
+      type: object
+      description: 商户资料。
+      required:
+        - mch_code
+        - company_name
+        - mch_abbreviation
+        - contact_name
+        - contact_email
+        - order_expiry_time
+        - mch_timezone
+        - client_pay_surcharge
+        - payInfo
+      properties:
+        mch_code:
+          type: string
+          description: 商户代码
+        company_name:
+          type: string
+          description: 公司名
+        mch_abbreviation:
+          type: string
+          description: 商户简称
+        service_phone:
+          type: string
+          description: 营业电话；没有值不返回本键
+        address:
+          type: string
+          description: 地址；没有值不返回本键
+        city:
+          type: string
+          description: 城市；没有值不返回本键
+        province:
+          type: string
+          description: 省或州的代码，如 `BC`；没有值不返回本键
+        postal_code:
+          type: string
+          description: 邮编；没有值不返回本键
+        country:
+          type: string
+          description: 国家，写法与现网相同，如 `CANADA`；没有值不返回本键
+        contact_name:
+          type: string
+          description: 商户 Owner 的姓名，名与姓以一个空格连接
+        contact_phone:
+          type: string
+          description: 商户 Owner 的电话；没有值不返回本键
+        contact_email:
+          type: string
+          description: 商户 Owner 的登录邮箱
+        logo_url:
+          type: string
+          description: 商户 Logo 的地址；没有 Logo 时不返回本键
+        order_expiry_time:
+          type: string
+          description: 订单有效期，整小时写成 `Nh`（如 `2h`），否则写成分钟数 `Nm`（如 `15m`）
+        mch_timezone:
+          type: string
+          description: 商户时区，IANA 时区名
+        client_pay_surcharge:
+          type: boolean
+          description: 是否开启了顾客承担手续费
+        payInfo:
+          $ref: '#/components/schemas/PaySettingInfo'
+        bankInfo:
+          $ref: '#/components/schemas/MerchantBankInfo'
+    PaySettingInfo:
+      type: object
+      description: 店铺码收款页设置。`getMerchantInfo` 返回时除 `note`（没有值不返回本键）外都返回；`updatePaymentPageSettings` 收的也是这一份，其中 `full_pay_switch`、`child_refund_switch`、`mch_refund_switch` 收下不用。
+      required:
+        - user_info_switch
+        - remark_switch
+        - remarks_are_required
+        - tip_switch
+      properties:
+        user_info_switch:
+          type: boolean
+          description: 收款页是否向付款人收姓名与手机号
+        remark_switch:
+          type: boolean
+          description: 收款页是否有备注栏
+        remarks_are_required:
+          type: boolean
+          description: 备注是否必填
+        user_input_title:
+          type: string
+          description: 商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；没有时为 `[]`
+        tip_switch:
+          type: boolean
+          description: 是否开启小费
+        tip_preset_value:
+          type: string
+          description: 三档预设小费百分比，0 到 30 的整数，半角逗号分隔，如 `10,15,20`
+        note:
+          type: string
+          description: 收款页上的提示语；没有值不返回本键
+        full_pay_switch:
+          type: boolean
+          description: 恒为 `true`。保存时收下不用
+        child_refund_switch:
+          type: boolean
+          description: 恒为 `false`。保存时收下不用
+        mch_refund_switch:
+          type: boolean
+          description: 恒为 `false`。保存时收下不用
+    MerchantBankInfo:
+      type: object
+      description: 结算银行账户。商户还没有结算账户时 `getMerchantInfo` 不返回本键。
+      required:
+        - account_number
+        - account_name
+        - bank_name
+        - bank_code
+        - bank_id
+        - bank_verify
+        - pendingBankInfo
+      properties:
+        account_number:
+          type: string
+          description: 账号，只给末 4 位，前面以 `****` 代替
+        account_name:
+          type: string
+          description: 账户名
+        bank_name:
+          type: string
+          description: 银行名称
+        bank_code:
+          type: string
+          description: transit 号
+        bank_id:
+          type: string
+          description: institution 号
+        prove_url:
+          type: string
+          description: 作废支票（void cheque）的预览地址；没有时不返回本键
+        bank_verify:
+          type: boolean
+          description: 是否有一笔审核中的修改
+        pendingBankInfo:
+          type: object
+          maxProperties: 0
+          description: 恒为空对象 `{}`
+    SettlementListPage:
+      type: object
+      description: 一页结算单。
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: 本页的行按结算日分组，组按日期倒序；没有行时为空数组
+          items:
+            $ref: '#/components/schemas/SettlementGroup'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    SettlementGroup:
+      type: object
+      description: 一个结算日的结算单。
+      required:
+        - item_key
+        - item_data
+      properties:
+        item_key:
+          type: string
+          description: 结算日，`yyyy-MM-dd`
+        item_data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SettlementRow'
+    SettlementRow:
+      type: object
+      description: 一张结算单。金额按结算币种，单位是元，数值。
+      required:
+        - clear_detail_id
+        - clear_interval
+        - gross_amount
+        - clear_total_fee
+        - total_charge
+      properties:
+        clear_detail_id:
+          type: string
+          description: 结算单号，查清算明细时原样带回
+        clear_interval:
+          type: string
+          description: 结算周期，`yyyy-MM-dd ~ yyyy-MM-dd`
+        gross_amount:
+          type: number
+          description: 净交易额
+        clear_total_fee:
+          type: number
+          description: 结算额，即打给商户的金额
+        total_charge:
+          type: number
+          description: 服务费
+    SettlementDetail:
+      type: object
+      description: 一张结算单的汇总与明细。
+      required:
+        - clear_summary
+        - settle_transactions
+      properties:
+        clear_summary:
+          $ref: '#/components/schemas/SettlementSummary'
+        settle_transactions:
+          type: object
+          description: 明细，收款归 `Credit`，退款与其他扣减归 `Debit`
+          required:
+            - Credit
+            - Debit
+          properties:
+            Credit:
+              $ref: '#/components/schemas/SettlementTransactionsByDate'
+            Debit:
+              $ref: '#/components/schemas/SettlementTransactionsByDate'
+    SettlementSummary:
+      type: object
+      description: 结算单的汇总。金额按结算币种，单位是元，两位小数的十进制字符串。
+      required:
+        - clear_interval
+        - report_date
+        - gross_amount
+        - clear_total_fee
+        - total_surcharge
+        - total_charge
+        - total_refund
+      properties:
+        clear_interval:
+          type: string
+          description: 结算周期，`yyyy-MM-dd ~ yyyy-MM-dd`
+        report_date:
+          type: string
+          description: 结算日，`yyyy-MM-dd`
+        gross_amount:
+          type: string
+          description: 净交易额
+        clear_total_fee:
+          type: string
+          description: 结算额，即打给商户的金额
+        total_surcharge:
+          type: string
+          description: 服务费
+        total_charge:
+          type: string
+          description: '`Credit` 各行交易额的合计'
+        total_refund:
+          type: string
+          description: '`Debit` 各行交易额的合计'
+    SettlementTransactionsByDate:
+      type: object
+      description: 日期（商户时区，`yyyy-MM-dd`）到这一天明细行的映射；没有行时为空对象。
+      additionalProperties:
+        type: array
+        items:
+          $ref: '#/components/schemas/SettlementTransaction'
+    SettlementTransaction:
+      type: object
+      description: 结算单里的一行明细。金额单位是元，两位小数的十进制字符串。
+      required:
+        - create_time
+        - clearing_amount
+        - settle_amount
+        - currency
+      properties:
+        order_id:
+          type: string
+          description: 订单号；退款行是原订单的订单号。退款账户划转、罚款、补偿等不是交易的行不返回本键
+        create_time:
+          type: string
+          description: 发生时间，商户时区，`yyyy-MM-dd HH:mm:ss`
+        clearing_amount:
+          type: string
+          description: 交易额
+        settle_amount:
+          type: string
+          description: 结算额，即交易额扣除手续费后的金额
+        currency:
+          type: string
+          description: 币种
+    MonthlyStatementPage:
+      type: object
+      description: 一页月对账单。
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: 本页的月对账单，按月份倒序；没有行时为空数组
+          items:
+            $ref: '#/components/schemas/MonthlyStatement'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    MonthlyStatement:
+      type: object
+      required:
+        - months
+        - serviceChargeTotal
+      properties:
+        months:
+          type: string
+          description: 月份，`yyyy-MM`
+        serviceChargeTotal:
+          type: number
+          description: 当月的服务费合计，按结算币种，单位是元
+    EmailCodeTicket:
+      type: object
+      required:
+        - ticket
+      properties:
+        ticket:
+          type: string
+          description: 本次验证码的票据，下一步与验证码一起带回
+    RechargeRequest:
+      type: object
+      required:
+        - depositType
+        - amount
+        - ticket
+        - ticketValue
+      properties:
+        depositType:
+          type: string
+          enum:
+            - balance
+            - auto_deposit
+          description: '`balance` 从余额划到退款账户；`auto_deposit` 设置自动补足的最低金额'
+        amount:
+          type:
+            - number
+            - string
+          description: 金额，单位是元，数值或数字串，须为正数
+        ticket:
+          type: string
+          description: '`sendRechargeEmailCode` 返回的 `ticket`'
+        ticketValue:
+          type: string
+          description: 邮件里的 6 位验证码
+        remark:
+          type: string
+          description: 收下不用
+    MessageCenterSummary:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/UnreadCounts'
+      properties:
+        order_message:
+          type: object
+          description: 最新一条未读订单消息；没有时不返回本键
+          required:
+            - create_time
+          properties:
+            create_time:
+              type: string
+              description: 发生时刻，商户时区，`yyyy-MM-dd HH:mm:ss`
+        notice_message:
+          type: object
+          description: 最新一条未读站内信；没有时不返回本键
+          required:
+            - title
+            - send_time
+          properties:
+            title:
+              type: string
+              description: 标题
+            send_time:
+              type: string
+              description: 发送时间，商户时区，`yyyy-MM-dd HH:mm:ss`
+    OrderMessagePage:
+      type: object
+      description: 一页订单消息。
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: 本页的订单消息，按发生时刻倒序；没有行时为空数组
+          items:
+            $ref: '#/components/schemas/OrderMessage'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    OrderMessage:
+      type: object
+      description: 一条订单消息：一笔成交的收款，或一笔受理的退款。
+      required:
+        - order_id
+        - transaction_type
+        - amount
+        - currency
+        - create_time
+        - mch_name
+      properties:
+        order_id:
+          type: string
+          description: 订单号；退款行是原订单的订单号
+        transaction_type:
+          type: string
+          enum:
+            - Credit
+            - Debit
+          description: '`Credit` 收款，`Debit` 退款'
+        amount:
+          type: number
+          description: 收款行是订单总额，退款行是这笔退款的金额（正数）；单位是元
+        currency:
+          type: string
+          description: 订单的标价币种
+        channel:
+          type: string
+          description: 支付方式品牌，取值同订单详情的 `channel`；只在收款行返回
+        create_time:
+          type: string
+          description: 收款行是成交时刻，退款行是受理时刻；商户时区，`yyyy-MM-dd HH:mm:ss`
+        mch_name:
+          type: string
+          description: 当前商户的简称
+        remark:
+          type: string
+          description: 收款行是订单备注，退款行是退款备注；没有值不返回本键
+    NoticePage:
+      type: object
+      description: 一页站内信。
+      required:
+        - data
+        - pagination
+      properties:
+        data:
+          type: array
+          description: 本页的站内信，按发送时间从新到旧；没有行时为空数组
+          items:
+            $ref: '#/components/schemas/Notice'
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+    Notice:
+      type: object
+      description: 一条站内信。
+      required:
+        - notice_id
+        - title
+        - content
+        - send_time
+      properties:
+        notice_id:
+          type: string
+          description: 站内信编号，查详情时原样带回
+        title:
+          type: string
+          description: 标题
+        content:
+          type: string
+          description: 正文，HTML
+        send_time:
+          type: string
+          description: 发送时间，商户时区，`yyyy-MM-dd HH:mm:ss`
+    NoticeDetail:
+      type: object
+      required:
+        - notice_title
+        - content
+      properties:
+        notice_title:
+          type: string
+          description: 标题
+        content:
+          type: string
+          description: 正文，完整的 HTML 文档
+    PaymentNoticeSettings:
+      type: object
+      required:
+        - paymentNotice
+        - account_id
+        - emails
+      properties:
+        paymentNotice:
+          type: boolean
+          description: 登录者本人是否接收收款推送
+        wechat_openid:
+          type: string
+          description: 登录者本人已绑定微信时为一个非空串，未绑定时不返回本键；值不是微信的标识
+        account_id:
+          type: string
+          description: 登录者本人的账号编号
+        emails:
+          type: array
+          description: 当前商户的收款通知邮箱，按邮箱字母序
+          items:
+            $ref: '#/components/schemas/NoticeEmail'
+    NoticeEmail:
+      type: object
+      required:
+        - email
+        - main
+        - notice
+      properties:
+        email:
+          type: string
+          description: 邮箱
+        main:
+          type: boolean
+          description: 是不是主邮箱（Owner 的登录邮箱）；主邮箱不能删除
+        notice:
+          type: boolean
+          description: 恒为 `true`
+    NoticeEmailAddRequest:
+      type: object
+      required:
+        - email
+        - ticket
+        - ticketValue
+      properties:
+        email:
+          type: string
+          description: 要添加的邮箱，须与发验证码时的相同
+        ticket:
+          type: string
+          description: '`sendNoticeEmailCode` 返回的 `ticket`'
+        ticketValue:
+          type: string
+          description: 这个邮箱收到的 6 位验证码
+    PasswordResetRequest:
+      type: object
+      required:
+        - type
+        - ticket
+        - ticketValue
+        - newPassword
+      properties:
+        type:
+          type: string
+          enum:
+            - login
+            - refund
+          description: '`login` 登录密码，`refund` 退款密码；须与发验证码时的相同'
+        ticket:
+          type: string
+          description: '`sendPasswordEmailCode` 返回的 `ticket`'
+        ticketValue:
+          type: string
+          description: 邮件里的 6 位验证码
+        newPassword:
+          type: string
+          format: password
+          description: 新密码。登录密码至少 8 位，含大写字母、小写字母、数字与特殊字符；退款密码是 6 位数字
+        confirmPassword:
+          type: string
+          format: password
+          description: 收下不用
+    UploadedImage:
+      type: object
+      required:
+        - imgUrl
+      properties:
+        imgUrl:
+          type: string
+          description: 文件的预览地址；引用时原样带回
+    MerchantContactRequest:
+      type: object
+      description: 只改带了、且不是空串的字段。
+      properties:
+        service_phone:
+          type: string
+          description: 营业电话
+        address:
+          type: string
+          description: 地址
+        city:
+          type: string
+          description: 城市
+        province:
+          type: string
+          description: 省或州的代码，如 `BC`
+        post_code:
+          type: string
+          description: 邮编
+        country:
+          type: string
+          description: 收下不用
+        contact_name:
+          type: string
+          description: 商户 Owner 的姓名，按最后一个空格拆成名与姓
+        contact_phone:
+          type: string
+          description: 商户 Owner 的电话
+    BankAccountRequest:
+      type: object
+      required:
+        - bank_name
+        - bank_code
+        - bank_id
+        - account_number
+        - prove_url
+      properties:
+        account_name:
+          type: string
+          description: 收下不用
+        branch:
+          type: string
+          description: 收下不用
+        bank_name:
+          type: string
+          description: 银行名称
+        bank_code:
+          type: string
+          description: transit 号，5 位数字
+        bank_id:
+          type: string
+          description: institution 号，3 位数字
+        account_number:
+          type: string
+          description: 账号，数字
+        prove_url:
+          type: string
+          description: 作废支票的文件，`uploadImage` 返回的 `imgUrl`
+        ticket:
+          type: string
+          description: '`sendBankEmailCode` 返回的 `ticket`；不带时返回 `400`，提示升级 App'
+        ticketValue:
+          type: string
+          description: 邮件里的 6 位验证码；不带时返回 `400`，提示升级 App
+    MerchantEmailRequest:
+      type: object
+      required:
+        - email
+        - ticket
+        - ticketValue
+      properties:
+        email:
+          type: string
+          description: 新邮箱
+        ticket:
+          type: string
+          description: '`sendMerchantEmailCode` 返回的 `ticket`'
+        ticketValue:
+          type: string
+          description: 当前邮箱收到的验证码；账号开了验证器时是验证器上的码
+    MerchantEmailConfirmRequest:
+      type: object
+      required:
+        - email
+        - ticketValue
+      properties:
+        email:
+          type: string
+          description: 新邮箱，须与 `updateMerchantEmail` 提交的相同
+        ticketValue:
+          type: string
+          description: 新邮箱收到的验证码
+    PaymentMethods:
+      type: object
+      required:
+        - wxSwitch
+        - aliSwitch
+        - aliOnlineSwitch
+        - unionSwitch
+        - unionOnlineSwitch
+        - cardSwitch
+        - storePayWay
+        - examinePayWays
+      properties:
+        wxSwitch:
+          type: boolean
+          description: 微信支付是否已开通
+        aliSwitch:
+          type: boolean
+          description: 支付宝（店内）是否已开通
+        aliOnlineSwitch:
+          type: boolean
+          description: 支付宝（线上）是否已开通
+        unionSwitch:
+          type: boolean
+          description: 银联（店内）是否已开通
+        unionOnlineSwitch:
+          type: boolean
+          description: 银联（线上）是否已开通
+        cardSwitch:
+          type: boolean
+          description: 信用卡是否已开通
+        storePayWay:
+          type: array
+          description: 店铺码收款页上给付款人显示的支付方式
+          items:
+            type: string
+            enum:
+              - wechat
+              - alipay
+              - alipayonline
+              - unionpayonline
+              - creditcard
+        examinePayWays:
+          type: array
+          description: 正在开通审核中的支付方式；没有时为空数组
+          items:
+            type: string
+            enum:
+              - wechat
+              - alipay
+              - alipayonline
+              - unionpay
+              - unionpayonline
+              - creditcard
+    TerminalRole:
+      type: integer
+      enum:
+        - 1
+        - 2
+        - 3
+      description: |
+        成员在终端上的角色，按下面的先后取第一个符合的：
+
+        - `1` 商户 Owner，或持有 Admin 角色。
+        - `2` 持有店长角色。
+        - `3` 其余成员。
+    EmployeeListRow:
+      type: object
+      required:
+        - account_id
+        - user_name
+        - role
+        - one_self
+      properties:
+        account_id:
+          type: string
+          description: 成员的账号编号，查详情、修改、删除、绑定微信时原样带回
+        user_name:
+          type: string
+          description: 登录名（用户名或邮箱）
+        role:
+          $ref: '#/components/schemas/TerminalRole'
+        one_self:
+          type: boolean
+          description: 是不是登录者本人
+    EmployeeDetail:
+      type: object
+      required:
+        - account_id
+        - user_name
+        - nick_name
+        - mch_role
+        - create_time
+      properties:
+        account_id:
+          type: string
+          description: 成员的账号编号
+        user_name:
+          type: string
+          description: 登录名（用户名或邮箱）
+        nick_name:
+          type: string
+          description: 显示名
+        mch_role:
+          $ref: '#/components/schemas/TerminalRole'
+        wechat_open_id:
+          type: string
+          description: 已绑定微信时为一个非空串，未绑定时不返回本键；值不是微信的标识
+        wechat_name:
+          type: string
+          description: 已绑定微信的昵称；没有值不返回本键
+        create_time:
+          type: string
+          description: 加入商户的时间，商户时区，`yyyy-MM-dd HH:mm:ss`
+    EmployeeCreateRequest:
+      type: object
+      required:
+        - user_name
+        - pwd
+        - nick_name
+        - role
+      properties:
+        user_name:
+          type: string
+          description: 登录名，不能是邮箱地址
+        pwd:
+          type: string
+          format: password
+          description: 初始登录密码，至少 8 位，含大写字母、小写字母、数字与特殊字符
+        nick_name:
+          type: string
+          description: 显示名
+        role:
+          type: integer
+          enum:
+            - 2
+            - 3
+          description: '`2` 店长，`3` 收银员'
+        contact_phone:
+          type: string
+          description: 收下不用
+    EmployeeUpdateRequest:
+      type: object
+      required:
+        - account_id
+      properties:
+        account_id:
+          type: string
+          description: 要改的成员
+        role:
+          type: integer
+          enum:
+            - 2
+            - 3
+          description: '`2` 店长，`3` 收银员；整组替换成员的角色'
+        nick_name:
+          type: string
+          description: 新的显示名
+        pwd:
+          type: string
+          format: password
+          description: 新的登录密码，至少 8 位，含大写字母、小写字母、数字与特殊字符
+        delBinding:
+          type: boolean
+          description: 为 `true` 时解绑微信，其余键不看
+    WechatBindQrcode:
+      type: object
+      required:
+        - url
+        - key
+      properties:
+        url:
+          type: string
+          description: 二维码图片，PNG 的 data URI（`data:image/png;base64,…`）
+        key:
+          type: string
+          description: 本次绑定的票据，查结果时带回
+    WechatBindStatus:
+      type: object
+      description: 绑定结果。已绑定时有 `wechat_openid`；还没扫码或还没确认时是空对象。
+      properties:
+        wechat_openid:
+          type: string
+          description: 已绑定时为一个非空串；值不是微信的标识

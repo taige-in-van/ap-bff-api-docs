@@ -5,9 +5,9 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:760px;margin:3rem auto;padding:0 1rem;line-height:1.7;color:#24292f}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.warn{background:#fff8c5;border:1px solid #d4a72c55;padding:.6rem .9rem;border-radius:6px}.conv{background:#ddf4ff;border:1px solid #54aeff55;padding:.6rem .9rem;border-radius:6px}h2{margin-top:1.6rem}</style>
 </head><body>
 <h1>BFF API 契约</h1>
-<p>前端消费的 BFF REST 契约,按 consumer / module 分目录。</p>
+<p>前端、收银台与终端（POS / 商户 App）消费的 REST 契约,按 consumer / module 分目录。</p>
 <p class="warn">⚠️ <strong>design / review 阶段</strong>契约 —— 实现前可能调整;可据此并行开发,勿当冻结契约。</p>
-<p class="conv">📐 <a href="conventions.html"><strong>API 基础约定（商户后台先读）</strong></a> —— 错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额，商户后台各模块共用；收银台的跨接口约定（会话、调用顺序、金额、错误）写在其契约顶部说明里。<br>🔢 <a href="error-codes.json"><strong>error-codes.json</strong></a> —— 错误码表（每个 <code>code</code> 的含义〔<code>name</code>，可当 i18n key〕/ 对应 HTTP 状态 / 能否重试 / 必带 <code>context</code> 字段；<strong>「该怎么处理」不在表里，看返回它的那个接口的说明</strong>），非 2xx 一律按 <code>code</code> 分流。</p>
+<p class="conv">📐 <a href="conventions.html"><strong>API 基础约定（商户后台先读）</strong></a> —— 错误体 / 分页 / 幂等 / CSRF / 状态码 / 时间金额，商户后台各模块共用；收银台的跨接口约定（会话、调用顺序、金额、错误）写在其契约顶部说明里；终端面（POS / 商户 App）同样，凭据、响应外壳与状态码写在各自契约顶部。<br>🔢 <a href="error-codes.json"><strong>error-codes.json</strong></a>（终端面另见 <code>terminal/error-codes.json</code>）—— 错误码表（每个 <code>code</code> 的含义〔<code>name</code>，可当 i18n key〕/ 对应 HTTP 状态 / 能否重试 / 必带 <code>context</code> 字段；<strong>「该怎么处理」不在表里，看返回它的那个接口的说明</strong>），非 2xx 一律按 <code>code</code> 分流。</p>
 <h2>商户后台 (Merchant Portal)</h2>
 <h3>调用时序（按页面，先读）</h3>
 <ul>
@@ -50,6 +50,18 @@
 <h3>接口（按资源）</h3>
 <ul>
     <li><a href="checkout/checkout/index.html">收银台</a> <small>(v2.0.0)</small> — <a href="checkout/checkout/openapi.yaml">openapi.yaml</a></li>
+</ul>
+<h2>终端 (POS / 商户 App)</h2>
+<p>🔢 <a href="terminal/error-codes.json"><strong>terminal/error-codes.json</strong></a> —— 终端两份契约用到的错误码（<code>name</code> / 能否重试 / 必带 <code>context</code> 字段）。HTTP 状态按各契约顶部「状态码」一节的三档，不在表里。</p>
+<h3>调用时序（按页面，先读）</h3>
+<ul>
+    <li><a href="terminal/flows/app.html">商户 App</a></li>
+    <li><a href="terminal/flows/pos.html">POS 终端</a></li>
+</ul>
+<h3>接口（按资源）</h3>
+<ul>
+    <li><a href="terminal/pos/index.html">POS 终端</a> <small>(v1.0.0)</small> — <a href="terminal/pos/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="terminal/app/index.html">商户 App</a> <small>(v1.0.0)</small> — <a href="terminal/app/openapi.yaml">openapi.yaml</a></li>
 </ul>
 <p><small>各模块 `openapi.yaml` 自包含可 codegen;变更经本仓 commit 追踪。接口疑问 → 提 issue。</small></p>
 </body></html>

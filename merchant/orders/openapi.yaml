@@ -22,10 +22,13 @@ security:
   - cookieAuth: []
 tags:
   - name: payments
+    x-displayName: 支付订单
     description: 支付订单：列表、汇总与状态计数、导出、详情、收据 PDF，以及发起退款、预授权完成。
   - name: refunds
+    x-displayName: 退款
     description: 退款：列表与状态计数、导出、详情、收据 PDF，以及撤销审核中的退款。发起退款在 payments 组。
   - name: statistics
+    x-displayName: 收款统计
     description: 按日期范围的收款统计：汇总与支付方式占比、本月 / 上月逐日趋势。收款按订单成交的日期计，退款按退款受理的日期计，两者各算各的日子，不按原订单配对；与 `getPaymentSummary` 不是同一个口径（那边按所筛订单算），两边不要互相核对。
 paths:
   /orders/payments:
@@ -39,6 +42,8 @@ paths:
         当前商户的支付订单，分页。日期范围必填，服务端不设默认。已成交的行金额是结算币种的成交金额，没成交的是标价金额。
 
         列表含 `FAILED` 与 `REJECTED` 两种没收到钱的行；汇总卡不算它们，见 `getPaymentSummary`。状态 chip 的各项与计数另取 `getPaymentCounts`。
+
+        登录成员不是 Owner、也不持 Admin 或店长角色，且运营给商户设了可查天数 N 时，起始日早于「当前营业日往前 N 天」的按这一天起算；没设时不限。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -385,7 +390,7 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 支付收据（PDF）
       description: |
-        已收款订单（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）的收据 PDF。内容：商户的小票抬头与附加内容、订单号、时间、支付方式、金额与小费、已成功的退款行与净额、状态。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        已收款订单（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）的收据 PDF。内容：商户简称与地址、订单号、商户订单号、支付方式、时间（付款成功时刻）、金额明细（订单金额、小费、顾客承担手续费、Total 即顾客实付总额）；不含退款行、净额与状态。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
 
         其余状态没有收据 → `404`。
       parameters:
@@ -743,7 +748,7 @@ paths:
       x-required-privilege: orders:refund:view
       summary: 退款收据（PDF）
       description: |
-        成功的商户退款（`status = SUCCESS` 且 `type = merchant`）的收据 PDF。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        已受理的商户退款（`status` 为 `CHANNEL_PROCESSING` 或 `SUCCESS`，且 `type = merchant`）的收据 PDF。内容：商户简称与地址、单号（商户退款号，没有时为平台退款号）、原订单号、时间（退款发起时间）、退款金额；不含完成时间与状态。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
 
         其余状态与平台自动退款没有收据 → `404`。
       parameters:
@@ -1133,7 +1138,7 @@ components:
       description: |
         退款状态：`REVIEWING` 平台审核中 · `CHANNEL_PROCESSING` 已送通道、处理中 · `SUCCESS` 成功 · `FAILED` 失败 · `REJECTED` 审核被拒 · `CANCELLED` 已撤销。
 
-        后四种是终态。只有 `REVIEWING` 能撤销，只有 `SUCCESS` 有收据。
+        后四种是终态。只有 `REVIEWING` 能撤销，只有 `CHANNEL_PROCESSING` 与 `SUCCESS` 有收据。
       enum:
         - REVIEWING
         - CHANNEL_PROCESSING
@@ -1744,6 +1749,8 @@ components:
         **照着 `items` 渲染即可** —— 项集、顺序、展示名、数字全部由服务端给出,客户端不枚举取值、不 hardcode 项集;某项当期为 `0` 时**仍会返回**(那一格不该因为没数据就消失)。
 
         **`All` 不在 `items` 里,由客户端自己补一项**,数字 = 其余各项之和 —— 服务端保证 `items` 覆盖该列表在不带本维度筛选时的全部命中(每行恰好落进一项),故这个和恒等于此时列表的 `total`。
+
+        例外:某些集合一行可落进多项(如成员的角色),这类接口另给总数,All 取那个总数、不用各项相加。
 
         **本端点不接受被计维度自身的参数**;其余筛选条件与对应列表端点一致、传什么算什么。因此:点某项后列表 `total` = 该项 `count`;点 All 后列表 `total` = 各项 `count` 之和。
       required:

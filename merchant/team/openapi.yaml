@@ -14,7 +14,8 @@ info:
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
     - 当前商户以会话为准；当前商户不可访问时返回 `409`·`208022`。
     - 路径里的 `operatorId` 不存在或不属于当前商户，一律返回 `403`，不区分 `404`。
-    - **角色的权限边界**：可分配的角色，其权限点集合必须是操作者在当前商户有效权限点集合的子集（可以相同），Owner 角色恒不可分配。这条边界用在三处，都由服务端校验：新建成员给的角色、编辑成员改成的角色、以及被编辑或删除成员**现有**的角色（不能对权限比自己宽的成员重设密码、改登录名、改角色、删除、绑定或解绑微信、重发邀请）。`listAssignableRoles` 按同一规则返回候选，不满足时 `403`·`206013`。Owner 对所有可分配角色都满足。
+    - **多角色**：一个员工可以持多个角色，有效权限点取所持各角色权限点的并集；可见分区的可选项随之取各角色模块的并集。
+    - **角色的权限边界**：逐个角色判，每个角色的权限点集合都必须是操作者在当前商户有效权限点集合的子集（可以相同），Owner 角色恒不可分配。例如只持店长角色的操作者分配不了 Employee：Employee 含商品链接管理、设备等店长没有的权限点。这条边界用在三处，都由服务端校验：新建成员给的每个角色、编辑成员改成的每个角色、以及被编辑或删除成员**现有**的每个角色（不能对权限比自己宽的成员重设密码、改登录名、改角色、删除、绑定或解绑微信、重发邀请）。`listAssignableRoles` 按同一规则返回候选，不满足时 `403`·`206013`。Owner 对所有可分配角色都满足。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -22,8 +23,10 @@ security:
   - cookieAuth: []
 tags:
   - name: members
+    x-displayName: 成员
     description: 成员：列表与角色计数、新增 / 编辑 / 删除、重发邀请、微信绑定。
   - name: roles
+    x-displayName: 角色
     description: 可分配给成员的角色。
 paths:
   /team/members/counts:
@@ -34,7 +37,11 @@ paths:
       x-required-privilege: account:team:view
       summary: 成员列表角色快捷筛选的各项与计数
       description: |
-        成员列表顶部角色快捷筛选的各项与计数（形状与用法见 `QuickFilterCounts`）。 `value` 原样回传给 `listTeamMembers` 的 `roleId`；本端点**不接受** `roleId`，其余筛选（按显示名 / 邮箱搜索）与列表一致。 项集覆盖该商户可分配的角色**以及 Owner**（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行）， 某角色当期无成员时**仍返回该项、**`count` 为 `0`。`label` 是角色名，随管理后台维护的角色配置走。
+        成员列表顶部角色快捷筛选的各项与计数（各项用法同 `QuickFilterCounts`，但本端点另给 `total`、各项可重叠）。`value` 原样回传给 `listTeamMembers` 的 `roleId`；本端点**不接受** `roleId`，其余筛选（按显示名 / 邮箱搜索）与列表一致。
+
+        项集覆盖该商户可分配的角色**以及 Owner**（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行），某角色当期无成员时**仍返回该项、**`count` 为 `0`。`label` 是角色名，随管理后台维护的角色配置走。
+
+        成员可持多个角色，各项计数可重叠，All 取 `total`。
       parameters:
         - name: keyword
           in: query
@@ -43,11 +50,25 @@ paths:
           description: 按显示名 / 邮箱
       responses:
         '200':
-          description: 各项与计数
+          description: 各项与计数，另带成员总数
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/QuickFilterCounts'
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                  - total
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/QuickFilterItem'
+                  total:
+                    type: integer
+                    format: int64
+                    minimum: 0
+                    description: 成员总数，即 All 的数字；随 `keyword` 变，与选中哪个角色无关
               example:
                 items:
                   - value: role_owner
@@ -58,10 +79,11 @@ paths:
                     count: 2
                   - value: role_finance
                     label: Finance
-                    count: 0
+                    count: 1
                   - value: role_staff
                     label: Operator
                     count: 5
+                total: 8
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -84,7 +106,7 @@ paths:
           in: query
           schema:
             type: string
-          description: 按角色筛选；取值 = `listAssignableRoles` 的 `roleId`（Owner 行的 `roleId` 不在该候选集内，可从成员列表自身取）
+          description: 按角色筛选：只列持有该角色的成员（可同时持有别的角色）；取值 = `listAssignableRoles` 的 `roleId`（Owner 行的角色标识不在该候选集内，可从成员列表自身取）
         - name: sortField
           in: query
           description: 排序字段。不传 = 不排序；页面默认顺序（最新创建在前）由前端显式传 `createdAt` + `descend`。按 `lastLoginAt` 排序时从未登录的成员恒在末尾、升降序都一样。Owner 行始终置顶、不参与排序。
@@ -121,8 +143,10 @@ paths:
                   - operatorId: op_7a1c9
                     displayName: Jane Merchant
                     loginId: jane@example.com
-                    roleId: role_owner
-                    roleName: Owner
+                    roleIds:
+                      - role_owner
+                    roleNames:
+                      - Owner
                     status: ACTIVE
                     isOwner: true
                     wechatBound: true
@@ -132,8 +156,12 @@ paths:
                   - operatorId: op_3b8f2
                     displayName: Sam Clerk
                     loginId: sam@example.com
-                    roleId: role_staff
-                    roleName: Operator
+                    roleIds:
+                      - role_staff
+                      - role_finance
+                    roleNames:
+                      - Operator
+                      - Finance
                     status: ACTIVE
                     isOwner: false
                     wechatBound: false
@@ -142,8 +170,10 @@ paths:
                   - operatorId: op_5d4e1
                     displayName: Pat Pending
                     loginId: pat@example.com
-                    roleId: role_staff
-                    roleName: Operator
+                    roleIds:
+                      - role_staff
+                    roleNames:
+                      - Operator
                     status: INVITED
                     isOwner: false
                     wechatBound: false
@@ -158,7 +188,7 @@ paths:
       x-required-privilege: account:team:manage
       summary: 新建员工（邮箱 → 邀请中、发邀请链接 / 用户名 → 设初始密码、直接可用）
       description: |
-        按登录名形态分两支：含 `@` 为邮箱，不带密码，建邀请中（`INVITED`）的成员并发邀请设密链接；不含 `@` 为用户名，由建号的人设初始密码，直接建可用（`ACTIVE`）的成员。员工归属当前商户（在主商户建的能切换到名下的关联商户，在关联商户建的只在本商户）。不可选 Owner 角色。
+        按登录名形态分两支：是合法邮箱格式的为邮箱，不带密码，建邀请中（`INVITED`）的成员并发邀请设密链接；其余为用户名，由建号的人设初始密码，直接建可用（`ACTIVE`）的成员。员工归属当前商户（在主商户建的能切换到名下的关联商户，在关联商户建的只在本商户）。角色可以给一个或多个，不可选 Owner 角色。
 
         登录名属于本商户已删除的员工时，按新建处理并沿用原账号（历史记录接续）：旧密码、MFA、微信绑定都作废，角色以本次提交的为准；邮箱登录名回到邀请中、重发邀请，用户名登录名用本次给的初始密码。原账号若被运营停用，仍保持停用（返回 `DISABLED`），只能由运营解除。
 
@@ -167,7 +197,7 @@ paths:
         错误码：
 
         - `968001` 登录名已被其他账号使用（含其他商户的账号）。
-        - `206013` 要给的角色超出操作者的权限边界（含沿用已删除员工的账号时本次提交的角色）。
+        - `206013` 要给的角色里有超出操作者权限边界的（含沿用已删除员工的账号时本次提交的角色）。
         - `208005` 同一幂等键被用于不同的请求体。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -181,7 +211,8 @@ paths:
             example:
               loginId: sam@example.com
               displayName: Sam Clerk
-              roleId: role_staff
+              roleIds:
+                - role_staff
       responses:
         '201':
           description: 已创建（邮箱格式 = INVITED 待设密;用户名格式 = ACTIVE;恢复的是被运营停用的账号时 = DISABLED）
@@ -223,7 +254,7 @@ paths:
         - `newPassword`：重设该员工密码，其全部会话失效；邀请中的员工不能在这里设密。
         - `loginId` 为用户名：直接生效。
         - `loginId` 为邮箱：已激活员工不直接生效，向新邮箱发确认链接，员工在落地页确认（`confirmMemberLoginEmail`）后才切换，确认前旧邮箱仍有效、新邮箱不占用；同一员工的登录邮箱同时只有一笔改动在途（含员工自己在 My Profile 发起的），再改会顶掉上一笔。邀请中的员工改邮箱 = 向新邮箱重发邀请。
-        - `roleId`：该员工在本商户的权限立即按新角色判定。
+        - `roleIds`：该员工在本商户的角色整组换成所给的这组，权限立即按新角色的并集判定。
 
         Owner 行只能改昵称；Owner 的密码与登录邮箱由 Owner 本人在 My Profile 改。改自己这一行时不能改自己的角色。
 
@@ -232,7 +263,7 @@ paths:
         错误码：
 
         - `968001` 新登录名已被其他账号使用。
-        - `206013` 改成的角色、或该成员现有的角色超出操作者的权限边界。
+        - `206013` 改成的角色、或该成员现有的角色里有超出操作者权限边界的。
         - `208005` 同一幂等键被用于不同的请求体。
       parameters:
         - name: operatorId
@@ -250,7 +281,9 @@ paths:
               $ref: '#/components/schemas/UpdateTeamMemberRequest'
             example:
               displayName: Sam Clerk
-              roleId: role_staff
+              roleIds:
+                - role_staff
+                - role_finance
       responses:
         '204':
           description: 已更新（改已激活员工的登录邮箱时为已受理：确认链接已发到新邮箱）
@@ -266,7 +299,7 @@ paths:
       operationId: deleteTeamMember
       x-required-privilege: account:team:manage
       summary: 删除员工（删后不在列表显示、全部会话失效；Owner 不可删）
-      description: 软删除：员工从本商户移除、不能再登录，历史记录保留。之后可用同一登录名再新建（见 `createTeamMember`）。Owner 行不可删，返回 `403`；该成员的角色超出操作者的权限边界 → `403`·`206013`。
+      description: 软删除：员工从本商户移除、不能再登录，历史记录保留。之后可用同一登录名再新建（见 `createTeamMember`）。Owner 行不可删，返回 `403`；该成员的角色里有超出操作者权限边界的 → `403`·`206013`。
       parameters:
         - name: operatorId
           in: path
@@ -421,7 +454,7 @@ paths:
       description: |
         操作者在当前商户可分配的角色（管理后台预定义、随部署而异，前端不要写死），用于新建 / 编辑员工的角色与可见分区选项。只返回权限点集合是操作者有效权限点集合子集（可相同）的角色，与写接口的校验同一规则；Owner 看到全部可分配角色。
 
-        `roleId` 是稳定标识，写成员、按角色筛选都传它；`name` 只供展示，管理后台改名不影响已保存的数据。不含 Owner 的角色（Owner 不可分配）；Owner 行的角色名见 `TeamMember.roleName`。按角色筛选成员列表时，列表里可能有操作者分配不了的角色，候选不足就从成员列表自身取。
+        `roleId` 是稳定标识，写成员、按角色筛选都传它；`name` 只供展示，管理后台改名不影响已保存的数据。不含 Owner 的角色（Owner 不可分配）；Owner 行的角色名见 `TeamMember.roleNames`。按角色筛选成员列表时，列表里可能有操作者分配不了的角色，候选不足就从成员列表自身取。
       responses:
         '200':
           description: 可分配角色候选集
@@ -449,7 +482,7 @@ paths:
                           description: 展示名（可被管理后台改写）
                         modules:
                           type: array
-                          description: 该角色覆盖的模块（权限点串的第一段），即选中该角色后可见分区的可选项；恒返回，无授权时为空数组。
+                          description: 该角色覆盖的侧边栏分区（权限点串的第一段；终端收款的 `terminal` 不是侧边栏分区、不列），即选中该角色后可见分区的可选项；恒返回，无授权时为空数组。
                           items:
                             type: string
                             minLength: 1
@@ -472,7 +505,7 @@ paths:
                     name: Finance
                     modules:
                       - dashboard
-                      - finance
+                      - account
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -497,8 +530,8 @@ components:
         - operatorId
         - displayName
         - loginId
-        - roleId
-        - roleName
+        - roleIds
+        - roleNames
         - status
         - isOwner
       properties:
@@ -509,13 +542,21 @@ components:
           type: string
         loginId:
           type: string
-        roleId:
-          type: string
-          description: 角色稳定标识（编辑该成员时回传此值；按角色筛选也用它）
-        roleName:
-          type: string
+        roleIds:
+          type: array
+          minItems: 1
+          description: 该成员所持角色的稳定标识，一个或多个（编辑该成员时回传这组；按角色筛选用其中一个）
+          items:
+            type: string
+            minLength: 1
+        roleNames:
+          type: array
+          minItems: 1
           readOnly: true
-          description: 角色展示名（服务端已解析；Owner 行同样给出）
+          description: 角色展示名，与 `roleIds` 一一对应、顺序相同（服务端已解析；Owner 行同样给出）
+          items:
+            type: string
+            minLength: 1
         visibleModules:
           allOf:
             - $ref: '#/components/schemas/VisibleModules'
@@ -556,26 +597,30 @@ components:
       description: |
         新建成员。**同一个请求体**，按 `loginId` 的格式决定建号方式：
 
-        - **邮箱形式**（含 `@`）= 邀请制：**不带** `password`，建 `INVITED` 成员 + 发邀请链接邮件，员工自设密码后激活；
-        - **用户名形式**（不含 `@`）= 用户名制：`password` **必填**（建号的人设初始密码），直接建 `ACTIVE` 成员。
+        - **邮箱形式**（合法邮箱格式）= 邀请制：**不带** `password`，建 `INVITED` 成员 + 发邀请链接邮件，员工自设密码后激活；
+        - **用户名形式**（其余）= 用户名制：`password` **必填**（建号的人设初始密码），直接建 `ACTIVE` 成员。
 
         用户名形式缺 `password`、邮箱形式带了 `password` → `400`（服务端校验）。
       required:
         - loginId
         - displayName
-        - roleId
+        - roleIds
       properties:
         loginId:
           type: string
           minLength: 1
-          description: 登录 ID。含 `@` = 邮箱形式（邀请制，须为合法邮箱）；不含 `@` = 用户名形式（用户名制）
+          description: 登录 ID。合法邮箱格式 = 邮箱形式（邀请制）；其余 = 用户名形式（用户名制）
         displayName:
           type: string
           minLength: 1
-        roleId:
-          type: string
-          minLength: 1
-          description: 管理后台预定义可分配角色的 `roleId`（取自 listAssignableRoles；不可选 Owner）
+        roleIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: 要给的角色，一个或多个；每个取自 listAssignableRoles 的 `roleId`（不可选 Owner）
+          items:
+            type: string
+            minLength: 1
         visibleModules:
           $ref: '#/components/schemas/VisibleModules'
         password:
@@ -596,14 +641,18 @@ components:
         displayName:
           type: string
           minLength: 1
-        roleId:
-          type: string
-          minLength: 1
-          description: 改角色;取自 listAssignableRoles 的 `roleId`（不可选 Owner）
+        roleIds:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          description: 改角色：整组替换成所给的这组，一个或多个；每个取自 listAssignableRoles 的 `roleId`（不可选 Owner）
+          items:
+            type: string
+            minLength: 1
         visibleModules:
           allOf:
             - $ref: '#/components/schemas/VisibleModules'
-          description: 改该员工的模块可见性偏好（**全量覆盖本项**：传什么就是什么，传空数组 = 取消收窄）。**不传本键即保持原值**（部分更新）。改 `roleId` 时本项不会被服务端自动重置——界面若要按新角色重置勾选，自行在提交里带上新值。
+          description: 改该员工的模块可见性偏好（**全量覆盖本项**：传什么就是什么，传空数组 = 取消收窄）。**不传本键即保持原值**（部分更新）。改 `roleIds` 时本项不会被服务端自动重置——界面若要按新角色重置勾选，自行在提交里带上新值。
         newPassword:
           type: string
           format: password
@@ -729,30 +778,12 @@ components:
           type: integer
           minimum: 0
           description: 该项当前的命中数(口径见 `QuickFilterCounts` 说明)。
-    QuickFilterCounts:
-      type: object
-      additionalProperties: false
-      description: |
-        **列表页顶部快捷筛选的各项与计数**。快捷筛选就是该列表的一个筛选维度,没有特殊机制:选中某项 = 给列表带上该维度的筛选参数(值 = 该项 `value`),**选 All = 不带这个参数**。
-
-        **照着 `items` 渲染即可** —— 项集、顺序、展示名、数字全部由服务端给出,客户端不枚举取值、不 hardcode 项集;某项当期为 `0` 时**仍会返回**(那一格不该因为没数据就消失)。
-
-        **`All` 不在 `items` 里,由客户端自己补一项**,数字 = 其余各项之和 —— 服务端保证 `items` 覆盖该列表在不带本维度筛选时的全部命中(每行恰好落进一项),故这个和恒等于此时列表的 `total`。
-
-        **本端点不接受被计维度自身的参数**;其余筛选条件与对应列表端点一致、传什么算什么。因此:点某项后列表 `total` = 该项 `count`;点 All 后列表 `total` = 各项 `count` 之和。
-      required:
-        - items
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/QuickFilterItem'
     VisibleModules:
       type: array
       description: |
-        **模块可见性偏好**——该用户登录后界面呈现哪些模块。元素是**模块标识**，即权限点串 `模块:资源:动作` 的**第一段**，取值 = 侧边栏的五个分区 `dashboard` / `orders` / `products` / `account` / `settings`（登记在 `privileges.yaml`）。
+        **模块可见性偏好**——该用户登录后界面呈现哪些模块。元素是**模块标识**，即权限点串 `模块:资源:动作` 的**第一段**，取值 = 侧边栏的五个分区 `dashboard` / `orders` / `products` / `account` / `settings`（登记在 `privileges.yaml`；`terminal` 不是侧边栏分区、不在内）。
 
-        **在所选角色已覆盖的模块里挑**：可选项 = `listAssignableRoles` 里该 `roleId` 的 `modules`（换角色即换一组）。**只能减不能增**——本集合应是那组的子集；**不传或空数组 = 不收窄**（该角色覆盖的模块全部呈现）。
+        **在所选角色已覆盖的模块里挑**：可选项 = `listAssignableRoles` 里所选各角色 `modules` 的并集（换角色即换一组）。**只能减不能增**——本集合应是那组的子集；**不传或空数组 = 不收窄**（该角色覆盖的模块全部呈现）。
 
         ⚠️ **这不是权限、不是安全边界**。它只影响界面呈现哪些模块，**不改变任何权限判定、不拦截接口**——被收窄掉的模块，其接口照常受理。真正的边界是 `privileges`；本项在它之上做纯界面收窄，Owner 不适用（恒全部可见）。
       items:

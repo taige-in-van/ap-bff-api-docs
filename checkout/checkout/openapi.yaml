@@ -43,10 +43,13 @@ security:
   - checkoutSessionAuth: []
 tags:
   - name: sessions
+    x-displayName: 进入收银台
     description: 进入收银台：用静态码（店铺码、账单、商品 / 票务 / 礼卡链接）或订单链接（动态码、开放 API 托管页、电商插件订单）建立或认回会话，返回这个入口的展示内容。
   - name: order
+    x-displayName: 本会话订单
     description: 本会话这笔订单：可用支付方式与各自的总应付、发起支付、查状态，以及付款时可选的已存卡。
   - name: giftcard
+    x-displayName: 礼卡
     description: 礼卡专用：买家邮箱验证、「我的订单」与存入支付宝卡包。
 paths:
   /sessions/qrcode/{qrcodeId}:

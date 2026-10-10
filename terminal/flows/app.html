@@ -1,0 +1,2081 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>商户 App — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 商户 App —— 调用时序
+
+> 调用方是商户手机 App 的 iOS 与 Android 版。接口的地址与形状和现网一致，现网已安装的版本不需要升级，切换后重新登录一次即可继续使用；只有修改银行账户与修改登录邮箱（界面上叫 Registered Email）两处要升级后才能完成，见「流程：商户资料编辑」。契约见同一发布的《商户 App》接口文档。
+
+## 域名与前缀
+
+| 域名与前缀 | 用它的端 | 承载的接口 |
+|---|---|---|
+| `https://pay.example.ca/api/v1.0/app` | iOS、Android | 登录与会话、首页、查订单与流水、退款、收据、清算与对账单、消息与公告、各项设置、员工管理 |
+| `https://cashier.example.ca/api/v1.0/app` | iOS、Android | 扫码收款（`/device/micropay`）、账单码（`/device/bill/` 下）、预授权释放（`/device/release/pre_auth/` 下） |
+| `https://pay.example.com/api/v1.0/app`、`https://cashier.example.com/api/v1.0/app` | iOS、Android（美元区商户） | 美元区部署用 .com 域名，接口相同 |
+
+## 接口
+
+路径从 `/api/v1.0/app` 之后写起，大小写、下划线与双斜杠照现网原样。各接口的字段、取值、错误码与拒绝情形见契约。本文各图里的响应写的是 `data` 的内容，外面那一层 `{ status, message, data }` 不再画出。
+
+| # | operationId | 域名 | 接口 | 用途 | 流程 |
+|---|---|---|---|---|---|
+| 1 | [`signIn`](../app/index.html#tag/auth/operation/signIn) | pay | `POST /{devType}/login` | 账号密码登录（带滑块验证），同时登记本机 | 登录 |
+| 2 | [`registerPushToken`](../app/index.html#tag/auth/operation/registerPushToken) | pay | `PUT /token` | 登记本机的推送令牌，登录后与切换商户后各调一次 | 登录 |
+| 3 | [`listSubMerchants`](../app/index.html#tag/auth/operation/listSubMerchants) | pay | `GET /device/merchant/child/{clientMoniker}` | 可切换的商户列表 | 切换商户 |
+| 4 | [`switchMerchant`](../app/index.html#tag/auth/operation/switchMerchant) | pay | `POST /{devType}/login/switch` | 切换到另一个商户 | 切换商户 |
+| 5 | [`sendForgotPasswordCode`](../app/index.html#tag/auth/operation/sendForgotPasswordCode) | pay | `GET /device/forgotPassword/code` | 找回密码：向邮箱发验证码 | 找回密码 |
+| 6 | [`listAccountsByEmail`](../app/index.html#tag/auth/operation/listAccountsByEmail) | pay | `GET /device/accountByEmail` | 找回密码：按邮箱列出账号 | 找回密码 |
+| 7 | [`verifyForgotPasswordCode`](../app/index.html#tag/auth/operation/verifyForgotPasswordCode) | pay | `GET /device/forgotPassword/verify` | 找回密码：校验验证码 | 找回密码 |
+| 8 | [`resetForgottenPassword`](../app/index.html#tag/auth/operation/resetForgottenPassword) | pay | `POST /device/forgotPassword/resetPassword` | 找回密码：重置登录密码 | 找回密码 |
+| 9 | [`changePassword`](../app/index.html#tag/auth/operation/changePassword) | pay | `PUT /device/updatePassword` | 凭旧密码修改登录密码或退款密码 | 账户与安全 |
+| 10 | [`signOut`](../app/index.html#tag/auth/operation/signOut) | pay | `GET /device/sign_out` | 退出登录 | 商户资料 |
+| 11 | [`setCustomerSurcharge`](../app/index.html#tag/products/operation/setCustomerSurcharge) | pay | `POST /device/cusPaySurcharge` | 开关「顾客承担手续费」 | 账户与安全 |
+| 12 | [`createMicropayOrder`](../app/index.html#tag/orders/operation/createMicropayOrder) | cashier | `POST /device/micropay` | 扫顾客的付款码收款 | 扫码收款 |
+| 13 | [`getTransaction`](../app/index.html#tag/orders/operation/getTransaction) | pay | `GET /device/transaction/{orderId}` | 查订单：扫码收款后轮询支付结果，也用于订单详情与退款详情（查询参数 `payType` 区分订单与退款） | 扫码收款 |
+| 14 | [`getStaticQrcode`](../app/index.html#tag/products/operation/getStaticQrcode) | pay | `GET /device/qrcode` | 取静态收款码（门店码、预授权码、银联码等） | 门店码 |
+| 15 | [`refundOrder`](../app/index.html#tag/orders/operation/refundOrder) | pay | `POST /device/orders/{orderId}` | 退款，请求里带退款密码 | 退款与预授权释放 |
+| 16 | [`releasePreauth`](../app/index.html#tag/orders/operation/releasePreauth) | cashier | `GET /device/release/pre_auth/{orderId}` | 释放预授权 | 退款与预授权释放 |
+| 17 | [`getHomeSummary`](../app/index.html#tag/orders/operation/getHomeSummary) | pay | `GET /device/common` | 首页汇总（今日收款、退款、笔数与余额） | 首页与余额 |
+| 18 | [`listTransactions`](../app/index.html#tag/orders/operation/listTransactions) | pay | `GET /device/transaction/record` | 交易流水，按日分组并带当日统计 | 流水、收据与数据分析 |
+| 19 | [`downloadPaymentReceipt`](../app/index.html#tag/orders/operation/downloadPaymentReceipt) | pay | `GET /device/pay_receipt/{order_id}` | 下载付款收据 PDF | 流水、收据与数据分析 |
+| 20 | [`downloadRefundReceipt`](../app/index.html#tag/orders/operation/downloadRefundReceipt) | pay | `GET /device/refund_receipt/{refund_id}` | 下载退款收据 PDF | 流水、收据与数据分析 |
+| 21 | [`getAnalyticsCharts`](../app/index.html#tag/orders/operation/getAnalyticsCharts) | pay | `GET /device/numCount` | 数据分析图表 | 流水、收据与数据分析 |
+| 22 | [`createBill`](../app/index.html#tag/products/operation/createBill) | cashier | `PUT /device/bill/add` | 新建账单码（金额、币种、备注、有效期、是否预授权），返回账单号 | 账单码 |
+| 23 | [`listBills`](../app/index.html#tag/products/operation/listBills) | cashier | `GET /device/bill/list` | 账单码列表，按创建日分组 | 账单码 |
+| 24 | [`getBillDetail`](../app/index.html#tag/products/operation/getBillDetail) | cashier | `GET /device/bill/order_detail/{bill_id}` | 账单码详情（码图、金额、付款方式）与生效的那笔已付订单 | 账单码 |
+| 25 | [`closeBill`](../app/index.html#tag/products/operation/closeBill) | cashier | `POST /device/bill/close/{bill_id}` | 停用账单码，与删除同效 | 账单码 |
+| 26 | [`deleteBill`](../app/index.html#tag/products/operation/deleteBill) | cashier | `DELETE /device/bill/delete/{bill_id}` | 删除账单码 | 账单码 |
+| 27 | [`getUnreadCounts`](../app/index.html#tag/notifications/operation/getUnreadCounts) | pay | `GET /device/messageNum` | 首页铃铛的未读数（订单消息与公告） | 首页与余额 |
+| 28 | [`getAccountBalance`](../app/index.html#tag/funds/operation/getAccountBalance) | pay | `GET /device/account/balance` | 当前商户的待结算余额、退款账户余额与自动补足额度，「我的」页、退款账户页与充值页用 | 首页与余额 |
+| 29 | [`listSubMerchantBalances`](../app/index.html#tag/funds/operation/listSubMerchantBalances) | pay | `GET /device//subMchBalance` | 当前商户及其关联商户各自的余额 | 首页与余额 |
+| 30 | [`getMerchantInfo`](../app/index.html#tag/account/operation/getMerchantInfo) | pay | `GET /device/mch_info` | 商户资料，连同收款页设置与银行账户信息 | 商户资料 |
+| 31 | [`listSettlements`](../app/index.html#tag/funds/operation/listSettlements) | pay | `GET /device/settlement_log` | 清算记录列表（当前商户及其关联商户） | 清算与对账单 |
+| 32 | [`getSettlement`](../app/index.html#tag/funds/operation/getSettlement) | pay | `GET /device/settlement_log/{id}` | 清算明细 | 清算与对账单 |
+| 33 | [`listMonthlyStatements`](../app/index.html#tag/funds/operation/listMonthlyStatements) | pay | `GET /device/reconciliation` | 月对账单列表 | 清算与对账单 |
+| 34 | [`downloadMonthlyStatement`](../app/index.html#tag/funds/operation/downloadMonthlyStatement) | pay | `GET /device/reconciliation/file` | 下载月对账单 PDF | 清算与对账单 |
+| 35 | [`sendRechargeEmailCode`](../app/index.html#tag/funds/operation/sendRechargeEmailCode) | pay | `GET /device/mch/sendEmail` | 退款账户充值：向 Owner 的登录邮箱发验证码 | 退款账户 |
+| 36 | [`rechargeRefundAccount`](../app/index.html#tag/funds/operation/rechargeRefundAccount) | pay | `POST /device/account/recharge` | 退款账户充值：设自动补足额度，或从余额划入一笔 | 退款账户 |
+| 37 | [`getOrderMessageUnreadCount`](../app/index.html#tag/notifications/operation/getOrderMessageUnreadCount) | pay | `GET /device/order/message/count` | 消息中心的未读数与两类各自最新的一条 | 消息与公告 |
+| 38 | [`listOrderMessages`](../app/index.html#tag/notifications/operation/listOrderMessages) | pay | `GET /device/order/message` | 订单消息列表（成交的收款与已受理的退款） | 消息与公告 |
+| 39 | [`listNotices`](../app/index.html#tag/notifications/operation/listNotices) | pay | `GET /device/notice` | 公告列表 | 消息与公告 |
+| 40 | [`getNotice`](../app/index.html#tag/notifications/operation/getNotice) | pay | `GET /device/notice/{noticeId}` | 公告详情，读时顺带标为已读 | 消息与公告 |
+| 41 | [`markAllMessagesRead`](../app/index.html#tag/notifications/operation/markAllMessagesRead) | pay | `GET /device/order/message/clear` | 把订单消息、公告或两类全部标为已读 | 消息与公告 |
+| 42 | [`getPaymentNoticeSettings`](../app/index.html#tag/notifications/operation/getPaymentNoticeSettings) | pay | `GET /device/merchant/paymentnotice` | 读收款通知设置（本人的推送开关与微信绑定、商户的通知邮箱） | 收款通知设置 |
+| 43 | [`setPaymentPushEnabled`](../app/index.html#tag/notifications/operation/setPaymentPushEnabled) | pay | `POST /device/merchant/paymentnotice/{status}` | 开关本人的收款推送 | 收款通知设置 |
+| 44 | [`sendNoticeEmailCode`](../app/index.html#tag/notifications/operation/sendNoticeEmailCode) | pay | `GET /device/send/emailCode` | 添加通知邮箱：向要添加的邮箱发验证码 | 收款通知设置 |
+| 45 | [`addNoticeEmail`](../app/index.html#tag/notifications/operation/addNoticeEmail) | pay | `POST /device/paymentnotice/email` | 添加通知邮箱 | 收款通知设置 |
+| 46 | [`deleteNoticeEmail`](../app/index.html#tag/notifications/operation/deleteNoticeEmail) | pay | `GET /device/del/email` | 删除通知邮箱 | 收款通知设置 |
+| 47 | [`sendPasswordEmailCode`](../app/index.html#tag/auth/operation/sendPasswordEmailCode) | pay | `GET /device/merchant/reset/verifyCode` | 向 Owner 的登录邮箱发验证码：`type=login` 重置本人的登录密码，`type=refund` 重置退款密码（要有管理退款密码的权限）；退款页的退款密码弹层里也用 | 账户与安全 |
+| 48 | [`resetPasswordWithEmailCode`](../app/index.html#tag/auth/operation/resetPasswordWithEmailCode) | pay | `POST /device/merchant/reset/pwd` | 凭邮箱验证码重置：`type=login` 本人的登录密码，`type=refund` 退款密码（要有管理退款密码的权限） | 账户与安全 |
+| 49 | [`uploadImage`](../app/index.html#tag/account/operation/uploadImage) | pay | `POST /device/upload` | 上传图片或 PDF（logo、作废支票），被引用后才生效 | 商户资料 |
+| 50 | [`updateMerchantLogo`](../app/index.html#tag/account/operation/updateMerchantLogo) | pay | `POST /device/mchLogo/update` | 更换商户 logo | 商户资料编辑 |
+| 51 | [`updateMerchantTimezone`](../app/index.html#tag/account/operation/updateMerchantTimezone) | pay | `POST /device/mch/timezone` | 修改商户时区 | 商户资料编辑 |
+| 52 | [`updateMerchantContact`](../app/index.html#tag/account/operation/updateMerchantContact) | pay | `POST /device/merchant/contact` | 修改公司电话与地址，或联系人姓名与电话（联系人仅 Owner） | 商户资料编辑 |
+| 53 | [`updateBankAccount`](../app/index.html#tag/account/operation/updateBankAccount) | pay | `POST /device/merchant/bank` | 修改银行账户：凭 #67 的验证码提交，进入审核 | 商户资料编辑 |
+| 54 | [`sendMerchantEmailCode`](../app/index.html#tag/account/operation/sendMerchantEmailCode) | pay | `GET /device/sendAndVerify/emailCode` | 修改登录邮箱：向当前邮箱发验证码 | 商户资料编辑 |
+| 55 | [`updateMerchantEmail`](../app/index.html#tag/account/operation/updateMerchantEmail) | pay | `POST /device/merchant/email` | 修改登录邮箱：核对当前邮箱的验证码、提交新邮箱，新邮箱随即收到验证码 | 商户资料编辑 |
+| 56 | [`updateOrderExpiry`](../app/index.html#tag/products/operation/updateOrderExpiry) | pay | `POST /device/mch/order_expiry_config` | 设置订单有效期 | 账户与安全 |
+| 57 | [`listPaymentMethods`](../app/index.html#tag/products/operation/listPaymentMethods) | pay | `GET /device/mchPayWay` | 支付方式列表（已开通的、收款页上显示的、审核中的） | 收款页设置 |
+| 58 | [`updatePaymentMethods`](../app/index.html#tag/products/operation/updatePaymentMethods) | pay | `POST /device/openPayWay` | 设置收款页上显示哪些支付方式 | 收款页设置 |
+| 59 | [`updatePaymentPageSettings`](../app/index.html#tag/products/operation/updatePaymentPageSettings) | pay | `POST /device/pay_setting/update` | 保存店铺码收款页设置（小费、备注、付款人信息填写、商家留言） | 收款页设置 |
+| 60 | [`listEmployees`](../app/index.html#tag/team/operation/listEmployees) | pay | `GET /device/employee/management` | 员工列表 | 员工与微信绑定 |
+| 61 | [`getEmployee`](../app/index.html#tag/team/operation/getEmployee) | pay | `GET /device/employee/management/{account_id}` | 员工详情 | 员工与微信绑定 |
+| 62 | [`createEmployee`](../app/index.html#tag/team/operation/createEmployee) | pay | `POST /device/employee/management/add` | 新增员工（店长或收银员） | 员工与微信绑定 |
+| 63 | [`updateEmployee`](../app/index.html#tag/team/operation/updateEmployee) | pay | `POST /device/employee/management/update` | 修改员工的角色、昵称或密码，或解绑微信（同时移除同一微信的通知接收） | 员工与微信绑定 |
+| 64 | [`deleteEmployee`](../app/index.html#tag/team/operation/deleteEmployee) | pay | `GET /device/employee/management/del/{account_id}` | 删除员工 | 员工与微信绑定 |
+| 65 | [`getWechatBindQrcode`](../app/index.html#tag/team/operation/getWechatBindQrcode) | pay | `GET /device/bind_qrcode/{account_id}` | 取绑定微信用的二维码；绑上后这个微信同时登记为商户的通知接收微信 | 员工与微信绑定 |
+| 66 | [`getWechatBindStatus`](../app/index.html#tag/team/operation/getWechatBindStatus) | pay | `GET /device/bind_qrcode/status` | 查微信绑定结果（轮询） | 员工与微信绑定 |
+| 67 | [`sendBankEmailCode`](../app/index.html#tag/account/operation/sendBankEmailCode) | pay | `GET /device/merchant/bank/verifyCode` | 修改银行账户：向 Owner 的登录邮箱发验证码（新增，现网没有，旧包不调） | 商户资料编辑 |
+| 68 | [`confirmMerchantEmail`](../app/index.html#tag/account/operation/confirmMerchantEmail) | pay | `POST /device/merchant/email/confirm` | 修改登录邮箱：回传新邮箱收到的验证码，完成更换（新增，现网没有，旧包不调） | 商户资料编辑 |
+
+## 登录后的每个请求
+
+登录（#1）返回的 `token` 下称令牌。登录与找回密码（#1、#5、#6、#7、#8）不要求令牌，其余请求都要求，切换商户（#4）也要求。
+
+| 头 | 取值 |
+|---|---|
+| `Authorization` | 令牌原值，前面不加任何前缀 |
+| `devCid` | App 内置的固定值，同登录请求里的 `devcid` |
+| `version` | App 版本号 |
+| `Accept-Language` | App 当前语言 |
+
+登记推送令牌（#2）的带法不同：`Authorization` 写成 `Bearer <token>`，另带 `Merchant-Id`（当前商户的 `client_id`，登录后即 #1 返回的 `clientId`）、`Device-Id`（#1 返回的 `devId`，切换商户后为空串）、`Device-Type`（`devType`）、`Client-Device-Id`（`uuid`）。
+
+令牌的有效期、哪些情况下失效，见契约的「凭据」一节；失效后的请求回 403，端回登录页，见下表。
+
+权限：各接口按商户后台的权限点判，所需权限见契约各接口；员工可以同时持多个角色，预设角色里有店长、收银员两个终端角色。没有对应权限时回 400，端按各页的失败处理。员工列表与详情（#60、#61）里的 `role` 是角色数字，取值见契约 `TerminalRole`。
+
+仅查看：商户被设为仅查看后，哪些请求被拦见契约的「仅查看状态」一节；被拦的回 400、`code` 为 `208035`，端按各页的失败处理。
+
+失败响应的外壳与状态码见契约的「响应外壳」「状态码」两节；端只读 `message`。
+
+| 档 | 情形 | 状态码 | 端的表现 |
+|---|---|---|---|
+| 回登录页 | 令牌无效（过期、失效或认不出）、这部手机的设备被停用、当前商户被冻结；切换商户时遇到这些也一样 | 403 | 清掉本地保存的两个令牌与登录用户名，回登录页 |
+| 登录、切换商户被拒 | 密码错、滑块验证没通过、账号被锁定或停用、登录时设备被停用或主商户被冻结；切换商户的目标不在可访问范围、这部手机在目标商户下的设备被停用 | 400，`message` 写明原因 | 见各流程图下的表 |
+| 业务性拒绝 | 权限不足、退款密码错、参数不对、状态不允许、操作太频繁等 | 400，`message` 写明原因 | 不退出登录，由各页自己处理 |
+
+端把 HTTP 401 与 403 同样处理（HTTP 200 但响应体里的 `status` 是 401 或 403 时也一样），都回登录页。
+
+## 流程：登录
+
+员工输用户名、密码后先过滑块验证，端带着验证票据登录，拿到令牌后登记本机的推送令牌，然后进首页。
+
+### 页面：Login to Account（登录页）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant V as 验证码服务
+    participant A as 服务端
+
+    U->>P: 输用户名、密码，点登录
+    P->>V: 完成滑块验证，得到票据（ticket、randstr）
+    P->>A: #35;1 [signIn]<br/>POST /{devType}/login<br/>{ username, password, ticket, randstr, uuid, devcid }
+    A-->>P: 200 { token, haveChild, clientId, devId, devType, uuid }
+    P->>P: token 存为当前令牌<br/>haveChild 为 true 时另存一份作主商户令牌
+    opt 本机取到了推送令牌
+        P->>A: #35;2 [registerPushToken]<br/>PUT /token { devToken }
+        A-->>P: 200
+    end
+    P->>U: 进首页，见「流程：首页与余额」
+    Note over P,A: 之后每个请求把当前令牌原样放进 Authorization 头<br/>到期或失效后回 403，端回登录页
+```
+
+- **登录（#1）**：路径上的 `{devType}` iOS 发 `iphone`、Android 发 `android`。`uuid` 是本机的设备标识，`devcid` 是 App 内置的固定值。端存下 `token`，`haveChild` 为 `true` 时另存一份作主商户令牌，`clientId`、`devId` 用于登记推送令牌。账号怎么认、锁定与本机的登记见契约 `signIn`。
+- **登记推送令牌（#2）**：头的带法与其余请求不同，见「登录后的每个请求」。本机没取到推送令牌时整条不发。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #1 用户名或密码不对 | 400 | 弹固定提示「用户名或密码错误」，不显示响应里的 `message` |
+| #1 滑块验证的票据没通过核对 | 400 | 同上 |
+| #1 账号因连续输错密码被锁定 | 400 | 同上 |
+| #1 账号被停用 | 400 | 同上 |
+| #1 账号的主商户被冻结 | 400 | 同上 |
+| #1 这部手机在该商户下的设备已被停用 | 400 | 同上 |
+| #1 服务端故障或网络不通 | 5xx 或无响应 | 弹固定提示「登录失败，请稍后再试」 |
+| #2 登记推送令牌被拒 | 400 | 不提示，照常进首页 |
+| #2 及之后的请求遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：切换商户
+
+端在本地两个位置存令牌：一个只用来拉商户列表，下称主商户令牌，登录返回的 `haveChild` 为 `true` 时才存；一个用于其余请求，下称当前令牌。两处存的是同一个值，切换商户不换令牌（见契约 `switchMerchant`）。切换后端重新登记一次推送令牌。
+
+### 页面：首页 · 商户抽屉
+
+点首页上的当前商户名打开抽屉，列出可切换的商户。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    Note over P,A: 主商户令牌只用于 #35;3，当前令牌用于其余请求，两处是同一个值<br/>没有主商户令牌时 #35;3 也用当前令牌
+    P->>A: #35;3 [listSubMerchants]<br/>GET /device/merchant/child/{clientMoniker}<br/>Authorization 用主商户令牌
+    A-->>P: 200 商户列表<br/>[{ client_id, client_moniker, short_name, logo_thumbnail, click }]
+    U->>P: 打开商户抽屉，点另一个商户
+    P->>A: #35;4 [switchMerchant]<br/>POST /{devType}/login/switch<br/>{ username: 目标商户的 client_moniker, adminUser, uuid, devcid, devType }
+    Note over A: 把会话的当前商户改成目标商户
+    A-->>P: 200 { token, haveChile }<br/>token 与登录时拿到的是同一个
+    alt haveChile 为 true
+        P->>P: 主商户令牌与当前令牌都写成返回的 token
+    else haveChile 为 false
+        P->>P: 只把当前令牌写成返回的 token，主商户令牌不变
+    end
+    Note over P,A: 两条分支结果一样：令牌没有变，之后的请求落在目标商户<br/>仍是登录的那个人，角色不变
+    opt 本机取到了推送令牌
+        P->>A: #35;2 [registerPushToken]<br/>PUT /token { devToken }<br/>Device-Id 为空
+        A-->>P: 200
+    end
+    Note over P,A: 切换完成后首页重新加载，#35;3 随之再调一次
+    Note over U,A: 切回主商户走同一段：在列表里点主商户，同样发 #35;4<br/>点当前所在的商户不发请求
+```
+
+- **商户列表（#3）**：路径上带当前商户的商户号（首页 #17 的 `mch_code`）。端每项显示 `short_name` 与 `logo_thumbnail`，`click` 为 `true` 的一项标为当前商户；点别的项时拿它的 `client_moniker` 发 #4。列表里有哪些商户见契约 `listSubMerchants`。
+- **切换请求（#4）**：`username` 放目标商户的 `client_moniker`，`adminUser` 放登录时输入的用户名，`uuid`、`devcid` 同登录；端照常带着当前令牌的 `Authorization`。端按响应的 `haveChile`（拼写如此）决定是否同时改写主商户令牌，见图；切换的规则见契约 `switchMerchant`。
+- **重新登记推送令牌**：头的带法同登录后那次，`Merchant-Id` 用目标商户的 `client_id`，`Device-Id` 为空串。
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #3 拉商户列表失败 | 400 或 5xx | 不提示 |
+| #4 目标商户不在登录者可访问的范围内 | 400 | 不提示，仍在原来的商户 |
+| #4 目标商户被冻结 | 400 | 同上 |
+| #4 这部手机在目标商户下的设备已被停用 | 400 | 同上 |
+| 切换后 #2 登记推送令牌被拒 | 400 | 不提示，切换照常完成 |
+| #3、#4、#2 遇到令牌无效、设备被停用、当前商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：找回密码
+
+四步，端实际的调用先后是：发验证码（#5）、校验验证码（#7）、按邮箱列账号（#6）、重置密码（#8）。端上是两屏（Forgot Login Password、Reset Login Password），中间弹一个选账号的弹窗（Select the User）。这个邮箱能重置哪些账号见契约 `listAccountsByEmail`。
+
+### 页面：Forgot Login Password（找回密码）
+
+同一屏里先填邮箱发码，再填验证码点「Next」。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 进找回密码，输邮箱，点发送
+    P->>A: #35;5 [sendForgotPasswordCode]<br/>GET /device/forgotPassword/code<br/>查询参数 email
+    A-->>P: 200 { ticket }
+    A-->>M: 验证码邮件
+    M-->>U: 查看验证码
+    U->>P: 输验证码，点「Next」
+    P->>A: #35;7 [verifyForgotPasswordCode]<br/>GET /device/forgotPassword/verify<br/>查询参数 email、ticket、ticketValue（验证码）
+    A-->>P: 200<br/>同时下发一个短时标记，端的网络层自动保存
+    P->>U: 弹出选账号的弹窗
+```
+
+- **发码（#5）**：端带输入的 `email`，存下返回的 `ticket`。邮箱不存在时怎么返回见契约 `sendForgotPasswordCode`。
+- **校验（#7）**：端带 `email`、#5 的 `ticket` 与输入的验证码。通过后服务端下发一个短时标记（cookie），端的网络层自动保存、在 #6 与 #8 自动带上，端的代码不用处理它；标记的名字、属性与有效期，以及验证码的有效期与错误次数上限，见契约 `verifyForgotPasswordCode`。
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #5 邮箱不存在 | 200，与发码成功相同 | 按发码成功处理，只是收不到邮件 |
+| #7 验证码不对、已过期或错的次数到了上限 | 400 | 显示响应里的 `message` |
+
+### 页面：Forgot Login Password · Select the User 弹窗
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    P->>A: #35;6 [listAccountsByEmail]<br/>GET /device/accountByEmail<br/>查询参数 email，带着标记
+    A-->>P: 200 [{ mchCode, mchName, accounts: [{ accountId, userName }] }]
+    P->>U: 弹窗列出账号的 userName
+    U->>P: 选一个账号
+    P->>U: 带所选的 accountId 进 Reset Login Password
+```
+
+- **列账号（#6）**：端带同一个 `email`，只取返回的第一个商户下的账号（`[0].accounts`），列出 `userName`；所选那一项的 `accountId` 原样放进 #8。什么时候返回账号、`accountId` 是什么，见契约 `listAccountsByEmail`。
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #6 这个邮箱没有通过 #7 的校验、已超过可列账号的时间，或这次校验后已经列过 | 200，账号列表为空 | 不提示，不出现账号列表 |
+| #6 没带标记，或标记对不上这个邮箱的这次校验 | 200，账号列表为空 | 同上 |
+
+### 页面：Reset Login Password（找回密码设新密码）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 输新密码，提交
+    P->>A: #35;8 [resetForgottenPassword]<br/>POST /device/forgotPassword/resetPassword<br/>{ accountId, newPwd }，带着标记
+    A-->>P: 200
+    P->>U: 提示修改成功，确认后回登录页
+```
+
+- **重置（#8）**：请求里只有所选账号的 `accountId` 与新密码，不带邮箱、`ticket` 与验证码。凭证与标记的核对、新密码的规则、重置后哪些登录失效，见契约 `resetForgottenPassword`。
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #8 重置凭证无效（不是 #6 返回的、已经用过或已过期） | 400 | 不提示，也不出现修改成功的提示 |
+| #8 没带标记、标记已过期，或标记与重置凭证对不上 | 400 | 同上 |
+| #8 新密码不符合密码规则 | 400 | 同上 |
+
+## 流程：扫码收款
+
+收款页输金额、选币种（商户币种或人民币）、填备注、选是否预授权，然后进相机页扫顾客的付款码下单（#12）。端每秒查一次订单（#13），最多 30 次，查到成功就进订单详情。
+
+### 页面：Payment（收款页）
+
+输金额、选币种、填备注、选是否预授权。点「Scan」进相机页（下一节）；点「Bill QR」当场建一张账单码（#22）再进账单码页，见「流程：账单码」的 Invoice Payment 页。
+
+### 页面：Scan（相机页）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    actor C as 顾客
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 收款页填好后点「Scan」，进相机页
+    C->>P: 出示付款码
+    P->>P: 相机识别付款码
+    P->>A: #35;12 [createMicropayOrder]<br/>cashier POST /device/micropay<br/>{ currency, auth_code, amount（分）, remark, preauth, expire_time, rate_flag }
+    Note over A: 认出付款码的品牌，建订单，提交渠道<br/>等渠道首次应答再返回
+    A-->>P: 200 { order_id, status }
+    loop 每 1 秒，最多 30 次，直到 orderStatus 为 5
+        P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+        A-->>P: 200 { orderStatus, payFee, tipFee, preAuth, … }
+    end
+    alt orderStatus 为 5
+        P->>U: 进订单详情
+    else 30 次用完仍不是 5
+        P->>U: 提示超时
+    end
+```
+
+- **下单（#12）**：端带 `currency`、`auth_code`（识别出的付款码）、`amount`（分）、`remark`、`preauth`，另带 `expire_time`、`rate_flag`；各字段的含义与服务端用哪些，见契约 `createMicropayOrder`。端只读响应的 `order_id`，拿它轮询 #13。
+- **等渠道应答**：端自己的超时是 30 秒；结果一律靠轮询 #13 得到。渠道不应答时的返回见契约 `createMicropayOrder`。
+- **重复提交**：端不自动重发；员工重扫同一个码时，重复请求怎么认见契约 `createMicropayOrder`。
+- **查订单（#13）**：轮询带 `payType=Credit`，读 `orderStatus`，为 `5` 即成功。进订单详情后读 `payOrderId`、`mchName`、`currency`、`payFee`、`tipFee`、`refundFee`、`exchangeRate`、`transactionTime`、`orderStatus`、`preAuth`、`orderScene`、`remarks`、`refundTrans`、`orderReference`、`orderReferenceKeys`。各键的含义与取值见契约 `getTransaction`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #12 被拒（拒绝情形见契约 `createMicropayOrder`） | 400 | 显示响应里的 `message`，留在扫码页；`message` 写的是付款码无效时，端把这个码记入本地黑名单、不再重复提交 |
+| #12 网络不通或超时 | 无响应 | 提示失败，留在扫码页 |
+| #13 单次查询失败（含订单不存在） | 400 或 5xx | 停止查询，提示超时 |
+| #12 没有对应权限 | 400 | 显示响应里的 `message`，留在扫码页 |
+| #13 没有对应权限 | 400 | 停止查询，提示超时 |
+| #12、#13 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：门店码
+
+门店码页按类型各取一次码：门店码、预授权码、银联码，开通人民币时另有人民币门店码与人民币预授权码。账单码页也用它取缺省的门店码。
+
+### 页面：门店码页
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 打开门店码页，选类型
+    P->>A: #35;14 [getStaticQrcode]<br/>GET /device/qrcode<br/>查询参数 preauth、currency、unionpay_mode
+    A-->>P: 200 { mch_name, code_url, code_img_url }
+    P->>U: 显示图片，可保存到相册
+```
+
+- **取码（#14）**：每张卡按类型带 `preauth`、`currency`、`unionpay_mode`；端读 `code_img_url` 当图片显示、可保存到相册，`code_url` 不读。各变体怎么取、哪些取不到，见契约 `getStaticQrcode`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #14 变体取不到 | 400 | 没有提示，码位空着 |
+| #14 没有对应权限 | 400 | 同上 |
+| #14 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：账单码
+
+账单码页有两种进法：首页快捷入口「Bill QR」进来时不带账单，先显示缺省的门店码（#14），点「Set Amount」进新建账单码页建一张（#22）；收款页填好金额后点「Bill QR」，当场建账单（#22，有效期固定 `24h`）再进账单码页。有账单时账单码页取一次详情（#24）显示码图。账单码页进账单码列表（#23），列表上可停用（#25）、删除（#26）；点一行进账单码详情（#24）。端对账单码不轮询，付款结果靠系统推送告知。
+
+### 页面：Invoice Payment（账单码页）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    alt 首页点「Bill QR」
+        U->>P: 进账单码页
+        P->>A: #35;14 [getStaticQrcode]<br/>GET /device/qrcode<br/>查询参数 preauth=false、currency 为商户币种、unionpay_mode=false
+        A-->>P: 200 { mch_name, code_img_url }
+        Note over P: 显示不带金额的门店码，给「Set Amount」
+    else 收款页填好金额点「Bill QR」
+        U->>P: 收款页输金额、选币种、填备注、选是否预授权
+        P->>A: #35;22 [createBill]<br/>cashier PUT /device/bill/add<br/>{ bill_amount（分）, bill_remark, currency, expiration_time 为 24h, pre_auth_flag }
+        A-->>P: 200 { bill_id }
+        Note over P: 带 bill_id 进账单码页
+        P->>A: #35;24 [getBillDetail]<br/>cashier GET /device/bill/order_detail/{bill_id}
+        A-->>P: 200 { bill_info: { code_img_url, mch_company_name, bill_amount, currency, remark?, payways } }
+        Note over P: 显示带金额的码、币种、备注与付款方式图标，给「Clear」与「Save」
+    end
+    opt 设置金额
+        U->>P: 点「Set Amount」，进新建账单码页
+        Note over P: 新建成功后回到本页，带回 bill_id
+        P->>A: #35;24 [getBillDetail]<br/>cashier GET /device/bill/order_detail/{bill_id}
+        A-->>P: 200 { bill_info: { code_img_url, mch_company_name, bill_amount, currency, remark?, payways } }
+    end
+    opt 清除金额
+        U->>P: 点「Clear」
+        P->>A: #35;14 [getStaticQrcode]<br/>GET /device/qrcode
+        A-->>P: 200 { mch_name, code_img_url }
+        Note over P: 端上换回门店码，账单码本身不删
+    end
+    opt 保存或分享
+        U->>P: 有账单时点「Save」（Android 再选存相册或分享，iOS 直接分享）
+        Note over P: 端把商户名、金额与码图合成一张图片，不调接口
+    end
+    Note over P: 停在这页不查结果、不轮询<br/>顾客付款后由系统推送告知，点开推送不跳转
+```
+
+- **缺省门店码（#14）**：参数固定为非预授权、商户币种、非银联，端读 `code_img_url` 与 `mch_name`，见「流程：门店码」。
+- **收款页发起的新建（#22）**：端带收款页上的金额（分）、币种、备注与预授权标记，`expiration_time` 固定发 `24h`；端只读 `bill_id`，带它进本页。#24、#25、#26 路径里带的都是这个 `bill_id`。各字段的含义见契约 `createBill`。
+- **`bill_info`（#24）**：端读 `code_img_url` 显示码图，读 `mch_company_name`、`bill_amount`、`currency`、`remark`（没有时不显示）显示在码旁与分享图上；`payways` 只用来画分享图上的支付图标（`creditcard` 拆成 Visa 与 Mastercard 两个，`alipay` 与 `alipayonline` 合成一个）。各键的含义见契约 `getBillDetail`。
+- **两个请求的先后**：从收款页进来时，展示组件在拿到 `bill_id` 之前已按「无账单」调过一次 #14，随后再调 #24；两个响应谁后到页面就显示谁，#14 后到时会把账单码换成门店码（现网如此）。
+- **不轮询**：进页取一次后不再重查，不在回到前台时刷新；顾客付没付在这页看不出来，要去列表或推送消息里看。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #14 失败 | 400、5xx 或无响应 | 不提示，码位空着 |
+| 收款页发起的 #22 币种不是商户结算币种或人民币、有效期不对、没有对应权限 | 400 | 弹出响应里的 `message`，留在收款页 |
+| 收款页发起的 #22 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 收款页发起的 #22 服务端故障或网络不通 | 5xx 或无响应 | 弹固定文案「Error creating invoice code」，留在收款页 |
+| #24 账单不存在或不在范围内 | 400 | 不提示，码位空着 |
+| #14、#24 没有对应权限 | 400 | 不提示，码位空着 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Set Amount（新建账单码）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 账单码页点「Set Amount」
+    U->>P: 输金额、选币种、填备注、选有效期与是否预授权，提交
+    P->>A: #35;22 [createBill]<br/>cashier PUT /device/bill/add<br/>{ bill_amount（分）, bill_remark, currency, expiration_time, pre_auth_flag }
+    A-->>P: 200 { bill_id }
+    P->>U: 回到账单码页，带回 bill_id
+```
+
+- **新建（#22）**：端带输入的金额（分）、币种、备注、有效期与预授权标记，只读返回的 `bill_id`。有效期四选一：`today`、`24h`、`48h`，以及标着「Never」的 `72h`；各值对应的到期日、各字段的取值、操作员记谁与重复提交怎么认，见契约 `createBill`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #22 币种不是商户结算币种或人民币、有效期不对、没有对应权限 | 400 | 不提示，留在新建页 |
+| #22 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #22 服务端故障或网络不通 | 5xx 或无响应 | 不提示 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Invoice List（账单码列表）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 账单码页点「Invoice List」
+    P->>A: #35;23 [listBills]<br/>cashier GET /device/bill/list<br/>查询参数 status、begin、end、page=1、limit=20
+    A-->>P: 200 { data: [ { item_key, item_data: [ { bill_id, bill_status, order_status?, currency, cancle_time, bill_amount } ] } ], pagination }
+    Note over P: 默认状态全部、区间本月，begin、end 取设备本地日期<br/>按 item_key（创建日）分组<br/>行上显示金额、bill_id、状态标签，进行中的再显示倒计时
+    opt 改筛选
+        U->>P: 选状态（全部、进行中、已停用）与区间（本月、上月、近 6 个月、近 12 个月）
+        P->>A: #35;23 [listBills]<br/>cashier GET /device/bill/list<br/>status 为空串、1 或 2，page=1
+        A-->>P: 200 { data, pagination }
+    end
+    loop 上滑翻页，直到 pagination.lastPage 或取回空页
+        P->>A: #35;23 [listBills]<br/>cashier GET /device/bill/list
+        A-->>P: 200 { data, pagination }
+        Note over P: 新一页首组与已有末组是同一天时并成一组
+    end
+    opt 停用（左滑进行中的行）
+        U->>P: 点「Deactivate」，在确认框点确认
+        P->>A: #35;25 [closeBill]<br/>cashier POST /device/bill/close/{bill_id}
+        Note over A: 与删除同一个动作：码失效，列表上不再出现
+        A-->>P: 200
+        Note over P: 只把这一行改成已停用，不重查<br/>下次取列表时这一行不再出现
+    end
+    opt 删除（左滑其余状态的行）
+        U->>P: 点「Delete」，没有确认框
+        P->>A: #35;26 [deleteBill]<br/>cashier DELETE /device/bill/delete/{bill_id}
+        A-->>P: 200
+        P->>A: #35;23 [listBills]<br/>cashier GET /device/bill/list<br/>page=1
+        A-->>P: 200 { data, pagination }
+    end
+    U->>P: 点一行，进账单码详情
+    Note over P: 从详情回到列表时，静默按第 1 页重取一次
+```
+
+- **筛选（#23）**：端的状态「全部」「进行中」「已停用」分别发空串、`1`、`2`；区间按设备本地日期算出 `begin`、`end`（`YYYYMMDD`）；从第 1 页起翻，每页 20。各参数的取值与列表范围见契约 `listBills`。
+- **行（#23）**：端按 `item_key` 分组，行上读 `bill_id`、`bill_status`、`order_status`、`currency`、`cancle_time`（键名照现网拼写）、`bill_amount`；翻页看 `pagination.lastPage`。各键的含义与取值见契约 `listBills`。
+- **状态标签**：由端拼，规则照旧：`bill_status` 为 1 且 `cancle_time` 为 -1 显示「Permanent」（未付、无期限）；为 1 且 `cancle_time` 是剩余毫秒时显示「Processing」并倒计时；`bill_status` 为 2 且 `order_status` 为 1 显示「Completed」（已付）；其余显示「Deactivated」（已过期）。倒计时走到 0 时端只在本地把这一行改成已停用，不调接口、不重查。
+- **停用与删除（#25、#26）**：端照旧：`bill_status` 为 1 的行左滑只有「Deactivate」，停用后只改本地这一行、不重取；其余状态的行左滑只有「Delete」，删除后从第 1 页重取。两者在服务端是同一个动作，见契约 `closeBill`、`deleteBill`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #23 失败 | 400、5xx 或无响应 | 不提示，停止翻页，已显示的行保留 |
+| #25 账单不存在或不在范围内 | 400 | 确认框不收起，不提示 |
+| #25 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #25 服务端故障或网络不通 | 5xx 或无响应 | 同上 |
+| #26 账单不存在或不在范围内、商户处于仅查看（`code` 为 `208035`） | 400 | 不提示，列表不变 |
+| #26 服务端故障或网络不通 | 5xx 或无响应 | 同上 |
+| #23 没有对应权限 | 400 | 同 #23 失败 |
+| #25、#26 没有对应权限 | 400 | 分别同 #25、#26 被拒 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Invoice Details（账单码详情）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 列表里点一行
+    P->>A: #35;24 [getBillDetail]<br/>cashier GET /device/bill/order_detail/{bill_id}
+    A-->>P: 200 { bill_info: { code_img_url, mch_company_name, bill_amount, currency, remark?, payways, bill_status }, data: [ { item_key, item_data: [ { order_id, pay_amount, currency, tran_time } ] } ] }
+    Note over P: 显示码图、商户名、金额、备注与付款方式图标<br/>bill_status 为 1 才给保存或分享，否则码图按已停用显示<br/>取 data 第一组第一行的 order_id，有就显示「Transaction Details」入口
+    opt 看订单
+        U->>P: 点「Transaction Details」
+        P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+        A-->>P: 200 { orderStatus, payFee, refundFee, … }
+        P->>U: 订单详情页
+    end
+```
+
+- **详情（#24）**：只调一次，读 `bill_info` 的 `code_img_url`、`mch_company_name`、`bill_amount`、`currency`、`remark`、`payways`、`bill_status`，以及 `data` 第一组第一行的 `order_id`。各键的含义、`data` 给哪笔订单，见契约 `getBillDetail`。
+- **「Transaction Details」**：进的是流水里的订单详情页，按收款查（#13，`payType=Credit`），见「流程：流水、收据与数据分析」。
+- **停用入口**：详情页里写了停用确认框与停用调用（#25），但没有任何按钮能打开它，在详情页停用不了，只能回列表左滑；详情页也没有删除（现网如此）。
+- **不重查**：进页取一次后不再重查。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #24 失败（含账单不存在或不在范围内、没有对应权限） | 400、5xx 或无响应 | 不提示，页面空着，没有「Transaction Details」入口 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：退款与预授权释放
+
+订单详情页上的两个动作。挂起中的预授权订单（`preAuth` 为真）同时给「释放」与「退款」两个按钮；普通订单只有退款。退款在一个请求里带退款密码，成功后进退款详情。
+
+### 页面：Refund（退款页）
+
+输退款金额、填备注后弹出「Enter Refund Password」弹层，输完密码即提交退款。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 订单详情页点「Refund」，进退款页，输金额、填备注
+    P->>U: 弹「Enter Refund Password」弹层
+    U->>P: 输入 6 位密码
+    P->>A: #35;15 [refundOrder]<br/>POST /device/orders/{orderId}<br/>{ fee（元）, remark, refund_password }
+    Note over A: 先验退款密码<br/>再校验可退金额、占额度、动资金，提交渠道后返回
+    A-->>P: 200 { refund_id, amount, currency, result_code }
+    P->>U: 显示退款成功，回详情页
+    P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{refundId}<br/>查询参数 payType=Debit
+    A-->>P: 200 { refundId, refundFee, currency, refundTime, operator, refundRemark }
+    P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+    A-->>P: 200 { orderStatus（6 或 7）, refundFee, refundTrans, … }
+```
+
+- **退款（#15）**：端带 `fee`（元）、`remark` 与弹层里输入的 `refund_password`；退款密码的校验与锁定、可退金额、拒绝情形与重复提交怎么认，见契约 `refundOrder`。返回时退款已提交渠道，端不用轮询。
+- **余额不足**：`message` 含「balance」（中文环境含「余额」）时，端据此提示余额不足。资金从哪出见契约 `refundOrder`。
+- **退款结果**：有 `refund_id` 时端拿它查退款详情；回 200 而没有 `refund_id` 时（退款进入审核）端照样显示成功。两种结果见契约 `refundOrder`。
+- **退款详情（#13，`payType=Debit`）**：端读 `refundId`、`refundFee`、`currency`、`refundTime`、`operator`、`refundRemark`；随后按 `payType=Credit` 重查订单，读 `orderStatus`（6 或 7）、`refundFee` 与 `refundTrans`。各键的含义与 `refundTrans` 列哪些退款，见契约 `getTransaction`。
+- **挂起期直接退**：挂起中的预授权订单也给「退款」按钮，不用先释放；退后订单的状态见契约 `refundOrder`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #15 密码缺、错或锁定 | 400 | `message` 含「password」时提示「Refund password incorrect」 |
+| #15 余额不足 | 400 | 中文环境且 `message` 含「余额」时提示余额不足；否则通用错误文案 |
+| #15 其他被拒（拒绝情形见契约 `refundOrder`，含渠道拒绝） | 400 | 通用错误文案「An error occurred. Please try again later.」，留在退款页 |
+| #13 查退款详情（Debit）失败 | 400 | 不提示，退款详情回退到订单详情里的 `refundTrans` |
+| #13 查退款详情（Debit）而没有查看退款单的权限 | 400 | 同上 |
+| #15 网络不通或超时 | 无响应 | 通用错误文案；端不自动重发 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Refund · Forgot Refund Password 弹层
+
+「Enter Refund Password」弹层里点「Forgot Refund Password?」，在弹层内分步完成重置（各步标题都是 Forgot Refund Password），成功后回到输退款密码那一步继续退款。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 退款密码弹层里点「Forgot Refund Password?」
+    P->>A: #35;47 [sendPasswordEmailCode]<br/>GET /device/merchant/reset/verifyCode<br/>查询参数 type=refund、email
+    A-->>P: 200 { ticket }
+    A-->>M: 验证码邮件（发往 Owner 的登录邮箱）
+    Note over P: email 取本地商户资料的 contact_email<br/>本地没有时不自动发，等用户点「Send」
+    M-->>U: 查看验证码
+    U->>P: 输验证码，点下一步
+    Note over P: 不调接口，进输新密码一步
+    U->>P: 输新退款密码与确认，提交
+    P->>A: #35;48 [resetPasswordWithEmailCode]<br/>POST /device/merchant/reset/pwd<br/>{ newPassword, confirmPassword, ticket, ticketValue, type=refund }
+    A-->>P: 200
+    P->>U: 显示修改成功，点按钮回到输退款密码一步
+```
+
+- **两条接口**：与 Reset Refund Password 页的忘记密码相同，`type` 固定 `refund`，验证码发往 Owner 的登录邮箱；要有商户后台管理退款密码的权限，没有的员工在这里发码就被拒（见契约 `sendPasswordEmailCode`、`resetPasswordWithEmailCode`）。
+- **弹层内返回**：每一步可退回上一步；回到输退款密码一步后照常退款（#15）。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #47 没有管理退款密码的权限，或其他被拒 | 400 | 弹层输入框下显示「Email does not exist or not bound.」（端对 400 一律显示这句） |
+| #47 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #47 服务端故障 | 5xx | 弹层输入框下显示通用错误文案 |
+| #48 失败（验证码不对或已过期、新密码不是 6 位数字、商户处于仅查看等） | 400 或 5xx | 弹层内显示通用错误文案 3 秒，留在输新密码一步 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：订单详情页 · 释放预授权确认弹窗
+
+挂起中的预授权订单在订单详情页上有「Release Pre-Auth」按钮，点了弹出确认弹窗（文案 Release preauthorization?），点「Confirm」才发请求。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 预授权订单详情页点「Release Pre-Auth」，在确认弹窗点「Confirm」
+    P->>A: #35;16 [releasePreauth]<br/>cashier GET /device/release/pre_auth/{orderId}
+    Note over A: 解除这笔订单的结算锁<br/>不动渠道、不动资金、不改订单状态
+    A-->>P: 200 空响应
+    P->>U: 提示释放成功
+    P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+    A-->>P: 200 { orderStatus 5, preAuth 假, … }
+```
+
+- **释放（#16）**：无请求体，成功时响应体为空；端提示释放成功后按 `payType=Credit` 重查订单（#13）。能释放哪些订单、重复释放怎么认、拒绝情形，见契约 `releasePreauth`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #16 被拒 | 400 | 通用错误文案 |
+| #16 网络不通或超时 | 无响应 | 通用错误文案；端不自动重发 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：流水、收据与数据分析
+
+流水页调 #18 分页取流水、按日分组显示；点一行进订单详情或退款详情（#13），详情页的收据按钮进收据页，下载收款收据或退款收据的 PDF（#19、#20）。「我的」里的数据分析页调 #21 画图。
+
+### 页面：Transactions（流水页）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 进流水页
+    P->>A: #35;18 [listTransactions]<br/>GET /device/transaction/record
+    A-->>P: 200 { data: [ { item_key, item_statistics, item_data: [ … ] } ], pagination }
+    Note over P: 默认区间从 2017-01-01 到设备本地当天<br/>按 item_key 分日显示，组头取 item_statistics 的当日收款与退款<br/>行上读 order_id、refund_id、clear_fee、status、preAuth、tran_time、channel、currency
+    opt 改筛选或搜索
+        U->>P: 选日期区间、渠道，或在搜索框输入
+        P->>A: #35;18 [listTransactions]<br/>GET /device/transaction/record
+        A-->>P: 200 { data, pagination }
+    end
+    loop 上滑翻页，直到 pagination.lastPage
+        P->>A: #35;18 [listTransactions]<br/>GET /device/transaction/record
+        A-->>P: 200 { data, pagination }
+    end
+    U->>P: 点一行
+    alt 收款行（没有 refund_id）
+        P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+        A-->>P: 200 { orderStatus, payFee, refundFee, preAuth, refundTrans, … }
+        P->>U: 订单详情
+    else 退款行（有 refund_id）
+        P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{refundId}<br/>查询参数 payType=Debit
+        A-->>P: 200 { refundId, refundFee, currency, refundTime, operator, refundRemark }
+        Note over P: 这一步失败时不提示，照样往下查订单
+        P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+        A-->>P: 200 { orderStatus, refundFee, refundTrans, … }
+        P->>U: 退款详情，连同原订单信息
+    end
+```
+
+- **参数（#18）**：端发 `begin`、`end`（默认从 `20170101` 到设备本地的当天）、所选的 `channel`、搜索框里的内容 `order_id` 与 `page`，另带 `timezone`；不带 `order_status` 与 `limit`。带了 `order_id` 又带区间时，端发请求前先在本地校验区间长度。各参数的取值、区间上限与查询天数的限制，见契约 `listTransactions`。
+- **按日分组（#18）**：端按 `item_key` 分日显示，组头取 `item_statistics` 的 `tran_total_pay_fee`、`tran_total_ref_fee`；翻页看 `pagination.lastPage`。
+- **行（#18）**：端读 `order_id`、`refund_id`（有它即退款行）、`clear_fee`（直接做数值运算）、`currency`、`channel`、`status`（6、7 显示部分退、全退）、`preAuth`、`tran_time`。哪些行、各键的含义见契约 `listTransactions`。
+- **点一行**：收款行用 `order_id` 查订单详情（#13，`payType=Credit`）。退款行先用 `refund_id` 查退款详情（#13，`payType=Debit`），失败不提示，接着用 `order_id` 查原订单（`payType=Credit`）；退款详情页的收据用的也是这个 `refund_id`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #18 带 `order_id` 时区间超过上限 | 400 | 端发请求前已在本地校验并提示，正常走不到服务端 |
+| #18 其他失败（含没有对应权限） | 400 或 5xx | 不提示 |
+| 退款行 #13 查退款详情（Debit）失败，含没有查看退款单的权限 | 400 或 5xx | 不提示，照样往下用 `order_id` 查原订单 |
+| #18 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：Receipt Details（收据页）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    alt 订单详情页
+        U->>P: 点收据按钮，进收据页
+        P->>A: #35;19 [downloadPaymentReceipt]<br/>GET /device/pay_receipt/{order_id}
+    else 退款详情页
+        U->>P: 点收据按钮，进收据页
+        P->>A: #35;20 [downloadRefundReceipt]<br/>GET /device/refund_receipt/{refund_id}
+        Note over P: refund_id 是流水列表行带来的
+    end
+    Note over P: 自己拼地址，只带 Authorization 与 devCid 两个头<br/>文件直接下载到缓存目录
+    alt 200
+        A-->>P: 200 PDF 文件（application/pdf）
+        P->>U: App 内预览 PDF
+        opt 分享
+            U->>P: 点分享
+            P->>U: 调系统分享，类型 application/pdf
+        end
+    else 非 200
+        A-->>P: 400 或 5xx { status, message }
+        Note over P: 删掉下载下来的文件，不读 message
+        P->>U: 弹通用错误文案
+    end
+    U->>P: 离开收据页
+    Note over P: 删掉缓存的 PDF
+```
+
+- **端怎么用（#19、#20）**：端自己拼地址，只带 `Authorization` 与 `devCid` 两个头，不经过统一的请求处理，也不带 `Accept-Language`；文件下载到缓存目录，在 App 内预览，可调系统分享（类型 `application/pdf`），离开收据页时删掉。HTTP 状态不是 200 时删掉下载下来的文件、弹通用错误文案，不读 `message`。收据的内容、语言与什么时候出，见契约 `downloadPaymentReceipt`、`downloadRefundReceipt`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #19、#20 不可出、不存在或不在范围内 | 400 | 删掉下载下来的文件，弹通用错误文案 |
+| #19、#20 没有对应权限 | 400 | 同上 |
+| #19、#20 服务端故障 | 5xx | 同上 |
+| #19、#20 遇到令牌无效、设备被停用、商户被冻结 | 403 | 同上，不回登录页（这两条不经过统一的请求处理） |
+
+### 页面：Data Analysis（数据分析）
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 从「我的」进数据分析页，选日期区间
+    P->>A: #35;21 [getAnalyticsCharts]<br/>GET /device/numCount
+    A-->>P: 200 { list: [ { date, payAmount, payCount, … } ], info: { newCount, oldCount, … } }
+    Note over P: 默认区间是设备本地当天
+    P->>U: 金额与笔数两条折线，新老客户饼图
+```
+
+- **数据分析（#21）**：端发 `createdStart`、`createdEnd`（`yyyyMMdd`），默认都取设备本地的当天；按 `list` 每个点的 `date`、`payAmount`、`payCount` 画金额与笔数两条折线，拿 `info.newCount`、`info.oldCount` 画新老客户饼图。分点的粒度与各键的口径，见契约 `getAnalyticsCharts`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #21 失败（含没有对应权限） | 400 或 5xx | 不提示 |
+| #21 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+## 流程：首页与余额
+
+首页的汇总、余额与铃铛红点，「我的」页的两张余额卡，My Balance 页。三处都只读。
+
+### 页面：首页
+
+首页每次获得焦点、下拉刷新或切换商户后都重新加载：同时发首页汇总（#17）与未读数（#27），两条都成功后才拉商户列表（#3）。两个未读数之和大于 0 时铃铛出红点，点铃铛进消息中心。商户列表多于一项时余额卡可点，进「我的余额」。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 进首页（回到首页、下拉刷新、切换商户后同样）
+    par 同时发出
+        P->>A: #35;17 [getHomeSummary]<br/>GET /device/common
+        A-->>P: 200 { mch_id, mch_code, mch_balance, … }
+    and
+        P->>A: #35;27 [getUnreadCounts]<br/>GET /device/messageNum
+        A-->>P: 200 { order_message_count, notice_message_count }
+    end
+    Note over P: 两条都成功才往下走<br/>两个未读数之和大于 0 时铃铛出红点
+    P->>A: #35;3 [listSubMerchants]<br/>GET /device/merchant/child/{clientMoniker}
+    A-->>P: 200 商户列表
+    Note over P: 列表多于一项时余额卡可点
+    opt 点铃铛
+        U->>P: 点右上角铃铛
+        P->>U: 进消息中心
+    end
+    opt 多商户时点余额卡
+        U->>P: 点余额卡
+        P->>U: 进「我的余额」
+    end
+```
+
+- **首页汇总（#17）**：不带参数。端读 `mch_name`、`mch_currency`、`mch_balance`（余额卡，直接做数值运算）、`today_collection`、`today_count`、`today_Refund`（今日收款与退款卡），以及 `alipay_rate`、`alipay_trend`、`wechat_rate`、`wechat_trend`、`unionpayonline_rate`、`unionpayonline_trend`（三个品牌的汇率与涨跌，缺值显示 `-`）；`mch_code` 存下作 #3 路径上的商户号，`mch_id` 存下供月对账单（#33）用。「今日」由服务端定；各键的口径见契约 `getHomeSummary`。
+- **未读数（#27）**：端读 `order_message_count`、`notice_message_count`，两数之和大于 0 时铃铛出红点；两数存在本地，消息中心与两个列表页清零时同步改本地值。口径见契约 `getUnreadCounts`。
+- **两条并发**：#17 与 #27 一起发，任一失败整次加载作废，首页数据、红点与商户列表都不更新。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #17 或 #27 失败（含没有对应权限） | 400 或 5xx | 不提示，首页数据与红点不更新，不拉商户列表 |
+| #3 拉商户列表失败 | 400 或 5xx | 不提示 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
+
+### 页面：我的
+
+底栏「Account」。每次获得焦点同时调余额（#28）与商户资料（#30）。头部显示商户简称与商户编码，点头部进商户信息；「My Balance」卡显示 `tranBalance`，「Refund Reserves」卡显示 `rechargeBalance`。商户资料存在本地，之后好几页直接读它（发验证码时显示的收件邮箱、退款密码弹层、充值页等）。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 点底栏「Account」
+    par 同时发出
+        P->>A: #35;28 [getAccountBalance]<br/>GET /device/account/balance
+        A-->>P: 200 { tranBalance, rechargeBalance, refundQuota }
+    and
+        P->>A: #35;30 [getMerchantInfo]<br/>GET /device/mch_info
+        A-->>P: 200 { mch_code, mch_abbreviation, logo_url, contact_email, … }
+    end
+    Note over P: 商户资料存入本地，后续页面读其中的 contact_email 等
+    alt 点头部
+        P->>U: 进商户信息
+    else 点「My Balance」卡
+        P->>U: 进「我的余额」
+    else 点「Refund Reserves」卡
+        P->>U: 进退款账户
+    else 点菜单
+        P->>U: 进账户设置、员工管理、账单下载、数据分析、消息通知设置
+    end
+```
+
+- **余额（#28）**：本页读 `tranBalance`（「My Balance」卡）与 `rechargeBalance`（「Refund Reserves」卡），按数值做 `toFixed(2)`；金额前缀固定写 `$`，不看商户币种。`tranBalance` 与首页 #17 的 `mch_balance` 不是同一个量，各键的含义见契约 `getAccountBalance`。
+- **商户资料（#30）**：本页只读 `mch_code`、`mch_abbreviation`、`logo_url`；整份响应存入本地，供其他页面直接读。各键见契约 `getMerchantInfo`。
+- **菜单**：除这里列的，还有语言（本地切换，不调接口）、帮助中心（外链）、版本号；券核销菜单项点了只提示「Coming soon!」。菜单不按角色隐藏，所有登录者看到的一样；没有对应权限的员工点进去，该页的接口回 400，按各页的失败处理。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #28 或 #30 失败（含没有对应权限） | 400 或 5xx | 不提示，卡片保留上次的值（首次进入为 0.00） |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：My Balance（我的余额）
+
+列出当前商户与各关联商户的余额。进页调一次 #29，下拉刷新重调。首页的余额卡只在多商户时可点，「Account」页的「My Balance」卡不论单多商户都能点进来。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 点余额卡，进「我的余额」
+    P->>A: #35;29 [listSubMerchantBalances]<br/>GET /device//subMchBalance
+    A-->>P: 200 { sub_balances: [ { mch_id, mch_name, mch_balance } ] }
+    Note over P: 顶部「Current Balance」取 sub_balances 第一项的 mch_balance<br/>下面每个商户一行：mch_name 与 mch_balance，币种取本地商户币种
+    opt 下拉刷新
+        U->>P: 下拉
+        P->>A: #35;29 [listSubMerchantBalances]<br/>GET /device//subMchBalance
+        A-->>P: 200 { sub_balances }
+    end
+```
+
+- **行（#29）**：顶部读第一项的 `mch_balance`；每一项读 `mch_name`（没有时端显示「Unnamed」一类的占位）与 `mch_balance`。列出哪些商户、各键的含义，见契约 `listSubMerchantBalances`。
+- **币种**：各行的币种取首页存下的当前商户币种，不按关联商户分别取。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #29 失败（含没有对应权限） | 400 或 5xx | 不提示，列表空 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：商户资料
+
+「Account」页点头部进商户信息页；查看商户资料、换 logo、改时区与退出登录都在这一页，三个资料子页的编辑见「流程：商户资料编辑」。
+
+### 页面：Merchant Information（商户信息）
+
+「Account」页点头部进入，标题是商户简称。每次获得焦点调一次商户资料（#30）刷新本地。页上可换 logo（#49 上传后 #50）、改时区（#51）、退出登录（#10）；「Business Information」「Contact Information」「Bank Information」三个子页只读本地商户资料、不调接口，各自右上角进编辑页（见「流程：商户资料编辑」）。银行账户有变更在审核中时，银行信息子页右上角显示「Reviewing」标记而不是编辑按钮。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 「Account」页点头部
+    P->>A: #35;30 [getMerchantInfo]<br/>GET /device/mch_info
+    A-->>P: 200 { mch_abbreviation, logo_url, mch_timezone, bankInfo: { bank_verify, … }, … }
+    Note over P: 时区一栏用 mch_timezone 在端内置的 7 个时区里找显示名<br/>bankInfo.bank_verify 为真时银行信息一项出「Reviewing」标记
+    opt 换 logo
+        U->>P: 点 logo，从相册或相机选图
+        P->>A: #35;49 [uploadImage]<br/>POST /device/upload（multipart file）
+        A-->>P: 200 { imgUrl }
+        P->>A: #35;50 [updateMerchantLogo]<br/>POST /device/mchLogo/update { logo: imgUrl }
+        A-->>P: 200
+        P->>U: 提示「Logo updated successfully!」
+    end
+    opt 改时区
+        U->>P: 点「Time Zone」，在弹窗里选一个
+        P->>A: #35;51 [updateMerchantTimezone]<br/>POST /device/mch/timezone { timezone }
+        A-->>P: 200
+        Note over P: 只改本地显示，不提示
+    end
+    opt 看三类资料
+        U->>P: 点「Business Information」「Contact Information」或「Bank Information」
+        P->>U: 子页，只读本地商户资料
+    end
+    opt 退出登录
+        U->>P: 点「Log Out」
+        P->>A: #35;10 [signOut]<br/>GET /device/sign_out
+        A-->>P: 200
+        P->>P: 清掉本地保存的两个令牌与登录用户名
+        P->>U: 回登录页
+    end
+```
+
+- **商户资料（#30）**：整份存入本地。本页读 `mch_abbreviation`（标题，为空时显示 Merchant Information）、`logo_url`、`mch_timezone` 与 `bankInfo.bank_verify`；三个子页读本地的公司信息、联系信息与 `bankInfo`（`account_number` 是打码后的，`bank_verify` 为真时银行信息一项显示「Reviewing」）。各键的含义见契约 `getMerchantInfo`。
+- **时区（#51）**：候选是端写死的 7 个加拿大时区（`America/Vancouver`、`America/Inuvik`、`America/Regina`、`America/Resolute`、`America/Toronto`、`America/Halifax`、`America/St_Johns`），`timezone` 放所选的 IANA 名；校验规则见契约 `updateMerchantTimezone`。
+- **换 logo（#49、#50）**：先上传拿 `imgUrl`，再把它作为 `logo` 提交；文件的类型与大小要求见契约 `uploadImage`、`updateMerchantLogo`。与收款页设置里的换 logo 是同一组调用。
+- **退出登录（#10）**：成功后端清掉本地保存的两个令牌与登录用户名，回登录页；失败时不退出。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #30 失败（含没有对应权限） | 400 或 5xx | 不提示，显示本地已有的资料 |
+| #49 文件类型或大小不符，或其他失败 | 400 或 5xx | 弹「Server error. Please try again later.」，logo 不变 |
+| #50 图片不符合商户 logo 的要求，或其他失败 | 400 或 5xx | 同上 |
+| #50、#51 没有修改商户资料的权限（店长、收银员预设都没有） | 400 | #50 同上；#51 不提示，显示不变 |
+| #50、#51 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #51 时区不合规，或其他失败 | 400 或 5xx | 不提示，显示不变 |
+| #10 失败 | 5xx 或无响应 | 不提示，不退出 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：清算与对账单
+
+底栏「Settlements」是清算记录，「Account」菜单「Statements」是月对账单。都只读。
+
+### 页面：Settlements（清算记录）
+
+进页（以及切换商户后）按「本月」取第一页（#31），按结算日分组显示；右上角日历选区间，上滑翻页，下拉刷新。点一笔进清算详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 点底栏「Settlements」
+    P->>A: #35;31 [listSettlements]<br/>GET /device/settlement_log<br/>查询参数 begin、end、page=1
+    A-->>P: 200 { data: [ { item_key, item_data: [ { clear_detail_id, clear_interval, gross_amount, clear_total_fee, total_charge } ] } ], pagination }
+    Note over P: 默认「本月」：begin 为本月 1 日、end 为本月最后一天，取设备本地日期<br/>按 item_key（结算日）分组，组头下显示 clear_interval（交易区间）
+    opt 改区间
+        U->>P: 选本月、上月、近 6 个月、近 12 个月或全部
+        P->>A: #35;31 [listSettlements]<br/>GET /device/settlement_log<br/>page=1
+        A-->>P: 200 { data, pagination }
+    end
+    loop 上滑翻页，直到 pagination.lastPage
+        P->>A: #35;31 [listSettlements]<br/>GET /device/settlement_log
+        A-->>P: 200 { data, pagination }
+    end
+    U->>P: 点一笔
+    P->>U: 带 clear_detail_id 进清算详情
+```
+
+- **参数（#31）**：`begin`、`end` 是 `YYYYMMDD`，由端按设备本地日期算：本月、上月为整月，近 6 个月、近 12 个月为从 5 个月前、11 个月前的 1 日到本月最后一天，全部为从 `20170101` 到本月最后一天。`page` 从 1 起，不带 `limit` 与 `mch_ids`。参数的取值与查询范围见契约 `listSettlements`。
+- **行（#31）**：端拿 `clear_detail_id` 进详情，组头下显示 `clear_interval`；金额读 `gross_amount`（端上叫净交易额）、`clear_total_fee`（清算额）、`total_charge`（服务费），`toFixed(2)`、前缀固定 `$`。行上没有商户名，多商户时分不清是哪家的（现网如此）。各键的含义见契约 `listSettlements`。
+- **分组与翻页**：端按 `item_key`（结算日）分组；新一页的组直接接在后面，同一结算日跨页时会出现两个同名组。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #31 失败（含没有查看结算单的权限，收银员预设没有） | 400 或 5xx | 不提示，停止翻页，已显示的保留 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Settlement Details（清算详情）
+
+进页取一次 #32，顶部是汇总，下面「Credit Records」「Debit Records」两个页签切换入账与出账明细，页签切换只在端内切、不重调。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 清算记录点一笔
+    P->>A: #35;32 [getSettlement]<br/>GET /device/settlement_log/{id}<br/>查询参数 channel 为空串
+    A-->>P: 200 { clear_summary: { report_date, gross_amount, clear_total_fee, total_surcharge }, settle_transactions: { Credit, Debit } }
+    Note over P: Credit、Debit 各是「日期 → 明细行」的对象，端按日期倒序排<br/>明细行读 order_id、create_time、clearing_amount、settle_amount、currency
+    opt 切页签
+        U->>P: 点「Credit Records」或「Debit Records」
+        Note over P: 端内切换，不调接口
+    end
+```
+
+- **路径（#32）**：`{id}` 是 #31 行上的 `clear_detail_id`；`channel` 端固定带空串。
+- **汇总（#32）**：端读 `report_date`、`gross_amount`（净交易额）、`clear_total_fee`（清算额）、`total_surcharge`（服务费）；同一个「服务费」在列表行上读的键是 `total_charge`，汇总里同名的 `total_charge` 端不读。`clear_interval`、`total_refund` 端也不读。各键的含义见契约 `getSettlement`。
+- **明细（#32）**：一次给全。端把 `settle_transactions.Credit`、`.Debit` 按日期倒序排，分在两个页签；行上读 `order_id`、`create_time`、`clearing_amount`（交易额）、`settle_amount`（结算额），后两个按数值转换后带 `currency` 显示。哪些行归哪一组见契约 `getSettlement`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #32 不存在或不在范围内 | 400 | 不提示，汇总区一直转圈 |
+| #32 其他失败（含没有查看结算单的权限） | 400 或 5xx | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Statements Download（账单下载）
+
+「Account」菜单「Statements」进入。进页取第一页（#33），端按年份分组、每月一行；右上角筛年份，上滑翻页。点某月进账单详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 「Account」菜单点「Statements」
+    P->>A: #35;33 [listMonthlyStatements]<br/>GET /device/reconciliation<br/>查询参数 mch_id、year 为空串、page=1、limit=20
+    A-->>P: 200 { data: [ { months, serviceChargeTotal } ], pagination }
+    Note over P: mch_id 取首页 #35;17 存下的 mch_id<br/>months 形如 yyyy-MM，端按年份分组，每月一行显示 serviceChargeTotal
+    opt 筛年份
+        U->>P: 选 All、今年或去年
+        P->>A: #35;33 [listMonthlyStatements]<br/>GET /device/reconciliation<br/>year、page=1
+        A-->>P: 200 { data, pagination }
+    end
+    loop 上滑翻页，直到 pagination.lastPage
+        P->>A: #35;33 [listMonthlyStatements]<br/>GET /device/reconciliation
+        A-->>P: 200 { data, pagination }
+    end
+    U->>P: 点某月
+    P->>U: 带 query_month（yyyyMM）进账单详情
+```
+
+- **参数（#33）**：`mch_id` 带首页 #17 存下的 `mch_id`；`year` 按所选发四位年份或空串（All）；年份候选是端写死的三项：All、今年、去年。参数的取值与范围见契约 `listMonthlyStatements`。
+- **行（#33）**：端读 `months`（按年份分组）与 `serviceChargeTotal`（每月一行显示）；各键的含义见契约 `listMonthlyStatements`。
+- **翻页**：端每页各自按年份分组再拼接，同一年份跨页时会出现两个组。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #33 `mch_id` 不在范围内（含没进过首页、`mch_id` 为空） | 400 | 不提示，停止翻页 |
+| #33 其他失败（含没有查看月对账单的权限，收银员预设没有） | 400 或 5xx | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Statement Details（账单详情）
+
+进页下载这个月的对账单 PDF（#34），App 内预览，右上角分享；离开时删缓存。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 账单下载点某月
+    P->>A: #35;34 [downloadMonthlyStatement]<br/>GET /device/reconciliation/file<br/>查询参数 mch_id、query_month
+    Note over P: 自己拼地址，带 Authorization、devCid、version、Accept-Language 四个头<br/>文件直接下载到缓存目录
+    alt 200
+        A-->>P: 200 PDF 文件
+        P->>U: App 内预览
+        opt 分享
+            U->>P: 点右上角分享
+            P->>U: 调系统分享，类型 application/pdf
+        end
+    else 非 200
+        A-->>P: 400 或 5xx { status, message }
+        Note over P: 删掉下载下来的文件，不读 message
+        P->>U: 弹「An error occurred. Please try again later.」
+    end
+    U->>P: 离开
+    Note over P: 删掉缓存的 PDF
+```
+
+- **参数（#34）**：`mch_id` 同 #33；`query_month` 是 `yyyyMM`，由端把年份与 #33 的月份拼成。文件的内容与语言见契约 `downloadMonthlyStatement`。
+- **端怎么用（#34）**：与收据（#19、#20）相同，不经过统一的请求处理，只看 HTTP 状态是不是 200；不同的是这里多带 `version` 与 `Accept-Language` 两个头。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #34 该月没有对账单、`mch_id` 不在范围内或没有查看月对账单的权限 | 400 | 删掉文件，弹通用错误文案 |
+| #34 服务端故障 | 5xx | 同上 |
+| #34 遇到令牌无效、设备被停用、商户被冻结 | 403 | 同上，不回登录页（不经过统一的请求处理） |
+
+## 流程：退款账户
+
+「Account」页的「Refund Reserves」卡进入。退款账户页只读，充值页凭邮箱验证码提交。
+
+### 页面：Refund Reserves（退款账户）
+
+每次获得焦点调一次余额（#28），显示可用退款金额与账户额度，点「Top Up」进充值页。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 「Account」页点「Refund Reserves」卡
+    P->>A: #35;28 [getAccountBalance]<br/>GET /device/account/balance
+    A-->>P: 200 { rechargeBalance, refundQuota }
+    Note over P: 「Available Refund Amount」显示 rechargeBalance<br/>「Account Limit」显示 refundQuota
+    U->>P: 点「Top Up」
+    P->>U: 进充值页
+    Note over U,P: 从充值页回来时重新获得焦点，再调一次 #35;28
+```
+
+- **本页读的键（#28）**：`rechargeBalance` 显示为「Available Refund Amount」，`refundQuota` 显示为「Account Limit」，端 `toFixed(2)`，前缀取商户币种符号。各键的含义见契约 `getAccountBalance`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #28 失败（含没有对应权限） | 400 或 5xx | 不提示，显示 0.00 或上次的值 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Top Up（充值）
+
+两种方式二选一：「Auto Top Up」设自动补足额度，「Pay with My Balance」从余额划一笔进退款账户。填好后点「Send Verification Code」，底部弹层打开即自动发码（#35），收件人是 Owner 的登录邮箱；输码点下一步即提交充值（#36），验证码随充值请求一起提交，不单独校验。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 退款账户页点「Top Up」
+    P->>A: #35;28 [getAccountBalance]<br/>GET /device/account/balance
+    A-->>P: 200 { tranBalance, refundQuota }
+    Note over P: 默认「Auto Top Up」，金额框预填 refundQuota<br/>选「Pay with My Balance」时金额清成 0.00，上限为 tranBalance
+    U->>P: 选方式、填金额，点「Send Verification Code」
+    P->>A: #35;35 [sendRechargeEmailCode]<br/>GET /device/mch/sendEmail
+    A-->>P: 200 { ticket }
+    A-->>M: 验证码邮件（发往 Owner 的登录邮箱）
+    Note over P: 弹层写「验证码将发往」加上本地 contact_email 的打码形式<br/>端自己控 60 秒重发冷却
+    M-->>U: 查看验证码
+    U->>P: 输验证码，点下一步
+    P->>A: #35;36 [rechargeRefundAccount]<br/>POST /device/account/recharge<br/>{ depositType, amount, ticket, ticketValue }
+    A-->>P: 200
+    P->>U: 弹「Top up successful!」，确认后回退款账户页
+```
+
+- **方式与金额（#36）**：「Auto Top Up」发 `depositType` 为 `auto_deposit`，「Pay with My Balance」发 `balance`；`amount` 端提交字符串（如 `"100.00"`），不带 `remark`。端校验：`auto_deposit` 0 到 20000、`balance` 0.01 到 `tranBalance`，都是两位小数；`tranBalance` 当上限只是端上的提示。两种方式的含义、金额的规则与重复提交怎么认，见契约 `rechargeRefundAccount`。
+- **发码（#35）**：不带参数，端存下返回的 `ticket`；验证码发往 Owner 的登录邮箱。弹层显示的收件邮箱是端本地商户资料里的 `contact_email`，仅作展示。
+- **验证码（#36）**：`ticket` 是 #35 返回的，`ticketValue` 是输入的 6 位数字；端在点下一步时不调接口校验，直接提交充值。
+- **成功之后**：结果框确认后回退款账户页，该页重新获得焦点时再取 #28。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #35 被拒（发得太频繁、没有充值权限） | 400 | 弹层输入框下显示「Email does not exist or not bound.」（端对 400 一律显示这句） |
+| #35 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #35 服务端故障 | 5xx | 弹层输入框下显示通用错误文案 |
+| #36 验证码不对或已过期 | 400 | 弹「Top up failed.」，不显示原因；确认后回退款账户页 |
+| #36 金额或方式不合规、余额不足 | 400 | 同上 |
+| #36 没有充值权限（收银员预设没有） | 400 | 同上 |
+| #36 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #36 服务端故障或网络不通 | 5xx 或无响应 | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：消息与公告
+
+首页铃铛进消息中心，分「Order Notification」（订单消息）与「System Notification」（系统公告）两类。进某一类的列表时，端先把这一类标为已读。
+
+### 页面：Notifications（消息中心）
+
+每次获得焦点取一次两类的未读数与最新一条（#37）。右上角清除按钮在有未读时带红点，点了确认后把两类全部标为已读（#41，不带 `type`）。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 首页点铃铛
+    P->>A: #35;37 [getOrderMessageUnreadCount]<br/>GET /device/order/message/count
+    A-->>P: 200 { order_message_count, notice_message_count, order_message?: { create_time }, notice_message?: { title, send_time } }
+    Note over P: 两行各显示未读数与最新一条的时间<br/>订单消息一行有最新消息时显示固定文案，公告一行显示 notice_message.title
+    opt 全部标为已读
+        U->>P: 点右上角清除，在确认框点确认
+        P->>A: #35;41 [markAllMessagesRead]<br/>GET /device/order/message/clear
+        A-->>P: 200
+        Note over P: 本地两个未读数清零（首页红点随之消失），再调一次 #35;37
+        P->>U: 提示「Cleared all unread messages successfully」
+    end
+    alt 点「Order Notification」
+        P->>U: 进订单消息列表
+    else 点「System Notification」
+        P->>U: 进系统公告列表
+    end
+```
+
+- **未读与最新一条（#37）**：端读两个未读数；`order_message` 只读 `create_time`，有这条时显示固定文案「付款成功」一类，不分收款退款；`notice_message` 读 `title`、`send_time`。口径与这两个键什么时候返回，见契约 `getOrderMessageUnreadCount`。
+- **全部标为已读（#41）**：不带 `type`，两类都标；标已读对谁生效见契约 `markAllMessagesRead`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #37 失败 | 400 或 5xx | 不提示，两行空着 |
+| #41 失败 | 400 或 5xx | 不提示，确认框不收起 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Order Notification / System Notification（订单消息 / 系统公告）
+
+同一个页面按类型分两种。进页同时发两条：把这一类标为已读（#41 带 `type`）与取第一页（订单消息 #38，系统公告 #39）。每条消息下有「Details」：订单消息进订单详情（#13），系统公告进公告详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 消息中心点一类
+    par 同时发出
+        P->>A: #35;41 [markAllMessagesRead]<br/>GET /device/order/message/clear<br/>查询参数 type=order 或 notice
+        A-->>P: 200
+        Note over P: 本地这一类的未读数清零
+    and
+        alt 订单消息
+            P->>A: #35;38 [listOrderMessages]<br/>GET /device/order/message<br/>查询参数 page=1、limit=20
+            A-->>P: 200 { data: [ { order_id, create_time, transaction_type, channel, currency, amount, mch_name, remark } ], pagination }
+        else 系统公告
+            P->>A: #35;39 [listNotices]<br/>GET /device/notice<br/>查询参数 page=1、limit=20
+            A-->>P: 200 { data: [ { notice_id, title, send_time, content } ], pagination }
+        end
+    end
+    loop 上滑翻页，直到 pagination.lastPage
+        P->>A: #35;38 [listOrderMessages] 或 #35;39 [listNotices]<br/>page 递增
+        A-->>P: 200 { data, pagination }
+    end
+    opt 下拉刷新
+        U->>P: 下拉
+        P->>A: #35;38 [listOrderMessages] 或 #35;39 [listNotices]<br/>page=1
+        A-->>P: 200 { data, pagination }
+    end
+    U->>P: 在某条下点「Details」
+    alt 订单消息
+        P->>A: #35;13 [getTransaction]<br/>GET /device/transaction/{orderId}<br/>查询参数 payType=Credit
+        A-->>P: 200 { orderStatus, payFee, … }
+        P->>U: 订单详情
+    else 系统公告
+        P->>U: 带 notice_id 进公告详情
+    end
+```
+
+- **订单消息行（#38）**：端读 `create_time`、`order_id`、`transaction_type`（`Credit` 收款、`Debit` 退款，决定标题与金额前的 `-`）、`channel`（画渠道图标）、`currency`、`amount`（`toFixed(2)`）、`mch_name`、`remark`（没有时显示 `-`）。列出哪些行、各键的含义见契约 `listOrderMessages`。
+- **系统公告行（#39）**：端读 `notice_id`、`title`、`send_time`、`content`（HTML，行内直接渲染，最高 600 像素）。列出哪些站内信见契约 `listNotices`。
+- **订单消息的「Details」**：不论 `transaction_type` 是收款还是退款，都拿 `order_id` 按收款查订单详情（#13，`payType=Credit`），进的是订单详情页，不是退款详情。
+- **刷新不再标已读**：标已读只在进页时发一次，下拉刷新与翻页不再发。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #41 失败 | 400 或 5xx | 不提示，本地未读数不清零 |
+| #38、#39 失败 | 400 或 5xx | 不提示，停止翻页，已显示的保留 |
+| #38 没有查看支付订单的权限 | 400 | 同上 |
+| #13 失败 | 400 或 5xx | 见「流程：流水、收据与数据分析」的订单详情 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：公告详情
+
+标题栏显示公告标题。进页取一次 #40，正文是 HTML，端注入图片自适应样式后渲染。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 系统公告列表点「Details」
+    P->>A: #35;40 [getNotice]<br/>GET /device/notice/{noticeId}
+    A-->>P: 200 { notice_title, content }
+    Note over P: 标题栏显示 notice_title，content 按 HTML 渲染
+```
+
+- **详情（#40）**：路径里带列表行的 `notice_id`；端读 `notice_title` 作标题、`content` 按 HTML 渲染。读详情同时标为已读，见契约 `getNotice`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #40 不存在或不属于当前商户 | 400 | 不提示，页面空白 |
+| #40 服务端故障 | 5xx | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：收款通知设置
+
+「Account」菜单「Notifications」进入（与消息中心不是同一页）。设置本人的收款推送开关、进本人的微信绑定、管理商户的通知邮箱。
+
+### 页面：Notifications（消息通知设置）
+
+进页取一次收款通知设置（#42）。「App Notifications」开关切换即提交（#43）；「WeChat Notification」显示登录者本人是否已绑微信，点了进绑定微信页（绑的是登录者本人）；「Email Notification」进通知邮箱列表。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 「Account」菜单点「Notifications」
+    P->>A: #35;42 [getPaymentNoticeSettings]<br/>GET /device/merchant/paymentnotice
+    A-->>P: 200 { paymentNotice, wechat_openid, account_id }
+    Note over P: 开关取 paymentNotice<br/>「WeChat Notification」按 wechat_openid 有无显示已绑或未绑
+    opt 开关收款推送
+        U->>P: 拨「App Notifications」
+        P->>A: #35;43 [setPaymentPushEnabled]<br/>POST /device/merchant/paymentnotice/{status}<br/>status 为 1 或 0
+        A-->>P: 200
+        Note over P: 成功后才改开关显示
+    end
+    alt 点「WeChat Notification」
+        P->>U: 带 account_id 与 wechat_openid 进绑定微信页（登录者本人）
+    else 点「Email Notification」
+        P->>U: 进通知邮箱列表
+    end
+```
+
+- **设置（#42）**：端读 `paymentNotice`（开关）、`wechat_openid`（只看有没有，决定显示已绑或未绑）、`account_id`（进绑定微信页用）；同一接口的 `emails` 由邮箱通知页读。各键的含义见契约 `getPaymentNoticeSettings`。
+- **开关（#43）**：路径上 `1` 开、`0` 关，无请求体；成功后才改开关显示。开关管到哪些推送见契约 `setPaymentPushEnabled`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #42 失败 | 400 或 5xx | 不提示，开关显示关、微信显示未绑；此时点「WeChat Notification」带的是空的 `account_id` |
+| #43 失败 | 400 或 5xx | 不提示，开关不变 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Email Notification（邮箱通知）
+
+进页取一次 #42 读通知邮箱列表。主邮箱带标记、不能删；其他邮箱可删（确认后 #46）。底部「Add Email」进添加页。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 消息通知设置页点「Email Notification」
+    P->>A: #35;42 [getPaymentNoticeSettings]<br/>GET /device/merchant/paymentnotice
+    A-->>P: 200 { emails: [ { email, main } ] }
+    Note over P: main 为真的一行显示标记、不可删，其余行给删除按钮
+    opt 删一个邮箱
+        U->>P: 点某行的删除，在确认框点确认
+        P->>A: #35;46 [deleteNoticeEmail]<br/>GET /device/del/email<br/>查询参数 email
+        A-->>P: 200
+        Note over P: 只在本地列表里去掉这一行，不重查
+    end
+    opt 添加
+        U->>P: 点「Add Email」
+        P->>U: 进添加邮箱页
+    end
+```
+
+- **列表（#42 的 `emails`）**：端读每项的 `email` 与 `main`，`main` 为真的一行显示标记、不给删除。没有查看通知设置的权限时 `emails` 为空数组（见契约 `getPaymentNoticeSettings`），端显示无邮箱的空状态。
+- **删除（#46）**：查询参数 `email` 带要删的地址；确认框点确认即收起，不等结果。拒绝情形见契约 `deleteNoticeEmail`。
+- **不随添加刷新**：列表只在进页时取一次；添加成功后端回到消息通知设置页，再进本页才会取到新加的邮箱。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #42 失败 | 400 或 5xx | 不提示，显示无邮箱的空状态 |
+| #46 要删的是主邮箱或不在列表里，或其他失败 | 400 或 5xx | 不提示，列表不变 |
+| #46 没有修改通知设置的权限（收银员预设没有） | 400 | 同上 |
+| #46 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Add Email（添加邮箱）
+
+输入要添加的邮箱，点「Send」向这个邮箱发码（#44），输码点「Add」提交（#45），成功后回消息通知设置页。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 输邮箱，点「Send」
+    Note over P: 先在端上校验邮箱格式
+    P->>A: #35;44 [sendNoticeEmailCode]<br/>GET /device/send/emailCode<br/>查询参数 email（新邮箱）
+    A-->>P: 200 { ticket }
+    A-->>M: 验证码邮件（发往新邮箱）
+    Note over P: 端自己控 60 秒重发冷却
+    M-->>U: 查看验证码
+    U->>P: 输验证码，点「Add」
+    P->>A: #35;45 [addNoticeEmail]<br/>POST /device/paymentnotice/email<br/>{ email, ticket, ticketValue }
+    A-->>P: 200
+    P->>U: 提示「Email added successfully」，回消息通知设置页
+```
+
+- **发码（#44）**：`email` 带输入框里的新邮箱，端存下返回的 `ticket`。
+- **添加（#45）**：`email` 取提交时输入框的值，`ticket` 是 #44 返回的，`ticketValue` 是输入的验证码；中途改了邮箱不会重新发码，提交会被拒。拒绝情形见契约 `addNoticeEmail`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #44 失败（含发得太频繁、邮箱已在列表里） | 400 或 5xx | 不提示，不进冷却 |
+| #45 验证码不对或已过期、邮箱与发码时不同，或其他被拒 | 400 或 5xx | 不提示，留在本页 |
+| #44、#45 没有修改通知设置的权限（收银员预设没有） | 400 | 同各自那一行 |
+| #44、#45 商户处于仅查看 | 400，`code` 为 `208035` | 同各自那一行 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：账户与安全
+
+「Account」菜单「Account Settings」进入。改登录密码与退款密码（凭旧密码或凭邮箱验证码）、订单有效期、顾客承担手续费，以及进收款页设置。退款页的退款密码弹层里另有一处忘记退款密码，见「流程：退款与预授权释放」。
+
+### 页面：Account Settings（账户设置）
+
+进页取一次商户资料（#30），读订单有效期与顾客承担手续费开关。「Order Expiry Time」弹窗输数值、选单位后提交（#56）；「Consumer Payment Surcharge」开关拨动即提交（#11）。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 「Account」菜单点「Account Settings」
+    P->>A: #35;30 [getMerchantInfo]<br/>GET /device/mch_info
+    A-->>P: 200 { order_expiry_time, client_pay_surcharge, … }
+    Note over P: 「Order Expiry Time」一栏把 order_expiry_time 格式化成时长显示<br/>手续费开关取 client_pay_surcharge
+    opt 改订单有效期
+        U->>P: 点「Order Expiry Time」，输数值、选秒、分或时，确认
+        P->>A: #35;56 [updateOrderExpiry]<br/>POST /device/mch/order_expiry_config<br/>{ orderExpiryConfig }
+        A-->>P: 200
+        Note over P: 只改本地显示
+    end
+    opt 开关顾客承担手续费
+        U->>P: 拨「Consumer Payment Surcharge」（打开时先确认）
+        P->>A: #35;11 [setCustomerSurcharge]<br/>POST /device/cusPaySurcharge { enable }
+        A-->>P: 200
+    end
+    alt 点「Login Password」或「Refund Password」
+        P->>U: 进更改登录密码或更改退款密码页
+    else 点「Payment Page Settings」
+        P->>U: 进收款页设置
+    end
+```
+
+- **订单有效期（#30 的 `order_expiry_time`、#56 的 `orderExpiryConfig`）**：端把 `order_expiry_time` 格式化成时长显示；提交时把输入的数值与所选单位（`s`、`m`、`h`）拼成一个字符串，提交前校验：秒 1 到 86400 的整数，分 1 到 1440 的整数，时 1 到 24、最多两位小数。格式、换算与范围见契约 `getMerchantInfo`、`updateOrderExpiry`。
+- **顾客承担手续费（#11）**：开关取 #30 的 `client_pay_surcharge`；拨动时发 `{ enable }`，打开前先弹说明框确认；失败时没有提示。开关管到什么、拒绝情形见契约 `setCustomerSurcharge`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #30 失败 | 400 或 5xx | 不提示，显示本地已有的值 |
+| #56 不是整分钟、超出范围，或其他失败 | 400 或 5xx | 不提示，显示不变 |
+| #56 没有修改收款设置的权限（收银员预设没有） | 400 | 同上 |
+| #56 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #11 没有收款页设置的编辑权限、缺 `enable`，或其他失败 | 400 或 5xx | 不提示 |
+| #11 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Reset Login Password / Reset Refund Password（更改登录密码 / 更改退款密码）
+
+同一页面按 `type`（`login` 或 `refund`）分两种。默认凭旧密码改（#9）；点「Forgot Login Password」或「Forgot Refund Password」打开底部弹层，弹层打开即自动发码（#47），输码点下一步后弹层收起、旧密码栏消失，再填新密码提交（#48）。成功后回账户设置。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 账户设置点「Login Password」或「Refund Password」
+    alt 记得旧密码
+        U->>P: 输旧密码、新密码与确认，点「Confirm」
+        P->>A: #35;9 [changePassword]<br/>PUT /device/updatePassword { oldpwd, pwd, type }
+        A-->>P: 200
+    else 点「Forgot …Password」
+        U->>P: 点忘记密码
+        P->>A: #35;47 [sendPasswordEmailCode]<br/>GET /device/merchant/reset/verifyCode<br/>查询参数 type、email
+        A-->>P: 200 { ticket }
+        A-->>M: 验证码邮件（发往 Owner 的登录邮箱）
+        Note over P: email 取本地商户资料的 contact_email<br/>端自己控 60 秒重发冷却
+        M-->>U: 查看验证码
+        U->>P: 输验证码，点下一步
+        Note over P: 不调接口，弹层收起，旧密码栏去掉
+        U->>P: 输新密码与确认，点「Confirm」
+        P->>A: #35;48 [resetPasswordWithEmailCode]<br/>POST /device/merchant/reset/pwd<br/>{ newPassword, confirmPassword, ticket, ticketValue, type }
+        A-->>P: 200
+    end
+    P->>U: 弹修改成功，确认后回账户设置
+```
+
+- **凭旧密码改（#9）**：端带 `oldpwd`、`pwd` 与页面的 `type`；凭响应 `message` 里的 `Invalid Original Password` 字样认出旧密码不对。`type=refund` 要有商户后台管理退款密码的权限；其余规则见契约 `changePassword`。
+- **发码（#47）**：端带页面的 `type`，`email` 填本地的 `contact_email`；验证码一律发往 Owner 的登录邮箱，端存下返回的 `ticket`。`type=refund` 要有商户后台管理退款密码的权限，见契约 `sendPasswordEmailCode`。
+- **重置（#48）**：端带同一个 `type`、#47 的 `ticket`、输入的 6 位验证码 `ticketValue`，以及 `newPassword` 与 `confirmPassword`（端已校验两者一致）。新密码的规则见契约 `resetPasswordWithEmailCode`；`type=refund` 同样要有管理退款密码的权限。
+- **成功之后**：端只弹成功框、回账户设置，不退出登录。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #9 旧密码不对 | 400，`message` 里含 `Invalid Original Password` | 提示「原密码错误。」 |
+| #9 `type` 为 `refund` 而没有管理退款密码的权限 | 400 | 提示通用文案「发生错误，请稍后再试。」 |
+| #9 `type` 为 `refund` 而商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #9 其他被拒 | 400 | 同上 |
+| #47 被拒（含 `type=refund` 而没有管理退款密码的权限），或其他失败 | 400 或 5xx | 不提示（这一处关掉了弹层里的错误提示），收不到邮件 |
+| #48 验证码不对或已过期 | 400 | 弹通用错误文案「An error occurred. Please try again later.」（端只在 HTTP 500 且 `message` 含「Verification code」时才显示「Wrong verification code.」，现在走不到） |
+| #48 新密码不合规 | 400 | 同上 |
+| #48 `type=refund` 而没有管理退款密码的权限 | 400 | 同上 |
+| #47、#48 `type=refund` 而商户处于仅查看 | 400，`code` 为 `208035` | 同各自那一行 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：商户资料编辑
+
+商户信息页的三个子页右上角进编辑页（同一个页面按类型分三种），表单默认值取端本地的商户资料。公司信息与联系信息提交 #52；银行信息先发验证码（#67）再提交 #53，进入审核；修改登录邮箱（界面上叫 Registered Email）在联系信息编辑页里另走一个弹层（#54、#55、#68），新邮箱确认后立即生效、不走审核。银行信息的发码与登录邮箱的确认是新增的两步，只有升级后的 App 会调；旧包走到提交那一步收到 400，改不成。
+
+### 页面：Business Information（公司信息编辑）
+
+公司名称与简称只读；可改服务电话与地址。提交 #52，成功后回上一页。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 公司信息页点右上角编辑
+    Note over P: 表单默认值取本地商户资料<br/>company_name、mch_abbreviation 只读
+    U->>P: 改服务电话、街道、城市、省份、国家、邮编，点「Submit」
+    P->>A: #35;52 [updateMerchantContact]<br/>POST /device/merchant/contact<br/>{ service_phone, address, city, province, post_code, country }
+    A-->>P: 200
+    Note over P: 用提交的值改本地商户资料（post_code 写回 postal_code）
+    P->>U: 回上一页
+```
+
+- **请求（#52，公司信息）**：`service_phone`、`address`、`city`、`province`、`post_code`、`country` 六个键一起提交；成功后用提交的值改本地商户资料，请求里的 `post_code` 写回本地的 `postal_code`。各字段的校验见契约 `updateMerchantContact`。
+- **端的候选**：`province` 是两位省份代码，候选是端写死的加拿大 13 个省与地区；`country` 候选只有 `CANADA`；`post_code` 按加拿大邮编格式校验并转大写。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #52 字段不合规，或其他失败 | 400 或 5xx | 不提示，留在编辑页 |
+| #52 没有修改商户资料的权限（店长、收银员预设都没有） | 400 | 同上 |
+| #52 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Contact Information（联系信息编辑）
+
+可改联系人姓名与电话，提交 #52 后回上一页。「Registered Email」一栏不在表单里提交，点它打开修改登录邮箱的弹层（下一节）。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 联系信息页点右上角编辑
+    Note over P: 表单默认值取本地商户资料<br/>「Registered Email」显示 contact_email
+    U->>P: 改联系人姓名、电话，点「Submit」
+    P->>A: #35;52 [updateMerchantContact]<br/>POST /device/merchant/contact<br/>{ contact_name, contact_phone }
+    A-->>P: 200
+    Note over P: 用提交的值改本地商户资料
+    P->>U: 回上一页
+    opt 改登录邮箱
+        U->>P: 点「Registered Email」
+        P->>U: 弹出修改登录邮箱的弹层
+    end
+```
+
+- **请求（#52，联系信息）**：只提交 `contact_name` 与 `contact_phone` 两个键；谁能改、姓名怎么拆，见契约 `updateMerchantContact`。
+- **登录邮箱**：「Registered Email」一栏显示本地的 `contact_email`，这一栏不显示「Reviewing」。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #52 字段不合规，或其他失败 | 400 或 5xx | 不提示，留在编辑页 |
+| #52 登录者不是 Owner | 400 | 同上 |
+| #52 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Contact Information · Enter Verification Code / Enter New Email 弹层
+
+改的是登录者本人的登录邮箱（界面上叫 Registered Email）。三步：先在 Enter Verification Code 一步向当前邮箱发码（弹层打开即自动发，#54），输码点下一步（不调接口）；再在 Enter New Email 一步输新邮箱提交（#55），新邮箱随即收到验证码；最后输新邮箱收到的码，回传完成更换（#68）。第三步是新增的，只有升级后的 App 会走；现网版本的 App 提交 #55 时收到 400，邮箱不变。各步的规则见契约 `sendMerchantEmailCode`、`updateMerchantEmail`、`confirmMerchantEmail`。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 点「Registered Email」
+    P->>A: #35;54 [sendMerchantEmailCode]<br/>GET /device/sendAndVerify/emailCode<br/>查询参数 email（当前登录邮箱）
+    A-->>P: 200 { ticket }
+    Note over P: email 端取本地的 contact_email<br/>端自己控 60 秒重发冷却<br/>弹层文案都写验证码发往邮箱
+    alt 账号没开验证器
+        A-->>M: 验证码邮件（发往当前登录邮箱）
+        M-->>U: 查看验证码
+    else 账号开了验证器
+        Note over A: 不发邮件，这一步认验证器上的码
+        U->>U: 打开验证器看码
+    end
+    U->>P: 在同一个输入框输码，点下一步
+    Note over P: 不调接口，进输新邮箱一步
+    U->>P: 输新邮箱，点「Submit」
+    P->>A: #35;55 [updateMerchantEmail]<br/>POST /device/merchant/email<br/>{ email（新邮箱）, ticket, ticketValue }
+    Note over A: 核对第一步的码，记下新邮箱<br/>邮箱此时还没换
+    A-->>M: 验证码邮件（发往新邮箱）
+    A-->>P: 200
+    M-->>U: 查看新邮箱收到的验证码
+    U->>P: 输验证码，确认
+    P->>A: #35;68 [confirmMerchantEmail]<br/>POST /device/merchant/email/confirm<br/>{ email, ticketValue }
+    A-->>P: 200
+    P->>U: 提示修改成功，回上一页
+```
+
+- **发码（#54）**：`email` 端填本地的 `contact_email`，端存下返回的 `ticket`。端的弹层文案照旧说验证码发往邮箱；账号开了验证器时不发邮件，用户在同一个输入框里填验证器的码（见契约 `sendMerchantEmailCode`）。
+- **提交（#55）**：端带新邮箱 `email`、#54 的 `ticket` 与第一步输入的码 `ticketValue`；请求头 `version` 照常带。服务端按 `version` 区分新旧版本，见契约 `updateMerchantEmail`。
+- **确认（#68）**：端带同一个新邮箱 `email` 与新邮箱收到的验证码 `ticketValue`，成功后提示修改成功、回上一页。
+- **端认的失败文案**：现网版本的 App 在 HTTP 400 且 `message` 含「new email」时提示新旧邮箱不能相同，含「verification code」与「not correct」时提示验证码错误，其余提示通用错误文案；`message` 的文案对不上时一律是通用错误文案。现网版本提交 #55 先收到升级提示，走不到新邮箱与验证码这两种拒绝；下表这两行按端的这套判断写。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #54 失败（含发得太频繁） | 400 或 5xx | 不提示（这一处关掉了弹层里的错误提示） |
+| #55 新邮箱与当前相同或已被占用 | 400 | `message` 含「new email」时弹「The new email address must be different from the old one.」，否则弹通用错误文案；输入框标红 |
+| #55 验证码不对或已过期 | 400 | `message` 含「verification code」与「not correct」时弹「Wrong verification code.」，否则弹通用错误文案；输入框标红 |
+| #55 现网版本的 App 提交（不核对验证码、不向新邮箱发码） | 400 | 弹通用错误文案（端不显示 `message` 里的升级提示），输入框标红，邮箱不变 |
+| #68 验证码不对或已过期、`email` 与 #55 提交的不同 | 400 | 留在这一步，可重输 |
+| #54、#55、#68 商户处于仅查看 | 400，`code` 为 `208035` | 同各自那一行的失败处理 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Bank Information（银行信息编辑）
+
+账户名只读；可改银行名、Transit、机构号、账号，并上传作废支票图片；分行一栏端照旧可填。提交时若换了图先上传（#49），再向 Owner 的登录邮箱发验证码（#67），输码后提交变更申请（#53）。提交后进入审核，端把本地标成审核中。审核中进本页时字段全部只读、没有提交按钮。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant M as 邮箱
+
+    U->>P: 银行信息页点右上角编辑
+    Note over P: 表单默认值取 bankInfo，account_number 是打码后的<br/>bank_verify 为真时字段只读、无提交按钮
+    U->>P: 改银行字段（账号要重输完整的），换作废支票图片，点「Submit」
+    alt 字段与图片都没改
+        P->>U: 直接回上一页，不调接口
+    else 有改动
+        opt 选了新图片
+            P->>A: #35;49 [uploadImage]<br/>POST /device/upload（multipart file）
+            A-->>P: 200 { imgUrl }
+        end
+        P->>A: #35;67 [sendBankEmailCode]<br/>GET /device/merchant/bank/verifyCode
+        A-->>P: 200 { ticket }
+        A-->>M: 验证码邮件（发往 Owner 的登录邮箱）
+        M-->>U: 查看验证码
+        U->>P: 输验证码，确认
+        P->>A: #35;53 [updateBankAccount]<br/>POST /device/merchant/bank<br/>{ account_name, branch, bank_name, bank_code, bank_id, account_number, prove_url, ticket, ticketValue }
+        A-->>P: 200
+        Note over P: 本地 bank_verify 标为真
+        P->>U: 弹「The request to change bank information has been submitted.」与「Processing time is approximately 24 hours.」，确认后回上一页
+    end
+    Note over U,A: 旧包没有发码一步，#35;53 不带 ticket，回 400，留在编辑页
+```
+
+- **发码（#67）**：新增的接口，不带参数，验证码发往 Owner 的登录邮箱；端存下返回的 `ticket`。
+- **请求（#53）**：端带 `account_name`（只读，原样带回）、`branch`（编辑页这一栏默认为空）、`bank_name`、`bank_code`（Transit）、`bank_id`（机构号）、`account_number`、`prove_url`、`ticket` 与 `ticketValue`（#67 返回的票据与输入的验证码）。`prove_url` 新上传的取 #49 的 `imgUrl`，没换图取原 `bankInfo.prove_url`。各字段的规则、重复提交怎么认，见契约 `updateBankAccount`。
+- **账号要重输**：#30 的 `account_number` 是打码的，端对账号校验 7 到 12 位数字，打码的值过不了，所以改银行信息时要重新输入完整账号。
+- **审核**：提交成功后端把本地 `bank_verify` 标为真；审核中银行信息子页与只读的编辑页显示空值。审核期间 #30 返回什么见契约 `getMerchantInfo`。
+- **旧包**：没有发码一步，#53 不带 `ticket` 被拒；旧包不显示 `message`，只是留在编辑页。
+- **上传（#49）**：与换 logo 同一个接口；这里传的是作废支票照片。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #49 文件类型或大小不符，或其他失败 | 400 或 5xx | 不提示，不往下走，留在编辑页 |
+| #67 失败（含发得太频繁） | 400 或 5xx | 留在编辑页 |
+| #53 验证码不对或已过期 | 400 | 不提示，留在编辑页 |
+| #53 已有审核中的申请、字段不合规、作废支票不合要求 | 400 | 同上 |
+| #53 没带 `ticket`（旧包） | 400 | 同上 |
+| #53、#67 没有修改结算信息的权限（店长、收银员预设都没有） | 400 | 同各自那一行 |
+| #53、#67 商户处于仅查看 | 400，`code` 为 `208035` | 同各自那一行 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：收款页设置
+
+账户设置页点「Payment Page Settings」进入，付款页的显示内容与支付方式开关都在这一页改、一次保存。
+
+### 页面：Payment Page Settings（支付页设置）
+
+顾客扫门店码后看到的付款页的设置：logo、用户备注（顾客填写的信息项）、小费（3 个预设比例）、商家留言、支付方式开关。进页同时取商户资料（#30，读 `logo_url` 与 `payInfo`）与支付方式（#57）。改动只存在页面上，点「Save」时一次提交：换了 logo 先上传并更新（#49、#50），再依次提交支付方式（#58）与收款页设置（#59）。有未保存的改动时离开会弹确认框。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 账户设置点「Payment Page Settings」
+    par 同时发出
+        P->>A: #35;30 [getMerchantInfo]<br/>GET /device/mch_info
+        A-->>P: 200 { mch_abbreviation, logo_url, payInfo: { tip_switch, tip_preset_value, remark_switch, user_info_switch, user_input_title, note, … } }
+    and
+        P->>A: #35;57 [listPaymentMethods]<br/>GET /device/mchPayWay
+        A-->>P: 200 { storePayWay, examinePayWays, wxSwitch, aliSwitch, aliOnlineSwitch, unionSwitch, unionOnlineSwitch, cardSwitch }
+    end
+    Note over P: 六种支付方式各一行：对应的 xxSwitch 为真才可拨，开关状态看 storePayWay 是否含它<br/>xxSwitch 为假的置灰不可拨
+    U->>P: 换 logo、改备注项、小费、留言、支付方式开关
+    U->>P: 点「Save」
+    opt 换了 logo
+        P->>A: #35;49 [uploadImage]<br/>POST /device/upload（multipart file）
+        A-->>P: 200 { imgUrl }
+        P->>A: #35;50 [updateMerchantLogo]<br/>POST /device/mchLogo/update { logo: imgUrl }
+        A-->>P: 200
+        Note over P: 这两步失败也继续往下保存
+    end
+    P->>A: #35;58 [updatePaymentMethods]<br/>POST /device/openPayWay<br/>{ payways: 开着的支付方式码用逗号连起 }
+    A-->>P: 200
+    P->>A: #35;59 [updatePaymentPageSettings]<br/>POST /device/pay_setting/update<br/>{ #35;30 的 payInfo 全部键，改过的值覆盖 }
+    A-->>P: 200
+    P->>U: 显示保存成功动画，留在本页
+```
+
+- **支付方式（#57）**：六种支付方式各一行（码 `wechat`、`alipay`、`alipayonline`、`unionpay`、`unionpayonline`、`creditcard`，端写死这六个）：对应的 `wxSwitch`、`aliSwitch`、`aliOnlineSwitch`、`unionSwitch`、`unionOnlineSwitch`、`cardSwitch` 为真才可拨，开关状态看 `storePayWay` 是否含它；`examinePayWays` 端只用来给未开通的那一行加无障碍标签。各键的含义与码的对照见契约 `listPaymentMethods`。
+- **开关支付方式（#58）**：端把开着的支付方式码用逗号连起放进 `payways`，每次「Save」都发，不论支付方式有没有改；全关时发空串。拒绝情形见契约 `updatePaymentMethods`。
+- **收款页设置（#30 的 `payInfo`、#59）**：端把 #30 的 `payInfo` 整份展开带回 #59，再覆盖本页改过的键。各键的含义与取值见契约 `updatePaymentPageSettings`。
+- **端怎么填 #59**：`tip_preset_value` 小费关时为空串，开时去掉空项后补足到三段；`remark_switch` 与 `user_info_switch` 端上是一个「User Notes」开关，两个键同值；`user_input_title` 空标题替换成「Title n」，开关关时不带这个键；`note` 的换行替换成空格。`tip_preset_value` 为空时端预填 `10,15,20`。
+- **logo（#49、#50）**：与商户信息页同一组调用，换的是商户 logo。没有修改商户资料权限的员工（店长、收银员预设都没有）这两步会失败，端跳过、照常保存其余设置。
+- **先后**：#58 成功才发 #59；#59 失败时 #58 已生效。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #30 或 #57 失败 | 400 或 5xx | 不提示，对应区块显示空值或全部置灰 |
+| #49 或 #50 失败（含没有修改商户资料的权限） | 400 或 5xx | 不提示，继续保存其余设置 |
+| #58 全关、新加的支付方式还没开通，或其他失败 | 400 或 5xx | 显示保存失败动画，不发 #59 |
+| #59 取值不合规，或其他失败 | 400 或 5xx | 显示保存失败动画 |
+| #58、#59 没有修改收款页设置的权限（收银员预设没有） | 400 | 同上各行 |
+| #50、#58、#59 商户处于仅查看 | 400，`code` 为 `208035` | 同上各行 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 流程：员工与微信绑定
+
+「Account」菜单「Employees」进入。列员工、加员工、改昵称、重置密码、改角色、删员工、为员工绑定或解绑微信。消息通知设置页的「WeChat Notification」也进同一个绑定微信页，绑的是登录者本人。端上的角色名：`1` Admin、`2` Manager（店长）、`3` Cashier（收银员）；数字怎么给见契约 `TerminalRole`。
+
+### 页面：Employees（员工管理）
+
+进页取一次员工列表（#60），下拉刷新重取；从新增、删除回来时带刷新标记重取。点一行进用户详情，右上角加人进新增页。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 「Account」菜单点「Employees」
+    P->>A: #35;60 [listEmployees]<br/>GET /device/employee/management
+    A-->>P: 200 [ { account_id, user_name, role, one_self } ]
+    Note over P: 每行显示头像、user_name、角色名
+    alt 点一行
+        P->>U: 带 account_id 与 one_self 进用户详情
+    else 点右上角加人
+        P->>U: 进新增页
+    end
+```
+
+- **行（#60）**：不分页。端读 `account_id`、`user_name`、`role`（显示角色名）、`one_self`；头像一律显示缺省头像。各键的含义见契约 `listEmployees`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #60 失败（含没有看成员的权限） | 400 或 5xx | 不提示，列表空 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Add Employee（新增用户）
+
+填用户名、昵称、密码、角色（Manager 或 Cashier，默认 Cashier），提交 #62，成功后回员工管理并重取列表。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 员工管理点右上角加人
+    U->>P: 填用户名、昵称、密码，选角色，点「Confirm」
+    P->>A: #35;62 [createEmployee]<br/>POST /device/employee/management/add<br/>{ user_name, nick_name, pwd, role }
+    A-->>P: 200
+    P->>U: 提示「New user added successfully」，回员工管理并重取 #35;60
+```
+
+- **请求（#62）**：端带 `user_name`、`nick_name`、`pwd`、`role`（候选写死 `2` Manager、`3` Cashier），不带 `contact_phone`。各字段的规则与能建哪个角色，见契约 `createEmployee`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #62 用户名是邮箱格式或已被占用、密码不合规、`role` 不是 2 或 3 | 400 | 不提示，留在本页 |
+| #62 没有管理成员的权限（收银员预设没有）、角色超出自己的权限 | 400 | 同上 |
+| #62 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：User Details（用户详情）
+
+进页取一次员工详情（#61）。可进改昵称、重置密码、绑定微信，可在弹窗里改角色（#63），可删除（#64）。哪些项能点由端按详情里的角色与 `one_self` 判断。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 员工管理点一行
+    P->>A: #35;61 [getEmployee]<br/>GET /device/employee/management/{account_id}
+    A-->>P: 200 { user_name, nick_name, mch_role, wechat_open_id, wechat_name, create_time }
+    Note over P: mch_role 为 1 且不是本人时密码、昵称、微信三项不可点<br/>mch_role 为 1 时角色不可改、没有删除按钮
+    opt 改角色
+        U->>P: 点「Role」，选 Manager 或 Cashier
+        P->>A: #35;63 [updateEmployee]<br/>POST /device/employee/management/update<br/>{ account_id, role }
+        A-->>P: 200
+        Note over P: 只改本地显示
+    end
+    opt 删除
+        U->>P: 点「Delete User」，在确认框点确认
+        P->>A: #35;64 [deleteEmployee]<br/>GET /device/employee/management/del/{account_id}
+        A-->>P: 200
+        P->>U: 提示「Deleted user successfully」，回员工管理并重取 #35;60
+    end
+    alt 点「Password」或「Nickname」
+        P->>U: 进重置密码或更改昵称页
+    else 点「Bind WeChat」
+        P->>U: 带 wechat_open_id 进绑定微信页
+    end
+```
+
+- **详情（#61）**：端读 `user_name`、`nick_name`、`mch_role`（同列表的 `role`）、`wechat_open_id`（只看有没有）、`wechat_name`、`create_time`（只显示日期部分）。各键的含义与看别人要什么权限，见契约 `getEmployee`。
+- **端的可点规则**：`mch_role` 为 1（Admin）的账号，不是本人时密码、昵称、微信三项都不可点；角色一项对 Admin 不可点；删除按钮只对非 Admin 显示。这些只是端的显示规则，服务端照常按权限判。
+- **改角色（#63）**：端只带 `account_id` 与 `role`（`2` 或 `3`），成功后只改本地显示。改角色的效果与拒绝情形见契约 `updateEmployee`。
+- **删除（#64）**：成功后提示并回员工管理、重取 #60。删除的效果与拒绝情形见契约 `deleteEmployee`。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #61 不存在或不在本商户、看别人而没有看成员的权限，或其他失败 | 400 或 5xx | 不提示，各栏显示 `-` |
+| #63 `role` 不是 2 或 3，目标是 Owner、本人或不在本商户，超出自己的权限，没有管理成员的权限 | 400 | 不提示，角色弹窗收起，显示不变 |
+| #64 目标是 Owner 或不在本商户、没有管理成员的权限 | 400 | 不提示，留在本页 |
+| #63、#64 商户处于仅查看 | 400，`code` 为 `208035` | 同上各行 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Edit Nickname / Reset Password（更改昵称 / 重置密码）
+
+同一页面按 `type` 分两种，都提交 #63。改昵称成功后回用户详情并重取；重置密码成功弹框，确认后：改的是本人则端直接退出登录回登录页，否则回用户详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+
+    U->>P: 用户详情点「Nickname」或「Password」
+    U->>P: 输新昵称或新密码，点「Confirm」
+    P->>A: #35;63 [updateEmployee]<br/>POST /device/employee/management/update<br/>{ account_id, nick_name } 或 { account_id, pwd }
+    A-->>P: 200
+    alt 改昵称
+        P->>U: 回用户详情并重取 #35;61
+    else 重置密码，改的是别人
+        P->>U: 弹「Reset password successfully」，确认后回用户详情并重取 #35;61
+    else 重置密码，改的是本人
+        P->>U: 弹「Reset password successfully」
+        Note over P: 确认后清掉本地令牌、回登录页，不发 #35;10
+    end
+```
+
+- **请求（#63）**：端带 `account_id` 加 `nick_name` 或 `pwd` 二者之一，不带旧密码。新密码的规则、改本人与改别人各要什么权限、重置之后哪些登录失效，见契约 `updateEmployee`。
+- **改的是本人的密码**：成功后端清掉本地令牌、回登录页，不发 #10。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #63 密码不合规、目标不在本商户、重置 Owner 的密码，或其他失败 | 400 或 5xx | 不提示，留在本页 |
+| #63 改别人、或重置本人的密码，而没有管理成员的权限 | 400 | 同上 |
+| #63 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+### 页面：Bind WeChat（绑定微信）
+
+进页按传进来的 `wechat_open_id` 有无分两种：未绑时取二维码（#65），显示给要绑定的人用微信扫，同时每 1.5 秒轮询绑定结果（#66），查到 `wechat_openid` 即返回上一页；已绑时显示微信昵称，可解绑（#63）。两种都会取一次员工详情（#61）显示名字与角色。
+
+```mermaid
+sequenceDiagram
+    actor U as 商户员工
+    participant P as 商户 App
+    participant A as 服务端
+    participant W as 微信
+
+    U->>P: 用户详情点「Bind WeChat」，或消息通知设置页点「WeChat Notification」
+    P->>A: #35;61 [getEmployee]<br/>GET /device/employee/management/{account_id}
+    A-->>P: 200 { user_name, mch_role, wechat_name }
+    alt 未绑定
+        P->>A: #35;65 [getWechatBindQrcode]<br/>GET /device/bind_qrcode/{account_id}
+        A-->>P: 200 { url, key }
+        Note over P: url 是二维码图片，显示并可保存到相册
+        loop 每 1.5 秒，不限次数，直到查到 wechat_openid 或离开本页
+            P->>A: #35;66 [getWechatBindStatus]<br/>GET /device/bind_qrcode/status<br/>查询参数 key
+            A-->>P: 200 空对象（还没扫码）
+        end
+        U->>W: 被绑定的人用微信扫码并授权
+        W-->>A: 授权回调
+        Note over A: 给这名成员绑上登录用的微信<br/>同时把这个微信登记为商户的通知接收微信
+        A-->>P: 下一次 #35;66 返回 200 { wechat_openid }
+        P->>U: 停止轮询，回上一页
+    else 已绑定
+        Note over P: 显示 wechat_name
+        U->>P: 点「Unbind」，在确认框点确认
+        P->>A: #35;63 [updateEmployee]<br/>POST /device/employee/management/update<br/>{ account_id, delBinding: true }
+        Note over A: 清掉这名成员登录用的微信<br/>同时移除商户通知接收里同一个微信
+        A-->>P: 200
+        P->>U: 回上一页
+    end
+```
+
+- **入口参数**：`account_id` 与 `wechat_open_id` 由上一页带来（用户详情来自 #61，消息通知设置页来自 #42 的 `account_id` 与 `wechat_openid`），端据此决定显示二维码还是已绑定。给本人与给别人绑定、解绑各要什么权限，见契约 `getWechatBindQrcode`、`getWechatBindStatus`、`updateEmployee`、`getEmployee`。
+- **二维码（#65）**：端把 `url` 当图片显示、可保存到相册，存下 `key` 用来轮询。绑上后的效果见契约 `getWechatBindQrcode`。
+- **轮询（#66）**：端每 1.5 秒带 `key` 查一次，返回里有 `wechat_openid`（只看有没有）即停止并回上一页；不设次数上限、出错也继续，直到离开本页。
+- **解绑（#63）**：端发 `{ account_id, delBinding: true }`；解绑的效果见契约 `updateEmployee`。
+- **头像**：已绑定时只显示昵称，不显示头像。
+
+失败时端的表现：
+
+| 情形 | 状态码 | 端的表现 |
+|---|---|---|
+| #61 失败（含看别人而没有看成员的权限） | 400 或 5xx | 不提示，名字与角色空着 |
+| #65 成员已绑着另一个微信、目标不在本商户、给别人绑而没有管理成员的权限 | 400 | 不提示，二维码位一直是加载骨架，也不轮询 |
+| #65 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| #66 `key` 过期或不对 | 400 | 不提示，继续轮询 |
+| #63 解绑失败（含给别人解绑而没有管理成员的权限） | 400 或 5xx | 不提示，确认框收起，留在本页 |
+| #63 商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
+| 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
+
+## 相对现网的改动
+
+接口的地址与形状照旧，下表只列服务端行为不同的地方。
+
+| 改动 | 现网 | 现在 | 端会感受到什么 |
+|---|---|---|---|
+| 切换上线时重新登录一次 | — | 现网发出的令牌不带过来 | 第一个请求收到 403、回登录页，重新登录后照常使用 |
+| 令牌有效期 | 令牌没有有效期 | 默认 69 天（可配置），不续期 | 登录满 69 天后回登录页，重新登录 |
+| 账号被停用之后 | 已登录的 App 照常可用 | 令牌失效，请求回 403 | 回登录页，再登录被拒 |
+| 商户被冻结、设备被停用之后 | 已登录的 App 照常可用；商户被冻结时登录也不拦 | 请求回 403；登录、切换到被冻结的商户或设备被停用的商户回 400；解冻或重新启用后要重新登录 | 回登录页，再登录被拒，端弹的是固定提示「用户名或密码错误」 |
+| 在 App 内改登录密码、找回密码重置之后 | 该账号已登录的设备不受影响 | App 内改登录密码后，发起修改的这部手机保持登录，该账号在其他设备与会话上的登录失效；找回密码重置后，该账号已登录的设备全部失效 | 这些设备回登录页，用新密码重新登录 |
+| 请求缺 `devCid` 头 | 回 400，端不登出 | 回 403 | 回登录页 |
+| 登记推送令牌时会话无效 | 回 HTTP 401（响应体 `status` 为 403） | 回 403 | 端对 401 与 403 处理相同，无差别 |
+| 登录时账号不存在与密码不对 | 两种文案 | 同一个码、同一种文案，不区分 | 端本就弹固定提示，无差别 |
+| 切换商户：核对身份 | 不看令牌，也不核对登录者与目标商户的关系 | 要求有效令牌，且目标商户在登录者可访问的范围内 | 正常切换无感 |
+| 切换商户：切过去之后是谁 | 变成目标商户的第一个管理员，拿到一个新令牌 | 仍是登录的那个人，角色不变，令牌不变 | 主商户里不是管理员的员工切到关联商户后，权限按本人的角色算，比现网小 |
+| 登录锁定 | 密码错满 5 次锁 10 分钟 | 默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、POS 登录共用计数 | 锁定时间变长；在网页或 POS 上输错的次数也算进来 |
+| 找回密码：邮箱的含义 | 主商户的联系邮箱，列出该商户下的全部有效账号 | 账号自己的邮箱；Owner 的邮箱另可重置本商户的员工账号 | 要填账号自己（或商户 Owner）的邮箱，列出的账号范围随之不同 |
+| 找回密码：发码 | 邮箱不存在时回 404，端提示「邮箱不存在或未绑定。」 | 不透露邮箱是否存在，一律按发码成功返回 | 邮箱填错时不再有提示，只是收不到邮件 |
+| 找回密码：列账号与重置 | 列账号不需要先通过验证码；重置只凭账号编号，不核对验证码 | 校验验证码通过后服务端给端留一个短时标记，列账号与重置都须带着它、且对得上这次校验；列账号只有邮箱通过校验后默认 60 秒内（可配置）的第一次返回账号；账号编号是一次性的重置凭证，默认 10 分钟内有效（可配置），重置只认它 | 正常流程无感，标记由端的网络层自动保存与带上。Android 上没有可用的系统 WebView 的手机存不住标记，列账号总是为空、App 上找回不了密码且没有提示，只能到网页找回 |
+| 找回密码：验证码与新密码 | 验证码输错不限次数，错了回 500，端提示固定的「验证码错误。」；新密码服务端不校验 | 验证码有错误次数上限，错了回 400；新密码须符合密码规则 | 验证码不对时端显示响应里的 `message`；连续输错到上限后要重新发码；新密码不合规时重置不成功，端没有提示 |
+| 改退款密码 | 登录着的任何角色都能凭旧密码改 | 与商户后台同一条约束，要有管理退款密码的权限 | 没有这项权限的员工提交后提示通用文案「发生错误，请稍后再试。」 |
+| 「顾客承担手续费」开关（#11） | 打开时把适用的支付方式、入口与上浮费率重置为全量默认，关闭时清空，会覆盖商户后台此前的设定；不看角色；缺 `enable` 回 500 | 只改商户级开关，适用范围与费率不动；要有「收款页设置」的编辑权限；缺 `enable` 回 400 | 端无差别；商户后台的设定不再被 App 上的开关覆盖 |
+| 付款码下单：渠道拒绝（#12） | 订单落库就回 200，渠道结果在后台补上；付款码失效、渠道拒付时端轮询只认成功，员工空等 30 次后看到超时 | 等渠道的首次应答再返回；渠道拒绝直接回 400，`message` 写明原因 | 员工马上看到失败原因，留在扫码页 |
+| 付款码下单的重复请求（#12） | 不去重：重扫同一个码会再下一单 | 同一部手机用同一个付款码、同样的金额、币种与预授权标记的重复请求视为同一笔，返回第一次的结果 | 重扫同一个码不再重复下单 |
+| 付款码下单的响应（#12） | `data` 是订单整行，含顾客付款码原文 | `data` 只有 `order_id`、`status` | 端只读 `order_id`，无差别 |
+| 收款币种（#12） | 平台支持的币种都收下，再由渠道判能否下单 | 只收商户结算币种或人民币，其他回 400 | 端只在商户币种与人民币之间选，正常无感 |
+| 查订单（#13） | 不校验订单归属，任何商户的订单号都能查；订单不存在回 500 | 只能查当前商户及其子商户的订单；别的商户的与不存在的回 400 | 端对单次查询失败一律停止查询并提示超时，无差别；查不到别的商户的订单 |
+| 门店码缺变体（#14） | 人民币码、预授权码不判商户是否开通，总能取到 | 商户没开通人民币、预授权或银联时，对应的变体回 400 | 对应的码位空着，没有提示 |
+| 门店码的币种（#14） | `currency` 只用来判断是不是人民币，其他一律按平台币种出码 | `currency` 不是商户结算币种或人民币时回 400 | 端只在商户币种与人民币之间选，正常无感 |
+| 门店码的码内容（#14） | 非银联码是 `/payment/{商户编码}/{币种}` 形式的地址 | 这个商户店铺码的付款地址，格式不同 | 端只显示图片，无差别 |
+| 退款密码锁定（#15） | 输错不限次数 | 连续错达上限（可配置）后锁定一段时间，锁定期内回 400；锁定期内退款密码校验不通过（商户后台、商户 App、POS 都一样） | 连续输错后一段时间内退不了款，端照样提示「Refund password incorrect」 |
+| 退款的重复提交（#15） | 不去重 | 同一部手机对同一订单、同样金额的重复请求在 60 秒内（可配置）视为同一笔，返回第一次的结果 | 连点或重试不再重复退款；60 秒内对同一订单同额连退两次会被合并成一笔 |
+| 释放预授权的订单归属（#16） | 不校验归属，任何订单号都能释放 | 只能释放当前商户自己的订单，子商户的与别的商户的按不存在回 400 | 子商户的预授权订单要切到该子商户再释放 |
+| 重复释放预授权（#16） | 第二次回 400 | 同一订单在 60 秒内的重复释放请求（不论哪台设备）返回 200，之后回 400 | 60 秒内重试释放不再显示失败 |
+| 退款详情（#13，`payType=Debit`） | 不校验归属，任何退款号都能查；查不到回 500 | 只能查当前商户及其子商户的退款，不存在或不在范围内回 400 | 端照样回退到订单详情里的 `refundTrans`，无差别 |
+| `refundTrans` 与退款详情（#13） | 按订单下的退款记录列出，退款详情另给 `payOrderId` / `orderStatus` / `mchName` | 只列已受理的退款（处理中与成功）；退款详情不再返回 `payOrderId`、`orderStatus`、`mchName` | 退款详情少三个端不读的字段，无感 |
+| 仅查看时释放预授权（#16） | 不拦 | 回 400 | 处于仅查看的商户释放不了，端显示通用错误文案 |
+| 退款时渠道拒绝（#15） | 微信回 500，其他渠道回 400 | 一律回 400，带渠道给的原因 | 端都显示通用错误文案，无差别 |
+| 退款（#15）与释放（#16）要有对应权限 | 不看角色 | 要有商户后台「发起退款」「完成或释放预授权」的权限，没有回 400 | 店长、收银员预设都含这两个权限，一般无感 |
+| 首页的「今日」（#17） | 「今日」取服务器所在时区的当天，按订单的创建时间统计，今日退款只算今天创建的订单上的退款 | 商户当前营业日；收款按付款成功时刻、退款按受理时刻归日，退款按受理当天计 | 首页的今日数与流水页当天组头的合计对得上；今天退的往日订单也算进今日退款 |
+| 首页的键（#17） | 另返回今日净额、当日公告、两个消息数、子商户列表与其他品牌的汇率 | 只返回端读的键 | 端不读这些键，无差别 |
+| 首页的余额（#17） | 全部未清算流水的结算额合计，不扣商户欠平台的钱 | 与商户后台余额卡片上的账户余额同一个量：可结算余额减去商户欠平台的钱，含预授权挂起中的款项，可能为负 | 有欠款的商户看到的余额变小；可能出现负数 |
+| 流水按日分组的合计（#18） | 行按交易时间分日，组头的当日收款与退款按入账时间统计，且不随状态、渠道筛选变 | 行与组头合计按同一个营业日；合计与列表同范围、同条件 | 组头合计与该组的行对得上；筛了渠道后组头只合计所筛的渠道 |
+| 流水里的退款行（#18） | 退款一提交就列出一行，退款失败后这一行不撤 | 只列已受理的退款（处理中或成功） | 失败的退款不再出现在流水里 |
+| 流水退款行的金额（#18 的 `clear_fee`） | 人民币标价的订单，退款行显示订单总额 | 退款行一律是这笔退款的金额，按标价币种 | 人民币标价的订单部分退款时，退款行显示实退的金额 |
+| 清算状态筛选（#18 的 `order_clear_status`） | 按清算状态筛 | 收下不用 | 端不带这个参数，无差别 |
+| 收据的范围与语言（#19、#20） | 不校验归属，任何单号都能出收据，抬头却是当前商户；固定英文 | 只出当前商户及其子商户的，不在范围内或不可出回 400；语言按登录用户的语言偏好，没设时英文 | 正常无感；设了其他语言偏好的用户，收据随之换语言 |
+| 付款收据上的时间（#19） | 建单时间 | 付款成功时刻（与商户后台的付款收据同一张） | 顾客扫码后隔了一会才付的订单，收据上的时间比原来晚；端不用升级 |
+| 数据分析（#21） | 按小时看时 `payCount` 是客户数；新老客户饼图恒为全部新客户 | `payCount` 各粒度都是笔数；`newCust`、`oldCust`、`newCount`、`oldCount` 恒为 0 | 单日折线的笔数变成交易笔数；新老客户饼图两项都是 0 |
+| 账单号（#22 至 #26 的 `bill_id`） | 商户号加 8 位随机数字的字符串 | 纯数字的字符串，商户内递增，与商户后台网页上的账单号同号 | 端照旧原样带回，无差别；列表上显示的号变短，与网页后台对得上 |
+| 账单码的有效期（#22 的 `expiration_time`） | 按时刻算：`today` 到次日零点，`24h`、`48h`、`72h` 从新建时刻往后数 | 按到期日算：`today`、`24h`、`48h` 分别到当天、次日、后天结束（商户时区），`72h` 无期限 | `24h`、`48h` 到到期日结束为止，比现网长一些；标着「Never」的那一项真的不再过期 |
+| 列表的 `cancle_time`（#23） | 剩余超过 48 小时就给 `-1` | 只有无期限的给 `-1`，其余给到截止时刻（到期日次日零点）的剩余毫秒 | 「Permanent」只出现在无期限的账单码上；其余的倒计时可能超过 48 小时 |
+| 停用账单码（#25） | 停用的账单码留在列表里，显示已停用 | 与删除同效：码失效，列表上不再出现 | 停用后端只改本地这一行，重新取列表时这一行消失 |
+| 列表的行（#23） | 一张账单有多笔不同状态的订单时出重复行 | 一账单一行 | 不再出现重复行 |
+| 付款方式图标（#24 的 `payways`） | 新建时写死五种 | 商户当前可受理的支付方式，取详情时现算 | 分享图上只画商户真能收的方式 |
+| 详情里的订单（#24 的 `data`） | 账单下全部订单的收款与退款行 | 只给生效的那一笔已付订单，未付时为 `[]`；行上不再有 `refund_id` | 「Transaction Details」照旧取第一行的 `order_id`，无差别 |
+| 详情的 `remark` 与 `payways`（#24） | 不返回（端在读） | 返回 | 码页上显示备注与付款方式图标 |
+| 仅查看时新建、停用、删除账单码与开关「顾客承担手续费」（#22、#25、#26、#11） | App 不读这个开关，服务端也不拦 | 回 400、`code` 为 `208035`；列表与详情照常 | 处于仅查看的商户建不了、删不了账单码，收款页发起的弹出 `message`，其余不提示 |
+| 新建账单码的重复提交（#22） | 不去重，连点会建出多张 | 同一账号在同一商户下 60 秒内（可配置）同样的金额、币种、备注、有效期与预授权标记的重复新建，返回第一次的 `bill_id` | 连点不再多建 |
+| 按权限点判（#12 至 #68） | 不看角色：管理员、店长、收银员在 App 上能做的一样（员工列表里收银员只见自己） | 按商户后台的权限点判，员工可以持多个角色、权限取并集。收款（#12、#14）要终端收款的权限，查单、流水与订单消息（#13、#18、#38）要看支付订单，首页与图表（#17、#21）要看首页，账单码列表与详情（#23、#24）要看账单、建停删（#22、#25、#26）要管账单。预设的收银员没有改收款页设置与订单有效期、改商户资料与 logo、改银行账户、看清算记录、看月对账单、退款账户充值、增删通知邮箱、员工管理的权限；店长没有改商户资料与 logo、改银行账户的权限；退款密码的修改与邮箱重置要有管理退款密码的权限，店长、收银员预设都没有 | 没有权限时接口回 400，端按各页的失败处理（多数不提示）；只持商户后台其他预设角色（如 Employee）的员工能看流水、不能收款，要收款得加收银员角色 |
+| 对象归属（#31 至 #34、#61、#63 至 #65） | 清算记录与明细、月对账单、员工详情、修改、删除、绑微信二维码不校验对象属于哪个商户，`mch_ids`、`mch_id`、`account_id` 填别家的也照办 | 只认当前商户的对象（清算记录与月对账单另含登录者可访问的关联商户），其他回 400 | 正常使用无感 |
+| 上传（#49） | 不要求登录；任何类型都收，存成公网直链，立即可用 | 要求令牌；只收 PNG、JPEG、PDF，默认不超过 2MB（可配置）；被商户 logo 或作废支票引用后才生效，商户 logo 另限 PNG 或 JPEG、默认不超过 512KB（可配置）；没被引用的到期清理 | 超出类型或大小的图片换不了 logo、交不了作废支票，端不显示原因 |
+| 改银行账户（#53、#67） | 一步提交，不要验证码；审核中的新值在 #30 的 `pendingBankInfo` 里、App 上显示；账号给全 | 先向 Owner 的登录邮箱发验证码（#67），#53 带上票据与验证码，不带回 400 提示升级；同一个 `ticket`、同一个验证码与同样的银行账户各项重复提交只建一笔申请；审核中 `pendingBankInfo` 为空对象；账号只给末 4 位 | 旧包改不了银行账户，留在编辑页、不提示，要升级 App；审核中的银行信息显示空值；改银行信息要重输完整账号 |
+| 改登录邮箱（#54、#55、#68） | 改的是商户联系邮箱；验证码只发往当前邮箱，新邮箱不验证；提交后进运营审核，审核中 #30 带 `email_verify`、`pending_email` | 改的是本人的登录邮箱（Owner 改的即商户注册邮箱）；新邮箱也要收码确认（#68），确认后立即生效、不走审核；开了验证器的账号第一步填验证器上的码、不发邮件；现网版本的 App 提交 #55 不核对验证码、不向新邮箱发码，直接回 400 提示升级 | 旧包改不了，提交后弹通用错误文案、邮箱不变，要升级 App；联系信息页不再出现「Reviewing」 |
+| 全关支付方式（#58） | 存成空，收款页反而显示全部已开通的方式；未开通的码也收 | 全关回 400，至少留一种；新加的支付方式须已开通，已选着、后来停用的可原样保留 | 全关后保存显示失败动画 |
+| 验证码错（#36、#45、#48、#53、#55、#68） | 多数回 400 带固定文案；#48 回 500，端靠 HTTP 500 加文案认出验证码错 | 一律回 400，带 `204010` / `206006` / `206007`，`message` 写明原因 | #48 的验证码错不再显示「Wrong verification code.」，改为通用错误文案；#55 端靠 `message` 文案分辨，文案对不上时同样是通用错误文案 |
+| 订单消息里的退款（#38） | 收款、退款完成时另存一条消息；退款消息关联不上，列表里出不来 | 不另存，按当前商户成交的收款与已受理的退款现算，与流水同一批行 | 退款消息出现在订单消息里 |
+| 子商户的订单消息（#38） | 子商户的一笔收款落两条，子商户看到重复的 | 按当前商户算，一笔一条 | 子商户不再看到重复的收款消息 |
+| 订单消息的已读（#27、#37、#41） | 按商户记，一人清了全商户都算已读 | 按本人记，本人上次标已读之后的才算未读；公告仍按商户 | 同一商户的员工各自清各自的订单消息未读 |
+| 解绑微信（#63） | 只清账号上的微信，这个微信照收公众号到账通知 | 同时把商户通知接收里同一个微信移除；绑定（#65）时同样登记为通知接收微信 | 解绑后这个微信不再收到收款通知 |
+| 员工的角色数字（#60 至 #63） | 账号上存的 1、2、3；新增与改角色收什么写什么，含 1 | 按持有的角色算：Owner 与持 Admin 的为 1，持店长的为 2，其余为 3，同时持多个角色时按此先后取第一个符合的；新增与改角色只收 2、3 | 只持商户后台其他角色（如 Employee）的员工显示为 Cashier |
+| 退款账户充值的重复提交（#36） | 同一令牌、同样参数 5 秒内重复提交回 400 | 同一商户 60 秒内同一个 `ticket`、同一个验证码、同样的方式与金额重复提交，返回第一次的结果；改了任何一项（含验证码）按新的请求处理 | 连点不再报错，也不重复划款；输错码后重输照常提交 |
+| 仅查看时的商户后台事务（#35、#36、#44 至 #46、#50 至 #56、#58、#59、#62 至 #65、#67、#68，以及 #9、#47、#48 的 `type=refund`） | 不拦 | 回 400、`code` 为 `208035`；本人的推送开关（#43）、标已读（#41）、本人的登录密码（#9、#47、#48 的 `type=login`）、上传（#49）照常 | 处于仅查看的商户改不了这些，端按各页的失败处理 |
+| 员工的微信头像（#60、#61） | 返回头像地址 | 不返回 | 员工列表与绑定页显示缺省头像 |
+| 收款推送开关（#43） | 只管一条现网 App 不走的推送通道，关了照样收到 | 关了这个账号登录的手机就收不到收款推送 | 开关真的生效 |
+| 切换商户后的收款推送 | 这部手机在登录过的每家商户下各登记一次，两家的提醒都推 | 只推手机当前所在商户的提醒（切换后登记的令牌跟着当前商户） | 切换后仍是本人、开关只有一份，提醒按手机当前所在的商户送 |
+| 订单有效期（#56） | 收 20 秒到 24 小时，秒数不必是整分钟 | 换算成整分钟，不是整分钟或超出范围回 400 | 设成不是整分钟的秒数（如 `90s`）保存不了，端不提示 |
+| 银行账户的分行（#30、#53 的 `branch`） | #30 返回分行，#53 存下 | 结算账户没有分行：#30 的 `bankInfo` 不返回 `branch`，#53 的 `branch` 收下不用 | 银行信息页与编辑页的分行一栏为空，填了也不保存 |
+| 收款页的自撰填写项与小费比例（#59） | 服务端不校验；端限自撰项最多 4 项、每项 20 个字符，小费比例两位数 | 自撰项最多 4 项、每项不超过 10 个字符、不以 `sys:` 开头、互不重复；小费三档是 0 到 30 的整数；不合规回 400 | 超出的设不成，显示保存失败动画 |
+| 新密码的规则（#48 的 `type=login`、#62、#63） | #48 只要求 5 到 35 位，#62、#63 服务端不校验（端要求 8 到 30 位、含大写、无空白） | 与商户后台同一条密码规则：至少 8 位，含大写字母、小写字母、数字与特殊字符；不合规回 400 | 端校验能过、服务端不收的密码（如没有数字或特殊字符）设不成，端按各页的失败处理 |
+| 新增员工的用户名（#62） | 不限字符，邮箱形态的用户名也收 | 合法邮箱格式的用户名回 400，邮箱账号要到商户后台邀请 | 填邮箱形态的用户名建不了，端不提示 |
+| 重置员工密码、删除员工之后（#63、#64） | 服务端不让会话失效，被重置密码或被删除的账号已登录的设备照常可用 | 被重置密码或被删除的账号，所有设备与会话上的登录随即失效 | 这些设备回登录页；被删除的账号再登录被拒 |
+| 支付方式码 `unionpay`（#58） | 收下存起，收款页上没有用到它的地方 | 收下不用；`payways` 只有它时按一项都没有回 400 | 端无差别；只开着它一项时保存失败，与全关相同 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

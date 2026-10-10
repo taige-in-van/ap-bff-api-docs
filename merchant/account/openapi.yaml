@@ -20,10 +20,13 @@ security:
   - cookieAuth: []
 tags:
   - name: profile
+    x-displayName: 商户资料
     description: Business Profile：读资料（Business Information / Settlement / Contact / Documents）、编辑 Business Information 与联系人（直接生效）、换 / 移除 Logo；结算信息变更走事前审批：上传 Void Cheque、发码到 Owner 邮箱、带码提交变更请求（进入审核、旧值继续生效，同一商户至多一个审核中）。
   - name: service
+    x-displayName: 受理与接入
     description: 受理模式（线下 / 线上）的开通与支付方式开关、Moneris / Clover 连接与停用、Shopify / Allvalue 接入与管理。
   - name: refund-pin
+    x-displayName: 退款 PIN
     description: Refund PIN：改 PIN（当前 PIN + 新 PIN）、忘记 PIN 自助重置（发码到 Owner 邮箱 → 码 + 新 PIN 一次提交）。
 paths:
   /account/profile:
@@ -703,7 +706,7 @@ paths:
       tags:
         - refund-pin
       operationId: changeRefundPin
-      x-required-privilege: owner
+      x-required-privilege: account:refund-pin:manage
       summary: 改退款 PIN（用当前 PIN 校验）
       description: |
         校验当前 PIN 后改为新 PIN（不可与当前相同）。旧 PIN 立即失效，进行中的忘记 PIN 作废，发 PIN 已改通知邮件。
@@ -752,10 +755,10 @@ paths:
       tags:
         - refund-pin
       operationId: requestRefundPinReset
-      x-required-privilege: owner
+      x-required-privilege: account:refund-pin:manage
       summary: 忘记退款 PIN 第 1 步（发码到 Owner 邮箱）
       description: |
-        生成 6 位码发到 Owner 的登录邮箱，返回 `challengeId`、脱敏邮箱与冷却秒数，不需要当前 PIN。重新调用得到新 `challengeId`，旧码作废。
+        生成 6 位码发到 Owner 的登录邮箱（不论谁发起），返回 `challengeId`、脱敏邮箱与冷却秒数，不需要当前 PIN。重新调用得到新 `challengeId`，旧码作废。
 
         不挂幂等键（挑战类，每次发新码）。冷却内重复调用返回 `429`·`208013`。
       parameters:
@@ -781,7 +784,7 @@ paths:
       tags:
         - refund-pin
       operationId: confirmRefundPinReset
-      x-required-privilege: owner
+      x-required-privilege: account:refund-pin:manage
       summary: 忘记退款 PIN 第 2 步（码 + 新 PIN 一次提交）
       description: |
         校验 Owner 邮箱收到的码，码对才消费并写入新 PIN。旧 PIN 立即失效、锁定解除，发 PIN 已改通知邮件。码错不消费。
