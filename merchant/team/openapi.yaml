@@ -149,8 +149,8 @@ paths:
                       - Owner
                     status: ACTIVE
                     isOwner: true
-                    wechatBound: true
-                    wechatNickname: Jane
+                    wechat:
+                      nickname: Jane
                     lastLoginAt: '2026-06-22T14:05:00Z'
                     createdAt: '2026-01-10T09:00:00Z'
                   - operatorId: op_3b8f2
@@ -164,7 +164,6 @@ paths:
                       - Finance
                     status: ACTIVE
                     isOwner: false
-                    wechatBound: false
                     lastLoginAt: '2026-06-20T11:30:00Z'
                     createdAt: '2026-03-02T16:20:00Z'
                   - operatorId: op_5d4e1
@@ -176,7 +175,6 @@ paths:
                       - Operator
                     status: INVITED
                     isOwner: false
-                    wechatBound: false
                     createdAt: '2026-06-21T08:15:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -190,14 +188,14 @@ paths:
       description: |
         按登录名形态分两支：是合法邮箱格式的为邮箱，不带密码，建邀请中（`INVITED`）的成员并发邀请设密链接；其余为用户名，由建号的人设初始密码，直接建可用（`ACTIVE`）的成员。员工归属当前商户（在主商户建的能切换到名下的关联商户，在关联商户建的只在本商户）。角色可以给一个或多个，不可选 Owner 角色。
 
-        登录名属于本商户已删除的员工时，按新建处理并沿用原账号（历史记录接续）：旧密码、MFA、微信绑定都作废，角色以本次提交的为准；邮箱登录名回到邀请中、重发邀请，用户名登录名用本次给的初始密码。原账号若被运营停用，仍保持停用（返回 `DISABLED`），只能由运营解除。
+        登录名属于已删除的账号时（不论原属哪个商户），按新建处理并沿用原账号（历史记录接续）：旧密码、MFA、微信绑定都作废，角色以本次提交的为准；邮箱登录名回到邀请中、重发邀请，用户名登录名用本次给的初始密码。原账号若被运营停用，仍保持停用（返回 `DISABLED`），只能由运营解除。
 
         幂等基准：`Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体返回 `409`·`208005`。
 
         错误码：
 
         - `968001` 登录名已被其他账号使用（含其他商户的账号）。
-        - `206013` 要给的角色里有超出操作者权限边界的（含沿用已删除员工的账号时本次提交的角色）。
+        - `206013` 要给的角色里有超出操作者权限边界的（含沿用已删除账号时本次提交的角色）。
         - `208005` 同一幂等键被用于不同的请求体。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -251,7 +249,7 @@ paths:
       description: |
         只提交要改的字段，全部同步生效，要么全成功、要么全失败。各字段的副作用：
 
-        - `newPassword`：重设该员工密码，其全部会话失效；邀请中的员工不能在这里设密。
+        - `newPassword`：重设该员工密码，其全部会话失效，并给该员工登录邮箱发密码已修改通知（用户名账号不发）；邀请中的员工不能在这里设密。
         - `loginId` 为用户名：直接生效。
         - `loginId` 为邮箱：已激活员工不直接生效，向新邮箱发确认链接，员工在落地页确认（`confirmMemberLoginEmail`）后才切换，确认前旧邮箱仍有效、新邮箱不占用；同一员工的登录邮箱同时只有一笔改动在途（含员工自己在 My Profile 发起的），再改会顶掉上一笔。邀请中的员工改邮箱 = 向新邮箱重发邀请。
         - `roleIds`：该员工在本商户的角色整组换成所给的这组，权限立即按新角色的并集判定。
@@ -264,6 +262,7 @@ paths:
 
         - `968001` 新登录名已被其他账号使用。
         - `206013` 改成的角色、或该成员现有的角色里有超出操作者权限边界的。
+        - `208003` 给邀请中的员工填了新密码。
         - `208005` 同一幂等键被用于不同的请求体。
       parameters:
         - name: operatorId
@@ -291,6 +290,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 206013
+        - 208003
         - 208005
         - 968001
     delete:
@@ -326,6 +326,7 @@ paths:
 
         错误码：
 
+        - `208003` 该员工已不在邀请中（如已激活），重拉列表。
         - `208013` 重发冷却未到；剩余秒数见 `context.cooldownSeconds`。
       parameters:
         - name: operatorId
@@ -354,6 +355,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 206013
+        - 208003
         - 208013
   /team/members/{operatorId}/wechat:
     post:
@@ -576,13 +578,17 @@ components:
           description: ACTIVE 邮箱员工被改了登录邮箱、待新邮箱确认时的 pending 新邮箱（确认前旧邮箱仍有效）;**无待确认邮箱则不返回本键**
         isOwner:
           type: boolean
-        wechatBound:
-          type: boolean
-          description: 该成员的商户后台 WeChat 登录是否已绑定；不代表其平台级 WeChat 账号是否存在
-        wechatNickname:
-          type: string
-          minLength: 1
-          description: 绑定的微信昵称展示快照（绑定时写入、每次微信登录刷新；平台未拿到昵称时为兜底通用展示名，故恒非空）。wechatBound 为 **true 时必返**，未绑定不返回本键。只用于 Owner 辨认该成员绑的是哪个微信，不代表其平台级微信账号身份。
+        wechat:
+          type: object
+          additionalProperties: false
+          required:
+            - nickname
+          description: 该成员的商户后台微信登录绑定；未绑定不返回本键。不代表其平台级微信账号是否存在。
+          properties:
+            nickname:
+              type: string
+              minLength: 1
+              description: 绑定的微信昵称展示快照（绑定时写入、每次微信登录刷新；平台未拿到昵称时为兜底通用展示名，故恒非空）。只用于 Owner 辨认该成员绑的是哪个微信。
         lastLoginAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -729,9 +735,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
@@ -855,7 +870,7 @@ components:
             - BOUND
             - EXPIRED
           readOnly: true
-          description: '`WAITING` = 继续轮询；`BOUND` = 绑定已生效；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
+          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认，登录绑定即时生效，通知接收方随后出现在列表；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

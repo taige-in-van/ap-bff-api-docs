@@ -28,10 +28,10 @@
 | 2 | [`registerPushToken`](../app/index.html#tag/auth/operation/registerPushToken) | pay | `PUT /token` | 登记本机的推送令牌，登录后与切换商户后各调一次 | 登录 |
 | 3 | [`listSubMerchants`](../app/index.html#tag/auth/operation/listSubMerchants) | pay | `GET /device/merchant/child/{clientMoniker}` | 可切换的商户列表 | 切换商户 |
 | 4 | [`switchMerchant`](../app/index.html#tag/auth/operation/switchMerchant) | pay | `POST /{devType}/login/switch` | 切换到另一个商户 | 切换商户 |
-| 5 | [`sendForgotPasswordCode`](../app/index.html#tag/auth/operation/sendForgotPasswordCode) | pay | `GET /device/forgotPassword/code` | 找回密码：向邮箱发验证码 | 找回密码 |
-| 6 | [`listAccountsByEmail`](../app/index.html#tag/auth/operation/listAccountsByEmail) | pay | `GET /device/accountByEmail` | 找回密码：按邮箱列出账号 | 找回密码 |
-| 7 | [`verifyForgotPasswordCode`](../app/index.html#tag/auth/operation/verifyForgotPasswordCode) | pay | `GET /device/forgotPassword/verify` | 找回密码：校验验证码 | 找回密码 |
-| 8 | [`resetForgottenPassword`](../app/index.html#tag/auth/operation/resetForgottenPassword) | pay | `POST /device/forgotPassword/resetPassword` | 找回密码：重置登录密码 | 找回密码 |
+| 5 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：向邮箱发验证码 | 找回密码 |
+| 6 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：按邮箱列出账号 | 找回密码 |
+| 7 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：校验验证码 | 找回密码 |
+| 8 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：重置登录密码 | 找回密码 |
 | 9 | [`changePassword`](../app/index.html#tag/auth/operation/changePassword) | pay | `PUT /device/updatePassword` | 凭旧密码修改登录密码或退款密码 | 账户与安全 |
 | 10 | [`signOut`](../app/index.html#tag/auth/operation/signOut) | pay | `GET /device/sign_out` | 退出登录 | 商户资料 |
 | 11 | [`setCustomerSurcharge`](../app/index.html#tag/products/operation/setCustomerSurcharge) | pay | `POST /device/cusPaySurcharge` | 开关「顾客承担手续费」 | 账户与安全 |
@@ -70,8 +70,8 @@
 | 44 | [`sendNoticeEmailCode`](../app/index.html#tag/notifications/operation/sendNoticeEmailCode) | pay | `GET /device/send/emailCode` | 添加通知邮箱：向要添加的邮箱发验证码 | 收款通知设置 |
 | 45 | [`addNoticeEmail`](../app/index.html#tag/notifications/operation/addNoticeEmail) | pay | `POST /device/paymentnotice/email` | 添加通知邮箱 | 收款通知设置 |
 | 46 | [`deleteNoticeEmail`](../app/index.html#tag/notifications/operation/deleteNoticeEmail) | pay | `GET /device/del/email` | 删除通知邮箱 | 收款通知设置 |
-| 47 | [`sendPasswordEmailCode`](../app/index.html#tag/auth/operation/sendPasswordEmailCode) | pay | `GET /device/merchant/reset/verifyCode` | 向 Owner 的登录邮箱发验证码：`type=login` 重置本人的登录密码，`type=refund` 重置退款密码（要有管理退款密码的权限）；退款页的退款密码弹层里也用 | 账户与安全 |
-| 48 | [`resetPasswordWithEmailCode`](../app/index.html#tag/auth/operation/resetPasswordWithEmailCode) | pay | `POST /device/merchant/reset/pwd` | 凭邮箱验证码重置：`type=login` 本人的登录密码，`type=refund` 退款密码（要有管理退款密码的权限） | 账户与安全 |
+| 47 | [`sendPasswordEmailCode`](../app/index.html#tag/auth/operation/sendPasswordEmailCode) | pay | `GET /device/merchant/reset/verifyCode` | 向 Owner 的登录邮箱发验证码，重置退款密码（要有管理退款密码的权限；`type=login` 不受理）；退款页的退款密码弹层里也用 | 账户与安全 |
+| 48 | [`resetPasswordWithEmailCode`](../app/index.html#tag/auth/operation/resetPasswordWithEmailCode) | pay | `POST /device/merchant/reset/pwd` | 凭邮箱验证码重置退款密码（要有管理退款密码的权限；`type=login` 不受理） | 账户与安全 |
 | 49 | [`uploadImage`](../app/index.html#tag/account/operation/uploadImage) | pay | `POST /device/upload` | 上传图片或 PDF（logo、作废支票），被引用后才生效 | 商户资料 |
 | 50 | [`updateMerchantLogo`](../app/index.html#tag/account/operation/updateMerchantLogo) | pay | `POST /device/mchLogo/update` | 更换商户 logo | 商户资料编辑 |
 | 51 | [`updateMerchantTimezone`](../app/index.html#tag/account/operation/updateMerchantTimezone) | pay | `POST /device/mch/timezone` | 修改商户时区 | 商户资料编辑 |
@@ -95,7 +95,7 @@
 
 ## 登录后的每个请求
 
-登录（#1）返回的 `token` 下称令牌。登录与找回密码（#1、#5、#6、#7、#8）不要求令牌，其余请求都要求，切换商户（#4）也要求。
+登录（#1）返回的 `token` 下称令牌。登录（#1）不要求令牌，其余请求都要求，切换商户（#4）也要求；旧版找回密码入口在认证前就地回 `400`，也不要求令牌。
 
 | 头 | 取值 |
 |---|---|
@@ -161,6 +161,7 @@ sequenceDiagram
 | #1 账号被停用 | 400 | 同上 |
 | #1 账号的主商户被冻结 | 400 | 同上 |
 | #1 这部手机在该商户下的设备已被停用 | 400 | 同上 |
+| #1 本机上报的 `uuid` 不能用作设备标识 | 400 | 同上 |
 | #1 服务端故障或网络不通 | 5xx 或无响应 | 弹固定提示「登录失败，请稍后再试」 |
 | #2 登记推送令牌被拒 | 400 | 不提示，照常进首页 |
 | #2 及之后的请求遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
@@ -210,86 +211,13 @@ sequenceDiagram
 | #4 目标商户不在登录者可访问的范围内 | 400 | 不提示，仍在原来的商户 |
 | #4 目标商户被冻结 | 400 | 同上 |
 | #4 这部手机在目标商户下的设备已被停用 | 400 | 同上 |
+| #4 本机上报的 `uuid` 不能用作设备标识 | 400 | 同上 |
 | 切换后 #2 登记推送令牌被拒 | 400 | 不提示，切换照常完成 |
 | #3、#4、#2 遇到令牌无效、设备被停用、当前商户被冻结 | 403 | 回登录页，见「登录后的每个请求」 |
 
 ## 流程：找回密码
 
-四步，端实际的调用先后是：发验证码（#5）、校验验证码（#7）、按邮箱列账号（#6）、重置密码（#8）。端上是两屏（Forgot Login Password、Reset Login Password），中间弹一个选账号的弹窗（Select the User）。这个邮箱能重置哪些账号见契约 `listAccountsByEmail`。
-
-### 页面：Forgot Login Password（找回密码）
-
-同一屏里先填邮箱发码，再填验证码点「Next」。
-
-```mermaid
-sequenceDiagram
-    actor U as 商户员工
-    participant P as 商户 App
-    participant A as 服务端
-    participant M as 邮箱
-
-    U->>P: 进找回密码，输邮箱，点发送
-    P->>A: #35;5 [sendForgotPasswordCode]<br/>GET /device/forgotPassword/code<br/>查询参数 email
-    A-->>P: 200 { ticket }
-    A-->>M: 验证码邮件
-    M-->>U: 查看验证码
-    U->>P: 输验证码，点「Next」
-    P->>A: #35;7 [verifyForgotPasswordCode]<br/>GET /device/forgotPassword/verify<br/>查询参数 email、ticket、ticketValue（验证码）
-    A-->>P: 200<br/>同时下发一个短时标记，端的网络层自动保存
-    P->>U: 弹出选账号的弹窗
-```
-
-- **发码（#5）**：端带输入的 `email`，存下返回的 `ticket`。邮箱不存在时怎么返回见契约 `sendForgotPasswordCode`。
-- **校验（#7）**：端带 `email`、#5 的 `ticket` 与输入的验证码。通过后服务端下发一个短时标记（cookie），端的网络层自动保存、在 #6 与 #8 自动带上，端的代码不用处理它；标记的名字、属性与有效期，以及验证码的有效期与错误次数上限，见契约 `verifyForgotPasswordCode`。
-
-| 情形 | 状态码 | 端的表现 |
-|---|---|---|
-| #5 邮箱不存在 | 200，与发码成功相同 | 按发码成功处理，只是收不到邮件 |
-| #7 验证码不对、已过期或错的次数到了上限 | 400 | 显示响应里的 `message` |
-
-### 页面：Forgot Login Password · Select the User 弹窗
-
-```mermaid
-sequenceDiagram
-    actor U as 商户员工
-    participant P as 商户 App
-    participant A as 服务端
-
-    P->>A: #35;6 [listAccountsByEmail]<br/>GET /device/accountByEmail<br/>查询参数 email，带着标记
-    A-->>P: 200 [{ mchCode, mchName, accounts: [{ accountId, userName }] }]
-    P->>U: 弹窗列出账号的 userName
-    U->>P: 选一个账号
-    P->>U: 带所选的 accountId 进 Reset Login Password
-```
-
-- **列账号（#6）**：端带同一个 `email`，只取返回的第一个商户下的账号（`[0].accounts`），列出 `userName`；所选那一项的 `accountId` 原样放进 #8。什么时候返回账号、`accountId` 是什么，见契约 `listAccountsByEmail`。
-
-| 情形 | 状态码 | 端的表现 |
-|---|---|---|
-| #6 这个邮箱没有通过 #7 的校验、已超过可列账号的时间，或这次校验后已经列过 | 200，账号列表为空 | 不提示，不出现账号列表 |
-| #6 没带标记，或标记对不上这个邮箱的这次校验 | 200，账号列表为空 | 同上 |
-
-### 页面：Reset Login Password（找回密码设新密码）
-
-```mermaid
-sequenceDiagram
-    actor U as 商户员工
-    participant P as 商户 App
-    participant A as 服务端
-
-    U->>P: 输新密码，提交
-    P->>A: #35;8 [resetForgottenPassword]<br/>POST /device/forgotPassword/resetPassword<br/>{ accountId, newPwd }，带着标记
-    A-->>P: 200
-    P->>U: 提示修改成功，确认后回登录页
-```
-
-- **重置（#8）**：请求里只有所选账号的 `accountId` 与新密码，不带邮箱、`ticket` 与验证码。凭证与标记的核对、新密码的规则、重置后哪些登录失效，见契约 `resetForgottenPassword`。
-
-| 情形 | 状态码 | 端的表现 |
-|---|---|---|
-| #8 重置凭证无效（不是 #6 返回的、已经用过或已过期） | 400 | 不提示，也不出现修改成功的提示 |
-| #8 没带标记、标记已过期，或标记与重置凭证对不上 | 400 | 同上 |
-| #8 新密码不符合密码规则 | 400 | 同上 |
+商户 App 上不再承接找回密码。登录页的找回入口仍在，端发出第一步（向邮箱发验证码）即收到 400，`message` 是固定的双语提示，后面几步走不到。邮箱登录名的账号到商户后台网页找回；用户名登录名的员工请 Owner 在商户后台的团队页设新密码。提示原文见契约「找回密码」。
 
 ## 流程：扫码收款
 
@@ -1496,7 +1424,7 @@ sequenceDiagram
 
 ### 页面：Reset Login Password / Reset Refund Password（更改登录密码 / 更改退款密码）
 
-同一页面按 `type`（`login` 或 `refund`）分两种。默认凭旧密码改（#9）；点「Forgot Login Password」或「Forgot Refund Password」打开底部弹层，弹层打开即自动发码（#47），输码点下一步后弹层收起、旧密码栏消失，再填新密码提交（#48）。成功后回账户设置。
+同一页面按 `type`（`login` 或 `refund`）分两种。默认凭旧密码改（#9）；点「Forgot Refund Password」打开底部弹层，弹层打开即自动发码（#47），输码点下一步后弹层收起、旧密码栏消失，再填新密码提交（#48）。成功后回账户设置。（「Forgot Login Password」现网版本也会发码，但 `type=login` 不受理，见下表。）
 
 ```mermaid
 sequenceDiagram
@@ -1510,9 +1438,9 @@ sequenceDiagram
         U->>P: 输旧密码、新密码与确认，点「Confirm」
         P->>A: #35;9 [changePassword]<br/>PUT /device/updatePassword { oldpwd, pwd, type }
         A-->>P: 200
-    else 点「Forgot …Password」
+    else 点「Forgot Refund Password」
         U->>P: 点忘记密码
-        P->>A: #35;47 [sendPasswordEmailCode]<br/>GET /device/merchant/reset/verifyCode<br/>查询参数 type、email
+        P->>A: #35;47 [sendPasswordEmailCode]<br/>GET /device/merchant/reset/verifyCode<br/>查询参数 type=refund、email
         A-->>P: 200 { ticket }
         A-->>M: 验证码邮件（发往 Owner 的登录邮箱）
         Note over P: email 取本地商户资料的 contact_email<br/>端自己控 60 秒重发冷却
@@ -1520,15 +1448,15 @@ sequenceDiagram
         U->>P: 输验证码，点下一步
         Note over P: 不调接口，弹层收起，旧密码栏去掉
         U->>P: 输新密码与确认，点「Confirm」
-        P->>A: #35;48 [resetPasswordWithEmailCode]<br/>POST /device/merchant/reset/pwd<br/>{ newPassword, confirmPassword, ticket, ticketValue, type }
+        P->>A: #35;48 [resetPasswordWithEmailCode]<br/>POST /device/merchant/reset/pwd<br/>{ newPassword, confirmPassword, ticket, ticketValue, type=refund }
         A-->>P: 200
     end
     P->>U: 弹修改成功，确认后回账户设置
 ```
 
 - **凭旧密码改（#9）**：端带 `oldpwd`、`pwd` 与页面的 `type`；凭响应 `message` 里的 `Invalid Original Password` 字样认出旧密码不对。`type=refund` 要有商户后台管理退款密码的权限；其余规则见契约 `changePassword`。
-- **发码（#47）**：端带页面的 `type`，`email` 填本地的 `contact_email`；验证码一律发往 Owner 的登录邮箱，端存下返回的 `ticket`。`type=refund` 要有商户后台管理退款密码的权限，见契约 `sendPasswordEmailCode`。
-- **重置（#48）**：端带同一个 `type`、#47 的 `ticket`、输入的 6 位验证码 `ticketValue`，以及 `newPassword` 与 `confirmPassword`（端已校验两者一致）。新密码的规则见契约 `resetPasswordWithEmailCode`；`type=refund` 同样要有管理退款密码的权限。
+- **发码（#47）**：端带 `type=refund`，`email` 填本地的 `contact_email`；验证码一律发往 Owner 的登录邮箱，端存下返回的 `ticket`。要有商户后台管理退款密码的权限，见契约 `sendPasswordEmailCode`。
+- **重置（#48）**：端带 `type=refund`、#47 的 `ticket`、输入的 6 位验证码 `ticketValue`，以及 `newPassword` 与 `confirmPassword`（端已校验两者一致）。新密码的规则见契约 `resetPasswordWithEmailCode`；同样要有商户后台管理退款密码的权限。
 - **成功之后**：端只弹成功框、回账户设置，不退出登录。
 
 失败时端的表现：
@@ -1540,6 +1468,7 @@ sequenceDiagram
 | #9 `type` 为 `refund` 而商户处于仅查看 | 400，`code` 为 `208035` | 同上 |
 | #9 其他被拒 | 400 | 同上 |
 | #47 被拒（含 `type=refund` 而没有管理退款密码的权限），或其他失败 | 400 或 5xx | 不提示（这一处关掉了弹层里的错误提示），收不到邮件 |
+| #47 `type=login`（在 Reset Login Password 页点 Forgot Login Password） | 400，`message` 为固定提示 | 不提示（同上一行），收不到邮件 |
 | #48 验证码不对或已过期 | 400 | 弹通用错误文案「An error occurred. Please try again later.」（端只在 HTTP 500 且 `message` 含「Verification code」时才显示「Wrong verification code.」，现在走不到） |
 | #48 新密码不合规 | 400 | 同上 |
 | #48 `type=refund` 而没有管理退款密码的权限 | 400 | 同上 |
@@ -1999,10 +1928,8 @@ sequenceDiagram
 | 切换商户：核对身份 | 不看令牌，也不核对登录者与目标商户的关系 | 要求有效令牌，且目标商户在登录者可访问的范围内 | 正常切换无感 |
 | 切换商户：切过去之后是谁 | 变成目标商户的第一个管理员，拿到一个新令牌 | 仍是登录的那个人，角色不变，令牌不变 | 主商户里不是管理员的员工切到关联商户后，权限按本人的角色算，比现网小 |
 | 登录锁定 | 密码错满 5 次锁 10 分钟 | 默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、POS 登录共用计数 | 锁定时间变长；在网页或 POS 上输错的次数也算进来 |
-| 找回密码：邮箱的含义 | 主商户的联系邮箱，列出该商户下的全部有效账号 | 账号自己的邮箱；Owner 的邮箱另可重置本商户的员工账号 | 要填账号自己（或商户 Owner）的邮箱，列出的账号范围随之不同 |
-| 找回密码：发码 | 邮箱不存在时回 404，端提示「邮箱不存在或未绑定。」 | 不透露邮箱是否存在，一律按发码成功返回 | 邮箱填错时不再有提示，只是收不到邮件 |
-| 找回密码：列账号与重置 | 列账号不需要先通过验证码；重置只凭账号编号，不核对验证码 | 校验验证码通过后服务端给端留一个短时标记，列账号与重置都须带着它、且对得上这次校验；列账号只有邮箱通过校验后默认 60 秒内（可配置）的第一次返回账号；账号编号是一次性的重置凭证，默认 10 分钟内有效（可配置），重置只认它 | 正常流程无感，标记由端的网络层自动保存与带上。Android 上没有可用的系统 WebView 的手机存不住标记，列账号总是为空、App 上找回不了密码且没有提示，只能到网页找回 |
-| 找回密码：验证码与新密码 | 验证码输错不限次数，错了回 500，端提示固定的「验证码错误。」；新密码服务端不校验 | 验证码有错误次数上限，错了回 400；新密码须符合密码规则 | 验证码不对时端显示响应里的 `message`；连续输错到上限后要重新发码；新密码不合规时重置不成功，端没有提示 |
+| 找回密码（#5 至 #8） | 按主商户联系邮箱发码，列出该商户下的全部有效账号 | 不受理：第一步即回 400，`message` 为固定提示 | 端弹出这句提示；邮箱登录名的账号到商户后台网页找回，用户名登录名的员工请 Owner 在商户后台设新密码 |
+| 登录状态下凭邮箱验证码重置本人登录密码（#47、#48 的 `type=login`） | 验证码发往 Owner 的登录邮箱，重置本人的登录密码 | 不受理，回 400 | 弹层里不提示、收不到邮件；要到商户后台网页找回 |
 | 改退款密码 | 登录着的任何角色都能凭旧密码改 | 与商户后台同一条约束，要有管理退款密码的权限 | 没有这项权限的员工提交后提示通用文案「发生错误，请稍后再试。」 |
 | 「顾客承担手续费」开关（#11） | 打开时把适用的支付方式、入口与上浮费率重置为全量默认，关闭时清空，会覆盖商户后台此前的设定；不看角色；缺 `enable` 回 500 | 只改商户级开关，适用范围与费率不动；要有「收款页设置」的编辑权限；缺 `enable` 回 400 | 端无差别；商户后台的设定不再被 App 上的开关覆盖 |
 | 付款码下单：渠道拒绝（#12） | 订单落库就回 200，渠道结果在后台补上；付款码失效、渠道拒付时端轮询只认成功，员工空等 30 次后看到超时 | 等渠道的首次应答再返回；渠道拒绝直接回 400，`message` 写明原因 | 员工马上看到失败原因，留在扫码页 |
@@ -2055,14 +1982,14 @@ sequenceDiagram
 | 解绑微信（#63） | 只清账号上的微信，这个微信照收公众号到账通知 | 同时把商户通知接收里同一个微信移除；绑定（#65）时同样登记为通知接收微信 | 解绑后这个微信不再收到收款通知 |
 | 员工的角色数字（#60 至 #63） | 账号上存的 1、2、3；新增与改角色收什么写什么，含 1 | 按持有的角色算：Owner 与持 Admin 的为 1，持店长的为 2，其余为 3，同时持多个角色时按此先后取第一个符合的；新增与改角色只收 2、3 | 只持商户后台其他角色（如 Employee）的员工显示为 Cashier |
 | 退款账户充值的重复提交（#36） | 同一令牌、同样参数 5 秒内重复提交回 400 | 同一商户 60 秒内同一个 `ticket`、同一个验证码、同样的方式与金额重复提交，返回第一次的结果；改了任何一项（含验证码）按新的请求处理 | 连点不再报错，也不重复划款；输错码后重输照常提交 |
-| 仅查看时的商户后台事务（#35、#36、#44 至 #46、#50 至 #56、#58、#59、#62 至 #65、#67、#68，以及 #9、#47、#48 的 `type=refund`） | 不拦 | 回 400、`code` 为 `208035`；本人的推送开关（#43）、标已读（#41）、本人的登录密码（#9、#47、#48 的 `type=login`）、上传（#49）照常 | 处于仅查看的商户改不了这些，端按各页的失败处理 |
+| 仅查看时的商户后台事务（#35、#36、#44 至 #46、#50 至 #56、#58、#59、#62 至 #65、#67、#68，以及 #9、#47、#48 的 `type=refund`） | 不拦 | 回 400、`code` 为 `208035`；本人的推送开关（#43）、标已读（#41）、本人的登录密码（#9 的 `type=login`）、上传（#49）照常 | 处于仅查看的商户改不了这些，端按各页的失败处理 |
 | 员工的微信头像（#60、#61） | 返回头像地址 | 不返回 | 员工列表与绑定页显示缺省头像 |
 | 收款推送开关（#43） | 只管一条现网 App 不走的推送通道，关了照样收到 | 关了这个账号登录的手机就收不到收款推送 | 开关真的生效 |
 | 切换商户后的收款推送 | 这部手机在登录过的每家商户下各登记一次，两家的提醒都推 | 只推手机当前所在商户的提醒（切换后登记的令牌跟着当前商户） | 切换后仍是本人、开关只有一份，提醒按手机当前所在的商户送 |
 | 订单有效期（#56） | 收 20 秒到 24 小时，秒数不必是整分钟 | 换算成整分钟，不是整分钟或超出范围回 400 | 设成不是整分钟的秒数（如 `90s`）保存不了，端不提示 |
 | 银行账户的分行（#30、#53 的 `branch`） | #30 返回分行，#53 存下 | 结算账户没有分行：#30 的 `bankInfo` 不返回 `branch`，#53 的 `branch` 收下不用 | 银行信息页与编辑页的分行一栏为空，填了也不保存 |
 | 收款页的自撰填写项与小费比例（#59） | 服务端不校验；端限自撰项最多 4 项、每项 20 个字符，小费比例两位数 | 自撰项最多 4 项、每项不超过 10 个字符、不以 `sys:` 开头、互不重复；小费三档是 0 到 30 的整数；不合规回 400 | 超出的设不成，显示保存失败动画 |
-| 新密码的规则（#48 的 `type=login`、#62、#63） | #48 只要求 5 到 35 位，#62、#63 服务端不校验（端要求 8 到 30 位、含大写、无空白） | 与商户后台同一条密码规则：至少 8 位，含大写字母、小写字母、数字与特殊字符；不合规回 400 | 端校验能过、服务端不收的密码（如没有数字或特殊字符）设不成，端按各页的失败处理 |
+| 新密码的规则（#62、#63） | 服务端不校验（端要求 8 到 30 位、含大写、无空白） | 与商户后台同一条密码规则：至少 8 位，含大写字母、小写字母、数字与特殊字符；不合规回 400 | 端校验能过、服务端不收的密码（如没有数字或特殊字符）设不成，端按各页的失败处理 |
 | 新增员工的用户名（#62） | 不限字符，邮箱形态的用户名也收 | 合法邮箱格式的用户名回 400，邮箱账号要到商户后台邀请 | 填邮箱形态的用户名建不了，端不提示 |
 | 重置员工密码、删除员工之后（#63、#64） | 服务端不让会话失效，被重置密码或被删除的账号已登录的设备照常可用 | 被重置密码或被删除的账号，所有设备与会话上的登录随即失效 | 这些设备回登录页；被删除的账号再登录被拒 |
 | 支付方式码 `unionpay`（#58） | 收下存起，收款页上没有用到它的地方 | 收下不用；`payways` 只有它时按一项都没有回 400 | 端无差别；只开着它一项时保存失败，与全关相同 |

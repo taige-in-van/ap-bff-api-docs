@@ -37,7 +37,7 @@
 | 14 | [`getRefund`](../orders/index.html#tag/refunds/operation/getRefund) | `GET /orders/refunds/{refundId}` | 退款详情 |
 | 15 | [`getRefundReceipt`](../orders/index.html#tag/refunds/operation/getRefundReceipt) | `GET /orders/refunds/{refundId}/receipt` | 退款收据 PDF |
 | 16 | [`cancelRefund`](../orders/index.html#tag/refunds/operation/cancelRefund) | `POST /orders/refunds/{refundId}/cancellation` | 撤销审核中的退款 |
-| 17 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额，Payments 页的 To Settle 卡取其中的 `accountBalance` |
+| 17 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额，Payments 页的 To Settle 卡取其中的 `toSettle` |
 | 18 | [`listDevices`](../devices/index.html#tag/devices/operation/listDevices) | `GET /devices` | Filters 面板里设备筛选的候选 |
 
 ---
@@ -61,7 +61,7 @@ sequenceDiagram
         A-->>S: 200 { grossSales, refundAmount, netSales, transactions }
     and
         S->>A: #35;17 [getBalance]<br/>GET /funds/balance
-        A-->>S: 200 { accountBalance }
+        A-->>S: 200 { toSettle }
     and
         S->>A: #35;3 [getPaymentCounts]<br/>GET /orders/payments/counts?from&to
         A-->>S: 200 { items }
@@ -91,7 +91,7 @@ sequenceDiagram
 |---|---|---|
 | 汇总卡或余额取不到 | `5xx` | 对应的卡显示暂不可用，列表照常 |
 
-- To Settle 卡取 #17 的 `accountBalance`，是账户当前的可结算余额，不随筛选变；其余四张卡取 #2。
+- To Settle 卡取 #17 的 `toSettle`，是下一次结算大约会打出的金额，不含预授权挂起中的款项，不随筛选变；其余四张卡取 #2。
 - 导出不设行数上限，范围就是当前筛选的日期。
 - 日期筛选必填，按订单创建日；页面默认今天，由前端算出日期传过去。
 - 支付方式、来源、状态的展示名与图标由前端按码取，Filters 里这三项是固定选项、不另取候选。
@@ -155,6 +155,7 @@ sequenceDiagram
 | 订单不存在或不属于当前商户 | `404` | 提示订单不存在 |
 | 取收据时订单不是已收款状态 | `404` | 正确页面下不会出现：Receipt 只在已收款的三种状态下显示 |
 | Release 时订单已不是挂起状态 | `409`·`208010` | 重调 #5，按钮随之消失 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键重发，直到有结果 |
 | 同一个幂等键用到了别的订单 | `409`·`208005` | 换订单就换新键 |
 
 - Product 一栏显示 `product`（产品形态），每张订单都有；展示名由前端按码取。
@@ -191,7 +192,7 @@ sequenceDiagram
     U->>S: 填金额、备注、PIN，点 Refund
     S->>A: #35;8 [createRefund]<br/>POST /orders/payments/{orderId}/refunds { amount, note, refundPin }
     A-->>S: 201 { refundId, status, failureReason }
-    S->>S: status 为 REVIEWING / CHANNEL_PROCESSING：显示「退款已提交」<br/>status 为 FAILED：显示「退款失败：账户资金不足」
+    S->>S: status 为 REVIEWING / CHANNEL_PROCESSING：显示「退款已提交」<br/>status 为 SUCCESS：显示「退款成功」<br/>status 为 FAILED：按 failureReason 显示「退款失败：账户资金不足」或「退款失败：通道拒绝」
     S->>A: 重调 #35;1、#35;2、#35;3（详情开着就重调 #35;5）
 
     Note over U,M: 忘记 PIN（弹窗内切到重置视图）
@@ -213,6 +214,7 @@ sequenceDiagram
 | 超过可退余额、订单已不可退 | `400`·`204008` | 提示本次不能退，重调 #5 看最新可退额 |
 | PIN 不对 | `403`·`206003` | 提示重输 |
 | PIN 连续输错被锁 | `423`·`206004` | 提示稍后再试 |
+| 短时间内对同一订单重复提交退款 | `409`·`208003` | 不当成功；重调 #5 看最新状态，再决定是否重提 |
 | 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
 | 网关超时 | `502` / `504` | 用同一个键、同样的内容重发，不会退两次 |
@@ -221,7 +223,7 @@ sequenceDiagram
 - 退款按订单的标价币种发起，摘要与输入框都用标价币种。CNY 标价的订单在列表里显示的是结算币种金额，弹窗里要把标价金额（`pricedAmount`）显示清楚，免得商户按加元的数去填人民币。
 - `remainingRefundable` 只拿来做输入上限；提交时服务端会重新校验，可能已经变了。
 - 订单有没有 Refund 入口只看 `refundable`，不按状态自己判。
-- `201` 只表示退款单已建，要再看 `status`。审核中或处理中显示「已提交」而不是「已成功」，最终成功或失败要之后刷新才看得到。`FAILED` 是账户资金不足，退款没有执行，这笔失败的退款会留在退款列表里；商户补足资金后重新发起，是一笔新的退款、用新的幂等键。
+- `201` 只表示退款单已建，要再看 `status`。审核中或处理中显示「已提交」而不是「已成功」，最终成功或失败要之后刷新才看得到；通道当场退成的直接是 `SUCCESS`。`FAILED` 是账户资金不足或通道当场拒绝，退款没有执行，这笔失败的退款会留在退款列表里；商户处理后重新发起，是一笔新的退款、用新的幂等键。
 - `createRefund` 带 `Idempotency-Key`：点一次 Refund 生成一个键。超时或 `208011` 后重发用原键；被拒后改了内容再提交换新键。PIN 不参与幂等比对。
 - Forgot PIN 按 `privileges` 里有没有 `account:refund-pin:manage` 显示；没有时不显示，提示找能管理退款 PIN 的人。
 
@@ -229,7 +231,7 @@ sequenceDiagram
 
 | 位置 | demo | 改后 | 为什么 |
 |---|---|---|---|
-| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多三种：Rejected（平台未受理）、Pre-auth holding（预授权挂起）、Authorized（已授权待请款，卡 / 银联预授权，只看、无行操作） | 被风控拒掉的订单、店铺码预授权单和卡预授权单都要能查到 |
+| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多两种：Rejected（平台未受理）、Pre-auth holding（预授权挂起） | 被风控拒掉的订单和预授权单都要能查到 |
 | 来源 | 八种：Terminal、Store QR、Product QR、Mini Program、Web Checkout、App、Payment Link、API Integration | 十二种，与现网商户后台的来源一致（见上表）；Mini Program、Web Checkout 这类归到产品形态 | 来源沿用现网商户已经在用的分类；小程序、网页是收款方式，不是入口 |
 | 详情的 Product | 四种（账单、商品码、礼卡、票务），其余订单没有 | 每张订单都有，十三种产品形态 | 产品形态是订单的固有属性 |
 | 搜索 | 订单号、金额、备注 | 另可搜商户订单号、通道交易号 | 现网可按商户订单号找单；顾客手里只有钱包账单上的通道交易号 |
@@ -289,7 +291,7 @@ sequenceDiagram
 - 导出不设行数上限，范围就是当前筛选的日期。
 - 日期筛选必填，按退款创建日；页面默认近 30 天，由前端算出日期传过去。
 - 支付方式与来源的码、文案、固定选项都与 Payments 页相同；列表里的退款，这两项与原订单的一致。
-- 列表里是从商户账上出钱的退款：后台、App、终端、API、插件、平台代操作发起的，以及撤销已付款订单时系统触发的；平台自动退回的多付款项不在这里，在原订单详情的关联退款里能看到。
+- 列表里是从商户账上出钱的退款：后台、App、终端、API、插件、平台代操作发起的；平台自动退回的多付款项不在这里，在原订单详情的关联退款里能看到。
 - 行上有两个金额：`amount` 是标价币种的退款金额（发起时填的数），`settleAmount` 是折合的结算币种金额。`settleAmount` 要通道受理后才有，审核中、被拒、已撤销的行没有；标价币种就是结算币种时两个数相同。
 - `amount` 小于 `orderAmount` 的是部分退款，否则是全额退款。
 - 状态六种：审核中、处理中、成功、失败、已拒绝、已撤销。退款提交后没有推送，状态靠重新取列表更新。
@@ -331,6 +333,7 @@ sequenceDiagram
 |---|---|---|
 | 退款不存在或不属于当前商户 | `404` | 提示退款不存在 |
 | 撤销时退款已经送到通道或已有结果 | `409`·`208009` | 提示已不能撤销，重新取列表 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键重发，直到有结果 |
 | 同一个幂等键用到了别的退款 | `409`·`208005` | 换退款就换新键 |
 | 撤销超时或网关错误 | `502` / `504` | 用原来的幂等键重发 |
 | 取未受理退款（审核中、失败、已拒绝、已撤销）的收据 | `404` | 正确页面下不会出现：Receipt 只在已受理的退款（处理中或成功）的行上显示 |

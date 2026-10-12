@@ -74,7 +74,7 @@ stateDiagram-v2
 | 4 | [`switchCurrentMerchant`](../auth/index.html#tag/sessions/operation/switchCurrentMerchant) | `PUT /auth/sessions/current` | 切换当前商户（只切到已激活的商户），返回新会话 |
 | 5 | [`getStatisticsSummary`](../orders/index.html#tag/statistics/operation/getStatisticsSummary) | `GET /statistics/summary` | 日期范围内的收款、退款、净额与支付方式占比 |
 | 6 | [`getStatisticsTrend`](../orders/index.html#tag/statistics/operation/getStatisticsTrend) | `GET /statistics/trend` | 本月或上月的逐日收款额与笔数 |
-| 7 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | To Settle 卡取其中的 `accountBalance` |
+| 7 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | To Settle 卡取其中的 `toSettle` |
 | 8 | [`listRecentPayments`](../orders/index.html#tag/payments/operation/listRecentPayments) | `GET /orders/payments/recent` | 最近收到钱的几笔订单 |
 | 9 | [`listNotices`](../system/index.html#tag/notices/operation/listNotices) | `GET /notices` | 站内信列表（分页）；Dashboard 取最近三条 |
 | 10 | [`deleteMerchant`](../merchants/index.html#tag/merchants/operation/deleteMerchant) | `DELETE /merchants/{merchantId}` | 删除未激活的关联商户 |
@@ -84,7 +84,7 @@ stateDiagram-v2
 | 14 | [`getNotice`](../system/index.html#tag/notices/operation/getNotice) | `GET /notices/{noticeId}` | 站内信详情 |
 | 15 | [`markNoticeRead`](../system/index.html#tag/notices/operation/markNoticeRead) | `PUT /notices/{noticeId}` | 标一条已读 |
 | 16 | [`markAllNoticesRead`](../system/index.html#tag/notices/operation/markAllNoticesRead) | `PUT /notices` | 全部标已读 |
-| 17 | [`updateMyProfile`](../me/index.html#tag/profile/operation/updateMyProfile) | `PUT /me` | 顶栏切换界面语言时存回账号（只传 `locale`） |
+| 17 | [`updateMyProfile`](../me/index.html#tag/me/operation/updateMyProfile) | `PUT /me` | 顶栏切换界面语言时存回账号（只传 `locale`） |
 | 18 | [`logout`](../auth/index.html#tag/sessions/operation/logout) | `DELETE /auth/sessions/current` | 退出登录 |
 
 ---
@@ -149,7 +149,7 @@ sequenceDiagram
         A-->>S: 200 { month, points: [{ date, volume, orders }] }
     and
         S->>A: #35;7 [getBalance]<br/>GET /funds/balance
-        A-->>S: 200 { accountBalance }
+        A-->>S: 200 { toSettle }
     and
         S->>A: #35;8 [listRecentPayments]<br/>GET /orders/payments/recent?limit
         A-->>S: 200 { items: [{ orderId, amount, status, createdAt }] }
@@ -181,7 +181,7 @@ sequenceDiagram
 - 欢迎语里的姓名：启动链路已取的登录者 `displayName`，本页不另取；没有昵称时用 `loginId`。
 - 日期范围：用户选什么日期就传什么；页面默认今天，「今天」「近 7 天」这类由前端按本地日历算成具体日期再传，服务端只收起止日期。跨度不设上限。只影响 Gross Sales、Refund Amount、Net Sales 三张卡与 Payment Distribution。
 - Gross Sales `grossSales`，Refund Amount `refundAmount`，Net Sales `netSales`。后两个可能为负，按有符号金额原样显示，不要截成 0 或取绝对值；Net Sales 直接用返回值，不要自己相减。
-- To Settle：`getBalance` 的 `accountBalance`，是当前余额，不随日期范围变；与 Payments 页的 To Settle、Settlements 页的 Account Balance 是同一个数。
+- To Settle：`getBalance` 的 `toSettle`，是当前待结算金额，不随日期范围变；与 Payments 页的 To Settle 是同一个数。Settlements 页的 Account Balance 是 `accountBalance`，另含预授权挂起中的款项，两者不一定相等。
 - Payment Distribution：`distribution` 给的是全部有收款的品牌，各项之和等于 `grossSales`，占比由前端算。品牌的文案与图标同 Payments 页的支付方式；要不要把占比小的并成 Others 由前端定。
 - Transaction Volume：`points` 每天一项、已按日期排好、没交易的日子是 0，直接画；横轴的月份取 `month`。趋势只受本月 / 上月切换控制，改页头日期范围不重取。
 - Transaction History：`listRecentPayments` 只给收到钱的订单；行与 Payments 列表的行相同，点开用订单详情。

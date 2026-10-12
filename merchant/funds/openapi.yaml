@@ -39,9 +39,11 @@ paths:
       x-required-privilege: session
       summary: 账户余额
       description: |
-        当前商户的两个余额与自动补足设置，结算币种。
+        当前商户的账户余额、待结算金额、退款准备金与自动补足设置，结算币种。
 
-        `accountBalance` 是可结算余额减去商户欠平台的钱，可能为负。它是下一次结算大约会打出来的金额；手续费在结算时扣的商户，实际到账还要再减手续费。
+        `toSettle` 是可结算余额减去商户欠平台的钱，不含预授权挂起中的款项，可能为负。它是下一次结算大约会打出来的金额；手续费在结算时扣的商户，实际到账还要再减手续费。
+
+        `accountBalance` 是余额卡片上的账户余额，等于 `toSettle` 加上预授权挂起中的款项；挂起款项并在里面、不单列，可能为负。
       responses:
         '200':
           description: 账户余额
@@ -52,6 +54,9 @@ paths:
               example:
                 accountBalance:
                   amount: '1250050'
+                  currency: CAD
+                toSettle:
+                  amount: '1200050'
                   currency: CAD
                 refundReserve:
                   amount: '500000'
@@ -117,9 +122,9 @@ paths:
 
         最低金额低于平台规定的下限 → `400`·204018，当前下限在 `context.floorAmount`；整次提交不生效。
 
-        最低金额只是保存设置。准备金低于最低金额时，平台每天从 Account Balance 补一次，余额不够就补到有多少算多少。
+        最低金额只是保存设置。准备金低于最低金额时，平台每天从待结算金额（`toSettle`）补一次，不够就补到有多少算多少。
 
-        幂等：带 `Idempotency-Key`。比对只看 `topUpAmount` 与 `minimumAmount`，不看 `otp`——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不会划两次。改了金额或设置 → 换新键，沿用旧键 → `409`·208005。
+        幂等：带 `Idempotency-Key`。比对只看 `topUpAmount` 与 `minimumAmount`，不看 `otp`——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不会划两次。改了金额或设置 → 换新键，沿用旧键 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -166,6 +171,9 @@ paths:
                       accountBalance:
                         amount: '1150050'
                         currency: CAD
+                      toSettle:
+                        amount: '1100050'
+                        currency: CAD
                       refundReserve:
                         amount: '600000'
                         currency: CAD
@@ -182,6 +190,9 @@ paths:
                       accountBalance:
                         amount: '50050'
                         currency: CAD
+                      toSettle:
+                        amount: '50'
+                        currency: CAD
                       refundReserve:
                         amount: '500000'
                         currency: CAD
@@ -196,6 +207,7 @@ paths:
         - 206006
         - 206007
         - 208005
+        - 208011
   /funds/balance/reserve/withdrawals:
     post:
       tags:
@@ -208,7 +220,7 @@ paths:
 
         `200` 表示已处理，看 `status`：`POSTED` 已划转；`REJECTED` 是准备金余额不够，没有划转。
 
-        幂等：带 `Idempotency-Key`。同键同金额重发返回首次结果，不会取两次；改了金额 → 换新键，沿用旧键 → `409`·208005。
+        幂等：带 `Idempotency-Key`。同键同金额重发返回首次结果，不会取两次；改了金额 → 换新键，沿用旧键 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -235,6 +247,9 @@ paths:
                   accountBalance:
                     amount: '1280050'
                     currency: CAD
+                  toSettle:
+                    amount: '1230050'
+                    currency: CAD
                   refundReserve:
                     amount: '470000'
                     currency: CAD
@@ -245,6 +260,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208005
+        - 208011
   /funds/settlements:
     get:
       tags:
@@ -713,12 +729,17 @@ components:
       description: 账户余额，结算币种。
       required:
         - accountBalance
+        - toSettle
         - refundReserve
       properties:
         accountBalance:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 可结算余额减去商户欠平台的钱，可能为负。准备金充值从这里出，为正时它就是可充上限。
+          description: 余额卡片上的账户余额：`toSettle` 加上预授权挂起中的款项（并在里面、不单列），可能为负。
+        toSettle:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 待结算金额：可结算余额减去商户欠平台的钱，不含预授权挂起中的款项，可能为负。它是下一次结算大约会打出来的金额。准备金充值从这里出，为正时它就是可充上限。
         refundReserve:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -760,11 +781,11 @@ components:
         periodFrom:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
-          description: 这张结算单里最早一笔明细的日期。没有收款与退款明细时不返回本键。
+          description: 这张结算单的收款与退款明细（含退款失败的回冲）里最早一笔的日期。没有这类明细时不返回本键。
         periodTo:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
-          description: 最晚一笔明细的日期，与 `periodFrom` 同有同无。
+          description: 同一范围里最晚一笔的日期，与 `periodFrom` 同有同无。
         netSales:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -772,7 +793,7 @@ components:
         fee:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 这些收款与退款的手续费净额（收款的手续费减退款时退还的）。
+          description: 这些收款与退款的手续费净额：收款的手续费加上退款失败时重新扣回的，减去退款时退还的。
         payoutAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -1092,7 +1113,7 @@ components:
         - REJECTED
     ReserveRejectionReason:
       type: string
-      description: 划转被拒的原因：`INSUFFICIENT_BALANCE` 充值时 Account Balance 不够，或取回时准备金不够。
+      description: 划转被拒的原因：`INSUFFICIENT_BALANCE` 充值时待结算金额（`toSettle`）不够，或取回时准备金不够。
       enum:
         - INSUFFICIENT_BALANCE
     RefundReserveFundingRequest:
@@ -1105,7 +1126,7 @@ components:
         topUpAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 充值金额，从 Account Balance 划到准备金。不传就是这次不充值。
+          description: 充值金额，从待结算金额（`toSettle`）划到准备金。不传就是这次不充值。
         minimumAmount:
           description: 自动补足的最低金额。传金额 = 开启或改成该金额，不得低于平台规定的下限；传 `null` = 关闭自动补足；不传 = 不改。
           oneOf:
@@ -1236,9 +1257,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
@@ -1344,7 +1374,7 @@ components:
         - '2026-08-01'
     PaymentMethodFamily:
       type: string
-      description: 支付方式（品牌）。
+      description: 支付方式族（品牌）。
       enum:
         - wechat
         - alipay
@@ -1359,7 +1389,7 @@ components:
     FeeRate:
       type: object
       additionalProperties: false
-      description: 费率：比例费率与固定单笔费两项合起来是一个费率，比较两个费率是否相同要两项都比。
+      description: 比例费率与固定单笔费两项合起来是一个费率，比较两个费率是否相同要两项都比。
       required:
         - percentageRate
         - fixedFee
@@ -1373,7 +1403,7 @@ components:
         fixedFee:
           type: string
           pattern: ^[0-9]+$
-          description: 固定单笔费，结算币种的最小单位整数串（`10` = 0.10）；没有固定费时是 `0`。
+          description: 固定单笔费，结算币种的最小单位整数串（`10` = 0.10）；没有固定费或在免收期内为 `0`。不带币种，按该商户的结算币种解释（收费币种与结算币种一致、不跨币种换算）。
           examples:
             - '10'
   responses:

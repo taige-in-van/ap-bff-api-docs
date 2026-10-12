@@ -111,7 +111,7 @@ paths:
                         serialNumber: C032UQ52640073
                         storeName: downtown-store
                         deviceName: Front counter
-                        operatorEmail: cashier01@merchant.com
+                        operatorName: Cashier 01
                         firmwareVersion: Android 11 / 1.4.2
                         appVersion: 3.8.0
                         status: ONLINE
@@ -121,7 +121,7 @@ paths:
                         model: 收银 App（softPOS）
                         source: unknown
                         serialNumber: APP-9F3C21A8
-                        operatorEmail: cashier02@merchant.com
+                        operatorName: Cashier 02
                         appVersion: 2.1.4
                         status: OFFLINE
                         lastActiveAt: '2026-08-16T20:11:00Z'
@@ -148,7 +148,7 @@ paths:
 
         本商户名下已有同一序列号的在册设备 → `409`·208021。判重只在本商户名下做：别的商户登记过同一串不在这里拦，等设备真正登录时才判。
 
-        幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409`·208005。
+        幂等：带 `Idempotency-Key`，重放同键返首次结果、payload 冲突 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -182,6 +182,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208005
+        - 208011
         - 208021
   /devices/counts:
     get:
@@ -311,7 +312,7 @@ paths:
                 source: clover
                 serialNumber: C032UQ52640073
                 storeName: downtown-store
-                operatorEmail: cashier01@merchant.com
+                operatorName: Cashier 01
                 firmwareVersion: Android 11 / 1.4.2
                 appVersion: 3.8.0
                 status: ONLINE
@@ -426,7 +427,7 @@ paths:
                     severity: info
                     event: Payment captured
                     notes: Order P100240021 · CA$48.50 · WeChat Pay
-                    actor: cashier01@merchant.com
+                    actor: Cashier 01
                     timestamp: '2026-08-17T09:52:00Z'
                   - type: connection
                     severity: warning
@@ -435,7 +436,7 @@ paths:
                   - type: auth
                     severity: info
                     event: Operator signed in
-                    actor: cashier01@merchant.com
+                    actor: Cashier 01
                     timestamp: '2026-08-17T08:29:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -581,10 +582,10 @@ components:
           type: string
           readOnly: true
           description: 商户给这台设备起的名字；没起名时不返回本键。
-        operatorEmail:
+        operatorName:
           type: string
           readOnly: true
-          description: 最近一次登录这台设备的操作员邮箱；从没登录过的不返回本键。
+          description: 最近一次登录这台设备的操作员显示名；从没登录过的不返回本键。
         firmwareVersion:
           type: string
           readOnly: true
@@ -679,7 +680,7 @@ components:
         actor:
           type: string
           readOnly: true
-          description: 触发事件的操作员邮箱；系统产生的事件不返回本键。
+          description: 触发事件的操作员显示名；系统产生的事件不返回本键。
         timestamp:
           $ref: '#/components/schemas/Timestamp'
     DeviceLogListPage:
@@ -773,9 +774,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。

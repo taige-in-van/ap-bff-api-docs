@@ -114,11 +114,6 @@ paths:
         锁定的字段不在请求体里，带了按未知字段返回 400。
 
         幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。
-
-        **改 `timeZone` 可能被拒**：与已出账的历史数据冲突时 → `409 208016`，
-        且**整个请求不持久化**（含同请求内其他可编辑字段，需整体重提）；
-        系统暂时判不出时也返同一个码。
-        未改 `timeZone` 的请求不会触发这条。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -140,8 +135,7 @@ paths:
           description: 已保存（新值直接生效）
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
-      x-error-codes:
-        - 208016
+      x-error-codes: []
   /account/profile/contact:
     put:
       tags:
@@ -709,7 +703,7 @@ paths:
       x-required-privilege: account:refund-pin:manage
       summary: 改退款 PIN（用当前 PIN 校验）
       description: |
-        校验当前 PIN 后改为新 PIN（不可与当前相同）。旧 PIN 立即失效，进行中的忘记 PIN 作废，发 PIN 已改通知邮件。
+        校验当前 PIN 后改为新 PIN（不可与当前相同）。旧 PIN 立即失效，进行中的忘记 PIN 作废，给 Owner 登录邮箱发 PIN 已修改通知。
 
         幂等基准：`Idempotency-Key`。同键同请求体重发返回 `204`；同键改请求体返回 `409`·`208005`。
 
@@ -787,7 +781,7 @@ paths:
       x-required-privilege: account:refund-pin:manage
       summary: 忘记退款 PIN 第 2 步（码 + 新 PIN 一次提交）
       description: |
-        校验 Owner 邮箱收到的码，码对才消费并写入新 PIN。旧 PIN 立即失效、锁定解除，发 PIN 已改通知邮件。码错不消费。
+        校验 Owner 邮箱收到的码，码对才消费并写入新 PIN。旧 PIN 立即失效、锁定解除，给 Owner 登录邮箱发 PIN 已修改通知。码错不消费。
 
         不挂幂等键（挑战类）。这次重置已完成后再提交返回 `206006`。
 
@@ -1438,9 +1432,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
@@ -1783,7 +1786,7 @@ components:
     FeeRate:
       type: object
       additionalProperties: false
-      description: 费率：比例费率与固定单笔费两项合起来是一个费率，比较两个费率是否相同要两项都比。
+      description: 比例费率与固定单笔费两项合起来是一个费率，比较两个费率是否相同要两项都比。
       required:
         - percentageRate
         - fixedFee
@@ -1797,7 +1800,7 @@ components:
         fixedFee:
           type: string
           pattern: ^[0-9]+$
-          description: 固定单笔费，结算币种的最小单位整数串（`10` = 0.10）；没有固定费时是 `0`。
+          description: 固定单笔费，结算币种的最小单位整数串（`10` = 0.10）；没有固定费或在免收期内为 `0`。不带币种，按该商户的结算币种解释（收费币种与结算币种一致、不跨币种换算）。
           examples:
             - '10'
     OnlineServiceType:

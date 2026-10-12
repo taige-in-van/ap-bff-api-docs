@@ -123,7 +123,7 @@ sequenceDiagram
 `getCheckoutOrder` 在商品与票务会话里带 `sales` 块：
 
 - `sales.lines`：选购明细，每行 `name`、`unitPrice`、`quantity`、`lineTotal`，是下单时定下的内容。票务另带活动信息 `sales.event`（活动名、活动日、开演时刻、场馆）。
-- `sales.voucher`：凭证，付款成功且凭证已生成时返回。`kind` 是 `counter_pickup`（到柜台取货）或 `admission`（现场入场），另给 `voucherNo`、`pin`、`qrContent` 与 `status`（`ISSUED` 可用 / `REDEEMED` 已使用 / `CANCELED` 已失效）。一单一张。凭证未生成、或此刻不能向付款人出示时不返回，页面看到的与「还没生成」相同，不必对付款人解释原因。
+- `sales.voucher`：凭证，付款成功且凭证已生成时返回。`kind` 是 `counter_pickup`（到柜台取货）或 `admission`（现场入场），另给 `voucherNo`、`pin`、`qrContent` 与 `status`（`ISSUED` 可用 / `REDEEMED` 已使用 / `CANCELLED` 已失效）。一单一张。凭证未生成、或此刻不能向付款人出示时不返回，页面看到的与「还没生成」相同，不必对付款人解释原因。
 
 结果页按这个顺序判：
 
@@ -138,7 +138,7 @@ sequenceDiagram
 | 有 `sales.voucher` 且 `ISSUED` | 凭证：二维码用 `qrContent` 生成（页面只生成图、不自己拼内容），`voucherNo` 与 `pin` 以文字显示（扫不了码时店员手输） |
 | 还没有 `sales.voucher` | 成功页 + 选购明细，凭证处显示生成中，继续轮询等凭证出现；轮询上限由前端自定，到了就停，保留成功页与选购明细，凭证处不再转圈 |
 | 凭证 `REDEEMED` | 凭证处显示「已使用」 |
-| 凭证 `CANCELED` | 凭证处显示「已失效」（如已退款） |
+| 凭证 `CANCELLED` | 凭证处显示「已失效」（如已退款） |
 
 收据不列选购明细；其余内容同共用的收据，另带凭证段（券号与二维码）。
 

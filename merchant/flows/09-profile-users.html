@@ -45,7 +45,7 @@
 | 21 | [`deleteMemberWechatBinding`](../team/index.html#tag/members/operation/deleteMemberWechatBinding) | `DELETE /team/members/{operatorId}/wechat` | 代成员解绑 WeChat(仅停用该成员的商户后台 WeChat 登录) |
 | 22 | [`initiateMemberWechatBinding`](../team/index.html#tag/members/operation/initiateMemberWechatBinding) | `POST /team/members/{operatorId}/wechat` | 代成员绑 WeChat 发起(返回二维码) |
 | 23 | [`pollMemberWechatBinding`](../team/index.html#tag/members/operation/pollMemberWechatBinding) | `GET /team/members/{operatorId}/wechat/{qrTicket}` | 绑定结果轮询(异设备回告发起端) |
-| 24 | [`updateMyProfile`](../me/index.html#tag/profile/operation/updateMyProfile) | `PUT /me` | 改自己的昵称、界面语言 |
+| 24 | [`updateMyProfile`](../me/index.html#tag/me/operation/updateMyProfile) | `PUT /me` | 改自己的昵称、界面语言 |
 | 25 | [`getCurrentSession`](../auth/index.html#tag/sessions/operation/getCurrentSession) | `GET /auth/sessions/current` | 当前会话，改完资料后刷新头像菜单与身份栏 |
 | 26 | [`changeMyPassword`](../me/index.html#tag/security/operation/changeMyPassword) | `PUT /me/security/password` | 登录态改密(当前密码校验) |
 | 27 | [`requestLoginEmailChange`](../me/index.html#tag/email/operation/requestLoginEmailChange) | `POST /me/email/changes` | 改登录邮箱发起(返回身份校验方式) |
@@ -132,7 +132,6 @@ sequenceDiagram
 |---|---|---|
 | 上传的文件格式或大小不合规 | `400`·`204015` | 提示换一个文件 |
 | 省州 / 邮编 / 时区 / 电话不合规 | `400`（`details` 指到字段） | 字段红框 |
-| 改时区与已出账的历史数据冲突 | `409`·`208016` | 提示暂时不能改时区；整次保存都没生效，其他字段也要重提 |
 | 验证码错 | `400`·`204010` | 留在弹窗重输，剩余次数见 `context.attemptsRemaining`；重输后提交换新的 `Idempotency-Key`（只有同一次提交的网络重试才复用原键） |
 | 验证码错到上限 / 过期或已用 | `423`·`206007` / `410`·`206006` | 回第 1 步重新发码 |
 | 重发太快 | `429`·`208013` | 等倒计时 |
@@ -196,6 +195,9 @@ sequenceDiagram
     opt 改了已激活员工的登录邮箱
         A->>E: 向新邮箱发确认链接（员工确认后才切换，见 flows 01-login-registration「页面：确认新登录邮箱」）
     end
+    opt 填了新密码且员工是邮箱账号
+        A->>E: 密码已修改通知
+    end
     A-->>S: 204
 
     Note over U,A: 删除员工（确认弹窗）
@@ -214,7 +216,7 @@ sequenceDiagram
 - 新建、编辑弹窗的角色是多选：提交 `roleIds`，编辑时整组替换；编辑弹窗打开时按该行的 `roleIds` 预勾。可见分区的可选项是所选各角色在 #16 里 `modules` 的并集。
 - 员工归属建他的商户：在主商户建的能切换到名下的关联商户，在关联商户建的只在本商户；本页列的是当前商户自己的员工。新建时登录名已被别的账号占用 → `409`·`968001`。
 - 改了已激活员工的登录邮箱，员工确认前列表该行显示 `pendingLoginEmail`（切换规则见 `updateTeamMember`）。
-- 邀请中的员工不能在这里设密，走 Resend。
+- 邀请中的员工不能在这里设密，走 Resend；填了会得 `409`·`208003`。重发邀请时员工已激活也是 `409`·`208003`，重调 #14 刷新。
 - 可见分区的复选框文案由前端按 `#16` 给的模块标识取多语言资源（与侧边栏菜单同一套）；不认识的标识显示标识本身。
 - 被运营停用的员工在列表显示 `DISABLED`、只读；`lastLoginAt` 缺席显示「从未登录」。删除后用同一登录名再新建的规则见 `createTeamMember`。
 - 绑定微信（弹窗里扫码 + 轮询）见下一节；解绑在列表行的微信列上，点了直接生效。
@@ -266,7 +268,7 @@ sequenceDiagram
 
 - 成员扫码后没绑成的（被拦下、在微信里取消、确认时成员已被删除或停用、同一微信被别人抢先绑定），弹窗一直显示等待直到过期，原因只在成员自己的微信里说明：二维码可能被转发，看弹窗的人未必是被绑定的本人。
 - 弹窗结束时重调 #14：成员确认得晚、结果没赶上轮询的，绑定照样成立，刷新后能看到；成员被删除或停用的，列表里也看得到。
-- 绑定成功即该成员能在商户后台扫码登录，列表里 `wechatBound` 为真。解绑在 Users 列表上（#21），只停用他在商户后台的微信登录，不影响他在别处的微信绑定。
+- 绑定成功即该成员能在商户后台扫码登录，列表里该成员带 `wechat`。解绑在 Users 列表上（#21），只停用他在商户后台的微信登录，不影响他在别处的微信绑定。
 - 与扫码登录同一套形状（`WechatQrChallenge` + `WechatPollStatus`），前端可共用一个「展示二维码 + 轮询」组件，只按状态分支，不必为票据本身有问题另开一路。
 
 ---
@@ -280,6 +282,7 @@ sequenceDiagram
     actor U as 用户
     participant S as My Profile(SPA)
     participant A as 商户后台 BFF
+    participant E as 本人邮箱
 
     U->>S: 打开页面（不调接口，用 getCurrentSession 的 displayName / roleNames / loginId）
 
@@ -296,6 +299,9 @@ sequenceDiagram
     U->>S: 输当前密码 + 新密码 + 确认密码（前端校验 5 条规则和两次一致），点 Update Password
     S->>A: #35;26 [changeMyPassword]<br/>PUT /me/security/password
     A-->>S: 204（其他会话失效，当前会话保留）
+    opt 邮箱账号
+        A->>E: 密码已修改通知
+    end
 ```
 
 - 改密码时当前密码错 `403`·`206011`，留在表单重输，不跳登录页。「Forgot your password?」走 [flows 01-login-registration「页面：Forgot Password」](01-login-registration.html#页面：Forgot%20Password)的两个接口（`requestPasswordReset`、`confirmPasswordReset`），在弹窗里完成：邮箱账号（`loginId` 是邮箱格式）点 Send code 发邮箱码；用户名账号先调 #32，`mfaEnabled` 为真就直接输验证器码，为假则不能自助重置，提示找 Owner 在成员管理里重设。重置成功后该用户所有会话失效，含当前这个，回登录页。Security 页改密表单里的同名入口与此同一个弹窗。

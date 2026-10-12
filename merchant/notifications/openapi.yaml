@@ -229,7 +229,7 @@ paths:
       operationId: pollNotificationWechatBinding
       x-required-privilege: settings:notification:edit
       summary: 绑微信：轮询结果
-      description: 轮询这次绑定的结果，恒返回 `200` + 状态。未扫、未确认、在微信里取消，都是 `WAITING` 直到二维码过期。
+      description: 轮询用户是否已在微信里确认，恒返回 `200` + 状态。`BOUND` = 用户已确认，确认即绑定成立；接收方随后由后台加入列表，页面关了也会加入，刷新列表即可看到。未扫、未确认、在微信里取消，都是 `WAITING` 直到二维码过期（`EXPIRED`）。
       parameters:
         - name: qrTicket
           in: path
@@ -392,9 +392,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
@@ -533,7 +542,7 @@ components:
             - BOUND
             - EXPIRED
           readOnly: true
-          description: '`WAITING` = 继续轮询；`BOUND` = 绑定已生效；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
+          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认，登录绑定即时生效，通知接收方随后出现在列表；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

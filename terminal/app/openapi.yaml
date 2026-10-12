@@ -15,7 +15,7 @@ info:
 
     ## 凭据
 
-    - 登录前的接口（登录、找回密码四步）不带凭据。找回密码的后两步另须带校验验证码时下发的短时 cookie，见各接口说明。
+    - 登录（`signIn`）不带凭据；旧版找回密码入口在认证前就地回 `400`，也不要求凭据。
     - `signIn` 返回令牌 `token`，是一个不透明的字符串。此后每个请求把它原样放进 `Authorization` 头，不加 `Bearer` 前缀；`registerPushToken` 这一条现网带着 `Bearer ` 前缀，两种写法服务端都接受。
     - 每个请求另带 `devCid` 头，值是 App 内置的固定值。
     - 另接受 `version`（App 版本号）与 `Accept-Language`（App 当前语言），都不是必需的。
@@ -59,7 +59,11 @@ info:
 
     ## 权限
 
-    商户 Owner 拥有全部权限。权限按商户后台的权限点判，各接口标在 `x-required-privilege`；员工可以同时持有多个角色，权限取并集。标 `session` 的接口只要求已登录，包括：目标是登录者本人的操作（修改或重置自己的登录密码，即 `changePassword` 与 `sendPasswordEmailCode`、`resetPasswordWithEmailCode` 的 `type` 为 `login`；改自己的登录邮箱、改自己的显示名、开关自己的收款推送、给自己绑定或解绑微信、查自己的微信绑定结果、看自己的成员信息），读收款通知设置，消息的未读数、公告的列表与详情、把消息标为已读（订单消息列表另须查看支付订单的权限），上传文件，商户列表与切换商户，登记推送令牌与退出登录。权限不足属于业务性拒绝，返回 `400`，`message` 写明需要商户后台的哪项权限。
+    商户 Owner 拥有全部权限。权限按商户后台的权限点判，各接口标在 `x-required-privilege`；员工可以同时持有多个角色，权限取并集。标 `session` 的接口只要求已登录，包括：目标是登录者本人的操作（修改自己的登录密码，即 `changePassword` 的 `type` 为 `login`；改自己的登录邮箱、改自己的显示名、开关自己的收款推送、给自己绑定或解绑微信、查自己的微信绑定结果、看自己的成员信息），读收款通知设置，消息的未读数、公告的列表与详情、把消息标为已读（订单消息列表另须查看支付订单的权限），上传文件，商户列表与切换商户，登记推送令牌与退出登录。权限不足属于业务性拒绝，返回 `400`，`message` 写明需要商户后台的哪项权限。
+
+    ## 找回密码
+
+    商户 App 上不承接找回密码，也不承接登录状态下凭邮箱验证码重置本人的登录密码。现网版本的找回密码入口（`/api/v1.0/app/device/forgotPassword/code` 与找回流程其余各步），以及 `sendPasswordEmailCode`、`resetPasswordWithEmailCode` 的 `type` 为 `login` 的请求，不再受理，回 HTTP `400`、`code` 为 `208037`、顶层 `message` 为固定的双语提示「暂不支持在 POS / App 上重置密码，请联系 Owner 在商户后台重置 / Password reset is not available on POS / App, please ask your Owner to reset it in the Merchant Portal」。
 
     ## 仅查看状态
 
@@ -71,7 +75,7 @@ info:
     - 员工的新增、修改、删除，取绑定微信的二维码。
     - 退款密码的修改（`changePassword`）与重置（`sendPasswordEmailCode`、`resetPasswordWithEmailCode`），即 `type` 为 `refund` 的那一支。
 
-    下列请求照常可用，其余改状态的请求都拦：登录、登记推送令牌、切换商户、找回密码、修改或重置本人的登录密码（`type` 为 `login`）、开关本人的收款推送、把消息标为已读（含读公告详情）、退出登录，以及上传图片或文件（`uploadImage`，只产生待引用的临时文件）。
+    下列请求照常可用，其余改状态的请求都拦：登录、登记推送令牌、切换商户、修改本人的登录密码（`changePassword` 的 `type` 为 `login`）、开关本人的收款推送、把消息标为已读（含读公告详情）、退出登录，以及上传图片或文件（`uploadImage`，只产生待引用的临时文件）。
 
     ## 调用时序
 
@@ -126,7 +130,8 @@ paths:
         - `208027` 账号已被停用。
         - `208029` 账号的邮箱还没有验证。
         - `208028` 账号的主商户已被冻结。
-        - `208033` 这部手机在该商户下的设备已被停用。
+        - `108015` 这部手机在该商户下的设备已被停用。
+        - `108018` 本机上报的 `uuid` 不能用作设备标识（为空，或是运行环境返回的固定占位值）。
         - 缺 `uuid`、`username`、`password` 等必填项。
       security: []
       parameters:
@@ -170,12 +175,13 @@ paths:
         '400':
           $ref: '#/components/responses/Rejected'
       x-error-codes:
+        - 108015
+        - 108018
         - 204021
         - 206012
         - 208027
         - 208028
         - 208029
-        - 208033
         - 966001
   /token:
     put:
@@ -185,7 +191,7 @@ paths:
       x-required-privilege: session
       summary: 登记本机的推送令牌
       description: |
-        把本机的推送令牌记到这部手机的设备上，之后的收款、退款提醒推到这个令牌。重复登记以最后一次为准。
+        把本机的推送令牌登记到这部手机在当前商户下的设备与当前登录的账号上，之后的收款、退款提醒推到这个令牌。同一个令牌再次登记时（如这部手机换了账号登录，或切换了商户），改记到这一次的账号与设备上；退出登录后停推的令牌，再次登记即恢复推送。推送的语言取本次请求的 `Accept-Language`，没带时为英文。
 
         设备按请求头定位：`Device-Id` 不为空时按它找；为空时按 `Merchant-Id`、`Client-Device-Id`、`Device-Type` 三项找。
 
@@ -314,7 +320,8 @@ paths:
         令牌无效或已失效、当前商户被冻结时与其他受保护接口一样返回 `403`，须重新登录。下列情形返回 `400`，仍留在原来的商户：
 
         - `208034` 目标商户不在登录者可以访问的范围内。主商户的成员可以切到它的关联商户，关联商户的成员只能在本商户。
-        - `208033` 这部手机在目标商户下的设备已被停用。
+        - `108015` 这部手机在目标商户下的设备已被停用。
+        - `108018` 本机上报的 `uuid` 不能用作设备标识（为空，或是运行环境返回的固定占位值）。
         - 缺 `username` 或 `uuid`。
       parameters:
         - $ref: '#/components/parameters/DevType'
@@ -354,194 +361,9 @@ paths:
         '403':
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
-        - 208033
+        - 108015
+        - 108018
         - 208034
-  /device/forgotPassword/code:
-    get:
-      tags:
-        - auth
-      operationId: sendForgotPasswordCode
-      summary: 找回密码 — 向邮箱发验证码
-      description: |
-        收一个邮箱，返回本次找回的 `ticket`。邮箱对应得上账号时向它发一封带 6 位验证码的邮件；对应不上时不发邮件，响应相同，不透露邮箱是否存在。
-
-        邮箱对应的账号：登录邮箱是它的账号；它是某个商户 Owner 的登录邮箱时，还包括该商户下的员工账号。
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/ForgotEmail'
-      responses:
-        '200':
-          description: 已受理（邮箱是否存在响应一致）
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Envelope'
-                properties:
-                  data:
-                    type: object
-                    required:
-                      - ticket
-                    properties:
-                      ticket:
-                        type: string
-                        description: 本次找回的标识，校验验证码时原样带回
-              example:
-                status: 200
-                message: Success
-                data:
-                  ticket: H3KD82MZQ0P7XW5RT1BN
-                timestamp: '2026-10-06T18:30:02.771+00:00'
-                traceId: a4f81d6c2e07493b
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes: []
-  /device/forgotPassword/verify:
-    get:
-      tags:
-        - auth
-      operationId: verifyForgotPasswordCode
-      summary: 找回密码 — 校验验证码
-      description: |
-        核对 `ticket` 与验证码。通过后验证码作废，响应下发一个短时 cookie `__Host-app-pwdreset`，它对应这个邮箱的这次校验。带着它，随后的一段时间内（默认 60 秒，可配置）可以用 `listAccountsByEmail` 取一次可重置的账号；`resetForgottenPassword` 同样要求带它。
-
-        cookie 带 `HttpOnly`、`Secure`、`SameSite=Strict`、`Path=/`，自本次校验起有效，有效期与重置凭证相同（默认 10 分钟，可配置）。重新发码并通过校验会换发新的 cookie；重置成功或过期后作废。
-
-        下列情形返回 `400`：
-
-        - `204010` 验证码不对，还可以重输。
-        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
-        - `206007` 验证码输错次数超过上限，本次找回作废，须重新发码。
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/ForgotEmail'
-        - name: ticket
-          in: query
-          required: true
-          schema:
-            type: string
-          description: '`sendForgotPasswordCode` 返回的 `ticket`'
-        - name: ticketValue
-          in: query
-          required: true
-          schema:
-            type: string
-          description: 邮件里的 6 位验证码
-      responses:
-        '200':
-          description: 验证码正确，`data` 为 `null`
-          headers:
-            Set-Cookie:
-              description: '`__Host-app-pwdreset=<值>; Max-Age=<重置凭证有效期的秒数>; Path=/; Secure; HttpOnly; SameSite=Strict`。值是不透明的字符串，对应这个邮箱的这次校验'
-              schema:
-                type: string
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Envelope'
-              example:
-                status: 200
-                message: Success
-                data: null
-                timestamp: '2026-10-06T18:30:41.336+00:00'
-                traceId: e2b70c9a5d184f61
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes:
-        - 204010
-        - 206006
-        - 206007
-  /device/accountByEmail:
-    get:
-      tags:
-        - auth
-      operationId: listAccountsByEmail
-      summary: 找回密码 — 按邮箱列出可重置的账号
-      description: |
-        按商户分组返回这个邮箱可以重置的账号。下面三条都满足才返回内容，否则同样返回 `200`，`data` 是空数组：
-
-        - 请求带着 `verifyForgotPasswordCode` 下发的 cookie `__Host-app-pwdreset`，且它对应的校验就是查询参数里这个邮箱的。
-        - 在这次校验之后的一段时间内（默认 60 秒，可配置）。
-        - 这次校验还没有取过。取过之后同一邮箱再请求返回空数组，直到重新发码并通过校验。
-
-        可以重置的账号：登录邮箱是它的账号本身；它是某个商户 Owner 的登录邮箱时，还包括该商户下的员工账号。
-
-        返回的 `accountId` 不是账号的固定编号，而是重置凭证，重置时原样带回。凭证自返回起默认 10 分钟内有效（可配置），只能用一次；重置成功或过期即作废。
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/ForgotEmail'
-        - $ref: '#/components/parameters/PasswordResetCookie'
-      responses:
-        '200':
-          description: 该邮箱可重置的账号，按商户分组；没带 cookie、cookie 对不上、不在可取的时间内或已经取过为空数组
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Envelope'
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ForgotMerchantAccounts'
-              example:
-                status: 200
-                message: Success
-                data:
-                  - mchCode: PINE
-                    mchName: Pine Street Cafe
-                    accounts:
-                      - accountId: rst_8f2c61d0a94b4e7c93b5
-                        userName: amy.manager
-                      - accountId: rst_1b7e03c5d2f8496a70c4
-                        userName: cashier01
-                timestamp: '2026-10-06T18:30:41.902+00:00'
-                traceId: 6d0a3f81c7e24b59
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes: []
-  /device/forgotPassword/resetPassword:
-    post:
-      tags:
-        - auth
-      operationId: resetForgottenPassword
-      summary: 找回密码 — 重置登录密码
-      description: |
-        凭 `listAccountsByEmail` 返回的 `accountId` 把对应账号的登录密码改为 `newPwd`。请求须带着 `verifyForgotPasswordCode` 下发的 cookie `__Host-app-pwdreset`，且 `accountId` 是带着同一个 cookie 列出的。`accountId` 用过即作废，cookie 随之作废。成功后该账号在所有设备上的登录失效，须用新密码重新登录。
-
-        下列情形返回 `400`：
-
-        - `206017` `accountId` 不是有效的重置凭证（没发过、已用过或已过期），或请求没带 cookie、cookie 已过期、cookie 与 `accountId` 对不上，须从发验证码重新开始。
-        - 新密码不满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）。
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/PasswordResetCookie'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ForgotResetRequest'
-            example:
-              accountId: rst_8f2c61d0a94b4e7c93b5
-              newPwd: N3w!Str0ngPass
-      responses:
-        '200':
-          description: 已重置，`data` 为 `null`
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Envelope'
-              example:
-                status: 200
-                message: Success
-                data: null
-                timestamp: '2026-10-06T18:31:20.458+00:00'
-                traceId: b93c5e07a2d14f80
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes:
-        - 206017
   /device/updatePassword:
     put:
       tags:
@@ -601,7 +423,7 @@ paths:
       operationId: signOut
       x-required-privilege: session
       summary: 退出登录
-      description: 让当前令牌失效。没有参数。
+      description: 让当前令牌失效；这部手机登记过的推送令牌随之停推，重新登录并登记后恢复。没有参数。
       responses:
         '200':
           description: 已退出，`data` 为 `null`
@@ -623,22 +445,20 @@ paths:
       tags:
         - auth
       operationId: sendPasswordEmailCode
-      x-required-privilege: session
-      summary: 忘记登录密码或退款密码 — 发邮箱验证码
+      x-required-privilege: account:refund-pin:manage
+      summary: 忘记退款密码 — 发邮箱验证码
       description: |
         向商户 Owner 的登录邮箱发一封带 6 位验证码的邮件，返回本次的 `ticket`。重置（`resetPasswordWithEmailCode`）时带上同样的 `type`、这个 `ticket` 与邮件里的验证码。
 
-        `type` 决定之后重置哪一个：
-
-        - `login`：登录者本人的登录密码。
-        - `refund`：商户的退款密码。本接口标的 `session` 只覆盖 `login`；`refund` 另须商户后台管理退款密码的权限（`account:refund-pin:manage`）。
+        `type` 只受理 `refund`（商户的退款密码）；`login` 不受理，不看权限一律按总说明「找回密码」返回。
 
         下列情形返回 `400`，`message` 写明原因：
 
         - `type` 不是上面两个取值。
         - 发得太频繁，还在冷却中。
-        - `type` 为 `refund` 而登录者没有管理退款密码的权限。
-        - `208035` `type` 为 `refund` 时商户处于仅查看状态，不能重置退款密码。`login` 不受仅查看影响。
+        - 登录者没有管理退款密码的权限。
+        - `208035` 商户处于仅查看状态，不能重置退款密码。
+        - `208037` `type` 为 `login`。
       parameters:
         - name: type
           in: query
@@ -648,7 +468,7 @@ paths:
             enum:
               - login
               - refund
-          description: '`login` 登录密码，`refund` 退款密码'
+          description: '`refund` 退款密码；`login` 不受理'
         - name: email
           in: query
           required: false
@@ -679,18 +499,18 @@ paths:
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
         - 208035
+        - 208037
   /device/merchant/reset/pwd:
     post:
       tags:
         - auth
       operationId: resetPasswordWithEmailCode
-      x-required-privilege: session
-      summary: 凭邮箱验证码重置登录密码或退款密码
+      x-required-privilege: account:refund-pin:manage
+      summary: 凭邮箱验证码重置退款密码
       description: |
         `type` 与 `ticket` 须与 `sendPasswordEmailCode` 那一次相同，`ticketValue` 是邮件里的验证码，验对即作废。`confirmPassword` 收下不用。成功时 `data` 为 `null`。
 
-        - `login`：把登录者本人的登录密码改为 `newPassword`，须满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）。成功后这部手机保持登录、令牌照常可用；该账号在其他设备与会话上的登录失效。
-        - `refund`：把商户的退款密码改为 `newPassword`，须是 6 位数字。本接口标的 `session` 只覆盖 `login`；`refund` 另须商户后台管理退款密码的权限（`account:refund-pin:manage`）。
+        `type` 只受理 `refund`：把商户的退款密码改为 `newPassword`，须是 6 位数字。`login` 不受理，不看权限一律按总说明「找回密码」返回。
 
         下列情形返回 `400`，`message` 写明原因：
 
@@ -699,8 +519,9 @@ paths:
         - `206007` 验证码输错次数超过上限，须重新发码。
         - 新密码不满足对应的规则。
         - `type` 不是上面两个取值。
-        - `type` 为 `refund` 而登录者没有管理退款密码的权限。
-        - `208035` `type` 为 `refund` 时商户处于仅查看状态，不能重置退款密码。`login` 不受仅查看影响。
+        - 登录者没有管理退款密码的权限。
+        - `208035` 商户处于仅查看状态，不能重置退款密码。
+        - `208037` `type` 为 `login`。
       requestBody:
         required: true
         content:
@@ -708,11 +529,11 @@ paths:
             schema:
               $ref: '#/components/schemas/PasswordResetRequest'
             example:
-              type: login
+              type: refund
               ticket: chl_1f7c3a90e5b24d68
               ticketValue: '518204'
-              newPassword: N3w!Str0ngPass
-              confirmPassword: N3w!Str0ngPass
+              newPassword: '246810'
+              confirmPassword: '246810'
       responses:
         '200':
           description: 已重置，`data` 为 `null`
@@ -735,6 +556,7 @@ paths:
         - 206006
         - 206007
         - 208035
+        - 208037
   /device/mch_info:
     get:
       tags:
@@ -927,7 +749,6 @@ paths:
         下列情形返回 `400`，`message` 写明原因：
 
         - `timezone` 不在商户所在省或州的可选时区内。
-        - 改了会与已出账的历史数据冲突，没有改。
         - `208035` 商户处于仅查看状态，不能改商户资料。
         - 权限不足：需要商户后台「商户资料」的编辑权限。
       requestBody:
@@ -1384,7 +1205,7 @@ paths:
                 message: Success
                 data:
                   mch_name: Pine Street Cafe
-                  code_url: https://pay.example.ca/q/7Kq2mX9pLa
+                  code_url: https://checkout.example.com/q/7Kq2mX9pLa
                   code_img_url: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAyAAAAMgCAIAAADz
                 timestamp: '2026-10-06T19:05:40.712+00:00'
                 traceId: c41e8b62d07a4f35
@@ -1927,11 +1748,11 @@ paths:
         请求体与 `getMerchantInfo` 返回的 `payInfo` 同形。与商户后台收款页设置是同一份设置；小费是商户级的，终端收款也用同一份。成功时 `data` 为 `null`。
 
         - `user_info_switch`：为 `true` 时收款页向付款人收姓名与手机号，为 `false` 时不收。
-        - `remark_switch`：为 `true` 时收款页有备注栏；`remarks_are_required` 为 `true` 时备注必填。
+        - `remark_switch`：为 `true` 时收款页有备注栏。
         - `user_input_title`：商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；最多 4 项，每项标题不超过 10 个字符。不带或空数组表示没有自定义填写项。
         - `tip_switch`、`tip_preset_value`：小费开关与三档预设百分比。`tip_preset_value` 是三个 0 到 30 的整数，半角逗号分隔，如 `10,15,20`；`tip_switch` 为 `false` 时不看它。
         - `note`：收款页上的提示语；空串或不带表示不设。
-        - `full_pay_switch`、`child_refund_switch`、`mch_refund_switch` 收下不用。
+        - `full_pay_switch`、`child_refund_switch`、`mch_refund_switch`、`remarks_are_required` 收下不用。
 
         下列情形返回 `400`，`message` 写明原因：
 
@@ -2194,6 +2015,7 @@ paths:
         - `208035` 商户处于仅查看状态，不能退款。
         - `108025` 这笔退款不予受理，不细分原因：订单没有支付成功、已全额退、金额不是正数或超过可退金额、成交超过最大退款期限（可配置）、商户的退款能力被关闭等。
         - `108017` 同一登录账号对同一订单在极短时间内重复提交（不论金额）。
+        - `108001` 同一部手机对同一订单、同样金额在 60 秒内（可配置）再次发起退款，但备注与前一次不同。
         - 权限不足：需要商户后台「发起退款」的权限。
         - 订单不存在，或不在可退的范围内，两者不区分。
         - 商户可用于退款的资金不够这笔退款，`message` 里含 `balance`（中文环境含「余额」）。
@@ -2256,6 +2078,7 @@ paths:
         '403':
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
+        - 108001
         - 108017
         - 108025
         - 206003
@@ -2276,7 +2099,6 @@ paths:
         下列情形返回 `400`，`message` 写明原因：
 
         - `108005` 不是挂起中的预授权订单：已释放、已清算，或不是预授权订单。
-        - `108019` 这笔订单是先授权后请款的预授权，没有释放这个动作。
         - `208035` 商户处于仅查看状态，不能释放。
         - 权限不足：需要商户后台「完成或释放预授权」的权限。
         - 订单不存在，或不是当前商户的订单，两者不区分。
@@ -2301,7 +2123,6 @@ paths:
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
         - 108005
-        - 108019
         - 208035
   /device/common:
     get:
@@ -2717,7 +2538,7 @@ paths:
       description: |
         返回当前商户的三个金额，不含子商户，没有参数。都按结算币种，单位是元。
 
-        - `tranBalance`：待结算余额（不含预授权挂起），即还没结算的收款减去退款等扣减后的净额，可能为负。从余额划到退款账户（`rechargeRefundAccount` 的 `balance`）时，余额够不够以服务端提交时的判断为准，不以本值为准。
+        - `tranBalance`：待结算余额（不含预授权挂起），即还没结算的收款减去退款等扣减后的净额，可能为负，与商户后台的待结算金额 `toSettle` 是同一个量。从余额划到退款账户（`rechargeRefundAccount` 的 `balance`）时，余额够不够以服务端提交时的判断为准，不以本值为准。
         - `rechargeBalance`：退款账户的余额。
         - `refundQuota`：退款账户的最低金额，退款账户余额低于它时由系统自动补足；没有开自动补足时为 `0`。
 
@@ -4056,20 +3877,6 @@ components:
           - iphone
           - android
       description: 手机系统：iOS 发 `iphone`，Android 发 `android`
-    ForgotEmail:
-      name: email
-      in: query
-      required: true
-      schema:
-        type: string
-      description: 找回密码用的邮箱
-    PasswordResetCookie:
-      name: __Host-app-pwdreset
-      in: cookie
-      required: false
-      schema:
-        type: string
-      description: '`verifyForgotPasswordCode` 下发的 cookie。没带、已过期或与本次请求对不上时，列账号返回空数组，重置返回 `400`'
     BillId:
       name: bill_id
       in: path
@@ -4294,47 +4101,6 @@ components:
         click:
           type: boolean
           description: 是不是路径上 `clientMoniker` 指的那个商户
-    ForgotMerchantAccounts:
-      type: object
-      description: 一个商户及其下可重置的账号。
-      required:
-        - mchCode
-        - mchName
-        - accounts
-      properties:
-        mchCode:
-          type: string
-          description: 商户代码
-        mchName:
-          type: string
-          description: 商户名称
-        accounts:
-          type: array
-          items:
-            type: object
-            required:
-              - accountId
-              - userName
-            properties:
-              accountId:
-                type: string
-                description: 只能用一次的重置凭证，重置时原样带回；不是账号的固定编号
-              userName:
-                type: string
-                description: 账号的用户名
-    ForgotResetRequest:
-      type: object
-      required:
-        - accountId
-        - newPwd
-      properties:
-        accountId:
-          type: string
-          description: '`listAccountsByEmail` 返回的 `accountId`'
-        newPwd:
-          type: string
-          format: password
-          description: 新的登录密码，至少 8 位，含大写字母、小写字母、数字与特殊字符
     ChangePasswordRequest:
       type: object
       required:
@@ -4383,9 +4149,11 @@ components:
         - `2` 支付中。
         - `3` 已关闭（过期、关闭或取消）。
         - `4` 失败。
-        - `5` 成功；预授权款项挂起中的订单也是 `5`，此时 `preAuth` 为 `true`。
+        - `5` 成功。
         - `6` 部分退款。
         - `7` 全额退款。
+
+        预授权款项挂起不改变状态位：按已退情况为 `5` / `6` / `7`，挂起看 `preAuth`。
     MicropayRequest:
       type: object
       required:
@@ -5094,7 +4862,7 @@ components:
       properties:
         tranBalance:
           type: number
-          description: 待结算余额（不含预授权挂起）：还没结算的收款减去退款等扣减后的净额，可能为负
+          description: 待结算余额（不含预授权挂起）：还没结算的收款减去退款等扣减后的净额，可能为负。与商户后台的待结算金额（`toSettle`）是同一个量
         rechargeBalance:
           type: number
           description: 退款账户的余额
@@ -5194,7 +4962,7 @@ components:
           $ref: '#/components/schemas/MerchantBankInfo'
     PaySettingInfo:
       type: object
-      description: 店铺码收款页设置。`getMerchantInfo` 返回时除 `note`（没有值不返回本键）外都返回；`updatePaymentPageSettings` 收的也是这一份，其中 `full_pay_switch`、`child_refund_switch`、`mch_refund_switch` 收下不用。
+      description: 店铺码收款页设置。`getMerchantInfo` 返回时除 `note`（没有值不返回本键）外都返回；`updatePaymentPageSettings` 收的也是这一份，其中 `full_pay_switch`、`child_refund_switch`、`mch_refund_switch`、`remarks_are_required` 收下不用。
       required:
         - user_info_switch
         - remark_switch
@@ -5209,7 +4977,7 @@ components:
           description: 收款页是否有备注栏
         remarks_are_required:
           type: boolean
-          description: 备注是否必填
+          description: 恒为 `false`。保存时收下不用
         user_input_title:
           type: string
           description: 商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；没有时为 `[]`
@@ -5659,7 +5427,7 @@ components:
           enum:
             - login
             - refund
-          description: '`login` 登录密码，`refund` 退款密码；须与发验证码时的相同'
+          description: '`refund` 退款密码，须与发验证码时的相同；`login` 不受理'
         ticket:
           type: string
           description: '`sendPasswordEmailCode` 返回的 `ticket`'
@@ -5669,7 +5437,7 @@ components:
         newPassword:
           type: string
           format: password
-          description: 新密码。登录密码至少 8 位，含大写字母、小写字母、数字与特殊字符；退款密码是 6 位数字
+          description: 新的退款密码，6 位数字
         confirmPassword:
           type: string
           format: password

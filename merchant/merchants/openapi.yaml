@@ -633,109 +633,6 @@ components:
           $ref: '#/components/schemas/SettlementStep'
         documents:
           $ref: '#/components/schemas/DocumentsStep'
-    DiagnosticDetail:
-      type: string
-      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
-    Currency:
-      type: string
-      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
-      examples:
-        - CAD
-        - USD
-        - HKD
-        - CNY
-    Money:
-      type: object
-      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
-      required:
-        - amount
-        - currency
-      properties:
-        amount:
-          type: string
-          pattern: ^-?[0-9]+$
-          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
-        currency:
-          $ref: '#/components/schemas/Currency'
-    ErrorEnvelope:
-      type: object
-      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
-      required:
-        - code
-        - detail
-      properties:
-        code:
-          type: integer
-          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
-        detail:
-          allOf:
-            - $ref: '#/components/schemas/DiagnosticDetail'
-          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
-        links:
-          type: object
-          description: 可选:错误说明 / 后续恢复操作链接。
-          additionalProperties:
-            type: string
-        traceId:
-          type: string
-          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
-        details:
-          type: array
-          description: 可选:字段级校验错误。
-          items:
-            type: object
-            required:
-              - field
-              - issue
-            properties:
-              field:
-                type: string
-              issue:
-                type: string
-        context:
-          type: object
-          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
-          properties:
-            attemptsRemaining:
-              type: integer
-              minimum: 0
-              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
-            cooldownSeconds:
-              type: integer
-              minimum: 0
-              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
-              type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
-            merchantMandateNo:
-              type: string
-              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
-            purchaseLimit:
-              $ref: '#/components/schemas/Money'
-              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
-            committedQuantity:
-              type: integer
-              minimum: 0
-              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
-            floorAmount:
-              $ref: '#/components/schemas/Money'
-              description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
-            minimumMinutes:
-              type: integer
-              minimum: 1
-              description: 提交的时长超出允许范围时，当前允许的下限，分钟（范围由平台设定，前端不写死）。
-            maximumMinutes:
-              type: integer
-              minimum: 1
-              description: 提交的时长超出允许范围时，当前允许的上限，分钟。
-            payable:
-              $ref: '#/components/schemas/Money'
-              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
-    Phone:
-      type: string
-      pattern: ^\+[1-9]\d{1,14}$
-      maxLength: 16
-      description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
     ContactStep:
       type: object
       description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：注册时已填的只读，没填的在本步补填并写回账号资料。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
@@ -766,12 +663,6 @@ components:
         monerisManagerName:
           type: string
           description: 条件必填：referredBy = Moneris 时。
-    PaymentMethodCode:
-      type: string
-      minLength: 1
-      description: 支付方式目录码（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，前端从候选集取来原样回传。
-      examples:
-        - wechat_instore
     ServicesStep:
       type: object
       description: Services 步（向导第 3 步）；至少选 1 个支付方式——该 ≥1 是提交完整性、不是本形状的约束：由服务端在 `mode=next` 校验，草稿态可为空。
@@ -783,29 +674,6 @@ components:
           description: 选中的支付方式目录码，须在 Business 步所选结算币种的候选内。数组整组置换，草稿态允许 `[]`。
           items:
             $ref: '#/components/schemas/PaymentMethodCode'
-    OwnershipType:
-      type: string
-      enum:
-        - SOLE_PROPRIETORSHIP
-        - PARTNERSHIP
-        - CORPORATION
-        - NON_PROFIT
-      description: 企业类型（入驻 Business 步与 Business Profile 共用），展示名由前端按码 i18n。
-    MerchantLanguage:
-      type: string
-      description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出。界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
-      enum:
-        - en
-        - fr
-        - zh
-    OnlineServiceType:
-      type: string
-      enum:
-        - WEBSITE
-        - APP
-        - MINI_PROGRAM
-        - OTHER
-      description: 线上服务类型（入驻 Business 步与 Service 页共用），展示名由前端按码 i18n。只有 `WEBSITE` 有网址。
     BusinessStep:
       type: object
       description: Business 步（向导第 2 步）。Currency × Country 有效组合以后端配置为准；Services 步选了任一线上支付方式时 typeOfOnlineService 必填、为 WEBSITE 时 websiteUrl 必填（在 Services 步保存与提交时校验）。
@@ -881,6 +749,213 @@ components:
       allOf:
         - $ref: '#/components/schemas/BusinessStep'
         - $ref: '#/components/schemas/BusinessStepReadOverlay'
+    SettlementStep:
+      type: object
+      description: |
+        Step 4 Settlement。
+
+        - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
+        - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
+        - Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
+      additionalProperties: false
+      properties:
+        bankName:
+          type: string
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+        settlementCycle:
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
+          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
+        settlementCycleDisplayName:
+          type: string
+          minLength: 1
+          readOnly: true
+          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
+        storeId:
+          type:
+            - string
+            - 'null'
+          description: 可选；后续可改。
+        refundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 入驻时初设的 Refund PIN。
+        confirmRefundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
+        refundPinSet:
+          type: boolean
+          readOnly: true
+          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
+    SettlementStepReadOverlay:
+      properties:
+        storeId:
+          type: string
+    SettlementStepRead:
+      description: '`SettlementStep` 的读侧形态：未指定门店时不返回 `storeId` 键。'
+      allOf:
+        - $ref: '#/components/schemas/SettlementStep'
+        - $ref: '#/components/schemas/SettlementStepReadOverlay'
+    ApplicationSteps:
+      type: object
+      description: 各 step 的已保存草稿字段聚合（GET 加载时返回）。**读侧聚合**——各 step 用读侧变体，未填字段不返回本键。
+      additionalProperties: false
+      properties:
+        contact:
+          $ref: '#/components/schemas/ContactStep'
+        services:
+          $ref: '#/components/schemas/ServicesStep'
+        business:
+          $ref: '#/components/schemas/BusinessStepRead'
+        settlement:
+          $ref: '#/components/schemas/SettlementStepRead'
+        documents:
+          $ref: '#/components/schemas/DocumentsStepRead'
+    DiagnosticDetail:
+      type: string
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    ErrorEnvelope:
+      type: object
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
+      required:
+        - code
+        - detail
+      properties:
+        code:
+          type: integer
+          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+        detail:
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
+        links:
+          type: object
+          description: 可选:错误说明 / 后续恢复操作链接。
+          additionalProperties:
+            type: string
+        traceId:
+          type: string
+          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
+        details:
+          type: array
+          description: 可选:字段级校验错误。
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
+          properties:
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            orderId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
+            floorAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            minimumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的下限，分钟（范围由平台设定，前端不写死）。
+            maximumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+    Phone:
+      type: string
+      pattern: ^\+[1-9]\d{1,14}$
+      maxLength: 16
+      description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
+    PaymentMethodCode:
+      type: string
+      minLength: 1
+      description: 支付方式目录码（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，前端从候选集取来原样回传。
+      examples:
+        - wechat_instore
+    OwnershipType:
+      type: string
+      enum:
+        - SOLE_PROPRIETORSHIP
+        - PARTNERSHIP
+        - CORPORATION
+        - NON_PROFIT
+      description: 企业类型（入驻 Business 步与 Business Profile 共用），展示名由前端按码 i18n。
+    MerchantLanguage:
+      type: string
+      description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出。界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
+      enum:
+        - en
+        - fr
+        - zh
+    OnlineServiceType:
+      type: string
+      enum:
+        - WEBSITE
+        - APP
+        - MINI_PROGRAM
+        - OTHER
+      description: 线上服务类型（入驻 Business 步与 Service 页共用），展示名由前端按码 i18n。只有 `WEBSITE` 有网址。
     BankAccountIdentification:
       type: object
       additionalProperties: false
@@ -942,57 +1017,6 @@ components:
       writeOnly: true
       pattern: ^[0-9]{6}$
       description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
-    SettlementStep:
-      type: object
-      description: |
-        Step 4 Settlement。
-
-        - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
-        - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
-        - Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
-      additionalProperties: false
-      properties:
-        bankName:
-          type: string
-        bankAccount:
-          allOf:
-            - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
-        settlementCycle:
-          allOf:
-            - $ref: '#/components/schemas/SettlementCycleCode'
-          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
-        settlementCycleDisplayName:
-          type: string
-          minLength: 1
-          readOnly: true
-          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
-        storeId:
-          type:
-            - string
-            - 'null'
-          description: 可选；后续可改。
-        refundPin:
-          allOf:
-            - $ref: '#/components/schemas/RefundPin'
-          description: 入驻时初设的 Refund PIN。
-        confirmRefundPin:
-          allOf:
-            - $ref: '#/components/schemas/RefundPin'
-          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
-        refundPinSet:
-          type: boolean
-          readOnly: true
-          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
-    SettlementStepReadOverlay:
-      properties:
-        storeId:
-          type: string
-    SettlementStepRead:
-      description: '`SettlementStep` 的读侧形态：未指定门店时不返回 `storeId` 键。'
-      allOf:
-        - $ref: '#/components/schemas/SettlementStep'
-        - $ref: '#/components/schemas/SettlementStepReadOverlay'
     Timestamp:
       type: string
       format: date-time
@@ -1100,21 +1124,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/DocumentsStep'
         - $ref: '#/components/schemas/DocumentsStepFeReadOverlay'
-    ApplicationSteps:
-      type: object
-      description: 各 step 的已保存草稿字段聚合（GET 加载时返回）。**读侧聚合**——各 step 用读侧变体，未填字段不返回本键。
-      additionalProperties: false
-      properties:
-        contact:
-          $ref: '#/components/schemas/ContactStep'
-        services:
-          $ref: '#/components/schemas/ServicesStep'
-        business:
-          $ref: '#/components/schemas/BusinessStepRead'
-        settlement:
-          $ref: '#/components/schemas/SettlementStepRead'
-        documents:
-          $ref: '#/components/schemas/DocumentsStepRead'
     FileUploadForm:
       type: object
       additionalProperties: false

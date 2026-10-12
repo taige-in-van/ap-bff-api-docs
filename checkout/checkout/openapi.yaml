@@ -2379,7 +2379,7 @@ components:
             - OVERDUE
             - DELETED
           description: |
-            账单此刻的状态：
+            账单此刻在付款人侧的呈现状态：
 
             - `UNPAID` 还没付清，也没过付款截止时刻；
             - `PAID` 已付清（可能是本笔，也可能是别人付的那笔）；
@@ -2596,13 +2596,13 @@ components:
           enum:
             - ISSUED
             - REDEEMED
-            - CANCELED
+            - CANCELLED
           description: |
             凭证此刻的状态：
 
             - `ISSUED` 可用；
             - `REDEEMED` 已使用；
-            - `CANCELED` 已失效。
+            - `CANCELLED` 已失效。
 
             遇到未列出的值按不可用处理。
     CheckoutNextAction:
@@ -3027,9 +3027,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。

@@ -7,32 +7,46 @@
     "107500": {
       "name": "PF4_BARCODE_CHANNEL_UNAVAILABLE",
       "requiredContextFields": [
-        "paymentId"
+        "orderId"
       ],
       "retryable": true
     },
+    "108001": {
+      "name": "CORE_IDEMPOTENCY_PAYLOAD_CONFLICT",
+      "retryable": false
+    },
     "108005": {
-      "name": "PREAUTH_STATE_CONFLICT",
+      "name": "SETTLEMENT_HOLD_STATE_CONFLICT",
       "retryable": false
     },
     "108014": {
       "name": "DEVICE_TERMINAL_IDENTITY_CONFLICT",
       "retryable": false
     },
+    "108015": {
+      "name": "DEVICE_STATE_CONFLICT",
+      "retryable": false
+    },
     "108017": {
       "name": "REFUND_DUPLICATE_SUBMIT",
       "retryable": false
     },
-    "108019": {
-      "name": "PREAUTH_RELEASE_NOT_APPLICABLE",
+    "108018": {
+      "name": "DEVICE_IDENTITY_NOT_ACCEPTABLE",
       "retryable": false
     },
     "108025": {
       "name": "REFUND_ACCEPTANCE_REJECTED",
+      "requiredContextFields": [
+        "reasonCode"
+      ],
       "retryable": false
     },
     "108104": {
       "name": "CORE_NOT_ACCEPTED",
+      "requiredContextFields": [
+        "orderId"
+      ],
       "retryable": false
     },
     "108105": {
@@ -66,14 +80,14 @@
     "108500": {
       "name": "PF4_BARCODE_CREDENTIAL_EXPIRED",
       "requiredContextFields": [
-        "paymentId"
+        "orderId"
       ],
       "retryable": false
     },
     "108501": {
       "name": "PF4_BARCODE_PAYMENT_DECLINED",
       "requiredContextFields": [
-        "paymentId"
+        "orderId"
       ],
       "retryable": false
     },
@@ -136,10 +150,6 @@
       "name": "TERMINAL_DEVICE_TYPE_UNKNOWN",
       "retryable": false
     },
-    "206017": {
-      "name": "PASSWORD_RESET_TARGET_INVALID",
-      "retryable": false
-    },
     "208027": {
       "name": "LOGIN_ACCOUNT_DISABLED",
       "retryable": false
@@ -166,6 +176,10 @@
     },
     "208036": {
       "name": "TERMINAL_VOUCHER_NOT_REDEEMED",
+      "retryable": false
+    },
+    "208037": {
+      "name": "TERMINAL_PASSWORD_RESET_UNSUPPORTED",
       "retryable": false
     },
     "966001": {

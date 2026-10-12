@@ -98,7 +98,6 @@ sequenceDiagram
 | 情形 | 响应 | 页面 |
 |---|---|---|
 | 所选有效期超出允许范围 | `400`·`204019` | 按 `context` 里的下限与上限提示，让用户重选 |
-| 改时区与已出账的历史数据冲突 | `409`·`208016` | 提示不能改，保留原值 |
 
 **相对 demo 的改动**
 
@@ -138,7 +137,7 @@ sequenceDiagram
     S->>A: #35;10 [disableMfa]<br/>POST /me/security/mfa/deactivation
     A-->>S: 204
 
-    Note over U,A: 改登录密码（同 My Profile）
+    Note over U,A: 改登录密码（同 My Profile，含密码已修改通知）
     S->>A: #35;11 [changeMyPassword]<br/>PUT /me/security/password
     A-->>S: 204
 
@@ -179,6 +178,7 @@ sequenceDiagram
     Note over U,A: 改退款 PIN
     U->>S: 输当前 PIN + 新 PIN + 确认 PIN<br/>（前端校验 6 位数字、两次一致）
     S->>A: #35;12 [changeRefundPin]<br/>PUT /account/refund-pin
+    A->>E: PIN 已修改通知
     A-->>S: 204
 
     Note over U,E: 忘记退款 PIN（弹窗两步）
@@ -188,6 +188,7 @@ sequenceDiagram
     A-->>S: 202 { challengeId, cooldownSeconds }
     U->>S: 输码 + 新 PIN + 确认 PIN
     S->>A: #35;14 [confirmRefundPinReset]<br/>POST /account/refund-pin/resets/{challengeId}/confirmation
+    A->>E: PIN 已修改通知
     A-->>S: 204
     Note over S,A: 没收到码：冷却结束后重新调 #35;13，得到新 challengeId，旧码作废
 ```
@@ -296,6 +297,7 @@ sequenceDiagram
     A-->>S: 200 { qrTicket, qrContent, expiresAt }
     S->>U: 显示二维码
     U->>W: 扫码并确认
+    Note over A: 确认即成立，接收方行由后台随后落成（页面关闭也会落），刷新后出现在列表
     loop 每隔几秒，直到不是 WAITING
         S->>A: #35;21 [pollNotificationWechatBinding]<br/>GET /notifications/wechat/{qrTicket}
         A-->>S: 200 { status }
@@ -305,8 +307,8 @@ sequenceDiagram
 ```
 
 - 二维码由前端用 `qrContent` 生成，与扫码登录、成员绑微信是同一种做法。
-- `status`：`WAITING` 继续轮询；`BOUND` 绑定成功，关弹窗；`EXPIRED` 二维码过期，提示重新发起。
-- 不管是 `BOUND`、`EXPIRED` 还是用户自己关了弹窗，结束时都重调 #15 刷新列表：用户在微信里确认得晚、结果没赶上轮询的，绑定照样成立，刷新后能看到。
+- `status`：`WAITING` 继续轮询；`BOUND` 用户已在微信里确认、绑定成立，关弹窗；`EXPIRED` 二维码过期，提示重新发起。
+- 不管是 `BOUND`、`EXPIRED` 还是用户自己关了弹窗，结束时都重调 #15 刷新列表：用户在微信里确认得晚、结果没赶上轮询的，绑定照样成立，刷新后能看到。`BOUND` 后新行由后台落成、可能稍后才出现在列表；重调 #15 没看到就提示稍后刷新。
 - 同一个微信重复绑定不会多出一行。
 
 ---

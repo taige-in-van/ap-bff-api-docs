@@ -111,7 +111,7 @@ sequenceDiagram
 
 | 情形 | 响应 | 页面动作 |
 |---|---|---|
-| 密码错 / 账号不存在（不区分） | `400`·`206012` | 留在表单提示「登录凭据错误」 |
+| 密码错 / 账号不存在 / 不能登录商户后台（不区分） | `400`·`206012` | 留在表单提示「登录凭据错误」 |
 | 验证器码错 | `400`·`206012` | 留在输码框重输，不回第一步 |
 | MFA 挑战过期 | `410`·`206006` | 回账号密码步重新登录 |
 | 账号被锁（连续失败） | `423`·`966001` | 提示等冷却 |
@@ -152,6 +152,9 @@ sequenceDiagram
     U->>S: 最后输 6 位码，点 Reset Password
     S->>A: #35;6 [confirmPasswordReset]<br/>POST /auth/password-resets/{challengeId}/confirmation
     A-->>S: 204（码正确才消费，密码已改，该用户所有会话失效）
+    opt 邮箱账号
+        A->>E: 密码已修改通知
+    end
     Note over U,S: Resend：冷却结束后重新调 #35;5，得到新 challengeId，旧码作废
 
     S->>U: 第 3 步：Password Reset!，点 Back to Login 回登录页
@@ -183,7 +186,7 @@ sequenceDiagram
         A-->>S: 201 { cooldownSeconds }
         A->>E: 发验证邮件（异步，投递失败不阻塞注册）
         S->>S: 进「验证邮箱页」，带上表单里的 email
-    else 该邮箱已是可登录账号
+    else 该邮箱已被其他账号使用（含邀请中、已停用）
         A-->>S: 409·968001
         S->>U: 提示换邮箱，或去登录页
     end

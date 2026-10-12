@@ -9,7 +9,7 @@ info:
 
     ## 凭据
 
-    - 登录前的接口（图形验证码、登录、登记本机、找回密码三步）不带凭据。
+    - 登录前的接口（图形验证码、登录、登记本机）不带凭据。
     - `signIn` 返回临时登录凭据 `sign_key`，有效 30 分钟，只用于登记本机，有效期内可重复使用。
     - `registerDevice` 返回 `dev_id` 与设备密钥 `auth_code`。同一台设备每登记一次，设备密钥换新，旧的作废。一台终端只属于一个商户。
     - 此后每个请求都带四个头：`Merchant-Id`、`Device-Id`、`Device-Type`、`Global-Sign`，缺一不可。请求不带令牌，服务端按设备认出它当前由哪个账号登录；这份登录没有有效期。
@@ -28,7 +28,6 @@ info:
     ## 响应外壳
 
     - `/retail_valid/`、`/retail/`、`/vouchers/` 与 `/redemptions` 下的接口，成功响应是裸 JSON，没有外壳。
-    - `/app/device/forget/` 下的接口，成功响应包一层 `{ status, message, data, timestamp, traceId }`，`status` 为 `200`，内容在 `data`。
     - 失败响应的 HTTP 状态不是 2xx，响应体是 `{ status, message, data, timestamp, traceId, code }`：`status` 与 HTTP 状态相同，`message` 是可以直接展示的文案，`data` 为 `null`，`code` 是整数错误码。
 
     ## 状态码
@@ -53,9 +52,13 @@ info:
 
     权限按商户后台的权限点判，不看角色，各接口标在 `x-required-privilege`；员工可以同时持有多个角色，权限取并集，Owner 拥有全部权限。标 `session` 的接口只要求已登录。预设角色里的店长、收银员都有收款、查单与核销所需的权限。权限不足属于业务性拒绝，返回 `400`，`message` 写明需要商户后台的哪项权限。
 
+    ## 找回密码
+
+    POS 上不承接找回密码。现网版本的找回密码入口（`/api/v1.0/app/device/forget/verify` 与找回流程其余各步）不再受理，回 HTTP `400`、`code` 为 `208037`、顶层 `message` 为固定的双语提示「暂不支持在 POS / App 上重置密码，请联系 Owner 在商户后台重置 / Password reset is not available on POS / App, please ask your Owner to reset it in the Merchant Portal」。
+
     ## 仅查看状态
 
-    商户被设为仅查看时，除登录、登记本机与找回密码外，改状态的请求返回 `400`、`code` 为 `208035`；查询照常。
+    商户被设为仅查看时，除登录与登记本机外，改状态的请求返回 `400`、`code` 为 `208035`；查询照常。
 
     ## 调用时序
 
@@ -216,7 +219,8 @@ paths:
         - `206016` `devType` 不是受支持的终端类别。
         - `206014` `sign_key` 无效或已过期，须重新登录。
         - `108014` 设备已登记在其他商户名下（不是登录者可以访问的商户）。
-        - `208033` 这台设备已被停用。
+        - `108015` 这台设备已被停用。
+        - `108018` 上报的终端序列号不能用作设备标识（为空，或是运行环境返回的固定占位值）。
         - `208028` 商户已被冻结。
         - 请求体解不开，或解开后缺 `client_device_id`、`sign_key`。
       security: []
@@ -260,10 +264,11 @@ paths:
           $ref: '#/components/responses/Rejected'
       x-error-codes:
         - 108014
+        - 108015
+        - 108018
         - 206014
         - 206016
         - 208028
-        - 208033
   /retail/app/current_user:
     get:
       tags:
@@ -304,7 +309,7 @@ paths:
       operationId: getViewOnlyStatus
       x-required-privilege: session
       summary: 查商户是否处于仅查看状态（只能读、不能改）
-      description: 返回一个布尔值，响应体就是 `true` 或 `false` 本身。`true` 表示商户被设为仅查看：终端只能查，除登录、登记本机与找回密码外，改状态的请求（收款、退款、释放预授权、核销、改设置等）都会被拒绝。没有参数。
+      description: 返回一个布尔值，响应体就是 `true` 或 `false` 本身。`true` 表示商户被设为仅查看：终端只能查，除登录与登记本机外，改状态的请求（收款、退款、释放预授权、核销、改设置等）都会被拒绝。没有参数。
       responses:
         '200':
           description: 是否仅查看（裸 JSON 布尔值）
@@ -316,158 +321,6 @@ paths:
         '401':
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes: []
-  /app/device/forget/verify:
-    get:
-      tags:
-        - auth
-      operationId: sendForgotPasswordCode
-      summary: 找回密码 — 向邮箱发验证码
-      description: |
-        收一个邮箱，返回本次找回的 `ticket`。邮箱对应得上账号时向它发一封带 6 位验证码的邮件；对应不上时不发邮件，响应相同，不透露邮箱是否存在。
-
-        邮箱对应的账号：登录邮箱是它的账号；它是某个商户 Owner 的登录邮箱时，还包括该商户下的员工账号。
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/ForgotEmail'
-      responses:
-        '200':
-          description: 已受理（邮箱是否存在响应一致）
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Envelope'
-                properties:
-                  data:
-                    type: object
-                    required:
-                      - ticket
-                    properties:
-                      ticket:
-                        type: string
-                        description: 本次找回的标识，后两步原样带回
-              example:
-                status: 200
-                message: Success
-                data:
-                  ticket: H3KD82MZQ0P7XW5RT1BN
-                timestamp: '2026-10-06T18:20:31.482+00:00'
-                traceId: 5f1c0a7be2d94c33
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes: []
-  /app/device/forget/query:
-    get:
-      tags:
-        - auth
-      operationId: listForgotPasswordAccounts
-      summary: 找回密码 — 凭验证码列出该邮箱可重置的账号
-      description: |
-        核对 `ticket` 与验证码，通过后按商户分组返回这个邮箱可以重置的账号。本步不消耗验证码，重置时还要再带一次。
-
-        可以重置的账号：登录邮箱是它的账号本身；它是某个商户 Owner 的登录邮箱时，还包括该商户下的员工账号。
-
-        下列情形返回 `400`：
-
-        - `204010` 验证码不对，还可以重输。
-        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
-        - `206007` 验证码输错次数超过上限，本次找回作废，须重新发码。
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/ForgotEmail'
-        - name: ticket
-          in: query
-          required: true
-          schema:
-            type: string
-          description: '`sendForgotPasswordCode` 返回的 `ticket`'
-        - name: ticketVal
-          in: query
-          required: true
-          schema:
-            type: string
-          description: 邮件里的 6 位验证码（本步的参数名是 `ticketVal`，重置那一步是 `ticketValue`）
-      responses:
-        '200':
-          description: 该邮箱可重置的账号，按商户分组
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/Envelope'
-                properties:
-                  data:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/ForgotMerchantAccounts'
-              example:
-                status: 200
-                message: Success
-                data:
-                  - mchCode: PINE
-                    nickName: Pine Street Cafe
-                    accounts:
-                      - account_id: 8f2c61d0a94b4e7c
-                        username: cashier01
-                      - account_id: 1b7e03c5d2f8496a
-                        username: amy.manager
-                timestamp: '2026-10-06T18:21:05.117+00:00'
-                traceId: 9a3d7e10c4b84f52
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes:
-        - 204010
-        - 206006
-        - 206007
-  /app/device/forget/reset:
-    post:
-      tags:
-        - auth
-      operationId: resetForgottenPassword
-      summary: 找回密码 — 重置登录密码
-      description: |
-        再次核对 `ticket` 与验证码，并确认 `username` 是这个邮箱可以重置的账号，然后把它的登录密码改为 `newPassword`。成功后验证码作废，该账号在所有设备上的登录失效，须用新密码重新登录。
-
-        下列情形返回 `400`：
-
-        - `204010` 验证码不对，还可以重输。
-        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
-        - `206007` 验证码输错次数超过上限，本次找回作废，须重新发码。
-        - `206017` `username` 不是这个邮箱可以重置的账号。
-        - 新密码不满足密码规则（至少 8 位，含大写字母、小写字母、数字与特殊字符）。
-      security: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ForgotResetRequest'
-            example:
-              ticket: H3KD82MZQ0P7XW5RT1BN
-              ticketValue: '602918'
-              username: cashier01
-              email: owner@pinestreetcafe.com
-              newPassword: N3w!Str0ngPass
-      responses:
-        '200':
-          description: 已重置，`data` 为 `null`
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Envelope'
-              example:
-                status: 200
-                message: Success
-                data: null
-                timestamp: '2026-10-06T18:22:40.903+00:00'
-                traceId: c7e4b1920fd34a68
-        '400':
-          $ref: '#/components/responses/Rejected'
-      x-error-codes:
-        - 204010
-        - 206006
-        - 206007
-        - 206017
   /retail/app/trade/tip_config:
     get:
       tags:
@@ -594,7 +447,7 @@ paths:
 
         - 券码的内容是 `{"voucherNo":"…","pin":"…"}`。
         - 只认卖出这张券的商户，即当前商户；子商户卖出的券在这里查不到。
-        - 礼卡只有兑换券能核销。主卡、赠卡各有一张券时，用哪一张的券号都查到整单。
+        - 礼卡只有兑换券能核销，一张兑换券承载主卡与赠卡两个金额。
         - 查到但现在不能核销时仍返回 `200`：`redeemable` 为 `false`，原因在 `notRedeemableReason`。
 
         下列情形返回 `400`：
@@ -727,14 +580,13 @@ paths:
 
         - 核销人记为本设备当前登录的账号，`operator` 是它的显示名。
         - `remark` 是核销备注，可以不带；核销后可以用 `updateRedemptionRemark` 改。
-        - 礼卡主卡、赠卡各有一张券时，用其中一张核销即整单核销，两张一起变为已核销。
         - 同一台设备对同一张券的重复核销请求在 60 秒内（可配置）返回第一次的结果；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。
 
         下列情形返回 `400`：
 
         - `108311` 券不存在、不是当前商户卖出的，或 PIN 不对，三者不区分。
         - `108312` 券已经核销过。
-        - `108313` 券已作废、已因退款失效，或所属订单没有付款成功。
+        - `108313` 券已作废，或已因退款成功失效。
         - `108314` 所属订单有退款正在处理，暂时不能核销；退款没有成功的，之后可以再核销。
         - `208035` 商户处于仅查看状态，不能核销。
         - 缺 `pin`，或 `remark` 超过 200 字。
@@ -812,7 +664,7 @@ paths:
         按页返回当前商户核销过的券，按核销时刻倒序。
 
         - 范围：当前商户全部设备的核销，不按设备分，不含子商户。
-        - 一次核销一行；礼卡主卡、赠卡一起核销的也是一行，`voucherNo` 为主卡的券号。
+        - 一次核销一行。
         - `productKind` 只看一种产品，不带时三种都列。
         - 分页：`page` 从 `1` 起，`limit` 默认 `20`。没有数据时 `data` 为 `[]`。
         - 看一行的详情用它的 `voucherNo` 调 `getVoucher`。
@@ -894,7 +746,6 @@ paths:
 
         - `remark` 最长 200 字；传空串即清掉备注，券视图里随之不再有 `remark`。
         - 只认卖出这张券的商户，即当前商户。
-        - 礼卡主卡、赠卡一起核销的，用哪一张的券号改的都是同一条备注。
 
         下列情形返回 `400`：
 
@@ -1145,7 +996,7 @@ paths:
                 $ref: '#/components/schemas/QrcodeOrderResult'
               example:
                 order_id: P100240002
-                code_url: https://pay.example.ca/o/7Hk2Qm9XwP4t
+                code_url: https://checkout.example.com/o/7Hk2Qm9XwP4t
                 qrcode_img: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASwAAAEsCAYAAAB5fY51AAAA
         '400':
           $ref: '#/components/responses/Rejected'
@@ -1442,7 +1293,6 @@ paths:
         下列情形返回 `400`：
 
         - `108005` 这笔订单不是挂起中的预授权订单（已释放、已清算，或不是预授权）。
-        - `108019` 这笔订单是先授权、后请款的预授权，没有释放这个动作。
         - `208035` 商户处于仅查看状态，不能释放。
         - 当前账号没有完成或释放预授权的权限。
         - 订单不存在，或不是当前商户自己的订单。
@@ -1468,7 +1318,6 @@ paths:
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
         - 108005
-        - 108019
         - 208035
   /retail/app/orders_new:
     get:
@@ -1664,7 +1513,7 @@ paths:
                     refund_count: 1
                     order_count: 2
                     additional_content: Thank you for visiting!
-                    logo_print: https://pay.example.ca/files/receipt-logo/7Hk2Qm9XwP4t.png
+                    logo_print: https://static.example.com/files/3e7a0c5d9b2f41e8a6c4d1f0b8e27a93.png
                 keyboard:
                   summary: 键盘机：同样的流水，tip_amount 为 0
                   value:
@@ -1879,7 +1728,7 @@ paths:
                     tip_amount: 1.5
                     clearing_amount: 9
                 additional_content: Thank you for visiting!
-                logo_print: https://pay.example.ca/files/receipt-logo/7Hk2Qm9XwP4t.png
+                logo_print: https://static.example.com/files/3e7a0c5d9b2f41e8a6c4d1f0b8e27a93.png
         '400':
           $ref: '#/components/responses/Rejected'
         '401':
@@ -2023,13 +1872,6 @@ components:
 
         请求路径是端发出时的完整路径，从 `/api` 起，不含查询参数，例如 `/api/v1.0/retail/app/current_user`。比对不分大小写。
   parameters:
-    ForgotEmail:
-      name: email
-      in: query
-      required: true
-      schema:
-        type: string
-      description: 找回密码用的邮箱
     ReportBegin:
       name: begin
       in: query
@@ -2201,29 +2043,6 @@ components:
             traceId: 5f1c0a7be2d94c33
             code: 206014
   schemas:
-    Envelope:
-      type: object
-      description: 找回密码三个接口成功响应的外壳，内容在 `data`。
-      required:
-        - status
-        - message
-        - timestamp
-        - traceId
-      properties:
-        status:
-          type: integer
-          description: 成功时为 `200`
-        message:
-          type: string
-          description: 成功时为 `Success`
-        data:
-          description: 接口返回的内容；没有内容时为 `null`
-        timestamp:
-          type: string
-          description: 响应生成的时间
-        traceId:
-          type: string
-          description: 本次请求的追踪号
     Failure:
       type: object
       description: 失败响应体。现网的外壳加整数 `code`。
@@ -2252,7 +2071,7 @@ components:
           description: 整数错误码，取值见各接口说明与总说明「状态码」一节
         context:
           type: object
-          description: 附加信息，字段与登记该码的码表所写相同，例如 `204010` 带 `attemptsRemaining`（还可以重输的次数）。没有时不返回
+          description: 附加信息，字段与登记该码的码表所写相同。没有时不返回
     LoginCaptcha:
       type: object
       required:
@@ -2416,59 +2235,6 @@ components:
         client_type:
           type: string
           description: 终端类别，即路径上的 `devType`
-    ForgotMerchantAccounts:
-      type: object
-      description: 一个商户及其下可重置的账号。
-      required:
-        - mchCode
-        - nickName
-        - accounts
-      properties:
-        mchCode:
-          type: string
-          description: 商户代码
-        nickName:
-          type: string
-          description: 商户简称
-        accounts:
-          type: array
-          items:
-            type: object
-            required:
-              - account_id
-              - username
-            properties:
-              account_id:
-                type: string
-                description: 账号编号
-              username:
-                type: string
-                description: 账号的用户名，重置时作为 `username` 带回
-    ForgotResetRequest:
-      type: object
-      required:
-        - ticket
-        - ticketValue
-        - username
-        - email
-        - newPassword
-      properties:
-        ticket:
-          type: string
-          description: '`sendForgotPasswordCode` 返回的 `ticket`'
-        ticketValue:
-          type: string
-          description: 邮件里的 6 位验证码
-        username:
-          type: string
-          description: 要重置的账号的用户名，取自 `listForgotPasswordAccounts` 的返回
-        email:
-          type: string
-          description: 找回密码用的邮箱，与前两步相同
-        newPassword:
-          type: string
-          format: password
-          description: 新的登录密码，至少 8 位，含大写字母、小写字母、数字与特殊字符
     TipConfig:
       type: object
       description: 商户的小费设置。对整个商户生效，与商户后台、商户 App 里设置的是同一份。
@@ -2602,9 +2368,11 @@ components:
         | `2` | 支付中 |
         | `3` | 已关闭（过期、关闭或取消） |
         | `4` | 支付失败 |
-        | `5` | 支付成功；预授权收款资金挂起中时也是 `5`，同时 `pre_auth` 为 `1` |
+        | `5` | 支付成功 |
         | `6` | 部分退款 |
         | `7` | 全额退款 |
+
+        预授权收款资金挂起不改变状态位：按已退情况为 `5` / `6` / `7`，挂起看 `pre_auth`。
     MicropayOrderResult:
       type: object
       required:
@@ -3307,13 +3075,11 @@ components:
     SalesOrderStatus:
       type: string
       enum:
-        - CREATED
         - PAID
         - PARTIALLY_REFUNDED
         - REFUNDING
         - REFUNDED
-        - CLOSED
-      description: 销售单状态：`CREATED` 待付款 / `PAID` 已付 / `PARTIALLY_REFUNDED` 部分已退 / `REFUNDING` 退款处理中 / `REFUNDED` 全额已退 / `CLOSED` 未付关闭。
+      description: 销售单状态：`PAID` 已付 / `PARTIALLY_REFUNDED` 部分已退 / `REFUNDING` 退款处理中 / `REFUNDED` 全额已退。有券的销售单都已付款。
     RedemptionStatus:
       type: string
       enum:
@@ -3328,7 +3094,6 @@ components:
         - VOIDED
         - REFUND_FROZEN
         - REFUNDED
-        - ORDER_NOT_PAID
       description: |
         券现在不能核销的原因：
 
@@ -3338,7 +3103,6 @@ components:
         | `VOIDED` | 已作废（礼卡兑换券被商户作废） |
         | `REFUND_FROZEN` | 所属订单有退款正在处理，暂时不能核销；退款没有成功的，之后恢复可核销 |
         | `REFUNDED` | 所属订单已有退款成功（全额或部分），券随之失效 |
-        | `ORDER_NOT_PAID` | 所属订单没有付款成功（待付款或未付关闭） |
     VoucherLine:
       type: object
       additionalProperties: false
@@ -3371,11 +3135,13 @@ components:
       required:
         - voucherNo
         - salesOrderId
+        - orderId
         - productKind
         - linkName
         - status
         - redemptionStatus
         - redeemable
+        - paidAt
         - amount
         - lines
       properties:
@@ -3387,7 +3153,7 @@ components:
           description: 销售单号，与商户后台销售单详情里的销售单号相同
         orderId:
           type: string
-          description: 支付订单号；没有发起过支付时不返回
+          description: 支付订单号
         productKind:
           $ref: '#/components/schemas/ProductLinkType'
         linkName:
@@ -3407,7 +3173,7 @@ components:
         paidAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
-          description: 付款成功的时刻；没有付款成功时不返回
+          description: 付款成功的时刻
         redeemedAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -3507,7 +3273,7 @@ components:
       properties:
         voucherNo:
           type: string
-          description: 券号；礼卡主卡、赠卡一起核销的为主卡的券号。看详情时拿它调 `getVoucher`
+          description: 券号。看详情时拿它调 `getVoucher`
         salesOrderId:
           type: string
           description: 销售单号

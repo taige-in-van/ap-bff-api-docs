@@ -47,7 +47,7 @@ sequenceDiagram
     U->>S: 打开页面
     par
         S->>A: #35;1 [listDevices]<br/>GET /devices?sortField=lastActiveAt&sortOrder=descend
-        A-->>S: 200 { total, data: [{ deviceId, model, source, serialNumber,<br/>storeName, deviceName, operatorEmail, firmwareVersion, appVersion,<br/>status, lastActiveAt, createdAt }] }
+        A-->>S: 200 { total, data: [{ deviceId, model, source, serialNumber,<br/>storeName, deviceName, operatorName, firmwareVersion, appVersion,<br/>status, lastActiveAt, createdAt }] }
     and
         S->>A: #35;2 [getDeviceCounts]<br/>GET /devices/counts
         A-->>S: 200 { items }
@@ -123,6 +123,7 @@ sequenceDiagram
 |---|---|---|
 | 必填项缺失或超长 | `400`（`details` 指到字段） | 字段红框；正确页面下已拦住 |
 | 本商户名下已有同一序列号的设备 | `409`·`208021` | 序列号红框，提示到列表里找已有的那条 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
 
 - 型号的常见清单是前端参考数据，只为少打字，不是白名单：服务端不校验型号是否在清单里。
@@ -168,7 +169,7 @@ sequenceDiagram
 | 设备不存在或已解绑 | `404` | 显示「Device not found」，给回列表的入口 |
 
 - 类型徽标的颜色按 `severity`。
-- `actor` 是操作员邮箱；系统产生的没有这个字段，前端显示 system。
+- `actor` 是操作员显示名；系统产生的没有这个字段，前端显示 system。
 - 导出的是当前类型与搜索条件下的全部日志，不只是当前页。文件里的表头语言按 `Accept-Language`。
 
 **相对 demo 的改动**

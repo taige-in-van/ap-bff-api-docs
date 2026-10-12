@@ -17,7 +17,7 @@
 | `https://pay.example.ca/api/v1.0/retail_valid/` | 原生 | 登录验证码、登录、设备注册 |
 | `https://pay.example.ca/api/v1.0/retail/app/` | 原生 | 当前账号与商户配置、小费与手续费设置、退款密码校验、流水与汇总、日结、小票内容 |
 | `https://pay.example.ca/api/v1.0/retail/`（除 `retail/app/` 外） | 原生 | 手续费试算、收款、查订单、退款、预授权释放 |
-| `https://pay.example.ca/api/v1.0/app/device/forget/` | 原生 | 找回密码 |
+| `https://pay.example.ca/api/v1.0/app/device/forget/` | 原生 | 找回密码入口（一律回固定提示，见「流程：找回密码」） |
 | `https://pay.example.ca/api/v1.0/vouchers/`、`https://pay.example.ca/api/v1.0/redemptions` | 原生 | 核销 |
 | `https://retailapi.example.ca/api/v1.0/`，其后的 `retail_valid/`、`retail/`、`retail/app/` 与上面相同 | 键盘机 | 键盘机用到的接口，路径与原生端相同 |
 | `https://pay.example.com`，前缀同上 | 原生（美元区） | 美元区部署用 .com 域名，接口相同 |
@@ -33,9 +33,9 @@
 | 3 | [`registerDevice`](../pos/index.html#tag/auth/operation/registerDevice) | pay | `POST /retail_valid/devices/{devType}/register` | 登录后按终端序列号登记本机，取得设备凭据 | 两者 | 登录与设备登记 |
 | 4 | [`getCurrentUser`](../pos/index.html#tag/auth/operation/getCurrentUser) | pay | `GET /retail/app/current_user` | 取当前登录账号与商户配置 | 原生 | 登录与设备登记 |
 | 5 | [`getViewOnlyStatus`](../pos/index.html#tag/auth/operation/getViewOnlyStatus) | pay | `GET /retail/app/retail_view` | 查商户是否处于仅查看状态（只能读、不能改） | 原生 | 登录与设备登记 |
-| 6 | [`sendForgotPasswordCode`](../pos/index.html#tag/auth/operation/sendForgotPasswordCode) | pay | `GET /app/device/forget/verify` | 找回密码：向邮箱发验证码 | 原生 | 找回密码 |
-| 7 | [`listForgotPasswordAccounts`](../pos/index.html#tag/auth/operation/listForgotPasswordAccounts) | pay | `GET /app/device/forget/query` | 找回密码：凭验证码列出该邮箱下的账号 | 原生 | 找回密码 |
-| 8 | [`resetForgottenPassword`](../pos/index.html#tag/auth/operation/resetForgottenPassword) | pay | `POST /app/device/forget/reset` | 找回密码：重置登录密码 | 原生 | 找回密码 |
+| 6 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：向邮箱发验证码 | 原生 | 找回密码 |
+| 7 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：凭验证码列出该邮箱下的账号 | 原生 | 找回密码 |
+| 8 | — | — | 不再承接，见「流程：找回密码」 | 找回密码：重置登录密码 | 原生 | 找回密码 |
 | 9 | [`getTipConfig`](../pos/index.html#tag/products/operation/getTipConfig) | pay | `GET /retail/app/trade/tip_config` | 读小费开关与预设档位 | 原生 | 设置 |
 | 10 | [`updateTipConfig`](../pos/index.html#tag/products/operation/updateTipConfig) | pay | `PUT /retail/app/modify/tip_config` | 改小费开关与预设档位（对整个商户生效） | 原生 | 设置 |
 | 11 | [`setCustomerSurcharge`](../pos/index.html#tag/products/operation/setCustomerSurcharge) | pay | `PUT /retail/app/modify/retail_surcharge` | 上报「顾客承担手续费」开关（收下不改配置） | 原生 | 设置 |
@@ -62,7 +62,7 @@
 
 ## 登录后的每个请求
 
-POS 的请求不带令牌。登记本机（#3）之后，端的每个请求带一组设备头；取图形验证码、登录、登记本机与找回密码（#1、#2、#3、#6、#7、#8）不带。
+POS 的请求不带令牌。登记本机（#3）之后，端的每个请求带一组设备头；取图形验证码、登录与登记本机（#1、#2、#3）不带；旧版找回密码入口在认证前就地回 `400`，也不要求设备头。
 
 | 头 | 端填的值 |
 |---|---|
@@ -166,49 +166,7 @@ sequenceDiagram
 
 ## 流程：找回密码
 
-只有原生端有，从登录页的 Forgot Password 进入。三步：向邮箱发验证码，凭验证码列出这个邮箱能重置的账号，选一个账号重置登录密码。
-
-### 页面：Forgot Password（找回密码）
-
-端上分几屏，标题栏都是 Forgot Password；图里写的是响应 `data` 的内容，外壳见契约「响应外壳」。
-
-```mermaid
-sequenceDiagram
-    actor U as 收银员
-    participant T as POS 应用
-    participant A as 服务端
-    participant M as 邮箱
-
-    U->>T: 输邮箱
-    T->>A: #35;6 [sendForgotPasswordCode]<br/>GET /app/device/forget/verify<br/>查询参数 email
-    A-->>T: 200 { ticket }
-    A-->>M: 验证码邮件
-    M-->>U: 查看验证码
-    U->>T: 输验证码
-    T->>A: #35;7 [listForgotPasswordAccounts]<br/>GET /app/device/forget/query<br/>查询参数 email、ticket、ticketVal（验证码）
-    A-->>T: 200 这个邮箱能重置的账号<br/>[{ mchCode, nickName, accounts: [{ username }] }]
-    opt 可选的账号多于一个
-        T->>U: 列出账号
-        U->>T: 选一个账号
-    end
-    U->>T: 输新密码
-    T->>A: #35;8 [resetForgottenPassword]<br/>POST /app/device/forget/reset<br/>{ ticket, ticketValue: 验证码, username, email, newPassword }
-    A-->>T: 200
-    T->>U: 重置成功屏
-```
-
-- **发码（#6）**：端拿响应里的 `ticket` 带给后两步。
-- **验证码**：同一个验证码，端在 #7 里用参数名 `ticketVal`、在 #8 里用 `ticketValue` 带上。
-- **选账号**：只有一个账号时不出这一屏，直接用它的 `username`。
-- **新密码**：端先在本地校验一遍（8 至 20 位、含大写字母），不合规不发请求；服务端另按密码规则校验（见契约 `resetForgottenPassword`），端上通过的仍可能被拒。
-- **重置之后**：进重置成功屏，用新密码重新登录。
-
-失败时端的表现：
-
-| 情形 | 状态码 | 端的表现 |
-|---|---|---|
-| #6 邮箱对应不上账号 | 200，与发码成功相同 | 按发码成功处理，只是收不到邮件 |
-| #7、#8 被拒（拒绝情形见契约 `listForgotPasswordAccounts`、`resetForgottenPassword`） | 400 | 把响应里的 `message` 原样提示 |
+POS 上不再承接找回密码。原生端登录页的 Forgot Password 仍在，端发出第一步（向邮箱发验证码）即收到 400，`message` 是固定的双语提示，端原样弹出，后面几屏走不到。邮箱登录名的账号到商户后台网页找回；用户名登录名的员工请 Owner 在商户后台的团队页设新密码。提示原文见契约「找回密码」。
 
 ## 流程：收款
 
@@ -838,11 +796,9 @@ sequenceDiagram
 | 登记本机时这台终端已登记在其他商户名下 | 照样登记，同一台机器在每个登录过的商户下各有一条设备记录 | 一台终端只属于一个商户；序列号已登记在登录者不能访问的商户名下时回 400 | 换商户使用前，要原商户先在商户后台解绑这台终端 |
 | 登录后落在哪个商户 | 一律是账号所属的商户 | 设备已登记在登录者可访问的关联商户名下时，落在设备所属的商户：原生端带了 `devId` 的在登录时落到，没带的在登记本机时转过去 | 主商户的员工在关联商户的终端上登录，直接进该关联商户 |
 | 登录时账号不存在与密码不对 | 两种文案（`User does not exist.` 与 `Incorrect login password`） | 同一个码、同一种文案，不区分 | 原生端弹出的文案不再透露账号是否存在 |
-| 在商户 App 内改密、在 POS 或商户 App 上找回密码重置之后 | 该账号已登录的设备不受影响 | 该账号已登录的设备失效 | 这些设备上原生端回登录页，用新密码重新登录 |
+| 在商户 App 内改密、在商户后台网页找回密码重置之后 | 该账号已登录的设备不受影响 | 该账号已登录的设备失效 | 这些设备上原生端回登录页，用新密码重新登录 |
 | 登录锁定 | POS 登录输错密码不锁 | 默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、商户 App 登录共用计数 | 锁定期间登录回 400，原生端弹出写明锁定的文案，键盘机仍是固定文案 |
-| 找回密码：邮箱的含义 | 商户的联系邮箱，列出的是联系邮箱为它的各商户的管理员账号 | 账号自己的邮箱；Owner 的邮箱另可重置本商户的员工账号 | 要填账号自己（或商户 Owner）的邮箱，列出的账号范围随之不同 |
-| 找回密码：发码 | 邮箱不存在时回错误，端提示邮箱不存在 | 不透露邮箱是否存在，一律按发码成功返回 | 邮箱填错时不再有提示，只是收不到邮件 |
-| 找回密码：重置时的校验 | 只核对验证码，不核对所选账号与邮箱的关系；验证码输错不限次数；新密码服务端只限长度 | 核对所选账号在该邮箱能重置的范围内；验证码有错误次数上限；新密码须符合密码规则 | 正常流程无感；验证码连续输错到上限后要重新发码；端上通过的新密码可能被服务端拒绝并提示原因 |
+| 找回密码（#6 至 #8） | 按商户联系邮箱发码，列出管理员账号选一个重置 | 不受理：第一步即回 400，`message` 为固定提示 | 原生端弹出这句提示、不再进后面几屏；邮箱登录名的账号到商户后台网页找回，用户名登录名的员工请 Owner 在商户后台设新密码 |
 | 改小费预设（#10） | 不校验档位、不看角色，原样保存 | 三档须是 0 到 30 的整数，要有「收款页设置」的编辑权限，不合规或没有权限回 400 | 端本就要求三档都填，正常无感；填了超过 30 的档位时弹出错误提示 |
 | 「顾客承担手续费」上报（#11） | 写商户的一个单独开关（这个开关不参与计费）；收银员提交回 400 | 收下按成功返回，不改任何配置；没有「收款页设置」的编辑权限时回 400 | 端不读响应、失败也不提示，无差别 |
 | 手续费试算（#12） | 返回三个渠道键、每键八个字段，含按渠道汇率折算的人民币金额 | 只返回微信、支付宝两键、每键三个字段；人民币折算照旧 | 无差别 |

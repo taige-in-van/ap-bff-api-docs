@@ -119,7 +119,7 @@ paths:
       description: |
         与 `listPayments` 用同一组筛选参数、基于同一批订单的合计，金额是商户结算币种（每笔按实际结算金额相加）。
 
-        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED` / `AUTHORIZED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态的行金额之和。
+        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态的行金额之和。
 
         `refundAmount` 是这批订单至今已退的金额（随订单计入，不按退款发生日），`netSales` = `grossSales` − `refundAmount`。
       parameters:
@@ -262,9 +262,6 @@ paths:
                     count: 1
                   - value: PREAUTH_HOLDING
                     label: Pre-auth holding
-                    count: 0
-                  - value: AUTHORIZED
-                    label: Authorized
                     count: 0
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -417,7 +414,7 @@ paths:
       description: |
         对 `refundable` 为真的订单发起退款。金额的币种是订单标价币种，须大于 0 且不超过 `remainingRefundable`。上一笔退款没结束时可以再发起，各占各的额度。
 
-        能不能退、还能退多少，以受理时重新校验的结果为准。超过可退余额、订单已不可退、商户退款能力关闭、商品已核销或作废 → `400`·204008，不建退款单。
+        能不能退、还能退多少，以受理时重新校验的结果为准。超过可退余额、订单已不可退、商户退款能力关闭、商品已核销或作废、该订单上一笔退款还在等通道受理结论 → `400`·204008，不建退款单。短时间内对同一订单重复提交退款（第二次用的是新键）→ `409`·208003，不建第二笔，重拉订单最新状态再决定是否重提。
 
         Refund PIN：
 
@@ -427,8 +424,9 @@ paths:
         `201` 只表示退款单已建，结果看 `status`：
 
         - `REVIEWING`：等平台审核；
-        - `CHANNEL_PROCESSING`：已送通道；
-        - `FAILED`：账户资金不足，退款没有执行，`failureReason` 为 `INSUFFICIENT_FUNDS`。占用的可退额度已放回，可以重新发起。
+        - `CHANNEL_PROCESSING`：已送通道、结果待定（含通道暂未应答）；
+        - `SUCCESS`：通道当场退成；
+        - `FAILED`：没有退成，`failureReason` 为 `INSUFFICIENT_FUNDS`（账户资金不足，没有送到通道）或 `CHANNEL_REJECTED`（通道当场拒绝）。占用的可退额度已放回，可以重新发起。
 
         幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果，不会建两笔；同键改了请求体 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。PIN 不参与幂等比对。
       parameters:
@@ -480,6 +478,7 @@ paths:
         - 204008
         - 206003
         - 206004
+        - 208003
         - 208005
         - 208011
   /orders/payments/{orderId}/preauth-completion:
@@ -494,7 +493,7 @@ paths:
 
         订单已不是挂起状态 → `409`·208010。
 
-        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一订单返回首次结果；同键用到别的订单 → `409`·208005。
+        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一订单返回首次结果；同键用到别的订单 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -512,6 +511,7 @@ paths:
       x-error-codes:
         - 208005
         - 208010
+        - 208011
   /orders/refunds:
     get:
       tags:
@@ -522,7 +522,7 @@ paths:
       description: |
         当前商户的退款，分页。日期范围必填，按退款的创建日，服务端不设默认。
 
-        只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件、平台代操作发起的，以及撤销已付款订单时系统触发的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
+        只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件、平台代操作发起的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
 
         支付方式与来源是原订单的。状态 chip 的各项与计数另取 `getRefundCounts`。
       parameters:
@@ -777,7 +777,7 @@ paths:
 
         其余状态不能撤 → `409`·208009；已经是 `CANCELLED` 的再撤一次也返回 `204`。
 
-        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一笔退款返回首次结果；同键用到别的退款 → `409`·208005。
+        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一笔退款返回首次结果；同键用到别的退款 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -795,6 +795,7 @@ paths:
       x-error-codes:
         - 208005
         - 208009
+        - 208011
   /statistics/summary:
     get:
       tags:
@@ -1063,9 +1064,9 @@ components:
     PaymentStatus:
       type: string
       description: |
-        支付订单的商户可见状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起 · `AUTHORIZED` 已授权待请款。
+        支付订单的商户可见状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。
 
-        前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。`AUTHORIZED` 是卡 / 银联预授权已成功、钱还没扣，请款后转 `PAID`，撤销或到期后不再出现；只能看，没有行操作。收款过程中的中间状态不进列表。
+        前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。收款过程中的中间状态不进列表。
 
         计入汇总的是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING` 四种。
       enum:
@@ -1075,15 +1076,6 @@ components:
         - FAILED
         - REJECTED
         - PREAUTH_HOLDING
-        - AUTHORIZED
-    PaymentMethodFamily:
-      type: string
-      description: 支付方式（品牌）。
-      enum:
-        - wechat
-        - alipay
-        - unionpay
-        - credit_card
     PaymentSource:
       type: string
       description: |
@@ -1118,10 +1110,11 @@ components:
         - allvalue
     PaymentProduct:
       type: string
-      description: 订单的产品形态：店铺码、动态码、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、小程序、App SDK、委托代扣。
+      description: 订单的产品形态：店铺码、动态码、原生码（商户自行展示的钱包二维码）、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、原生 JSAPI（商户自有应用内调起）、小程序、App SDK、委托代扣。
       enum:
         - store_qr
         - dynamic_qr
+        - native_qrcode
         - barcode
         - invoice
         - product_code
@@ -1130,6 +1123,7 @@ components:
         - web_pc
         - web_mobile
         - jsapi
+        - native_jsapi
         - mini_program
         - app_sdk
         - auto_debit
@@ -1148,7 +1142,7 @@ components:
         - CANCELLED
     RefundType:
       type: string
-      description: 退款类型：`merchant` 退已生效订单的退款，从商户账上出钱，含撤销已付款订单时系统触发的；`system_auto` 平台自动退回的多付款项（重复支付、关单后才到的成功支付），不动商户的账，不计入订单的已退金额。
+      description: 退款类型：`merchant` 退已生效订单的退款，从商户账上出钱；`system_auto` 平台自动退回的多付款项（重复支付、关单后才到的成功支付），不动商户的账，不计入订单的已退金额。
       enum:
         - merchant
         - system_auto
@@ -1161,8 +1155,8 @@ components:
         |---|---|
         | `INSUFFICIENT_FUNDS` | 账户资金不足，退款没有送到通道 |
         | `CHANNEL_REJECTED` | 通道明确拒绝 |
-        | `CHANNEL_UNREACHABLE` | 提交通道一直不成功 |
-        | `UNCONFIRMED` | 通道一直没有明确结果，经核对确认没有退成 |
+        | `CHANNEL_UNREACHABLE` | 退款请求没能送到通道 |
+        | `UNCONFIRMED` | 通道一直没有明确结果，经对账或人工核对确认没有退成 |
       enum:
         - INSUFFICIENT_FUNDS
         - CHANNEL_REJECTED
@@ -1459,7 +1453,7 @@ components:
               allOf:
                 - $ref: '#/components/schemas/Timestamp'
             entryPoint:
-              description: 退款从哪个入口发起。`system` = 撤销已付款订单时触发的退款，以及平台自动退款；`type = system_auto` 时恒为 `system`。
+              description: 退款从哪个入口发起。`system` = 平台自动退款；`type = system_auto` 时恒为 `system`。
               allOf:
                 - $ref: '#/components/schemas/EntryPoint'
             operatorId:
@@ -1521,9 +1515,9 @@ components:
         status:
           allOf:
             - $ref: '#/components/schemas/RefundStatus'
-          description: 首次受理是 `REVIEWING`、`CHANNEL_PROCESSING` 或 `FAILED`。同键重发返回的是首次受理时记下的结果，不是当前的实时状态。
+          description: 首次受理是 `REVIEWING`、`CHANNEL_PROCESSING`、`SUCCESS` 或 `FAILED`。同键重发返回的是首次受理时记下的结果，不是当前的实时状态。
         failureReason:
-          description: '`status = FAILED` 时必返，此处只会是 `INSUFFICIENT_FUNDS`；其余状态不返回本键。'
+          description: '`status = FAILED` 时必返，此处只会是 `INSUFFICIENT_FUNDS` 或 `CHANNEL_REJECTED`；其余状态不返回本键。'
           allOf:
             - $ref: '#/components/schemas/RefundFailureReason'
     StatisticsSummary:
@@ -1607,6 +1601,14 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    PaymentMethodFamily:
+      type: string
+      description: 支付方式族（品牌）。
+      enum:
+        - wechat
+        - alipay
+        - unionpay
+        - credit_card
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
@@ -1678,9 +1680,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。

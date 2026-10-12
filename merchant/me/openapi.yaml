@@ -18,12 +18,12 @@ servers:
 security:
   - cookieAuth: []
 tags:
-  - name: profile
+  - name: me
     x-displayName: 本人资料
     description: 本人资料：改昵称与界面语言。读「我」走 `getCurrentSession`。
   - name: email
     x-displayName: 登录邮箱
-    description: 改自己的登录邮箱：身份校验 → 提交新邮箱 → 新邮箱收到的码确认；Owner 改自己时同步商户主邮箱。
+    description: 改自己的登录邮箱：身份校验 → 提交新邮箱 → 新邮箱收到的码确认。
   - name: security
     x-displayName: 账户安全
     description: 账户安全：改密、开启与关闭 MFA（验证器）。退款 PIN 在商户资料契约。
@@ -31,7 +31,7 @@ paths:
   /me:
     put:
       tags:
-        - profile
+        - me
       operationId: updateMyProfile
       x-required-privilege: session
       summary: 改自己的资料（昵称、界面语言）
@@ -279,7 +279,7 @@ paths:
       x-required-privilege: session
       summary: 改登录邮箱 — 第 3 步确认（新邮箱的码）
       description: |-
-        凭新邮箱收到的码完成替换，旧邮箱收到安全通知，会话不受影响。Owner 改自己的登录邮箱时，商户主联系邮箱同步变。一次性码，非幂等。
+        凭新邮箱收到的码完成替换，旧邮箱收到安全通知，会话不受影响。一次性码，非幂等。
 
         错误码：
 
@@ -330,7 +330,7 @@ paths:
       x-required-privilege: session
       summary: 登录态改密（用当前密码校验；其他会话失效、当前保留）
       description: |
-        用当前密码校验后改为新密码，不接受验证器码或邮箱码代替。改密后该用户其他会话失效，当前会话保留。
+        用当前密码校验后改为新密码，不接受验证器码或邮箱码代替。改密后该用户其他会话失效，当前会话保留；给本人登录邮箱发密码已修改通知（用户名账号没有邮箱，不发）。
 
         幂等基准：`Idempotency-Key`。同键同请求体重发返回 `204`；同键改请求体返回 `409`·`208005`。
 
@@ -656,9 +656,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。

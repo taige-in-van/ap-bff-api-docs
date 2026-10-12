@@ -254,7 +254,7 @@
     },
     "208011": {
       "httpStatus": 409,
-      "name": "REFUND_REQUEST_IN_PROGRESS",
+      "name": "IDEMPOTENT_REQUEST_IN_PROGRESS",
       "retryable": true
     },
     "208012": {
@@ -269,11 +269,6 @@
         "cooldownSeconds"
       ],
       "retryable": true
-    },
-    "208016": {
-      "httpStatus": 409,
-      "name": "ATTRIBUTION_DAY_SEALED",
-      "retryable": false
     },
     "208018": {
       "httpStatus": 409,
@@ -353,6 +348,29 @@
       "name": "CHALLENGE_ATTEMPTS_LOCKED",
       "retryable": false
     },
+    "966006": {
+      "httpStatus": 429,
+      "name": "RESEND_COOLDOWN",
+      "requiredContextFields": [
+        "cooldownSeconds"
+      ],
+      "retryable": true
+    },
+    "966007": {
+      "httpStatus": 403,
+      "name": "LOGIN_EMAIL_NOT_VERIFIED",
+      "retryable": false
+    },
+    "966008": {
+      "httpStatus": 403,
+      "name": "IDENTITY_ACCOUNT_DISABLED",
+      "retryable": false
+    },
+    "966009": {
+      "httpStatus": 403,
+      "name": "LOGIN_NO_ACCESS",
+      "retryable": false
+    },
     "968001": {
       "httpStatus": 409,
       "name": "LOGIN_ID_TAKEN",
@@ -365,7 +383,7 @@
     },
     "968003": {
       "httpStatus": 409,
-      "name": "WECHAT_ENROLLMENT_ALREADY_ACTIVE",
+      "name": "WECHAT_ALREADY_BOUND",
       "retryable": false
     },
     "968004": {
@@ -380,17 +398,7 @@
     },
     "968006": {
       "httpStatus": 409,
-      "name": "MEMBERSHIP_STATE_CONFLICT",
-      "retryable": false
-    },
-    "968007": {
-      "httpStatus": 409,
-      "name": "CONFIG_VERSION_CONFLICT",
-      "retryable": false
-    },
-    "968008": {
-      "httpStatus": 409,
-      "name": "ACTIVATION_GRANT_CONFLICT",
+      "name": "ACCOUNT_STATE_CONFLICT",
       "retryable": false
     },
     "968009": {
@@ -398,24 +406,14 @@
       "name": "SESSION_REFRESH_CONFLICT",
       "retryable": false
     },
-    "968010": {
-      "httpStatus": 409,
-      "name": "LOGIN_EMAIL_CHANGE_IN_FLIGHT",
-      "retryable": false
-    },
     "968011": {
       "httpStatus": 409,
       "name": "XCUT_IDEMPOTENCY_PAYLOAD_CONFLICT",
       "retryable": false
     },
-    "968012": {
+    "968014": {
       "httpStatus": 409,
-      "name": "CONFIG_CONSTRAINT_VIOLATION",
-      "retryable": false
-    },
-    "968013": {
-      "httpStatus": 409,
-      "name": "MEMBERSHIP_ALREADY_EXISTS",
+      "name": "IDENTITY_INVITATION_ALREADY_ACCEPTED",
       "retryable": false
     }
   }

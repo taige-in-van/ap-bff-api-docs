@@ -92,7 +92,7 @@ sequenceDiagram
 - 状态五种：待出款、出款中、已结算、出款失败、已退回。出款失败的会重新出款；被银行退回的钱回到 Account Balance，随下一次结算再出。
 - Last Settled 卡用第二个 #2 的那一行：金额取 `payoutAmount`，日期取 `settlementDate`，交易期间取 `periodFrom` 到 `periodTo`。一张都没有时显示空态。
 - 两个导出都不设行数上限。工具栏的导出是结算单列表（每张一行，末尾合计），不带日期时导出全部；要逐笔明细用行上的 Download。
-- Account Balance 取 `accountBalance`，与 Dashboard、Payments 页的 To Settle 是同一个数；可能为负，表示商户欠平台的钱。
+- Account Balance 取 `accountBalance`，含预授权挂起中的款项（并在里面、不单列）；可能为负，表示商户欠平台的钱。Dashboard、Payments 页的 To Settle 是 `toSettle`，不含挂起款项，两者不一定相等。
 - Refund Reserved 取 `refundReserve`。
 
 ---
@@ -152,7 +152,7 @@ sequenceDiagram
 
     U->>S: 点 Top Up
     S->>A: #35;1 [getBalance]<br/>GET /funds/balance
-    A-->>S: 200 { accountBalance, refundReserve, reserveMinimumAmount }
+    A-->>S: 200 { toSettle, refundReserve, reserveMinimumAmount }
     U->>S: 填充值金额，和 / 或改自动补足，点 Next
     S->>A: #35;6 [requestRefundReserveOtp]<br/>POST /funds/balance/reserve/otp-challenges
     A->>M: 发 6 位码
@@ -173,17 +173,18 @@ sequenceDiagram
 | 发码冷却中 | `429`·`208013` | 按钮倒计时 |
 | 最低金额低于平台规定的下限 | `400`·`204018`（`context.floorAmount`） | 回填写一步，提示「不能低于 N」；充值也没有划转 |
 | 金额格式不对或两项都没给 | `400`（`details` 指到字段） | 回填写一步，对应字段红框；正确页面下已拦住 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了内容 | `409`·`208005` | 改过金额或设置就换新键 |
 | 网关超时 | `502` / `504` | 用同一个键、同样的内容重发，不会充两次 |
 
-- 充值的钱从 Account Balance 出，`accountBalance` 是可充上限。
+- 充值的钱从待结算金额出，`toSettle` 是可充上限（预授权挂起中的款项不能充）。
 - 充值金额与自动补足至少改一项才能提交。只改自动补足时不传 `topUpAmount`。
 - 自动补足：开着时传 `minimumAmount`（最低金额），关掉传 `null`，没改就不传。当前值看 `getBalance` 的 `reserveMinimumAmount`，没有这个键就是没开。最低金额有下限，由平台设定、会调整，前端不写死，按 `204018` 带回的数提示。
 - 快捷金额（500、1000、2000、5000）是前端写死的填数入口，不是取值限制。
-- 自动补足是每天结算前跑一次：准备金低于最低金额时从 Account Balance 补，余额不够补多少算多少，第二天再补。保存设置时不会立刻划钱。
-- 提交返回 `200` 后看 `topUp.status`：`POSTED` 充值成功；`REJECTED` 是提交时 Account Balance 已经不够，没有划钱，提示余额不足。自动补足的设置在两种情况下都已保存。
+- 自动补足是每天结算前跑一次：准备金低于最低金额时从待结算金额补，不够就补多少算多少，第二天再补。保存设置时不会立刻划钱。
+- 提交返回 `200` 后看 `topUp.status`：`POSTED` 充值成功；`REJECTED` 是提交时待结算金额已经不够，没有划钱，提示余额不足。自动补足的设置在两种情况下都已保存。
 - 验证码发到 Owner 邮箱，页面用 `deliveredTo` 提示发到了哪里；操作的人不是 Owner 时要找 Owner 要验证码。
-- `fundRefundReserve` 带 `Idempotency-Key`：点一次 Confirm 生成一个键，验证码输错重输、超时重发都用原键。
+- `fundRefundReserve` 带 `Idempotency-Key`：点一次 Confirm 生成一个键，验证码输错重输、超时或 `208011` 后重发都用原键。
 
 ---
 
@@ -216,13 +217,14 @@ sequenceDiagram
 | 情形 | 响应 | 页面动作 |
 |---|---|---|
 | 金额不大于 0 或格式不对 | `400`（`details` 指到字段） | 金额红框；正确页面下已拦住 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的金额重发，直到有结果 |
 | 同一个幂等键改了金额 | `409`·`208005` | 改过金额就换新键 |
 | 网关超时 | `502` / `504` | 用同一个键、同样的金额重发，不会取两次 |
 
 - 取回的钱回到 Account Balance，随下一次结算打到结算账户，不是单独一笔转账。弹窗里的结算账户取 #9 的 `settlement`，只供核对。
 - 可取上限是 `refundReserve`；Max 就是把它填进金额。
 - 返回 `200` 后看 `status`：`POSTED` 成功；`REJECTED` 是提交时准备金已经不够（比如刚被一笔退款动用），提示余额不足。
-- `withdrawRefundReserve` 带 `Idempotency-Key`，点一次生成一个键。
+- `withdrawRefundReserve` 带 `Idempotency-Key`，点一次生成一个键；超时或 `208011` 后重发用原键。
 
 **相对 demo 的改动**
 

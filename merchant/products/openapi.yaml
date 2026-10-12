@@ -10,7 +10,7 @@ info:
 
     **幂等 / CSRF 口径**：
 
-    - 创建类与命令类（建账单、建 Product Link、销售单的重发 / 作废 / 风控处置）挂 `Idempotency-Key`，同一次提交的网络重试用同键返回首次结果；天然幂等的纯 PUT / DELETE 不挂。
+    - 创建类与命令类（建账单、建与改 Product Link、销售单的重发 / 作废 / 风控处置）挂 `Idempotency-Key`，同一次提交的网络重试用同键返回首次结果；天然幂等的纯 PUT / DELETE 不挂。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
     - 当前商户以会话为准、不看请求体；当前商户不可访问时返回 `409`·`208022`。
 servers:
@@ -40,7 +40,7 @@ paths:
       x-required-privilege: products:checkout:view
       summary: 读店铺码的各个码（第 1 项是主码）
       description: |
-        当前商户的店铺码，按结算币种以及 CNY 标价、预授权、银联码的开通情况给出各个码。第 1 项是主码（结算币种的标准码），其余按返回顺序排列。
+        当前商户的店铺码，按结算币种以及 CNY 标价、预授权、银联码的开通情况给出各个码。第 1 项是主码（优先结算币种的标准码，该码不可用时由服务端在可用的码里定），其余按返回顺序排列；一个码都没有时返回空数组。
       responses:
         '200':
           description: 店铺码的各个码
@@ -52,14 +52,14 @@ paths:
                 items:
                   - currency: CAD
                     qrType: standard
-                    qrContent: https://cashier.example.com/q/7Kq2mX9pLa
+                    qrContent: https://checkout.example.com/q/7Kq2mX9pLa
                     checkoutOptions:
                       - wechat
                       - alipay
                       - card
                   - currency: CAD
                     qrType: pre_auth
-                    qrContent: https://cashier.example.com/q/Rt4vN8cYwe
+                    qrContent: https://checkout.example.com/q/Rt4vN8cYwe
                     checkoutOptions:
                       - wechat
                       - alipay
@@ -365,7 +365,7 @@ paths:
                     dueDate: '2026-08-01'
                     createdAt: '2026-07-10T10:00:00Z'
                     description: 8 月服务费
-                    paymentUrl: https://cashier.example.com/q/Hq7Zp2Kd9x
+                    paymentUrl: https://checkout.example.com/q/Hq7Zp2Kd9x
                     orderId: P100240011
                   - invoiceNo: 10023
                     amount:
@@ -374,7 +374,7 @@ paths:
                     status: OVERDUE
                     dueDate: '2026-07-01'
                     createdAt: '2026-06-10T10:00:00Z'
-                    paymentUrl: https://cashier.example.com/q/Mw3Xb8Tn4r
+                    paymentUrl: https://checkout.example.com/q/Mw3Xb8Tn4r
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -390,7 +390,7 @@ paths:
         - 标价币种须是 `listCheckoutOptions` 里已开通项的 `pricingCurrencies` 之一，否则 → `400`。
         - 到期日早于当天 → `400`·`204004`。
 
-        必带 `Idempotency-Key`：同键 + 同请求体重发返回首次结果、不重复建单；改了请求体须换新键，沿用旧键 → `409`·`208005`。
+        必带 `Idempotency-Key`：同键 + 同请求体重发返回首次结果、不重复建单；改了请求体须换新键，沿用旧键 → `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -422,12 +422,13 @@ paths:
                 dueDate: '2026-08-01'
                 createdAt: '2026-07-04T10:00:00Z'
                 description: 8 月服务费
-                paymentUrl: https://cashier.example.com/q/Jc5Vn1Qe7s
+                paymentUrl: https://checkout.example.com/q/Jc5Vn1Qe7s
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 204004
         - 208005
+        - 208011
   /products/invoices/counts:
     get:
       tags:
@@ -537,6 +538,8 @@ paths:
         任何状态都可以删除：付款链接立即失效，账单不再出现在列表、计数与汇总里；已付账单的收款不受影响。删除时正在进行的支付若之后成功，按非生效支付自动退款。
 
         不存在或已删除 → `404`。
+
+        幂等：天然幂等，不挂 `Idempotency-Key`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - name: invoiceNo
@@ -668,7 +671,7 @@ paths:
         - 政策条款不在本请求里：新链接自动带上商户当前的默认条款，之后在详情页改。
         - 礼卡：`fulfillmentMode` 创建后不可改；`campaignEndDate` 不早于今天；`bonusTerms` 为 `custom` 时 `bonusNotes` 必填——不满足均为 `400`。
 
-        幂等：同一个键改了请求体 `409`·`208005`。
+        幂等：同一个键改了请求体 `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -738,6 +741,7 @@ paths:
         - 204005
         - 208005
         - 208007
+        - 208011
         - 208030
   /products/links/counts:
     get:
@@ -875,7 +879,7 @@ paths:
                 currency: CAD
                 enabled: true
                 createdAt: '2026-07-10T10:00:00Z'
-                paymentUrl: https://cashier.example.com/pl/pl_1000024_3001
+                paymentUrl: https://checkout.example.com/pl/pl_1000024_3001
                 checkoutOptions:
                   - wechat
                   - alipay
@@ -908,7 +912,6 @@ paths:
                     mandatory: true
                     type: email
                 inputLimit: 10
-                notifyMerchantEmail: false
                 bannerUrl: https://cdn.example.com/core/product-link-banner/2026/07/5a2c84f1d09b4e73ac16f8b3e047d92c.jpg
                 policies:
                   faq:
@@ -973,8 +976,11 @@ paths:
         - 礼卡：切换 `enabled` 会让该活动的限购计数重新开始。
 
         已成交的订单不受修改影响：下单时已把名称、单价、数量、活动信息抄进订单。
+
+        幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体 → `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
         - name: linkId
           in: path
           required: true
@@ -1027,7 +1033,9 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 204005
+        - 208005
         - 208007
+        - 208011
         - 208030
         - 208031
         - 208032
@@ -1039,6 +1047,8 @@ paths:
       summary: 删除 Product Link（链接与二维码立即失效）
       description: |
         任何状态都可以删。删后不再出现在列表与计数里，已成交订单不受影响；已删的再删 `404`。
+
+        幂等：天然幂等，不挂 `Idempotency-Key`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - name: linkId
@@ -1062,6 +1072,8 @@ paths:
       summary: 修改政策条款（同时成为商户默认）
       description: |
         只改请求里带的项，每一项三语整体替换，没给的语种清空。改过的项同时成为商户默认：之后新建的链接带上它，已有的其他链接不动。
+
+        幂等：天然幂等，不挂 `Idempotency-Key`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - name: linkId
@@ -1141,7 +1153,7 @@ paths:
       x-required-privilege: products:link:view
       summary: 该链接的销售单列表
       description: |
-        一张销售单 = 付款人在这条链接上的一次选购。没发起支付的没有 `orderId`；`status` 是销售单状态，`redemptionStatus` 是核销状态，两条轴各自筛。礼卡链接的行多返回礼卡专属字段。
+        一张销售单 = 付款人在这条链接上的一次选购。`status` 是销售单状态，`redemptionStatus` 是核销状态，两条轴各自筛。礼卡链接的行多返回礼卡专属字段。
       parameters:
         - name: linkId
           in: path
@@ -1228,6 +1240,7 @@ paths:
                     credentialMasked: 6233 **** **** 1907
                     riskLevel: normal
                   - salesOrderId: SO2026071000013
+                    orderId: P100240002
                     buyer:
                       name: Mei Wang
                       email: meiwang@example.com
@@ -1471,11 +1484,11 @@ paths:
         - links
       operationId: resendProductLinkOrderCredential
       x-required-privilege: products:order:manage
-      summary: 重发凭证邮件（可改收件邮箱）
+      summary: 重发礼卡凭证邮件（可改收件邮箱）
       description: |
-        按所填邮箱重发凭证邮件并写入动作日志，不改变订单状态与凭证内容。不传 `email` 就发到当前投递邮箱。凭证已失效、已核销、或订单有处理中的退款时不可重发 → `409`·`208019`。
+        仅礼卡销售单可重发。按所填邮箱重发凭证邮件并写入动作日志，不改变订单状态与凭证内容。不传 `email` 就发到当前投递邮箱。不是礼卡销售单、凭证已失效、已核销、订单有处理中的退款或处于风控冻结时不可重发 → `409`·`208019`。
 
-        幂等：同键同请求体重发不会再投递一封；换收件邮箱要换新键，沿用旧键改邮箱 → `409`·`208005`。
+        幂等：同键同请求体重发不会再投递一封；换收件邮箱要换新键，沿用旧键改邮箱 → `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1512,6 +1525,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208005
+        - 208011
         - 208019
   /products/links/{linkId}/orders/{salesOrderId}/voucher-invalidation:
     post:
@@ -1523,7 +1537,7 @@ paths:
       description: |
         仅礼卡兑换券模式、已付、未核销、且没有处理中退款的单可作废；作废后该券不可核销、也不可退款，`redemptionStatus` 变为 `VOID`。已核销、已作废、退款处理中 → `409`·`208018`。
 
-        幂等：同键同请求体重发不重复作废；换新键再作废已作废的券落 `208018`，不当作重放。
+        幂等：同键同请求体重发不重复作废；换新键再作废已作废的券落 `208018`，不当作重放；同键的上一次提交还在处理 → `409`·`208011`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1563,6 +1577,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208005
+        - 208011
         - 208018
   /products/links/{linkId}/orders/{salesOrderId}/risk-disposition:
     post:
@@ -1579,7 +1594,7 @@ paths:
 
         可用与否只看上面的条件，不看活动当前是否开着订单风险评估。
 
-        幂等：同键同请求体重发不重复处置；改动作要换新键，沿用旧键改动作 → `409`·`208005`。换新键提交时风险等级已被别人改过、该动作不再可执行 → `409`·`208020`。
+        幂等：同键同请求体重发不重复处置；改动作要换新键，沿用旧键改动作 → `409`·`208005`。换新键提交时风险等级已被别人改过、该动作不再可执行 → `409`·`208020`；同键的上一次提交还在处理 → `409`·`208011`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1622,6 +1637,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208005
+        - 208011
         - 208020
   /products/checkout:
     get:
@@ -1715,8 +1731,7 @@ components:
       properties:
         items:
           type: array
-          minItems: 1
-          description: 第 1 项是主码（结算币种的标准码），其余按返回顺序排列。
+          description: 第 1 项是主码，其余按返回顺序排列；空数组 = 一个码都没有。
           items:
             $ref: '#/components/schemas/StoreQrVariant'
     StoreQrVariant:
@@ -2155,7 +2170,7 @@ components:
           type: integer
           minimum: 0
           readOnly: true
-          description: 已导入卡量，仅实体卡模式；尚未导入时不返回本键。卡密由运营整理后按面值导入，商户后台没有上传入口。
+          description: 可售卡量：该面值档还能卖出的主卡张数（已分配、已停用的卡与赠卡都不计），仅实体卡模式；尚未导入时不返回本键。卡密由运营整理后按面值导入，商户后台没有上传入口。
         committedQuantity:
           $ref: '#/components/schemas/SalesItemCommittedQuantity'
     GiftcardDenominationRead:
@@ -2595,10 +2610,6 @@ components:
           type: string
           maxLength: 512
           description: 商户备注，不面向付款人。
-        notifyMerchantEmail:
-          type: boolean
-          default: false
-          description: 下单成功后是否给商户联系邮箱发通知；不传 = 不发。
         bannerFileId:
           type: string
           minLength: 1
@@ -2652,9 +2663,6 @@ components:
             - 'null'
           maxLength: 512
           description: '`null` 清空。'
-        notifyMerchantEmail:
-          type: boolean
-          description: 下单成功后是否给商户联系邮箱发通知。
         bannerFileId:
           type:
             - string
@@ -2767,7 +2775,6 @@ components:
         - checkoutOptions
         - buyerInputs
         - inputLimit
-        - notifyMerchantEmail
         - policies
       properties:
         linkId:
@@ -2807,9 +2814,6 @@ components:
         remark:
           type: string
           description: 商户备注；没有不返回本键。
-        notifyMerchantEmail:
-          type: boolean
-          description: 下单成功后是否给商户联系邮箱发通知。
         bannerUrl:
           type: string
           format: uri
@@ -2876,6 +2880,7 @@ components:
       description: 销售单列表行。礼卡链接的行多返回 `campaignName` / `cardValue` / `recipient` / `credentialMasked` / `riskLevel`。
       required:
         - salesOrderId
+        - orderId
         - amount
         - status
         - redemptionStatus
@@ -2885,11 +2890,13 @@ components:
           type: string
         orderId:
           type: string
-          description: 支付订单号，订单与退款契约 `getPayment` 的键；没发起支付不返回本键。
+          description: 支付订单号，订单与退款契约 `getPayment` 的键。
         buyer:
           $ref: '#/components/schemas/PartyRef'
         amount:
-          $ref: '#/components/schemas/Money'
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 付款人应付总额，含客户服务费；标价币种。
         refundedAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
@@ -2968,6 +2975,7 @@ components:
       description: 履约凭证。商品与票务整单一张；礼卡实体卡模式主卡、赠卡各一张，兑换券模式一张承载主卡与赠卡。
       required:
         - voucherNo
+        - pin
         - kind
         - status
       properties:
@@ -2976,28 +2984,33 @@ components:
           description: 券号；实体卡模式为卡号。
         pin:
           type: string
-          description: PIN 明文，只在详情返回。
+          description: PIN 明文。
         kind:
           type: string
           enum:
             - MAIN
             - BONUS
+          description: '`MAIN` 主卡 / `BONUS` 赠卡（只出现在礼卡实体卡模式）。商品与票务恒为 `MAIN`。'
         faceAmount:
-          $ref: '#/components/schemas/Money'
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 面额，只有礼卡返回；兑换券模式为主卡金额。
         bonusAmount:
           allOf:
             - $ref: '#/components/schemas/Money'
-          description: 同券承载的赠卡额，仅兑换券模式。
+          description: 同一张券承载的赠卡额；只在礼卡兑换券模式且有赠卡时返回。
         status:
           type: string
           enum:
             - ISSUED
             - REDEEMED
             - VOID
-            - CANCELED
-          description: '`ISSUED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废 / `CANCELED` 退款后失效。'
+            - CANCELLED
+          description: '`ISSUED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废 / `CANCELLED` 退款后失效。'
         redeemedAt:
-          $ref: '#/components/schemas/Timestamp'
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          description: 核销时刻；已核销才返回。
         operator:
           type: string
           description: 核销操作员显示名；未核销不返回本键。
@@ -3084,8 +3097,8 @@ components:
             - PENDING
             - ISSUED
             - SUSPENDED
-            - CANCELED
-          description: '`PENDING` 待发放 / `ISSUED` 已发放 / `SUSPENDED` 发放失败待处理（等重试或人工补发；退款处理中不改这个值） / `CANCELED` 已取消。'
+            - CANCELLED
+          description: '`PENDING` 待发放 / `ISSUED` 已发放 / `SUSPENDED` 发放失败待处理（等重试或人工补发；退款处理中不改这个值） / `CANCELLED` 已取消。'
         riskLevel:
           $ref: '#/components/schemas/RiskLevel'
         riskScore:
@@ -3283,9 +3296,18 @@ components:
               type: integer
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
-            paymentId:
+            orderId:
               type: string
-              description: 失败发生时**订单已建立**的场景下带出的平台侧支付单标识（如被扫同步扣款在通道应答阶段失败）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
               type: string
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。

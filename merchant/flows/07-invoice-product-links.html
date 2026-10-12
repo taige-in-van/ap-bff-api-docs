@@ -104,6 +104,7 @@ sequenceDiagram
 |---|---|---|
 | 金额缺失或不大于 0、币种不在候选里 | `400`（`details` 指到字段） | 字段红框；正确页面下提交前已拦住 |
 | 到期日早于当天 | `400`·`204004` | 到期日字段红框 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
 | 删除时账单已不存在（已被删） | `404` | 重调 #2 |
 
@@ -227,6 +228,7 @@ sequenceDiagram
 | 选的方式在提交前已被停用 | `409`·`208007` | 重调 #4，方式按新状态显示 |
 | 采集项缺了必填项，或自撰标题以 `sys:` 开头 | `409`·`208030` | 采集项红框 |
 | 图片格式或大小不合规 | `400`·`204015` | 提示换一个文件 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
 
 - 支付方式按 #4 逐项显示：`opened` 为假的置灰、提示先到 Service 页开通；所选币种不在某项 `pricingCurrencies` 里的，该项不可勾。先勾方式再换币种时，不支持新币种的已勾项自动取消并提示。#4 带 `linkType`：礼卡的候选里支付宝只有一项（线下、线上合并，两个都开通时走线下），商品与票务同店铺码。
@@ -251,7 +253,7 @@ sequenceDiagram
 
     U->>S: 进详情页
     S->>A: #35;14 [getProductLink]<br/>GET /products/links/{linkId}
-    A-->>S: 200 { type, name, currency, enabled, paymentUrl, checkoutOptions,<br/>buyerInputs, recipientInputs, inputLimit, notifyMerchantEmail, bannerUrl, policies,<br/>giftcard 或 product 或 ticket }
+    A-->>S: 200 { type, name, currency, enabled, paymentUrl, checkoutOptions,<br/>buyerInputs, recipientInputs, inputLimit, bannerUrl, policies,<br/>giftcard 或 product 或 ticket }
     S->>A: #35;4 [listCheckoutOptions]<br/>GET /products/checkout/options?linkType={type}（type 取自 #35;14）
     A-->>S: 200 { items }
     S->>S: 按码取支付方式名字与图标，右栏用 paymentUrl 生成二维码
@@ -286,10 +288,13 @@ sequenceDiagram
 | 采集项不合法（同新建） | `409`·`208030` | 采集项红框 |
 | 可售上限改得低于已售加在途 | `409`·`208031`（`context.committedQuantity`） | 提示「不能低于 N」 |
 | 带回的条目标识不属于本链接 | `409`·`208032` | 重调 #14 后再改 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
+| 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
 | 链接已被删 | `404` | 回列表 |
 
 - #4 要带链接类型，类型要等 #14 返回才知道（刷新或从外部链接直接打开详情页时，前端只有 `linkId`），所以两个接口先后调，不并行。
 - #9 按 PUT 部分更新：没带的字段保持原值。Save 时把整张 Details 卡发出去即可（内容段只带本类型那个，`fulfillmentMode` 不带）；换过的图带新 `fileId`（`bannerFileId` / `giftcard.brandLogoFileId` / `product.items[].imageFileId`），移除带 `null`，没换就不带。Cancel 丢掉草稿，已上传没用上的文件由服务端到期清理。
+- #9 带 `Idempotency-Key`：点一次 Save 生成一个键，超时或 `208011` 后重发用原键；改了内容再保存换新键。
 - 编辑态有未保存的修改时，切到 Orders tab、离开页面、点 Cancel，都先弹确认框，见公共约定「未保存的修改」。
 - 改条目时把读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。
 - 已成交的订单自带下单时的内容快照，改名称、价格、币种都不影响它们；只有礼卡的履约模式不能改（前端不给入口，接口也不收）。
@@ -350,13 +355,14 @@ sequenceDiagram
 
 | 情形 | 响应 | 页面动作 |
 |---|---|---|
-| 重发时凭证已失效、已核销或退款处理中 | `409`·`208019` | 重调 #18，按新状态显示 |
+| 重发时凭证已失效、已核销、退款处理中或处于风控冻结 | `409`·`208019` | 重调 #18，按新状态显示 |
 | 作废时券已核销、已作废或退款处理中 | `409`·`208018` | 重调 #18 |
 | 处置时风险等级已被别人改过 | `409`·`208020` | 重调 #18，按新的可执行动作显示 |
+| 上一次同键的提交还在处理 | `409`·`208011` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
 | 退款失败 | 见 [flows 04-payments-refunds「页面：Payments · Refund payment 弹窗」](04-payments-refunds.html#页面：Payments%20·%20Refund%20payment%20弹窗) | 同 Payments 页 |
 
-- 一张销售单 = 付款人的一次选购。没发起支付就过期的是 `CLOSED`，没有 `orderId`，也没有 Refund 入口。
+- 一张销售单 = 付款人的一次选购。没发起支付就过期的是 `CLOSED`，没有 Refund 入口。
 - 详情弹窗的 Refund 走订单与退款契约的 `createRefund`，用行上的 `orderId`；退款弹窗与 Payments 页同一套。支付侧的通道交易号（`channelTxnNo`）、收据点 `orderId` 跳 Payments 详情看。
 - 详情里的几个号：销售单号 `salesOrderId`、支付订单号 `orderId`（Payment ID）、付款人标识 `customerId`（Customer ID）。Project ID 与礼卡的 Campaign ID 取的都是这条链接的 `linkId`。
 - 核销状态是销售单的一列。礼卡实体卡模式没有平台核销，这种链接不显示核销列，也不显示核销状态下拉。
