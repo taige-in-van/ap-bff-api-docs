@@ -41,7 +41,7 @@
 
 登录 / 微信扫码成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录响应直接携带 merchantId 或路由**：
 
-1. `getCurrentSession`（`GET /auth/sessions/current`）→ 取 `merchantId`（当前商户内部 id，必返）、`privileges`（可见权限点集合，导航 / 入口 / 按钮 / 只读态一律查它）。每个接口要哪个点看它的 `x-required-privilege`：是权限点就查集合里有没有；`session` 任何已登录者都能调；`owner` 只有当前商户的 Owner 能调（`isOwner`），不在集合里。返回 `403`·`208028` 时会话已被服务端结束，回登录页显示提示。
+1. `getCurrentSession`（`GET /auth/sessions/current`）→ 取 `merchantId`（当前商户内部 id，必返）、`privileges`（可见权限点集合，导航 / 入口 / 按钮 / 只读态一律查它）。每个接口要哪个点看它的 `x-required-privilege`：是权限点就查集合里有没有；`session` 任何已登录者都能调；`owner` 只有当前商户的 Owner 能调（`isOwner`），不在集合里。不要按 `roleNames` 写判断：角色随部署配置而变，写死角色名的判断换了配置会静默失效。返回 `403`·`208028` 时会话已被服务端结束，回登录页显示提示。
 2. `listMerchants`（`GET /merchants`）→ 当前商户**在列表里**就按它的 `status` 分流：`ACTIVE` 进商户后台，`DRAFT` / `MORE_INFO_REQUIRED` 进入驻向导，`UNDER_REVIEW` 进审核状态页；**不在列表里**（被拒的商户不进列表）调 `getOnboardingApplication`（`GET /merchants/{merchantId}/application`），`REJECTED` 进拒绝结果页——申请接口按「在册且未删除」授权，比列表宽，被拒的商户也能读。
 3. 进商户后台时落 Dashboard；按 `privileges` / `visibleModules` 看不到 Dashboard 时，落侧边栏里第一个能看到的页面（前端自行决定，服务端不下发落地页）。
 
@@ -152,14 +152,15 @@
 
 **谁渲染，谁负责本地化**：
 
-- **前端渲染的一切**（页面文案、按钮、状态徽章、错误提示）用你自己的多语言资源。
+- **前端渲染的一切**（页面文案、按钮、状态徽章、错误提示）用你自己的多语言资源；契约里写死的封闭枚举（状态、类型等）只给码，展示名由前端按码从这里取。
 - **所有请求统一带 `Accept-Language`**（BCP-47，页面当前的语言），由统一请求层加，不必逐个接口考虑。它只在两处起作用：
-  - **后端产出的文件**（PDF / Excel 导出）——你拿不到渲染现场，所以这类端点按它渲染，并在响应回 `Content-Language` 告诉你实际用了哪种语言（**以响应头为准，不要回退去猜请求头**）。哪些端点如此，见各端点参数说明。
+  - **后端产出的文件**（PDF / Excel 导出）——你拿不到渲染现场，所以这类端点按它渲染（取最接近的语言，如 `fr-CA` → `fr`；没有匹配的依次回退到账号的界面语言、商户语言），并在响应回 `Content-Language` 告诉你实际用了哪种语言（**以响应头为准，不要回退去猜请求头**）。哪些端点如此，见各端点参数说明。
   - **账号第一次确定界面语言**——注册、邀请设密、登录时账号还没有语言偏好，就用它记下；之后不再看它。
 - **界面语言是账号的偏好**：登录后按会话返回的 `locale` 显示（换设备也跟着账号走），顶栏切换语言时调 `updateMyProfile` 存回去。登录前的页面按浏览器本地的选择。
 - **邮件 / 通知**由后端渲染，与本次请求无关：发给某个人本人的按这个人的 `locale`，发给商户的按商户语言。
 - **商户自己录入的多语言内容**（如 Payment Link 的 FAQ / Policy）是**数据**不是 locale 问题——字段本身按语言分组返回，按当前语言取用即可。
 - **平台配置里的候选**（`/config/*`：省州、行业、MCC 等）带 `label: { en, zh, fr }`，按当前语言取，缺该语言回落 `en`。资料、申请等业务数据里这些字段只给码，展示名拿码到对应 `/config/*` 里查。`/config/*` 需要时就调，前端不必缓存。
+- **格式类规则**（区号、邮编、时区、上传格式与大小）用前端参考数据先拦一道，服务端按同一规则校验、以服务端为准。
 
 ## 接口命名（operationId）
 
@@ -225,7 +226,7 @@
 
 ## 列表页顶部的快捷筛选（chip）
 
-**所有带 chip 的列表形状一致，前端只需写一个 helper。** 列表本身只返 `{ total, data }`，chip 的项与数字另取一个 `…/counts` 端点，返回 `{ items: [ { value, label, count } ] }`。
+**所有带 chip 的列表形状一致，前端只需写一个 helper。** 列表本身只返 `{ total, data }`，chip 的项与数字另取一个 `…/counts` 端点，返回 `{ items: [ { value, label, count } ] }`（spec 里的共享 schema `QuickFilterCounts`）。
 
 **照着 `items` 渲染，不要自己枚举取值。** 项集、顺序、展示名、数字全部由服务端给出——状态、类型这类固定枚举与角色这类由配置决定的，走的是同一个契约，前端一视同仁。某项当期为 `0` 也会返回（那一格不该因为没数据就消失），所以不用自己补空位。只有不分页的列表（如月对账单的年份）才由前端在全量数据上自己算 chip。
 
@@ -277,7 +278,7 @@
 
 ## 验证码、微信扫码、文件下载
 
-这三种交互在多个页面出现，各处入口分开、形状相同，各写一个 helper 即可。
+这三种交互在多个页面出现，各处入口分开、形状相同，各写一个 helper 即可。形状在各 spec 里引的是同几个共享 schema：发码 `OtpChallenge`（挑战 id 已由所在资源给出的入口用 `OtpDelivery`）、码凭证 `OtpProof`、扫码发起 `WechatQrChallenge`、绑定轮询 `WechatBindingPollResult`、下载 `XlsxFile` / `PdfFile` 配 `Accept-Language`。
 
 **验证码**
 

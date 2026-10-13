@@ -845,6 +845,7 @@ paths:
                     system: true
                     mandatory: true
                     type: email
+                    needConfirm: true
                 inputLimit: 10
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -911,6 +912,7 @@ paths:
                     system: true
                     mandatory: true
                     type: email
+                    needConfirm: true
                 inputLimit: 10
                 bannerUrl: https://cdn.example.com/core/product-link-banner/2026/07/5a2c84f1d09b4e73ac16f8b3e047d92c.jpg
                 policies:
@@ -3335,7 +3337,7 @@ components:
     CheckoutOption:
       type: string
       minLength: 1
-      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从 `listCheckoutOptions` 取来原样回传。
+      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
       examples:
         - wechat
     FileUploadForm:
@@ -3501,7 +3503,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     PageNum:
       name: pageNum
       in: query
@@ -3536,4 +3538,4 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*

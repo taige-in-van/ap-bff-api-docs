@@ -823,11 +823,6 @@ components:
       type: string
       description: |
         微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 三处扫码入口（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用同一形状与渲染方式。
-    WechatQrExpiresAt:
-      allOf:
-        - $ref: '#/components/schemas/Timestamp'
-      description: |
-        二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
     WechatQrChallenge:
       type: object
       additionalProperties: false
@@ -846,7 +841,9 @@ components:
         qrContent:
           $ref: '#/components/schemas/WechatQrContent'
         expiresAt:
-          $ref: '#/components/schemas/WechatQrExpiresAt'
+          $ref: '#/components/schemas/Timestamp'
+          description: |
+            二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
     WechatPollStatus:
       type: string
       description: |
@@ -913,7 +910,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     CsrfToken:
       name: X-CSRF-Token
       in: header
@@ -922,4 +919,4 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*

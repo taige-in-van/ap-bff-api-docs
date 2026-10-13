@@ -70,6 +70,7 @@ paths:
                   language: en
                   businessPhone: '+16045550123'
                 settlement:
+                  settledByChannel: false
                   bankName: RBC
                   bankAccount:
                     type: ca_local
@@ -325,6 +326,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OtpChallenge'
+                description: Owner email OTP 挑战句柄（结算变更 / Forgot PIN 两处发码入口共用）。投递目标恒为 Owner email。
               example:
                 challengeId: stl_4e1a8c9b2d
                 deliveredTo: o***@e***.com
@@ -347,6 +349,7 @@ paths:
         - `changes` 含银行组（`bankName` + `bankAccount`）时，`voidChequeFileId` 必填（缺 → 400）；只改 `storeId` / `settlementCycle` 时不带。
         - 码错可重试 → `400`·204010（剩余次数见 `context.attemptsRemaining`）；错到上限 → `423`·206007；码过期或已用 → `410`·206006，须重新发码。
         - 已有审核中的变更 → `409`·208002；结算周期不在候选内 → `400`·204017。
+        - 结算由通道方执行（`settlement.settledByChannel` 为 true）→ `409`·208038，没有结算账户可变更。
 
         审核结果异步更新（不在本 BFF）。
 
@@ -396,6 +399,7 @@ paths:
         - 206007
         - 208002
         - 208005
+        - 208038
   /account/service:
     get:
       tags:
@@ -764,6 +768,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OtpChallenge'
+                description: Owner email OTP 挑战句柄（结算变更 / Forgot PIN 两处发码入口共用）。投递目标恒为 Owner email。
               example:
                 challengeId: rpr_8c4e1d
                 deliveredTo: o***@e***.com
@@ -929,8 +934,6 @@ components:
         - mcc
         - businessAddress
         - city
-        - province
-        - postalCode
         - country
         - timeZone
         - language
@@ -964,9 +967,10 @@ components:
           type: string
         province:
           type: string
-          description: ISO 3166-2 的地区部分（如 `BC`）。
+          description: ISO 3166-2 的地区部分（如 `BC`）。没有时不返回本键。
         postalCode:
           type: string
+          description: 没有时不返回本键。
         country:
           type: string
           description: ISO 3166-1 alpha-2。
@@ -1006,7 +1010,7 @@ components:
       description: |
         改 Business Information 的可编辑字段，只提交要改的；锁定字段不在这里，带了按未知字段 400。空提交 400。
 
-        校验：`province` 须属 `/config/countries` 里所选国家的省州；`postalCode` 按所选国家的格式、`timeZone` 须在所选省州的时区候选内（前端取参考数据先校，服务端按同一规则重校）；`businessPhone` 的区号须在白名单内。
+        校验：`province` 须属 `/config/countries` 里所选国家的省州（没有省 / 州的国家不传）；`postalCode` 按所选国家的格式（没有邮编制度的国家不传）、`timeZone` 须在所选省州的时区候选内（没有省 / 州的国家按国家）（前端取参考数据先校，服务端按同一规则重校）；`businessPhone` 的区号须在白名单内。
       properties:
         businessAddress:
           type: string
@@ -1017,10 +1021,11 @@ components:
         province:
           type: string
           minLength: 1
-          description: 取自 `/config/countries` 里所选国家的 `provinces[].code`；改 `country` 后须重选
+          description: 取自 `/config/countries` 里所选国家的 `provinces[].code`；改 `country` 后须重选。所选国家有省 / 州候选时必填，否则不传
         postalCode:
           type: string
           minLength: 1
+          description: 所选国家有邮编制度时必填，否则不传
         country:
           type: string
           minLength: 1
@@ -1060,13 +1065,16 @@ components:
       additionalProperties: false
       description: Settlement 卡当前生效的结算信息，字段名同入驻 Settlement 步。不含 Legal Business Name（同 `businessInformation.legalBusinessName`）。
       required:
-        - bankName
-        - bankAccount
-        - settlementCycle
+        - settledByChannel
         - pendingReview
       properties:
+        settledByChannel:
+          type: boolean
+          readOnly: true
+          description: true = 结算由通道方执行，平台不出款；此时无结算账户、周期与 Store ID，不可提交结算变更。
         bankName:
           type: string
+          description: 结算币种无平台出款制式的商户不返回本键。
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
@@ -1074,22 +1082,18 @@ components:
               required:
                 - accountNumberMasked
                 - accountNumberSet
-          description: 当前生效的结算银行账户；账号只给末 4 位掩码，任何面都不回明文。允许的制式取 `/config/settlement` 的 `bankAccountTypes`。
+          description: 当前生效的结算银行账户；账号只给末 4 位掩码，任何面都不回明文。允许的制式取 `/config/settlement` 的 `bankAccountTypes`。结算币种无平台出款制式的商户不返回本键。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
-          description: 当前结算周期档位 code；展示名取 `/config/settlement` 同 code 项。
+          description: 当前结算周期档位 code；展示名取 `/config/settlement` 同 code 项。结算币种无平台出款制式的商户不返回本键。
         storeId:
           type: string
-          description: 没有时不返回本键。
+          description: 没有时不返回本键；结算由通道方执行的商户不返回本键。
         pendingReview:
           type: boolean
           readOnly: true
           description: 有审核中的结算变更时为 true（同一商户至多一个）。
-    OtpChallenge:
-      description: Owner email OTP 挑战句柄（结算变更 / Forgot PIN 两处发码入口共用）。形状是本 BFF 的共享件；投递目标恒为 Owner email。
-      allOf:
-        - $ref: '#/components/schemas/OtpChallenge-2'
     SettlementChanges:
       type: object
       additionalProperties: false
@@ -1139,7 +1143,7 @@ components:
         - status
       properties:
         paymentMethod:
-          $ref: '#/components/schemas/PaymentMethodCode'
+          $ref: '#/components/schemas/PaymentMethod'
         status:
           allOf:
             - $ref: '#/components/schemas/ServiceStatus'
@@ -1214,7 +1218,7 @@ components:
         - rate
       properties:
         paymentMethod:
-          $ref: '#/components/schemas/PaymentMethodCode'
+          $ref: '#/components/schemas/PaymentMethod'
         enabled:
           type: boolean
           description: 这个集成是否用该方式；未接入时默认 `true`。
@@ -1282,7 +1286,7 @@ components:
           uniqueItems: true
           description: 希望开着的支付方式：已开通的即时开关，未开通的进申请。须属于该模式、在当前商户币种的候选内。
           items:
-            $ref: '#/components/schemas/PaymentMethodCode'
+            $ref: '#/components/schemas/PaymentMethod'
         storeInsideFileId:
           type: string
           minLength: 1
@@ -1360,7 +1364,7 @@ components:
           uniqueItems: true
           description: 这个集成要开的支付方式，须取自读面该集成的 `paymentMethods`。
           items:
-            $ref: '#/components/schemas/PaymentMethodCode'
+            $ref: '#/components/schemas/PaymentMethod'
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
@@ -1497,7 +1501,7 @@ components:
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 见 `/config/settlement` 的 `bankAccountTypes`（按结算币种）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
@@ -1543,7 +1547,7 @@ components:
     SettlementCycleCode:
       type: string
       minLength: 1
-      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（`400`·`204017` + `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
+      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（错误码见所在面，带 `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
     Timestamp:
       type: string
       format: date-time
@@ -1727,7 +1731,7 @@ components:
           type: string
           format: uri
           description: 可渲染地址(只出不入),供上传后立即回显。按用途分长效公开地址或短时效地址,短时效的不要持久化。
-    OtpChallenge-2:
+    OtpChallenge:
       type: object
       additionalProperties: false
       description: 一次性验证码挑战句柄 = `OtpDelivery` 的三件事 + 本挑战自己的 id（供后续校验步骤引用）。 用于**挑战自带 id** 的入口；若 id 已由所在流程的资源提供（如 change-request），那里直接用 `OtpDelivery`、不重复给 id。 **各入口的绑定语义与失效细则不同**（是否绑操作摘要 / 发起会话、幂等重投是否受时限约束等），见各自端点说明。
@@ -1777,10 +1781,11 @@ components:
           minLength: 1
         code:
           $ref: '#/components/schemas/OtpCode'
-    PaymentMethodCode:
+    PaymentMethod:
       type: string
       minLength: 1
-      description: 支付方式目录码（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，前端从候选集取来原样回传。
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
     FeeRate:
@@ -1832,7 +1837,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1841,4 +1846,4 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*

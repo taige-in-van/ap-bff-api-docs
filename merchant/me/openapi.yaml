@@ -567,7 +567,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -576,7 +576,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
   schemas:
     UserLocale:
       type: string
@@ -708,7 +708,7 @@ components:
     OtpDelivery:
       type: object
       additionalProperties: false
-      description: 「一次性验证码已发出」的三件事（本 BFF 内所有发码入口共用同一形状）：发到哪里、多久能重发、多久失效。 FE 用 `cooldownSeconds` 启动重发倒计时、用 `expiresAt` 判断码是否仍有效；**两个都是部署可配、前端不要 hardcode**。 码过期 / 已用后再提交 → `410`（须重新发起，不是重输）；冷却中重发 → `429`。 ⚠️ **反枚举入口不用本形状**——若「投递目标存不存在」本身是要隐藏的事实（如找回密码）， 那里只回冷却秒数、不回 `deliveredTo`，见各自端点说明。
+      description: 「一次性验证码已发出」的三件事（各发码入口共用同一形状）：发到哪里、多久能重发、多久失效。 FE 用 `cooldownSeconds` 启动重发倒计时、用 `expiresAt` 判断码是否仍有效；**两个都是部署可配、前端不要 hardcode**。 码过期 / 已用后再提交 → `410`（须重新发起，不是重输）；冷却中重发 → `429`。 ⚠️ **反枚举入口不用本形状**——若「投递目标存不存在」本身是要隐藏的事实（如找回密码）， 那里只回冷却秒数、不回 `deliveredTo`，见各自端点说明。
       required:
         - deliveredTo
         - cooldownSeconds
@@ -716,6 +716,7 @@ components:
       properties:
         deliveredTo:
           type: string
+          minLength: 1
           readOnly: true
           description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
         cooldownSeconds:

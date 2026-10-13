@@ -496,6 +496,12 @@ paths:
         按当前类型与关键词命中的全部日志导出 Excel，不只是当前页；同步返回文件流。表头语言按 `Accept-Language`，实际用的语言经 `Content-Language` 回。设备已解绑 `404`。
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+            响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+
+            取不中时依次退到账号界面语言、商户语言；实际用的语言经 `Content-Language` 回。
         - name: deviceId
           in: path
           required: true
@@ -900,7 +906,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -909,14 +915,19 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     AcceptLanguage:
       name: Accept-Language
       in: header
       required: false
+      description: |
+        页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+        响应带 `Content-Language` 的接口，实际用的语言以该头为准。
       schema:
         type: string
-      description: 页面当前的语言（BCP-47，如 `zh-Hans` / `fr-CA`）。服务端生成文件（xlsx / PDF）时按它取最接近的语言（如 `fr-CA` → `fr`），没有匹配的依次回退到账号的界面语言、商户语言。实际用的语言经 `Content-Language` 回。
+        minLength: 2
+        maxLength: 256
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

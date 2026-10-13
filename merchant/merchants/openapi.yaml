@@ -265,12 +265,12 @@ paths:
       summary: 分步保存一个步骤
       description: |
         `mode=next` 校验本步完整后保存；`mode=draft` 只校验已填字段的格式、放宽必填。
-        请求体恰含一个步骤键，且须与 path 的 `{step}` 一致。完整性按已存值叠加本次提交判定，只写字段（银行账号、Refund PIN）按 `accountNumberSet` / `refundPinSet` 判。
+        请求体恰含一个步骤键，且须与 path 的 `{step}` 一致。完整性按已存值叠加本次提交判定，只写字段（银行账号、Refund PIN）按 `accountNumberSet` / `refundPinSet` 判。Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目时，`settlement` 步只收 `refundPin` / `confirmRefundPin`，`bankName` / `bankAccount` / `settlementCycle` / `storeId` 不传（传了 → 400 `204001`），完整性只看 `refundPinSet`。
 
         - `business`：Currency × Country 须是 `/config/currencies` 里的有效组合；改了币种后 Services 已选方式不在新币种候选内的，在下次保存 Services 时报错。
         - `services`：所选方式须在 Business 步所选结算币种的候选内；选了线上方式时，Business 的 `typeOfOnlineService` 必填、为 `WEBSITE` 时 `websiteUrl` 必填，缺了在 `details` 里指向 `business.*`。
         - `settlement`：两次 Refund PIN 须一致。
-        - `documents`：按 docKey 绑定上传得到的 `fileId`，未传的 docKey 保持原绑定，传 `null` 移除。门店内照、外照在 Services 选了线下方式时才必传。
+        - `documents`：按 docKey 绑定上传得到的 `fileId`，未传的 docKey 保持原绑定，传 `null` 移除。门店内照、外照在 Services 选了线下方式时才必传；Business 步所选结算币种在 `bankAccountTypes` 无条目时 `docVoidCheque` 不必传。
 
         `readonlyFields` 里的字段服务端忽略写入。
 
@@ -433,7 +433,7 @@ paths:
       x-required-privilege: owner
       summary: 提交审核
       description: |
-        校验全部步骤与必传文档（营业执照、Owner 证件、Void Cheque；选了线下方式时加门店内照、外照）后，申请从 `DRAFT` / `MORE_INFO_REQUIRED` 进入 `UNDER_REVIEW`，同时清空待补项。
+        校验全部步骤与必传文档（营业执照、Owner 证件、Void Cheque；选了线下方式时加门店内照、外照；结算币种在 `/config/settlement` 的 `bankAccountTypes` 无条目时不要 Void Cheque、`204002` 不因它触发）后，申请从 `DRAFT` / `MORE_INFO_REQUIRED` 进入 `UNDER_REVIEW`，同时清空待补项。
         首次提交发「申请已收到」邮件，补料重提不发。已是 `UNDER_REVIEW` 时重放同样返回 `204`、不重发邮件。
 
         错误码：
@@ -484,7 +484,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     CsrfToken:
       name: X-CSRF-Token
       in: header
@@ -493,7 +493,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
   schemas:
     RelationType:
       type: string
@@ -673,7 +673,7 @@ components:
           uniqueItems: true
           description: 选中的支付方式目录码，须在 Business 步所选结算币种的候选内。数组整组置换，草稿态允许 `[]`。
           items:
-            $ref: '#/components/schemas/PaymentMethodCode'
+            $ref: '#/components/schemas/PaymentMethod'
     BusinessStep:
       type: object
       description: Business 步（向导第 2 步）。Currency × Country 有效组合以后端配置为准；Services 步选了任一线上支付方式时 typeOfOnlineService 必填、为 WEBSITE 时 websiteUrl 必填（在 Services 步保存与提交时校验）。
@@ -701,13 +701,13 @@ components:
           type: string
         province:
           type: string
-          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。
+          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
         postalCode:
           type: string
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）。
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
         timeZone:
           type: string
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选按所选省 / 州取前端参考数据，服务端按同一映射校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
         language:
           $ref: '#/components/schemas/MerchantLanguage'
         businessPhone:
@@ -757,6 +757,7 @@ components:
         - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
         - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
         - Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
+        - Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目（平台不对该币种出款）时，本步不采集 `bankName` / `bankAccount` / `settlementCycle` / `storeId`，只收 Refund PIN。
       additionalProperties: false
       properties:
         bankName:
@@ -927,10 +928,11 @@ components:
       pattern: ^\+[1-9]\d{1,14}$
       maxLength: 16
       description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
-    PaymentMethodCode:
+    PaymentMethod:
       type: string
       minLength: 1
-      description: 支付方式目录码（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，前端从候选集取来原样回传。
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
     OwnershipType:
@@ -965,7 +967,7 @@ components:
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 见 `/config/settlement` 的 `bankAccountTypes`（按结算币种）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
@@ -1011,7 +1013,7 @@ components:
     SettlementCycleCode:
       type: string
       minLength: 1
-      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（`400`·`204017` + `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
+      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（错误码见所在面，带 `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
     RefundPin:
       type: string
       writeOnly: true

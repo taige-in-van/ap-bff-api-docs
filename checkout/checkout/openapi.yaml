@@ -85,6 +85,13 @@ paths:
             minLength: 1
             maxLength: 32
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |-
+            希望用哪种语言渲染**由商户配置的多语内容**（页面说明与条款等）。服务端按本头挑一份，
+            挑不中就退到该入口的默认语言；实际给的是哪一种见响应的 `Content-Language`。
+
+            **商户录入的单语文本不随本头变化**（商品名、票档名、活动名这些本来就只有一份）。
+
+            取 BCP-47 语言标记，可带权重列表（如 `zh-CN,zh;q=0.9,en;q=0.8`）。
       requestBody:
         required: false
         content:
@@ -267,7 +274,7 @@ paths:
                         - key: sys:name
                           label: 姓名
                           type: text
-                          mandatory: true
+                          mandatory: false
                         - key: sys:phone
                           label: 电话
                           type: phone
@@ -319,12 +326,20 @@ paths:
                         - key: sys:name
                           label: 姓名
                           type: text
-                          mandatory: true
+                          mandatory: false
                         - key: sys:email
                           label: 邮箱
                           type: email
                           mandatory: true
                           needConfirm: true
+                        - key: sys:phone
+                          label: 电话
+                          type: phone
+                          mandatory: false
+                        - key: sys:notes
+                          label: 留言
+                          type: textarea
+                          mandatory: false
                       policies:
                         - key: termsOfUse
                           content: <p>Doors open at 19:00. One entry per ticket.</p>
@@ -394,7 +409,7 @@ paths:
                           type: email
                           mandatory: true
                           needConfirm: true
-                        - key: 留言
+                        - key: sys:notes
                           label: 留言
                           type: textarea
                           mandatory: false
@@ -476,6 +491,13 @@ paths:
             minLength: 1
             maxLength: 128
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |-
+            希望用哪种语言渲染**由商户配置的多语内容**（页面说明与条款等）。服务端按本头挑一份，
+            挑不中就退到该入口的默认语言；实际给的是哪一种见响应的 `Content-Language`。
+
+            **商户录入的单语文本不随本头变化**（商品名、票档名、活动名这些本来就只有一份）。
+
+            取 BCP-47 语言标记，可带权重列表（如 `zh-CN,zh;q=0.9,en;q=0.8`）。
       requestBody:
         required: false
         content:
@@ -960,7 +982,7 @@ paths:
                     recipientFields:
                       sys:name: 李华
                       sys:email: hua.li@example.com
-                      留言: 生日快乐
+                      sys:notes: 生日快乐
               wallet:
                 summary: 钱包类方式，会话已有订单
                 value:
@@ -1393,39 +1415,6 @@ components:
         入口接口上本头可选：带着有效且属于该入口的令牌即认回同一会话。
 
         令牌只放请求头、不放 URL；入口路径里的是入口编号（静态码编号或订单链接令牌），不是会话令牌。
-  parameters:
-    AcceptLanguage:
-      name: Accept-Language
-      in: header
-      required: false
-      description: |-
-        希望用哪种语言渲染**由商户配置的多语内容**（页面说明与条款等）。服务端按本头挑一份，
-        挑不中就退到该入口的默认语言；实际给的是哪一种见响应的 `Content-Language`。
-
-        **商户录入的单语文本不随本头变化**（商品名、票档名、活动名这些本来就只有一份）。
-
-        取 BCP-47 语言标记，可带权重列表（如 `zh-CN,zh;q=0.9,en;q=0.8`）。
-      schema:
-        type: string
-        minLength: 2
-        maxLength: 256
-    PageNum:
-      name: pageNum
-      in: query
-      description: 页码(从 1 计;分页)
-      schema:
-        type: integer
-        minimum: 1
-        default: 1
-    PageSize:
-      name: pageSize
-      in: query
-      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 200
-        default: 20
   headers:
     ContentLanguage:
       description: 本次返回的多语内容用的是哪种语言（BCP-47）。**必返**——直接据它渲染，不必回退去看自己发的请求头。
@@ -1916,15 +1905,6 @@ components:
             尚未付款或没付成时把付款人导回商户系统的地址：发起支付之前、等待付款结果期间、付款未成功、订单已失效或已关闭时都适用。只用于导航，不代表付款结果。这笔订单没有这个地址时不返回本键。
 
             付款成功后的跳回用 `CheckoutOrder.returnUrl`，与本键可以是同一个地址，也可以不同。
-    CheckoutOption:
-      type: string
-      minLength: 1
-      description: |
-        收银台上的支付方式选项（同一品牌、同一付款流程的支付方式归为一项）。取值由服务端给出，前端从 `listCheckoutPaymentMethods` 取来原样回传。
-
-        其中 `unionpay_card` 是银联卡号支付：付款人在本页填卡号、经银联付款，与跳到银联页面付款的 `unionpay_online` 是两项。
-      examples:
-        - wechat
     CheckoutOptionItem:
       type: object
       description: 收银台上的一个支付方式选项。
@@ -1934,6 +1914,10 @@ components:
       properties:
         checkoutOption:
           $ref: '#/components/schemas/CheckoutOption'
+          description: |
+            收银台上的支付方式选项（同一品牌、同一付款流程的支付方式归为一项）。取值由服务端给出，前端从 `listCheckoutPaymentMethods` 取来原样回传。
+
+            其中 `unionpay_card` 是银联卡号支付：付款人在本页填卡号、经银联付款，与跳到银联页面付款的 `unionpay_online` 是两项。
         displayName:
           type: string
           minLength: 1
@@ -3092,6 +3076,12 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    CheckoutOption:
+      type: string
+      minLength: 1
+      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
+      examples:
+        - wechat
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$
@@ -3101,6 +3091,36 @@ components:
         **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
 
         本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
+  parameters:
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      description: |
+        页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+        响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 256
+    PageNum:
+      name: pageNum
+      in: query
+      description: 页码(从 1 计;分页)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
   responses:
     DefaultError:
       description: |

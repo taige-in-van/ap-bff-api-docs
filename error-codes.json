@@ -333,6 +333,11 @@
       "name": "PRODCFG_ITEM_UNKNOWN",
       "retryable": false
     },
+    "208038": {
+      "httpStatus": 409,
+      "name": "SETTLEMENT_BY_CHANNEL",
+      "retryable": false
+    },
     "966001": {
       "httpStatus": 423,
       "name": "ACCOUNT_LOCKED",
@@ -374,11 +379,6 @@
     "968001": {
       "httpStatus": 409,
       "name": "LOGIN_ID_TAKEN",
-      "retryable": false
-    },
-    "968002": {
-      "httpStatus": 409,
-      "name": "EXTERNAL_ACCOUNT_OCCUPIED",
       "retryable": false
     },
     "968003": {

@@ -53,7 +53,7 @@ paths:
         界面语言：建会话时这个账号还没有 `locale`，就把本次请求 `Accept-Language` 对应的语言记为它的 `locale`；已有的不动。二次校验、扫码登录建会话同此规则。
       security: []
       parameters:
-        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       requestBody:
         required: true
         content:
@@ -427,7 +427,7 @@ paths:
         - `968001` 该邮箱已被其他账号使用（含邀请中、已停用的账号；别人改登录邮箱时尚未确认的新邮箱不算占用）。
       security: []
       parameters:
-        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       requestBody:
         required: true
         content:
@@ -565,7 +565,7 @@ paths:
         - `206010` 令牌已用过、该员工已激活；本次提交的新密码未生效。
       security: []
       parameters:
-        - $ref: '#/components/parameters/AcceptLanguage'
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       requestBody:
         required: true
         content:
@@ -645,7 +645,7 @@ components:
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
         - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
   parameters:
-    AcceptLanguage:
+    PreLoginAcceptLanguage:
       name: Accept-Language
       in: header
       required: false
@@ -660,7 +660,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
   schemas:
     RegistrationRequest:
       type: object
@@ -943,11 +943,6 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
-    WechatQrExpiresAt:
-      allOf:
-        - $ref: '#/components/schemas/Timestamp'
-      description: |
-        二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
     WechatQrChallenge:
       type: object
       additionalProperties: false
@@ -966,7 +961,9 @@ components:
         qrContent:
           $ref: '#/components/schemas/WechatQrContent'
         expiresAt:
-          $ref: '#/components/schemas/WechatQrExpiresAt'
+          $ref: '#/components/schemas/Timestamp'
+          description: |
+            二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
     WechatPollStatus:
       type: string
       description: |

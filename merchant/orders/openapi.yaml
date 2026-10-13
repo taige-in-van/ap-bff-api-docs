@@ -290,6 +290,12 @@ paths:
         - $ref: '#/components/parameters/PaymentSortField'
         - $ref: '#/components/parameters/SortOrder'
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+            响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+
+            取不中时依次退到账号界面语言、商户语言；实际用的语言经 `Content-Language` 回。
       responses:
         '200':
           $ref: '#/components/responses/XlsxFile'
@@ -398,6 +404,12 @@ paths:
             type: string
             minLength: 1
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+            响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+
+            取不中时依次退到账号界面语言、商户语言；实际用的语言经 `Content-Language` 回。
       responses:
         '200':
           $ref: '#/components/responses/PdfFile'
@@ -655,6 +667,12 @@ paths:
         - $ref: '#/components/parameters/RefundSortField'
         - $ref: '#/components/parameters/SortOrder'
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+            响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+
+            取不中时依次退到账号界面语言、商户语言；实际用的语言经 `Content-Language` 回。
       responses:
         '200':
           $ref: '#/components/responses/XlsxFile'
@@ -759,6 +777,12 @@ paths:
             type: string
             minLength: 1
         - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+            响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+
+            取不中时依次退到账号界面语言、商户语言；实际用的语言经 `Content-Language` 回。
       responses:
         '200':
           $ref: '#/components/responses/PdfFile'
@@ -1039,9 +1063,14 @@ components:
       name: Accept-Language
       in: header
       required: false
+      description: |
+        页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+        响应带 `Content-Language` 的接口，实际用的语言以该头为准。
       schema:
         type: string
-      description: 页面当前的语言（BCP-47，如 `zh-Hans` / `fr-CA`）。服务端生成文件（xlsx / PDF）时按它取最接近的语言（如 `fr-CA` → `fr`），没有匹配的依次回退到账号的界面语言、商户语言。实际用的语言经 `Content-Language` 回。
+        minLength: 2
+        maxLength: 256
     CsrfToken:
       name: X-CSRF-Token
       in: header
@@ -1050,7 +1079,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1059,7 +1088,7 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*
   schemas:
     PaymentStatus:
       type: string

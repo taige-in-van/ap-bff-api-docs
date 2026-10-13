@@ -73,7 +73,7 @@ paths:
       x-required-privilege: session
       summary: 国家及其省州（省州带三语展示名）
       description: |
-        可选国家及其省 / 州，平台配置、和当前商户无关。用在入驻向导 Business 步、Business Profile 显示省州名与编辑地址。国家展示名由前端按 ISO 码解析，省州展示名取 `label`；邮编格式与时区候选取前端参考数据。
+        可选国家及其省 / 州，平台配置、和当前商户无关。用在入驻向导 Business 步、Business Profile 显示省州名与编辑地址。国家展示名由前端按 ISO 码解析，省州展示名取 `label`；邮编格式与时区候选取前端参考数据。没有省 / 州的国家 `provinces` 为空数组。
 
         需要时就调，前端不必缓存。
       responses:
@@ -119,6 +119,8 @@ paths:
                           en: New York
                           zh: 纽约州
                           fr: New York
+                  - code: HK
+                    provinces: []
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -579,7 +581,7 @@ components:
         - recommended
       properties:
         paymentMethod:
-          $ref: '#/components/schemas/PaymentMethodCode'
+          $ref: '#/components/schemas/PaymentMethod'
         acceptanceMode:
           type: string
           enum:
@@ -879,7 +881,7 @@ components:
     CurrencyCountry:
       type: object
       additionalProperties: false
-      description: 一条**有效 Currency × Country 组合**（入驻向导 Business 步与 Add Merchant 弹窗共用同一形状）。组合集**由后端配置决定、契约不写死**：客户端一律从 `/config/currencies` 渲染、按组合联动，不自行拼组合。`currency` 与 `countries` 都是 ISO 标准码（4217 / 3166），币种与国家的展示名由客户端按它们解析（浏览器内置 `Intl.DisplayNames` 即可）。
+      description: 一条**有效 Currency × Country 组合**（入驻向导 Business 步与 Add Merchant 弹窗共用同一形状）。组合集**由后端配置决定、契约不写死**：客户端一律从所在面的配置接口取候选集渲染、按组合联动，不自行拼组合。`currency` 与 `countries` 都是 ISO 标准码（4217 / 3166），币种与国家的展示名由客户端按它们解析（浏览器内置 `Intl.DisplayNames` 即可）。
       required:
         - currency
         - countries
@@ -927,7 +929,7 @@ components:
     CountryOption:
       type: object
       additionalProperties: false
-      description: 一个可选国家及其省 / 州候选（入驻向导 Business 步与商户资料 Business Information 编辑面共用）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。邮编格式按国家、时区候选按省 / 州，均取前端参考数据，服务端按同一规则校验；改国家后省 / 州与时区须重选。
+      description: 一个可选国家及其省 / 州候选（入驻向导 Business 步与商户资料 Business Information 编辑面共用）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。邮编格式按国家（没有邮编制度的国家不填）、时区候选按省 / 州（无省 / 州的国家按国家），均取前端参考数据，服务端按同一规则校验；改国家后省 / 州与时区须重选。
       required:
         - code
         - provinces
@@ -939,14 +941,14 @@ components:
             - CA
         provinces:
           type: array
-          minItems: 1
-          description: 该国的省 / 州候选（顺序即展示顺序）。
+          description: 该国的省 / 州候选（顺序即展示顺序）；没有省 / 州的国家（如香港）为空数组，此时省 / 州不填、时区候选按国家给。
           items:
             $ref: '#/components/schemas/ProvinceOption'
-    PaymentMethodCode:
+    PaymentMethod:
       type: string
       minLength: 1
-      description: 支付方式目录码（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，前端从候选集取来原样回传。
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
     FeeRate:
@@ -972,7 +974,7 @@ components:
     SettlementCycleCode:
       type: string
       minLength: 1
-      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（`400`·`204017` + `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
+      description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（错误码见所在面，带 `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
     SettlementCycleOption:
       type: object
       description: 结算周期档位的一个候选项（入驻向导与商户资料的 Settlement 编辑面共用同一形状）。
@@ -992,7 +994,10 @@ components:
     CurrencyBankAccountTypes:
       type: object
       additionalProperties: false
-      description: 结算币种 → 允许的结算银行账户制式集（部署配置驱动，随出款执行方接入扩展）。制式由**收款银行账户所在国**决定、受结算币种约束，**与商户营业地址 Country 无关**（改地址国家不触碰结算账户）。前端按商户结算币种取本项：只有一个制式就直接渲染该表单，多于一个让商户选账户所在国后按 `type` 查表选表单组件，**不按 currency / country 写 if / else**；写侧提交的 `bankAccount.type` 须 ∈ 该币种的 `types`，否则 400。
+      description: |
+        结算币种 → 允许的结算银行账户制式集（部署配置驱动，随出款执行方接入扩展）。制式由**收款银行账户所在国**决定、受结算币种约束，**与商户营业地址 Country 无关**（改地址国家不触碰结算账户）。前端按商户结算币种取本项：只有一个制式就直接渲染该表单，多于一个让商户选账户所在国后按 `type` 查表选表单组件，**不按 currency / country 写 if / else**；写侧提交的 `bankAccount.type` 须 ∈ 该币种的 `types`，否则 400。
+
+        结算币种在 `bankAccountTypes` 数组里没有条目 = 平台不对该币种出款（该币种全部通道为渠道方清算），入驻与商户资料面不采集结算银行账户与结算周期。
       required:
         - currency
         - types
@@ -1063,4 +1068,4 @@ components:
       schema:
         type: string
         minLength: 1
-        pattern: \S
+        pattern: .*\S.*

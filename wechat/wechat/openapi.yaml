@@ -1,0 +1,439 @@
+openapi: 3.1.0
+info:
+  title: 微信侧公开面 · 微信确认页
+  version: 2.0.0
+  contact:
+    name: 微信确认页契约
+  description: |
+    微信确认页只调用两个接口：取确认上下文（`getWechatConfirmation`）与确认或取消（`decideWechatChallenge`）。
+
+    另外两个接口由二维码与微信网页授权之间的跳转驱动，页面不调用，列出供理解流程：扫码落地并跳微信网页授权（`enterWechatChallenge`）、网页授权回调并跳转微信确认页（`completeWechatOAuth`）。
+
+    - 扫码登录、微信绑定、外部账号身份确认三种用途与所有后台共用本面，用途在发起时固化、由确认上下文的 `purpose` 给出。
+    - 每一步用的材料各自独立：二维码里的 `scanToken`、网页授权的 `state`、微信确认页的 `confirmationToken`，都不是发起方查询结果用的标识；本面的路径与请求都不出现那个标识。
+    - 微信确认页从页面地址的 fragment 取 `confirmationToken`，此后放在请求头 `X-Confirmation-Token` 里调用两个接口；fragment 里带的是 `failure` 时直接渲染失败态，不调接口。
+    - 接口只返回码，页面文案由微信确认页按 `locale` 本地化。
+    - 外部账号身份一律由平台服务端解析，不接受页面传入。
+servers:
+  - url: /identity/wechat/v1
+    description: 微信侧公开面（经边缘网关公网可达）
+security: []
+tags:
+  - name: wechat
+    x-displayName: 微信确认页
+    description: 扫码落地、网页授权回调、取确认上下文、确认或取消
+paths:
+  /wechat/challenges/{scanToken}:
+    get:
+      tags:
+        - wechat
+      operationId: enterWechatChallenge
+      summary: 扫码落地并跳微信网页授权
+      description: |
+        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信网页授权。
+
+        发给微信的 `redirect_uri` 为登记域名上的回调中转静态页，其 `redirect` 参数指向本面的授权回调（`completeWechatOAuth`）；`state` 为本面生成的一次性字母数字串。
+
+        **失败也是跳转**：`scanToken` 无效或对不上 → `302` 到微信确认页、fragment 带 `#failure=INVALID`；挑战已过期或材料已用 → fragment 带 `#failure=EXPIRED`。不向浏览器返回错误体。
+      parameters:
+        - name: scanToken
+          in: path
+          required: true
+          description: 二维码专用的高熵、短时、单次材料。
+          schema:
+            type: string
+            minLength: 1
+      x-error-codes: []
+      responses:
+        '302':
+          description: |
+            成功时跳转微信网页授权；失败时跳转微信确认页，fragment 为 `#failure=EXPIRED` 或 `#failure=INVALID`。
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /wechat/oauth/callback:
+    get:
+      tags:
+        - wechat
+      operationId: completeWechatOAuth
+      summary: 微信网页授权回调
+      description: |
+        校验一次性 `state`，服务端以 `code` 换取外部账号身份并记到原挑战上，再按挑战用途做预检，然后 `302` 到微信确认页。本步不出页面、不呈现预检结果。
+
+        跳转微信确认页时 fragment 有两种形态：
+
+        - `#confirmationToken=…`：成功换得身份；预检未过时，微信确认页经 `getWechatConfirmation` 拿到 `state = FAILED` 与原因码。
+        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 无效或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），挑战不推进、可重新扫码。不向浏览器返回错误体。
+      parameters:
+        - name: code
+          in: query
+          required: false
+          description: 微信网页授权返回的 code；用户拒绝授权时微信不带它回跳。
+          schema:
+            type: string
+            minLength: 1
+        - name: state
+          in: query
+          required: true
+          description: '`enterWechatChallenge` 生成的一次性 state，只含字母数字、不超过 128 字节。'
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: ^[A-Za-z0-9]+$
+      x-error-codes: []
+      responses:
+        '302':
+          description: |
+            跳转微信确认页，fragment 为 `#confirmationToken=…`，失败时为 `#failure=EXPIRED`、`#failure=INVALID` 或 `#failure=DENIED`。
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /wechat/confirmations/current:
+    get:
+      tags:
+        - wechat
+      operationId: getWechatConfirmation
+      summary: 取确认上下文
+      description: |
+        微信确认页凭请求头里的 `confirmationToken` 取本次挑战的确认上下文，据 `state` 决定渲染什么：`PENDING_DECISION` 才出确认与取消按钮；`FAILED` 按 `failReason` 展示原因、不出确认按钮；`CONFIRMED`、`CANCELLED`、`EXPIRED` 直接展示结果态。
+
+        同一 `confirmationToken` 可多次读取：刷新或重放页面时，挑战已有决定或已过期就返回对应 `state`。本 op 只读确认上下文，拿不到发起方查询的结果。
+
+        **什么时候拒绝**：材料对不上 → `966002`。材料对得上但挑战已过期 → `200` 且 `state = EXPIRED`，不拒绝。
+      security:
+        - confirmationToken: []
+      x-error-codes:
+        - 966002
+      responses:
+        '200':
+          description: 确认上下文
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WechatConfirmationContext'
+              example:
+                purpose: LOGIN
+                state: PENDING_DECISION
+                expiresAt: '2026-10-12T08:05:00Z'
+                wechat:
+                  nickname: Lily
+                  avatarUrl: https://example.com/wechat-avatar.png
+                locale: zh-CN
+                client:
+                  clientId: merchant_portal
+                account:
+                  displayName: Lily Chen
+                  loginHint: li***@example.com
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /wechat/decisions:
+    post:
+      tags:
+        - wechat
+      operationId: decideWechatChallenge
+      summary: 确认或取消
+      description: |
+        微信确认页凭请求头里的 `confirmationToken` 提交用户的确认或取消，返回 `200` 与结果 `result`，页面据此渲染结果态。确认时按挑战用途推进：登录 → 裁访问资格与后台可用性；微信绑定 → 原子裁外部账号占用与目标账号有效性并写入该用户的微信绑定；外部账号身份确认 → 直接成立。决定只推进一次。
+
+        确认后裁决落败（登录时访问资格或后台已不可用；绑定时目标账号已失效或微信已被其他用户占用）→ `200` 且 `result = FAILED`、带 `failReason`，只给扫码本人看。
+
+        **什么时候拒绝**：只有材料对不上才拒绝 → `966002`。材料对得上但挑战不在 `PENDING_DECISION` 时不拒绝、也不推进，按现状回 `200`：已过期 → `result = EXPIRED`；预检未过 → `result = FAILED` + 预检时的 `failReason`；已有决定 → 回放首次结果。
+      security:
+        - confirmationToken: []
+      x-error-codes:
+        - 966002
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - decision
+              properties:
+                decision:
+                  type: string
+                  enum:
+                    - CONFIRM
+                    - CANCEL
+            example:
+              decision: CONFIRM
+      responses:
+        '200':
+          description: 已受理，带本次结果
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - result
+                properties:
+                  result:
+                    type: string
+                    enum:
+                      - CONFIRMED
+                      - FAILED
+                      - CANCELLED
+                      - EXPIRED
+                    description: |
+                      本次决定的结果：
+
+                      - `CONFIRMED`：已确认。扫码登录 = 用户已确认，会话由发起登录的那一侧签发；微信绑定 = 绑定已写入；外部账号身份确认 = 确认已成立。
+                      - `FAILED`：确认后裁决落败，原因见 `failReason`。
+                      - `CANCELLED`：用户已取消。
+                      - `EXPIRED`：提交决定时挑战已过期。
+                  failReason:
+                    $ref: '#/components/schemas/WechatFailReason'
+              example:
+                result: CONFIRMED
+        default:
+          $ref: '#/components/responses/DefaultError'
+components:
+  securitySchemes:
+    confirmationToken:
+      type: apiKey
+      in: header
+      name: X-Confirmation-Token
+      description: 微信确认页从页面地址 fragment 取到的确认材料；短时、高熵；可多次读取上下文，决定只推进一次。
+  schemas:
+    WechatFailReason:
+      type: string
+      enum:
+        - NOT_BOUND
+        - LOGIN_NOT_ENABLED
+        - ACCOUNT_UNAVAILABLE
+        - CLIENT_UNAVAILABLE
+        - OCCUPIED
+        - TARGET_INVALID
+      description: |
+        失败原因，仅 `FAILED` 时出现。预检拦下（确认前）与确认后裁决落败共用这组码：确认后落败只出现登录的访问资格或后台可用性（`ACCOUNT_UNAVAILABLE`、`CLIENT_UNAVAILABLE`、`LOGIN_NOT_ENABLED`），与绑定的目标失效或占用（`TARGET_INVALID`、`OCCUPIED`）。
+
+        - 扫码登录：`NOT_BOUND` 此微信未绑定账号；`LOGIN_NOT_ENABLED` 该后台未开通微信登录；`ACCOUNT_UNAVAILABLE` 账号已停用或无访问资格；`CLIENT_UNAVAILABLE` 该后台暂不可用。
+        - 微信绑定：`OCCUPIED` 此微信已绑定其他账号；`TARGET_INVALID` 要绑定的账号已失效。
+    WechatConfirmationContext:
+      type: object
+      additionalProperties: false
+      description: 微信确认页渲染所需的上下文。只返回码，不返回自然语言串；部分字段按用途或状态出现，见各字段说明。
+      required:
+        - purpose
+        - state
+        - expiresAt
+      properties:
+        purpose:
+          type: string
+          enum:
+            - LOGIN
+            - BINDING
+            - ASSERTION
+          description: |
+            本次挑战的用途：
+
+            - `LOGIN`：扫码登录。
+            - `BINDING`：微信绑定。
+            - `ASSERTION`：外部账号身份确认（如确认用此微信接收商户通知）。
+        state:
+          type: string
+          enum:
+            - PENDING_DECISION
+            - CONFIRMED
+            - FAILED
+            - CANCELLED
+            - EXPIRED
+          description: |
+            页面该渲染的状态：
+
+            - `PENDING_DECISION`：待用户决定，出确认与取消按钮。
+            - `CONFIRMED`：已确认。扫码登录 = 用户已确认，会话由发起登录的那一侧签发；微信绑定 = 绑定已写入；外部账号身份确认 = 确认已成立。
+            - `FAILED`：预检未过，或确认后裁决落败；按 `failReason` 展示原因，不出确认按钮。
+            - `CANCELLED` / `EXPIRED`：已取消 / 已过期，直接展示结果态。
+        failReason:
+          $ref: '#/components/schemas/WechatFailReason'
+        expiresAt:
+          type: string
+          format: date-time
+          description: 本次挑战的失效时刻；到时页面自动转为已过期。
+        wechat:
+          type: object
+          additionalProperties: false
+          description: 扫码的微信，用于「你正在用微信 X 确认」；有值时返回（扫码登录时此微信未绑定账号就没有资料可返回）。扫码登录取已绑定微信的资料快照（扫码登录的网页授权只识别身份、不取资料），微信绑定与外部账号身份确认取本次网页授权返回的资料。
+          required:
+            - nickname
+          properties:
+            nickname:
+              type: string
+              description: 微信昵称。
+            avatarUrl:
+              type: string
+              format: uri
+              description: 微信头像地址，有值时返回。
+        locale:
+          type: string
+          description: 发起时固化的语言（BCP 47，如 `zh-CN`、`en-CA`、`fr-CA`）；有值时返回，页面按它选语言，无则按微信客户端语言。
+        client:
+          type: object
+          additionalProperties: false
+          description: 仅 `purpose = LOGIN` 时返回：要登录的后台。
+          required:
+            - clientId
+          properties:
+            clientId:
+              type: string
+              description: 后台标识；页面按部署配置映射成显示名（如商户后台、管理后台）。
+        account:
+          type: object
+          additionalProperties: false
+          description: 仅 `purpose` 为 `LOGIN` 或 `BINDING` 且已定位到账号时返回（扫码登录 `failReason = NOT_BOUND` 时没有账号可返回；`failReason = TARGET_INVALID` 时目标已失效、不返回）：扫码登录是将要登录的账号，微信绑定是要绑定到的账号（代成员绑定时成员借此看到目标是自己）。
+          required:
+            - displayName
+            - loginHint
+          properties:
+            displayName:
+              type: string
+              description: 账号显示名。
+            loginHint:
+              type: string
+              description: 脱敏后的登录邮箱或用户名。
+        initiator:
+          type: object
+          additionalProperties: false
+          description: 仅 `purpose = ASSERTION` 时返回：发起这次确认的一方给出的展示名与用途码；页面按 `usage` 选固定文案模板，`displayName` 只填模板里的一个位置。
+          required:
+            - displayName
+            - usage
+          properties:
+            displayName:
+              type: string
+              maxLength: 128
+              description: 发起方的展示名（如商户名称）。
+            usage:
+              type: string
+              enum:
+                - NOTIFICATION_RECIPIENT
+              description: |
+                用途码：
+
+                - `NOTIFICATION_RECIPIENT`：确认用此微信接收通知；确认成功后页面展示关注公众号的入口，未关注收不到微信通知。
+    DiagnosticDetail:
+      type: string
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    ErrorEnvelope:
+      type: object
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
+      required:
+        - code
+        - detail
+      properties:
+        code:
+          type: integer
+          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+        detail:
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
+        links:
+          type: object
+          description: 可选:错误说明 / 后续恢复操作链接。
+          additionalProperties:
+            type: string
+        traceId:
+          type: string
+          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
+        details:
+          type: array
+          description: 可选:字段级校验错误。
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
+          properties:
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            orderId:
+              type: string
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
+            merchantMandateNo:
+              type: string
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
+            floorAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            minimumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的下限，分钟（范围由平台设定，前端不写死）。
+            maximumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+  responses:
+    DefaultError:
+      description: |
+        非 2xx 统一错误响应 —— 覆盖所有未在本 op 显式列出的状态码。
+
+        HTTP status 只表达大类;**具体子因看响应体的整数 `code`**:该 op 承诺的业务码见其 `x-error-codes`,
+        每个码的含义 / 调用方动作 / 可重试性见所属能力域的错误码表;码的构成(能力域段 · 责任方位 · 域内末段)
+        见 00-骨干/07-API契约规范「错误码空间分配」。
+
+        部分码另带 `context` 结构化上下文;**哪些码必带哪些字段,以码表的 `requiredContextFields` 为准**、不要按状态码猜。
+
+        **仅当某状态码的响应体形状真正偏离本信封时**,该 op 才另行显式声明该状态码;「某个码必带某个 `context` 字段」**不属于**形状偏离。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
