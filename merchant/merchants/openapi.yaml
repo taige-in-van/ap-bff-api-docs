@@ -104,13 +104,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required:
-                  - merchantId
-                properties:
-                  merchantId:
-                    type: string
+                $ref: '#/components/schemas/MerchantRef'
               example:
                 merchantId: '1000042'
         default:
@@ -138,7 +132,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/MerchantId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
@@ -475,7 +469,7 @@ components:
       required: true
       description: 申请所属的商户（一个商户一张入驻申请）。当前用户须在该商户在册、且商户未删除，否则 404；入驻被拒的商户同样可读（拒绝结果页要用），这一点和商户列表不同
       schema:
-        type: string
+        $ref: '#/components/schemas/MerchantId'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -510,7 +504,7 @@ components:
         - status
       properties:
         merchantId:
-          type: string
+          $ref: '#/components/schemas/MerchantId'
           readOnly: true
         tradeName:
           type: string
@@ -583,7 +577,7 @@ components:
         - missingFields
       properties:
         merchantCode:
-          type: string
+          $ref: '#/components/schemas/MerchantCode'
           readOnly: true
           description: 对外商户号（如 C3BM68），只读。
         status:
@@ -670,7 +664,6 @@ components:
       properties:
         selectedPaymentMethods:
           type: array
-          uniqueItems: true
           description: 选中的支付方式目录码，须在 Business 步所选结算币种的候选内。数组整组置换，草稿态允许 `[]`。
           items:
             $ref: '#/components/schemas/PaymentMethod'
@@ -709,7 +702,9 @@ components:
           type: string
           description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
         language:
-          $ref: '#/components/schemas/MerchantLanguage'
+          allOf:
+            - $ref: '#/components/schemas/Language'
+          description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出；界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
         businessPhone:
           allOf:
             - $ref: '#/components/schemas/Phone'
@@ -726,29 +721,70 @@ components:
             - type: 'null'
           description: 线上服务类型。本步选填、无默认值；Services 步选了任一线上支付方式时必填。`null` = 清空。
         websiteUrl:
-          type:
-            - string
-            - 'null'
-          format: uri
+          oneOf:
+            - $ref: '#/components/schemas/WebsiteUrl'
+            - type: 'null'
           description: 经营网址（http / https）。typeOfOnlineService = WEBSITE 且选了线上支付方式时必填。`null` = 清空。
         note:
           type:
             - string
             - 'null'
-    BusinessStepReadOverlay:
+    BusinessStepRead:
+      type: object
+      description: '`BusinessStep` 的读侧形态：条件字段与备注**不适用 / 未填时不返回本键、不返** `null`。'
+      additionalProperties: false
       properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        country:
+          type: string
+          description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
+        legalBusinessName:
+          type: string
+          description: 身份字段（激活后不可改）。
+        tradeName:
+          type: string
+        typeOfOwnership:
+          allOf:
+            - $ref: '#/components/schemas/OwnershipType'
+          description: 身份字段（激活后不可改）。
+        registrationNumber:
+          type: string
+        businessAddress:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
+        postalCode:
+          type: string
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
+        timeZone:
+          type: string
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+        language:
+          allOf:
+            - $ref: '#/components/schemas/Language'
+          description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出；界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
+        businessPhone:
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
+        industryCategory:
+          type: string
+          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+        mcc:
+          type: string
+          description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
         typeOfOnlineService:
           $ref: '#/components/schemas/OnlineServiceType'
+          description: 线上服务类型。本步选填、无默认值；Services 步选了任一线上支付方式时必填。
         websiteUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebsiteUrl'
+          description: 经营网址（http / https）。typeOfOnlineService = WEBSITE 且选了线上支付方式时必填。
         note:
           type: string
-    BusinessStepRead:
-      description: '`BusinessStep` 的读侧形态：条件字段与备注**不适用 / 未填时不返回本键、不返** `null`。'
-      allOf:
-        - $ref: '#/components/schemas/BusinessStep'
-        - $ref: '#/components/schemas/BusinessStepReadOverlay'
     SettlementStep:
       type: object
       description: |
@@ -776,9 +812,9 @@ components:
           readOnly: true
           description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
         storeId:
-          type:
-            - string
-            - 'null'
+          oneOf:
+            - $ref: '#/components/schemas/StoreId'
+            - type: 'null'
           description: 可选；后续可改。
         refundPin:
           allOf:
@@ -792,15 +828,41 @@ components:
           type: boolean
           readOnly: true
           description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
-    SettlementStepReadOverlay:
-      properties:
-        storeId:
-          type: string
     SettlementStepRead:
+      type: object
       description: '`SettlementStep` 的读侧形态：未指定门店时不返回 `storeId` 键。'
-      allOf:
-        - $ref: '#/components/schemas/SettlementStep'
-        - $ref: '#/components/schemas/SettlementStepReadOverlay'
+      additionalProperties: false
+      properties:
+        bankName:
+          type: string
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+        settlementCycle:
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
+          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
+        settlementCycleDisplayName:
+          type: string
+          minLength: 1
+          readOnly: true
+          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
+        storeId:
+          $ref: '#/components/schemas/StoreId'
+          description: 可选；后续可改。
+        refundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 入驻时初设的 Refund PIN。
+        confirmRefundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
+        refundPinSet:
+          type: boolean
+          readOnly: true
+          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
     ApplicationSteps:
       type: object
       description: 各 step 的已保存草稿字段聚合（GET 加载时返回）。**读侧聚合**——各 step 用读侧变体，未填字段不返回本键。
@@ -819,6 +881,16 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -888,7 +960,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -900,7 +972,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -923,6 +995,24 @@ components:
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+    MerchantId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 商户标识（平台内部 id，不是对外商户码）。
+    MerchantRef:
+      type: object
+      additionalProperties: false
+      required:
+        - merchantId
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+    MerchantCode:
+      type: string
+      minLength: 1
+      maxLength: 20
+      description: 对外商户码。
     Phone:
       type: string
       pattern: ^\+[1-9]\d{1,14}$
@@ -943,13 +1033,13 @@ components:
         - CORPORATION
         - NON_PROFIT
       description: 企业类型（入驻 Business 步与 Business Profile 共用），展示名由前端按码 i18n。
-    MerchantLanguage:
+    Language:
       type: string
-      description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出。界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
       enum:
         - en
         - fr
         - zh
+      description: 平台支持的语言。
     OnlineServiceType:
       type: string
       enum:
@@ -958,6 +1048,20 @@ components:
         - MINI_PROGRAM
         - OTHER
       description: 线上服务类型（入驻 Business 步与 Service 页共用），展示名由前端按码 i18n。只有 `WEBSITE` 有网址。
+    WebsiteUrl:
+      type: string
+      maxLength: 256
+      pattern: ^https?://\S+$
+      description: 商户经营网址（http / https）。
+    BankAccountScheme:
+      type: string
+      enum:
+        - ca_local
+        - us_local
+      description: |
+        结算银行账户制式：`ca_local` 加拿大 EFT / `us_local` 美国 ACH。
+
+        封闭枚举：新增国家要在契约里加取值与对应字段、前端加表单组件、加出款适配器，不是纯配置。
     BankAccountIdentification:
       type: object
       additionalProperties: false
@@ -974,10 +1078,8 @@ components:
         - type
       properties:
         type:
-          type: string
-          enum:
-            - ca_local
-            - us_local
+          allOf:
+            - $ref: '#/components/schemas/BankAccountScheme'
           description: 结算银行账户制式（`ca_local` 加拿大 EFT / `us_local` 美国 ACH）。**封闭 enum**——新增国家 = 契约加取值与对应字段 + 前端加表单组件 + 出款适配器，不是纯配置。
         transitNumber:
           type: string
@@ -1014,11 +1116,21 @@ components:
       type: string
       minLength: 1
       description: 结算周期档位的**稳定取值**（`SettlementCycleOption.code`）。**对客户端不透明**——从候选集里取来原样回传， 不要解析、拼接或据其分支；**不要传展示名**（那是展示文案、不是取值）。 服务端按**提交时点**的候选集校验：不在集内 → 拒绝（错误码见所在面，带 `details` 字段级明细），**不静默回落到候选集第一项**；前端应重取候选集让用户重选。 ⚠️ **你当前选中的取值不会凭空失效**——「打开编辑框却选不中自己现在的档位」「草稿存不回去」这类情形不会发生，无需为此写兜底。
+    StoreId:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 店铺编号，商户自设。
     RefundPin:
       type: string
       writeOnly: true
       pattern: ^[0-9]{6}$
       description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
+    FileId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 文件引用：上传后返回的稳定标识。
     Timestamp:
       type: string
       format: date-time
@@ -1032,6 +1144,10 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    WebUrl:
+      type: string
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
     DocumentRef:
       type: object
       description: Documents step 保存时绑定的文档引用（按 fileId 关联已上传的文件）。
@@ -1040,7 +1156,7 @@ components:
         - fileId
       properties:
         fileId:
-          type: string
+          $ref: '#/components/schemas/FileId'
           description: 上传接口返回的 fileId，提交本 step 时用它完成绑定。
         fileName:
           type: string
@@ -1057,10 +1173,38 @@ components:
           readOnly: true
           description: 上传时刻；提交时不必传。
         previewUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           readOnly: true
           description: 该文档的**内联展示地址**（**只出不入**），供卡片缩略图 / 预览。**短时效**，过期后重新加载本申请取新值； **不要持久化、不要分享**——入驻文档含身份与银行资料。哪些面必返本键，见各面自己的读形态。
+    DocumentRefFeRead:
+      description: '`DocumentRef` 的**商户前端**读侧形态：元数据 + `previewUrl` 全部必返（写侧只需 `fileId`，故收紧只在读面做）。服务面的审核读不返访问地址、不用本形态。'
+      required:
+        - fileId
+        - fileName
+        - fileSize
+        - uploadedAt
+        - previewUrl
+      allOf:
+        - $ref: '#/components/schemas/DocumentRef'
+    DocumentsStepRead:
+      type: object
+      description: '`DocumentsStep` 的商户前端读侧形态：未上传的文档位**不返回本键**、不返 `null`；已上传的必带元数据与 `previewUrl`。'
+      additionalProperties: false
+      properties:
+        docStoreInside:
+          $ref: '#/components/schemas/DocumentRefFeRead'
+        docStoreOutside:
+          $ref: '#/components/schemas/DocumentRefFeRead'
+        docIncorporation:
+          $ref: '#/components/schemas/DocumentRefFeRead'
+        docOwnerId:
+          $ref: '#/components/schemas/DocumentRefFeRead'
+        docVoidCheque:
+          $ref: '#/components/schemas/DocumentRefFeRead'
+        docOther1:
+          $ref: '#/components/schemas/DocumentRefFeRead'
+        docOther2:
+          $ref: '#/components/schemas/DocumentRefFeRead'
     DocumentsStep:
       type: object
       description: Step 5 Documents。docIncorporation / docOwnerId / docVoidCheque 必传；docStoreInside / docStoreOutside 在 Services 步选了线下支付方式时必传；docOther1 / docOther2 可选。绑定按 fileId。
@@ -1094,38 +1238,6 @@ components:
           oneOf:
             - $ref: '#/components/schemas/DocumentRef'
             - type: 'null'
-    DocumentRefFeRead:
-      description: '`DocumentRef` 的**商户前端**读侧形态：元数据 + `previewUrl` 全部必返（写侧只需 `fileId`，故收紧只在读面做）。服务面的审核读不返访问地址、不用本形态。'
-      required:
-        - fileId
-        - fileName
-        - fileSize
-        - uploadedAt
-        - previewUrl
-      allOf:
-        - $ref: '#/components/schemas/DocumentRef'
-    DocumentsStepFeReadOverlay:
-      description: 商户前端读面的文档位：元数据 + `previewUrl` 必返（见 `DocumentRefFeRead`）。
-      properties:
-        docStoreInside:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-        docStoreOutside:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-        docIncorporation:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-        docOwnerId:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-        docVoidCheque:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-        docOther1:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-        docOther2:
-          $ref: '#/components/schemas/DocumentRefFeRead'
-    DocumentsStepRead:
-      description: '`DocumentsStep` 的商户前端读侧形态：未上传的文档位**不返回本键**、不返 `null`；已上传的必带元数据与 `previewUrl`。'
-      allOf:
-        - $ref: '#/components/schemas/DocumentsStep'
-        - $ref: '#/components/schemas/DocumentsStepFeReadOverlay'
     FileUploadForm:
       type: object
       additionalProperties: false
@@ -1184,7 +1296,7 @@ components:
         - previewUrl
       properties:
         fileId:
-          type: string
+          $ref: '#/components/schemas/FileId'
           description: 该文件的稳定引用,业务写操作提交它;不要保存任何物理地址。
           examples:
             - 0f8c2a6e4b1d47f0a9c3e5d7b2148a6f
@@ -1199,8 +1311,7 @@ components:
           type: string
           description: 服务端判定的内容类型。
         previewUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 可渲染地址(只出不入),供上传后立即回显。按用途分长效公开地址或短时效地址,短时效的不要持久化。
   responses:
     MerchantBffDefaultError:

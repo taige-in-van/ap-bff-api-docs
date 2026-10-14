@@ -49,7 +49,7 @@ sequenceDiagram
         S->>A: #35;3 [listCheckoutOptions]<br/>GET /products/checkout/options
         A-->>S: 200 { items: [{ checkoutOption, displayName, logoUrl, opened }] }
     end
-    S->>S: 第 1 项渲染主码卡片，其余放进 More<br/>按码取名字与图标，右栏按设置渲染预览
+    S->>S: 第 1 项渲染主码卡片，其余放进 More<br/>支付方式按 #35;3 的顺序逐项显示、只显示在 checkoutOptions 里的，<br/>右栏按设置渲染预览
 
     Note over U,S: 下载 / 预览 / More（前端用 qrContent 生成二维码，不调接口）
     U->>S: 点 Download QR Code，在预览弹窗点 Download PNG
@@ -86,7 +86,7 @@ sequenceDiagram
 | 保存返回其他失败 | 按通用错误策略 | 原样重发同一请求体即可 |
 
 - 商户名取启动链路已取的 `listMerchants` 当前商户那一行。
-- 主码卡片照 #1 的第 1 项渲染；More 弹窗按返回顺序列出其余的码。码卡片上的支付方式标识按 `checkoutOptions` 到 #3 取名字与图标；银联码的 `checkoutOptions` 为空，按 `qrType` 显示 UnionPay QRC 标识。
+- 主码卡片照 #1 的第 1 项渲染；More 弹窗按返回顺序列出其余的码。码卡片上的支付方式标识按 #3 的顺序逐项显示，只显示在该码 `checkoutOptions` 里的项；银联码的 `checkoutOptions` 为空，按 `qrType` 显示 UnionPay QRC 标识。
 - 下载 PNG 由前端生成，文件名 `{商户名}-{currency}-{qrType}.png`（商户名同上一条，`qrType` 用字段原值），分辨率不低于 512×512。主码卡片旁的「Linked to」收银台域名由前端按部署写死。
 - Payment methods 卡按 #3 逐项显示，勾选状态取 #2 的 `checkoutOptions`：
   - `opened` 为假、没勾的：置灰，提示先到 Service 页开通，不能勾；

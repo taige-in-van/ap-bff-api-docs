@@ -107,19 +107,11 @@ paths:
       security: []
       requestBody:
         required: true
+        description: '`mfaChallenge` 是 `login` 返回的一次性挑战句柄。'
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - mfaChallenge
-                - code
-              properties:
-                mfaChallenge:
-                  type: string
-                  description: '`login` 返回的一次性挑战句柄'
-                code:
-                  $ref: '#/components/schemas/OtpCode'
+              $ref: '#/components/schemas/MfaVerificationRequest'
             example:
               mfaChallenge: chl_9f2a4c7e1b
               code: '123456'
@@ -265,13 +257,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - merchantId
-              properties:
-                merchantId:
-                  type: string
+              $ref: '#/components/schemas/MerchantRef'
             example:
               merchantId: '1000024'
       responses:
@@ -336,7 +322,7 @@ paths:
                 - loginId
               properties:
                 loginId:
-                  type: string
+                  $ref: '#/components/schemas/LoginId'
                   description: 邮箱或用户名
             example:
               loginId: jane@example.com
@@ -376,7 +362,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/ChallengeId'
           description: '`requestPasswordReset` 返回的挑战 id'
       requestBody:
         required: true
@@ -449,7 +435,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegistrationAccepted'
+                $ref: '#/components/schemas/ResendCooldown'
               example:
                 cooldownSeconds: 60
         default:
@@ -472,29 +458,16 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - email
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/EmailSubmission'
             example:
               email: jane@example.com
       responses:
         '202':
-          description: 已受理
+          description: 已受理。`cooldownSeconds` 恒返同一值，不随账号是否存在变化。
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - cooldownSeconds
-                properties:
-                  cooldownSeconds:
-                    type: integer
-                    description: 重发冷却秒数（部署参数）；前端从收到响应起本地倒计时。恒返同一值，不随账号是否存在变化
+                $ref: '#/components/schemas/ResendCooldown'
               example:
                 cooldownSeconds: 60
         default:
@@ -697,15 +670,6 @@ components:
         referredBy:
           type: string
           description: 推荐来源，自由文本。注册链接带来源参数（如 `?ref=MONERIS`）时前端预填并锁定，服务端不区分来源方式
-    RegistrationAccepted:
-      type: object
-      required:
-        - cooldownSeconds
-      properties:
-        cooldownSeconds:
-          type: integer
-          readOnly: true
-          description: 重发冷却秒数（部署参数）；前端从收到响应起本地倒计时
     LoginRequest:
       type: object
       required:
@@ -713,7 +677,7 @@ components:
         - password
       properties:
         loginId:
-          type: string
+          $ref: '#/components/schemas/LoginId'
           description: Email or Username（单 input；先按用户名精确匹配，匹配不到再按邮箱，不分大小写）
         password:
           type: string
@@ -744,7 +708,7 @@ components:
         - cooldownSeconds
       properties:
         challengeId:
-          type: string
+          $ref: '#/components/schemas/ChallengeId'
           description: 挑战 id；后续提交到 /auth/password-resets/{challengeId}/confirmation。账号不存在时同样返回（不暴露存在性）
         cooldownSeconds:
           type: integer
@@ -762,10 +726,10 @@ components:
         - roleNames
       properties:
         operatorId:
-          type: string
+          $ref: '#/components/schemas/UserId'
           readOnly: true
         loginId:
-          type: string
+          $ref: '#/components/schemas/LoginId'
           readOnly: true
           description: 登录名：账号有邮箱时返回邮箱（同时有用户名的也返回邮箱），没有邮箱时返回用户名。是邮箱格式即有邮箱，可自助改登录邮箱；否则为用户名账号，由 Owner 管理、本人只读
         displayName:
@@ -774,15 +738,15 @@ components:
           description: 昵称（Nick Name），改走 `updateMyProfile`
         locale:
           allOf:
-            - $ref: '#/components/schemas/UserLocale'
+            - $ref: '#/components/schemas/Language'
           readOnly: true
-          description: 账号的界面语言偏好，必返（建会话时没有就已经补上），改走 `updateMyProfile`。
+          description: 账号的界面语言偏好：登录后页面按它显示，发给这个人本人的邮件（验证码、改密码、改邮箱等）也用它。必返（建会话时没有就已经补上），改走 `updateMyProfile`。
         isOwner:
           type: boolean
           readOnly: true
           description: 登录者是不是当前商户的 Owner，按商户的 Owner 归属算、不按角色名；标 `owner` 的接口只有它为 true 时能调，对应入口按它显示。切换商户后重算。
         merchantId:
-          type: string
+          $ref: '#/components/schemas/MerchantId'
           readOnly: true
           description: 当前商户内部 id
         roleNames:
@@ -810,9 +774,24 @@ components:
             - $ref: '#/components/schemas/VisibleModules'
           readOnly: true
           description: '**当前登录者自己的**模块可见性偏好（由 Owner 在成员管理里设定）。渲染导航时在 `privileges` 之上再按它过滤一道：本键缺席或为空 = 不收窄。⚠️ 仅此一道**界面**过滤——**不要据它拦请求或改写权限判断**，被收窄掉的模块其接口仍会正常受理。'
+    LoginId:
+      type: string
+      minLength: 1
+      maxLength: 254
+      description: 登录名：用户名或邮箱。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -882,7 +861,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -894,7 +873,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -926,6 +905,20 @@ components:
         **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
 
         本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
+    MfaVerificationRequest:
+      type: object
+      additionalProperties: false
+      description: 多因素验证：挑战句柄 + 一次性验证码；句柄来自哪个接口见各接口说明。
+      required:
+        - mfaChallenge
+        - code
+      properties:
+        mfaChallenge:
+          type: string
+          minLength: 1
+          description: 多因素验证的挑战句柄。
+        code:
+          $ref: '#/components/schemas/OtpCode'
     WechatQrContent:
       type: string
       description: |
@@ -973,13 +966,23 @@ components:
 
         状态查询恒返回 `200` + 状态：票据不存在 / 非法 / 已过期一律归为 `EXPIRED`，不用 `4xx` 表达；
         `4xx` 只表示调用方自身问题（未登录 / 无权限 / 请求过频 / 商户上下文已变）。
-    UserLocale:
+    UserId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台用户标识；商户操作员的标识就是它。
+    Language:
       type: string
       enum:
         - en
         - fr
         - zh
-      description: 账号的界面语言偏好。登录后页面按它显示；发给这个人本人的邮件（验证码、改密码、改邮箱等）也用它。
+      description: 平台支持的语言。
+    MerchantId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 商户标识（平台内部 id，不是对外商户码）。
     VisibleModules:
       type: array
       description: |
@@ -993,11 +996,44 @@ components:
         minLength: 1
         examples:
           - orders
+    MerchantRef:
+      type: object
+      additionalProperties: false
+      required:
+        - merchantId
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+    ChallengeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 一次性验证挑战的标识。
     Phone:
       type: string
       pattern: ^\+[1-9]\d{1,14}$
       maxLength: 16
       description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
+    ResendCooldown:
+      type: object
+      description: 只回重发冷却秒数。
+      required:
+        - cooldownSeconds
+      properties:
+        cooldownSeconds:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: 重发冷却秒数（部署可配）；前端从收到响应起本地倒计时。
+    EmailSubmission:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

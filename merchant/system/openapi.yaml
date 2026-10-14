@@ -363,8 +363,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/NoticeId'
       responses:
         '200':
           description: OK
@@ -394,8 +393,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/NoticeId'
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
@@ -504,15 +502,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - publicKeyPem
-              properties:
-                publicKeyPem:
-                  type: string
-                  minLength: 1
-                  description: RSA 公钥，PEM（`-----BEGIN PUBLIC KEY-----` 头尾齐全）。
+              $ref: '#/components/schemas/SigningKeyUpsertRequest'
             example:
               publicKeyPem: |-
                 -----BEGIN PUBLIC KEY-----
@@ -560,7 +550,6 @@ components:
         settlementCycleOptions:
           type: array
           minItems: 1
-          uniqueItems: true
           items:
             $ref: '#/components/schemas/SettlementCycleOption'
           description: 结算周期档位，顺序即展示顺序，提交选中项的 `code`。
@@ -583,10 +572,7 @@ components:
         paymentMethod:
           $ref: '#/components/schemas/PaymentMethod'
         acceptanceMode:
-          type: string
-          enum:
-            - in_store
-            - online
+          $ref: '#/components/schemas/AcceptanceMode'
         displayName:
           type: string
           minLength: 1
@@ -616,25 +602,9 @@ components:
           $ref: '#/components/schemas/LocalizedLabel'
         mccOptions:
           type: array
-          description: 该大类下可选的 MCC，顺序即展示顺序；无可选项时为空数组。
+          description: 该大类下可选的 MCC，顺序即展示顺序；无可选项时为空数组。候选项的 `code` 是四位 MCC（如 `0742`），即资料与入驻申请里的 `mcc`；展示名随项下发（MCC 没有标准名表）。
           items:
-            $ref: '#/components/schemas/ConfigMccOption'
-    ConfigMccOption:
-      type: object
-      additionalProperties: false
-      description: 一个 MCC 候选项。展示名随本项下发（MCC 没有标准名表）。
-      required:
-        - code
-        - label
-      properties:
-        code:
-          type: string
-          minLength: 1
-          description: 四位 MCC，即资料与入驻申请里的 `mcc`。
-          examples:
-            - '0742'
-        label:
-          $ref: '#/components/schemas/LocalizedLabel'
+            $ref: '#/components/schemas/CodeLabelOption'
     NoticeReadUpdate:
       type: object
       additionalProperties: false
@@ -655,7 +625,7 @@ components:
         - createdAt
       properties:
         noticeId:
-          type: string
+          $ref: '#/components/schemas/NoticeId'
         title:
           type: string
         style:
@@ -692,7 +662,7 @@ components:
         - body
       properties:
         noticeId:
-          type: string
+          $ref: '#/components/schemas/NoticeId'
         title:
           type: string
         style:
@@ -713,8 +683,7 @@ components:
         - platformPublicKeys
       properties:
         merchantCode:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/MerchantCode'
           description: 商户号，接入时的公开标识。
         credentialLast4:
           type: string
@@ -726,8 +695,7 @@ components:
             - $ref: '#/components/schemas/Timestamp'
           description: 当前这版凭据的签发时刻；平台重置凭据后会变。还没签发凭据时不返回本键。
         gatewayUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 开放接口的网关地址。
         signingKey:
           allOf:
@@ -774,6 +742,16 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -843,7 +821,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -855,7 +833,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -911,10 +889,10 @@ components:
         fr:
           type: string
           minLength: 1
-    ProvinceOption:
+    CodeLabelOption:
       type: object
       additionalProperties: false
-      description: 省 / 州候选项。`code` 是 ISO 3166-2 的地区部分（如 `BC`）；展示名随本项下发——浏览器的本地化能力不解析行政区划。
+      description: 一个候选项：稳定码 + 按语言分组的展示名。
       required:
         - code
         - label
@@ -922,8 +900,6 @@ components:
         code:
           type: string
           minLength: 1
-          examples:
-            - BC
         label:
           $ref: '#/components/schemas/LocalizedLabel'
     CountryOption:
@@ -941,9 +917,9 @@ components:
             - CA
         provinces:
           type: array
-          description: 该国的省 / 州候选（顺序即展示顺序）；没有省 / 州的国家（如香港）为空数组，此时省 / 州不填、时区候选按国家给。
+          description: 该国的省 / 州候选（顺序即展示顺序）；没有省 / 州的国家（如香港）为空数组，此时省 / 州不填、时区候选按国家给。候选项的 `code` 是 ISO 3166-2 的地区部分（如 `BC`）；展示名随项下发——浏览器的本地化能力不解析行政区划。
           items:
-            $ref: '#/components/schemas/ProvinceOption'
+            $ref: '#/components/schemas/CodeLabelOption'
     PaymentMethod:
       type: string
       minLength: 1
@@ -951,6 +927,12 @@ components:
       description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
+    AcceptanceMode:
+      type: string
+      enum:
+        - in_store
+        - online
+      description: 受理模式：`in_store` 线下 / `online` 线上。
     FeeRate:
       type: object
       additionalProperties: false
@@ -991,6 +973,15 @@ components:
           type: string
           minLength: 1
           description: canonical 展示名（**非本地化**、不随 locale 变）。前端有自己的多语言资源时按 `code` 取用，本字段作 unknown-safe 兜底。
+    BankAccountScheme:
+      type: string
+      enum:
+        - ca_local
+        - us_local
+      description: |
+        结算银行账户制式：`ca_local` 加拿大 EFT / `us_local` 美国 ACH。
+
+        封闭枚举：新增国家要在契约里加取值与对应字段、前端加表单组件、加出款适配器，不是纯配置。
     CurrencyBankAccountTypes:
       type: object
       additionalProperties: false
@@ -1007,13 +998,15 @@ components:
         types:
           type: array
           minItems: 1
-          uniqueItems: true
           items:
-            type: string
-            enum:
-              - ca_local
-              - us_local
+            allOf:
+              - $ref: '#/components/schemas/BankAccountScheme'
             description: 结算银行账户制式；**封闭 enum**——新增国家 = 契约加取值与对应字段 + 前端加表单组件 + 出款适配器，不是纯配置。
+    NoticeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 站内信标识。
     NoticeStyle:
       type: string
       enum:
@@ -1035,6 +1028,25 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    MerchantCode:
+      type: string
+      minLength: 1
+      maxLength: 20
+      description: 对外商户码。
+    WebUrl:
+      type: string
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
+    SigningKeyUpsertRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - publicKeyPem
+      properties:
+        publicKeyPem:
+          type: string
+          minLength: 1
+          description: 商户的 RSA 公钥，PEM 格式（X.509 SubjectPublicKeyInfo，`-----BEGIN PUBLIC KEY-----` 头尾齐全）。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

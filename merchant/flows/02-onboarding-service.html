@@ -94,7 +94,7 @@ stateDiagram-v2
 
 ## 页面：入驻向导
 
-启动链路判定当前商户未激活、申请为 `DRAFT` / `MORE_INFO_REQUIRED` 时进入；从顶栏切换器新建关联商户、或点未激活的关联商户时也进入这里（见「流程：新增关联商户后进入向导」）。申请接口的 `{merchantId}`：首次入驻取 `getCurrentSession` 的 `merchantId`，关联商户取进入时带的 `merchantId`。顶部步骤条 Contact / Business / Services / Settlement / Documents，右侧汇总已选支付方式 + Back / Next。
+启动链路判定当前商户未激活、申请为 `DRAFT` / `MORE_INFO_REQUIRED` 时进入；从顶栏切换器新建关联商户、或点未激活的关联商户时也进入这里（见「流程：新增关联商户后进入向导」）。申请接口的 `{merchantId}`：首次入驻取 `getCurrentSession` 的 `merchantId`，关联商户取进入时带的 `merchantId`。顶部步骤条 Contact / Business / Services / Settlement / Documents，右侧汇总已选支付方式（按 #5 的顺序逐项显示，只显示已选中的）+ Back / Next。
 
 ```mermaid
 sequenceDiagram
@@ -196,7 +196,7 @@ sequenceDiagram
 ```
 
 - `details` 写作 `<step>.<field>`，前端按前缀对应到步骤条。
-- 汇总里的展示名与费率都按码从向导里已取的候选集查：支付方式的名称与标准费率用 Business 步所选币种调 #5 取，行业与 MCC 用 #4，国家与省州用 #3，结算周期用 #6。直接进 Review 页（刷新后恢复）时先把这几份候选取回来。
+- 汇总里的支付方式按候选集（Business 步所选币种调 #5 取）的顺序逐项显示，只显示已选中的，名称与标准费率取自该候选；行业与 MCC 用 #4，国家与省州用 #3，结算周期用 #6，按码从向导里已取的候选集查。直接进 Review 页（刷新后恢复）时先把这几份候选取回来。
 
 ---
 
@@ -248,7 +248,7 @@ sequenceDiagram
         S->>A: #35;5 [listPaymentMethodOptions]<br/>GET /config/payment-methods/{currency}
         A-->>S: 200 { items }
     end
-    S->>S: 按码取展示名，候选里读面没有的方式显示「可申请」
+    S->>S: 支付方式按 #35;5 的顺序逐项显示：读面里有的照读面显示，<br/>候选里有而读面没有的显示「可申请」
 
     Note over U,A: 管理已开通的模式（弹窗：方式开关，线上还能改服务类型与网址）
     U->>S: 点已开通的卡片，拨开关 / 勾可申请的方式 / 改网址，点 Save

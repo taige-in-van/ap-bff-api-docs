@@ -54,7 +54,9 @@ paths:
                   type: string
                   minLength: 1
                 locale:
-                  $ref: '#/components/schemas/UserLocale'
+                  allOf:
+                    - $ref: '#/components/schemas/Language'
+                  description: 账号的界面语言偏好：登录后页面按它显示，发给这个人本人的邮件（验证码、改密码、改邮箱等）也用它。
             examples:
               displayName:
                 summary: 改昵称
@@ -89,23 +91,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - challengeId
-                  - identityVerification
-                properties:
-                  challengeId:
-                    type: string
-                  identityVerification:
-                    type: string
-                    enum:
-                      - MFA_TOTP
-                      - OLD_EMAIL_OTP
-                    description: 本次要用哪个身份因子。`OLD_EMAIL_OTP` = **旧邮箱的码已随本步发出**（见 `otpDelivery`）；`MFA_TOTP` = 无码可发，用户打开 Authenticator 取。
-                  otpDelivery:
-                    allOf:
-                      - $ref: '#/components/schemas/OtpDelivery'
-                    description: '**仅 `identityVerification = OLD_EMAIL_OTP` 时返回本键**——旧邮箱码已发出（投递目标与重发冷却）。`MFA_TOTP` 时不返回。重发走 `resendLoginEmailChangeCode`。'
+                $ref: '#/components/schemas/LoginEmailChangeChallenge'
               example:
                 challengeId: chg_6b1d3f8a90
                 identityVerification: MFA_TOTP
@@ -132,7 +118,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/ChallengeId'
           description: 改登录邮箱的 challengeId（发起时返回）
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -141,18 +127,11 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required:
-                  - otpDelivery
-                properties:
-                  otpDelivery:
-                    $ref: '#/components/schemas/OtpDelivery'
+                $ref: '#/components/schemas/OtpDelivery'
               example:
-                otpDelivery:
-                  deliveredTo: j***@example.com
-                  cooldownSeconds: 60
-                  expiresAt: '2026-09-02T10:04:00Z'
+                deliveredTo: j***@example.com
+                cooldownSeconds: 60
+                expiresAt: '2026-09-02T10:04:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -181,7 +160,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/ChallengeId'
           description: 改登录邮箱的 challengeId（发起时返回）
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -189,12 +168,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - code
-              properties:
-                code:
-                  $ref: '#/components/schemas/OtpCode'
+              $ref: '#/components/schemas/OtpCodeSubmission'
             example:
               code: '123456'
       responses:
@@ -228,7 +202,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/ChallengeId'
           description: 改登录邮箱的 challengeId（发起时返回）
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -247,24 +221,15 @@ paths:
               newEmail: jane.new@example.com
       responses:
         '202':
-          description: 新邮箱的码已发出
+          description: 新邮箱的码已发出（投递目标与重发冷却）。重发走 `resendLoginEmailChangeCode`。
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: false
-                required:
-                  - otpDelivery
-                properties:
-                  otpDelivery:
-                    allOf:
-                      - $ref: '#/components/schemas/OtpDelivery'
-                    description: 新邮箱的码已发出（投递目标与重发冷却）。重发走 `resendLoginEmailChangeCode`。
+                $ref: '#/components/schemas/OtpDelivery'
               example:
-                otpDelivery:
-                  deliveredTo: j***@example.com
-                  cooldownSeconds: 60
-                  expiresAt: '2026-09-02T10:04:00Z'
+                deliveredTo: j***@example.com
+                cooldownSeconds: 60
+                expiresAt: '2026-09-02T10:04:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -293,22 +258,16 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/ChallengeId'
           description: 改登录邮箱的 challengeId（发起时返回）
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
         required: true
+        description: '`code` 是发到新邮箱的 OTP。'
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - code
-              properties:
-                code:
-                  allOf:
-                    - $ref: '#/components/schemas/OtpCode'
-                  description: 新邮箱 OTP
+              $ref: '#/components/schemas/OtpCodeSubmission'
             example:
               code: '654321'
       responses:
@@ -453,19 +412,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - otpauthUri
-                  - secret
-                properties:
-                  otpauthUri:
-                    type: string
-                    pattern: ^otpauth://totp/
-                    description: TOTP provisioning URI（Key Uri Format）—— 前端据此渲染二维码供 Authenticator 扫描；其 `secret` 参数即下方 `secret` 字段
-                  secret:
-                    type: string
-                    minLength: 26
-                    description: 手动输入密钥（Authenticator 里的 setup key），供扫不了码的用户手工录入。Base32、**不带分组空格**（展示时要不要分组由前端定）。本字段与 `otpauthUri` 的 `secret` 参数同值，**前端不必解析那串 URI**。下限 26 字符 = RFC 4226 的 128 bit 硬下限按 Base32 每字符 5 bit 换算；实际长度取服务端配置（RFC 推荐 160 bit，即 32 字符）
+                $ref: '#/components/schemas/MfaEnrollment'
               example:
                 otpauthUri: otpauth://totp/MerchantPortal:jane@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=MerchantPortal
                 secret: KRUGKIDROVUWG2ZAMJZG653OEBTG66BA
@@ -486,7 +433,7 @@ paths:
         错误码：
 
         - `206011` 验证器码错。
-        - `206006` 第 1 步生成的密钥已失效（太久没确认），须重新开启。
+        - `206006` 没有待确认的密钥（未开启或已开启），须重新开启。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -494,12 +441,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - code
-              properties:
-                code:
-                  $ref: '#/components/schemas/OtpCode'
+              $ref: '#/components/schemas/OtpCodeSubmission'
             example:
               code: '123456'
       responses:
@@ -530,12 +472,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required:
-                - code
-              properties:
-                code:
-                  $ref: '#/components/schemas/OtpCode'
+              $ref: '#/components/schemas/OtpCodeSubmission'
             example:
               code: '123456'
       responses:
@@ -578,16 +515,26 @@ components:
         minLength: 1
         pattern: .*\S.*
   schemas:
-    UserLocale:
+    Language:
       type: string
       enum:
         - en
         - fr
         - zh
-      description: 账号的界面语言偏好。登录后页面按它显示；发给这个人本人的邮件（验证码、改密码、改邮箱等）也用它。
+      description: 平台支持的语言。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -657,7 +604,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -669,7 +616,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -692,6 +639,17 @@ components:
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+    ChallengeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 一次性验证挑战的标识。
+    EmailChangeVerificationMethod:
+      type: string
+      enum:
+        - MFA_TOTP
+        - OLD_EMAIL_OTP
+      description: 改登录邮箱时的身份校验方式：`MFA_TOTP` 用验证器上的码 / `OLD_EMAIL_OTP` 用发到旧邮箱的码。
     Timestamp:
       type: string
       format: date-time
@@ -729,6 +687,24 @@ components:
             - $ref: '#/components/schemas/Timestamp'
           readOnly: true
           description: 该码的失效时间（部署可配）。
+    LoginEmailChangeChallenge:
+      type: object
+      required:
+        - challengeId
+        - identityVerification
+      description: 改登录邮箱挑战：`challengeId` 串起后续步骤；`identityVerification = OLD_EMAIL_OTP` 时带 `otpDelivery`。
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/ChallengeId'
+          description: 本次改登录邮箱的挑战标识，串起后续步骤。
+        identityVerification:
+          allOf:
+            - $ref: '#/components/schemas/EmailChangeVerificationMethod'
+          description: 本次要用哪个身份因子。`OLD_EMAIL_OTP` = **旧邮箱的码已随本步发出**（见 `otpDelivery`）；`MFA_TOTP` = 无码可发，用户打开 Authenticator 取。
+        otpDelivery:
+          allOf:
+            - $ref: '#/components/schemas/OtpDelivery'
+          description: '**仅 `identityVerification = OLD_EMAIL_OTP` 时返回本键**——旧邮箱码已发出（投递目标与重发冷却）。`MFA_TOTP` 时不返回。重发走 `resendLoginEmailChangeCode`。'
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$
@@ -738,6 +714,31 @@ components:
         **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
 
         本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
+    OtpCodeSubmission:
+      type: object
+      additionalProperties: false
+      description: 只提交一个一次性验证码。
+      required:
+        - code
+      properties:
+        code:
+          $ref: '#/components/schemas/OtpCode'
+          description: 6 位验证码；收哪一种码（邮箱码、验证器码）见各接口。
+    MfaEnrollment:
+      type: object
+      required:
+        - otpauthUri
+        - secret
+      description: 待激活的 MFA 密钥：provisioning URI 与手工录入密钥两种表示，二者同值。
+      properties:
+        otpauthUri:
+          type: string
+          pattern: ^otpauth://totp/
+          description: TOTP provisioning URI（Key Uri Format），据此渲染二维码供 Authenticator 扫描；其 `secret` 参数即下方 `secret` 字段。
+        secret:
+          type: string
+          minLength: 26
+          description: 手工录入用的密钥（Authenticator 里的 setup key）。Base32、不带分组空格，展示时要不要分组由消费面定；与 `otpauthUri` 的 `secret` 参数同值，消费面不要解析那串 URI 取值。下限 26 字符 = RFC 4226 的 128 bit 硬下限按 Base32 每字符 5 bit 换算；实际长度取服务端配置（RFC 推荐 160 bit，即 32 字符）。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

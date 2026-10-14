@@ -356,8 +356,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/SettlementId'
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -440,8 +439,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/SettlementId'
         - $ref: '#/components/parameters/AcceptLanguage'
           description: |
             页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
@@ -518,8 +516,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/StatementId'
       responses:
         '200':
           description: 月对账单详情
@@ -612,8 +609,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/StatementId'
       responses:
         '200':
           description: 月对账单 PDF
@@ -789,8 +785,7 @@ components:
         - status
       properties:
         settlementId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/SettlementId'
         settlementDate:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
@@ -890,10 +885,10 @@ components:
         type:
           $ref: '#/components/schemas/SettlementDetailType'
         orderId:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 平台订单号。`PAYMENT` / `REFUND` / `REFUND_REVERSAL` / `RESERVE_DRAWDOWN` 行必返，其余类型不返回本键。
         refundId:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 平台退款号。`REFUND` / `REFUND_REVERSAL` / `RESERVE_DRAWDOWN` 行必返，其余类型不返回本键。
         paymentMethodFamily:
           description: 支付方式（品牌）。`PAYMENT` / `REFUND` / `REFUND_REVERSAL` 行必返，其余类型不返回本键。
@@ -947,11 +942,11 @@ components:
         按交易发生的月份归集，不看这些交易是哪一天结算的，所以 `netSettlement` 不等于这个月各张结算单出款额之和。
       properties:
         statementId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/StatementId'
         statementNo:
           type: string
           minLength: 1
+          maxLength: 32
           description: 对账单号，出具时生成，不变。
         month:
           type: string
@@ -1122,17 +1117,6 @@ components:
               allOf:
                 - $ref: '#/components/schemas/Money'
               description: 本单应收 = 按月另收的手续费 + 额外收费 + 税，是商户要另外付给平台的钱。为负表示退回的手续费多于新收的，记给商户。为 0 时不返回本键。
-    ReserveOperationStatus:
-      type: string
-      description: 准备金划转的结果：`POSTED` 已划转；`REJECTED` 余额不够，没有划转。
-      enum:
-        - POSTED
-        - REJECTED
-    ReserveRejectionReason:
-      type: string
-      description: 划转被拒的原因：`INSUFFICIENT_BALANCE` 充值时待结算金额（`toSettle`）不够，或取回时准备金不够。
-      enum:
-        - INSUFFICIENT_BALANCE
     RefundReserveFundingRequest:
       type: object
       additionalProperties: false
@@ -1160,7 +1144,7 @@ components:
         status:
           $ref: '#/components/schemas/ReserveOperationStatus'
         rejectionReason:
-          description: '`status = REJECTED` 时必返，其余不返回本键。'
+          description: '`status = REJECTED` 时必返，其余不返回本键；充值时不够的是待结算金额 `toSettle`。'
           allOf:
             - $ref: '#/components/schemas/ReserveRejectionReason'
     RefundReserveFundingResult:
@@ -1206,6 +1190,16 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -1275,7 +1269,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -1287,7 +1281,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -1319,6 +1313,11 @@ components:
             amount:
               type: string
               pattern: ^[1-9][0-9]*$
+    ChallengeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 一次性验证挑战的标识。
     Timestamp:
       type: string
       format: date-time
@@ -1343,7 +1342,7 @@ components:
         - expiresAt
       properties:
         challengeId:
-          type: string
+          $ref: '#/components/schemas/ChallengeId'
           readOnly: true
           description: 挑战实例 id，串起后续校验步骤。
         deliveredTo:
@@ -1378,10 +1377,20 @@ components:
       description: 验证码凭证：发码那一步拿到的 `challengeId` 加收到的 6 位码。发码与提交分成两个接口、码随业务内容一起提交的入口都用它，键名都是 `otp`。
       properties:
         challengeId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/ChallengeId'
         code:
           $ref: '#/components/schemas/OtpCode'
+    ReserveOperationStatus:
+      type: string
+      enum:
+        - POSTED
+        - REJECTED
+      description: 准备金划转的结果：`POSTED` 已划转；`REJECTED` 余额不够，没有划转。
+    ReserveRejectionReason:
+      type: string
+      enum:
+        - INSUFFICIENT_BALANCE
+      description: 划转被拒的原因：`INSUFFICIENT_BALANCE` 划出的一方余额不够（充值时是待结算金额，取回时是准备金）。
     LocalDate:
       type: string
       format: date
@@ -1389,6 +1398,16 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    SettlementId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 结算单号。
+    RefundId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台退款号。
     PaymentMethodFamily:
       type: string
       description: 支付方式族（品牌）。
@@ -1397,6 +1416,11 @@ components:
         - alipay
         - unionpay
         - credit_card
+    StatementId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 月对账单标识。
     PaymentMethod:
       type: string
       minLength: 1

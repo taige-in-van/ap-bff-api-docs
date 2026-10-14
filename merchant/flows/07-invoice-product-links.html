@@ -256,7 +256,7 @@ sequenceDiagram
     A-->>S: 200 { type, name, currency, enabled, paymentUrl, checkoutOptions,<br/>buyerInputs, recipientInputs, inputLimit, bannerUrl, policies,<br/>giftcard 或 product 或 ticket }
     S->>A: #35;4 [listCheckoutOptions]<br/>GET /products/checkout/options?linkType={type}（type 取自 #35;14）
     A-->>S: 200 { items }
-    S->>S: 按码取支付方式名字与图标，右栏用 paymentUrl 生成二维码
+    S->>S: 支付方式按 #35;4 的顺序逐项显示、<br/>只显示在 checkoutOptions 里的，右栏用 paymentUrl 生成二维码
 
     Note over U,S: Copy link / Download QR（前端用 paymentUrl，不调接口）
 

@@ -913,11 +913,11 @@ paths:
               customerrate: false
       responses:
         '200':
-          description: 已下单，返回订单号与下单返回时的订单状态（裸 JSON）
+          description: 已下单，返回订单号与下单返回时的订单状态（裸 JSON）；拿 `order_id` 调 `getOrder` 轮询
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/MicropayOrderResult'
+                $ref: '#/components/schemas/MicropayResult'
               example:
                 order_id: P100240001
                 status: 5
@@ -1088,7 +1088,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/OrderId'
           description: 订单号，即下单接口返回的 `order_id`
         - name: timezone
           in: query
@@ -1173,7 +1173,7 @@ paths:
         in: path
         required: true
         schema:
-          type: string
+          $ref: '#/components/schemas/OrderId'
         description: 订单号，即下单接口返回的 `order_id`
     put:
       tags:
@@ -1301,7 +1301,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/OrderId'
           description: 订单号，即下单接口返回的 `order_id`
       responses:
         '200':
@@ -1777,7 +1777,7 @@ paths:
           in: query
           required: false
           schema:
-            type: string
+            $ref: '#/components/schemas/OrderId'
           description: 只取这笔订单的流水，按订单号精确匹配
         - $ref: '#/components/parameters/ReportMerchant'
         - $ref: '#/components/parameters/ReportThisDevice'
@@ -2012,8 +2012,7 @@ components:
       in: path
       required: true
       schema:
-        type: string
-        minLength: 1
+        $ref: '#/components/schemas/VoucherNo'
       description: 券号：扫码时取码内容里的 `voucherNo`，手输时是顾客券面上的券号
   responses:
     Rejected:
@@ -2021,7 +2020,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Failure'
+            $ref: '#/components/schemas/TerminalFailure'
           example:
             status: 400
             message: Verification code is not correct
@@ -2034,7 +2033,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Failure'
+            $ref: '#/components/schemas/TerminalFailure'
           example:
             status: 401
             message: Device registration failed, please log in again
@@ -2043,35 +2042,6 @@ components:
             traceId: 5f1c0a7be2d94c33
             code: 206014
   schemas:
-    Failure:
-      type: object
-      description: 失败响应体。现网的外壳加整数 `code`。
-      required:
-        - status
-        - message
-        - code
-      properties:
-        status:
-          type: integer
-          description: 与 HTTP 状态相同
-        message:
-          type: string
-          description: 可以直接展示的失败原因
-        data:
-          type: 'null'
-          description: 恒为 `null`
-        timestamp:
-          type: string
-          description: 响应生成的时间
-        traceId:
-          type: string
-          description: 本次请求的追踪号
-        code:
-          type: integer
-          description: 整数错误码，取值见各接口说明与总说明「状态码」一节
-        context:
-          type: object
-          description: 附加信息，字段与登记该码的码表所写相同。没有时不返回
     LoginCaptcha:
       type: object
       required:
@@ -2093,7 +2063,7 @@ components:
         - captchaKey
       properties:
         loginId:
-          type: string
+          $ref: '#/components/schemas/LoginId'
           description: 登录名，用户名或邮箱。先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写
         password:
           type: string
@@ -2105,7 +2075,7 @@ components:
           type: string
           description: '`getLoginCaptcha` 返回的 `key`'
         devId:
-          type: string
+          $ref: '#/components/schemas/DeviceId'
           description: 本机上次登记得到的 `dev_id`。本地没有时不带（键盘机不带）
     Merchant:
       type: object
@@ -2157,22 +2127,13 @@ components:
           type: string
           description: 商户代码
         role:
-          type: integer
-          enum:
-            - 1
-            - 2
-            - 3
-          description: |
-            账号在终端上的角色，按下面的先后取第一个符合的（成员可以同时持有多个角色）：
-
-            - `1` 商户 Owner，或持有 Admin 角色。
-            - `2` 持有店长角色。
-            - `3` 其余成员。
+          $ref: '#/components/schemas/TerminalRole'
         display_name:
           type: string
           description: 账号的显示名
         terminal_id:
           type: string
+          maxLength: 64
           description: 本机的终端序列号
         dev_type:
           type: string
@@ -2221,7 +2182,7 @@ components:
         - client_type
       properties:
         dev_id:
-          type: string
+          $ref: '#/components/schemas/DeviceId'
           description: 服务端分配的设备编号。参与 `Global-Sign` 计算，也是下次登录时的 `devId`
         auth_code:
           type: string
@@ -2231,6 +2192,7 @@ components:
           description: 设备所属商户的商户号
         client_dev_id:
           type: string
+          maxLength: 64
           description: 终端序列号，即请求里的 `client_device_id`
         client_type:
           type: string
@@ -2337,7 +2299,7 @@ components:
           type: string
           description: 扫到的顾客付款码
         clientOrderId:
-          type: string
+          $ref: '#/components/schemas/MerchantOrderNo'
           description: 商户订单号（Poynt 终端带），`getOrder` 以 `client_order_id` 返回
     QrcodeOrderRequest:
       description: 生成动态收款码（通用码与银联码）的请求体。
@@ -2347,43 +2309,6 @@ components:
         directpay:
           type: boolean
           description: 键盘机带的直付标记。收下不用
-    OrderStatus:
-      type: integer
-      enum:
-        - 0
-        - 1
-        - 2
-        - 3
-        - 4
-        - 5
-        - 6
-        - 7
-      description: |
-        订单状态，取值与现网相同：
-
-        | 值 | 含义 |
-        |---|---|
-        | `0` | 已建单，尚未付款 |
-        | `1` | 不予受理 |
-        | `2` | 支付中 |
-        | `3` | 已关闭（过期、关闭或取消） |
-        | `4` | 支付失败 |
-        | `5` | 支付成功 |
-        | `6` | 部分退款 |
-        | `7` | 全额退款 |
-
-        预授权收款资金挂起不改变状态位：按已退情况为 `5` / `6` / `7`，挂起看 `pre_auth`。
-    MicropayOrderResult:
-      type: object
-      required:
-        - order_id
-        - status
-      properties:
-        order_id:
-          type: string
-          description: 订单号，用于 `getOrder` 轮询
-        status:
-          $ref: '#/components/schemas/OrderStatus'
     QrcodeOrderResult:
       type: object
       required:
@@ -2392,7 +2317,7 @@ components:
         - qrcode_img
       properties:
         order_id:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 订单号，用于 `getOrder` 轮询
         code_url:
           type: string
@@ -2410,7 +2335,7 @@ components:
         - channel
       properties:
         order_id:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 订单号，用于 `getOrder` 轮询
         code_url:
           type: string
@@ -2449,7 +2374,9 @@ components:
         - refund_fee
       properties:
         status:
-          $ref: '#/components/schemas/OrderStatus'
+          allOf:
+            - $ref: '#/components/schemas/TerminalOrderStatus'
+          description: 订单状态；预授权收款资金是否挂起看 `pre_auth`
         error_code:
           type: string
           description: 失败原因代码；没有失败时不返回
@@ -2457,10 +2384,10 @@ components:
           type: string
           description: 失败原因，可以直接展示；没有失败时不返回
         order_id:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 订单号
         client_order_id:
-          type: string
+          $ref: '#/components/schemas/MerchantOrderNo'
           description: 商户订单号（下单时的 `clientOrderId`）；没有时不返回
         order_description:
           type: string
@@ -2505,10 +2432,8 @@ components:
           type: string
           description: 付款成功的时间；未成功时不返回
         pre_auth:
-          type: integer
-          enum:
-            - 0
-            - 1
+          allOf:
+            - $ref: '#/components/schemas/TerminalFlag'
           description: '`1` 表示这笔是平台挂起中的预授权收款，其余为 `0`'
         refund_fee:
           type: number
@@ -2543,13 +2468,13 @@ components:
         - create_time
       properties:
         refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 平台退款号
         out_refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 与 `refund_id` 相同
         client_refund_id:
-          type: string
+          $ref: '#/components/schemas/MerchantRefundNo'
           description: 商户退款号；终端发起的退款没有，不返回
         amount:
           type: number
@@ -2594,10 +2519,10 @@ components:
         - result_code
       properties:
         refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 平台退款号
         partner_refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 与 `refund_id` 相同
         amount:
           type: integer
@@ -2606,10 +2531,8 @@ components:
           type: string
           description: 退款币种，即订单币种
         result_code:
-          type: string
-          enum:
-            - SUCCESS
-            - FINISHED
+          allOf:
+            - $ref: '#/components/schemas/TerminalRefundResultCode'
           description: |
             返回时的退款状态：
 
@@ -2639,15 +2562,15 @@ components:
       properties:
         order_id:
           type: string
+          minLength: 1
+          maxLength: 64
           description: 订单号，退款行为原订单的订单号。键盘机上退款行为流水号与订单号拼成的串（流水号在前），拿它查不到订单
         client_order_id:
-          type: string
+          $ref: '#/components/schemas/MerchantOrderNo'
           description: 商户订单号；没有时不返回
         transaction_type:
-          type: string
-          enum:
-            - Credit
-            - Debit
+          allOf:
+            - $ref: '#/components/schemas/TerminalTransactionType'
           description: '`Credit` 为收款行，`Debit` 为退款行'
         clearing_amount:
           type: number
@@ -2660,12 +2583,10 @@ components:
           type: string
           description: 支付方式品牌，例如 `Wechat`、`Alipay`、`UnionPay`
         status:
-          $ref: '#/components/schemas/OrderStatus'
+          $ref: '#/components/schemas/TerminalOrderStatus'
         pre_authorization:
-          type: integer
-          enum:
-            - 0
-            - 1
+          allOf:
+            - $ref: '#/components/schemas/TerminalFlag'
           description: |
             所属订单是不是预授权收款：`1` 是，`0` 不是。不论之后是否已释放或已清算，预授权收款的订单都是 `1`。与 `getOrder` 的 `pre_auth` 不是同一个意思：`pre_auth` 为 `1` 只表示这笔预授权还挂起中
         trade_date:
@@ -2685,7 +2606,7 @@ components:
           type: number
           description: 所属订单的已退金额。键盘机上：退款行为这笔退款的金额（即 `clearing_amount`），收款行为 `0`
         refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 平台退款号；只在退款行返回
         date_total:
           type: object
@@ -2900,13 +2821,11 @@ components:
           type: number
           description: 这一行的清算金额，按结算币种：收款行为收款额，退款行为这笔退款额
         transaction_type:
-          type: string
-          enum:
-            - Credit
-            - Debit
+          allOf:
+            - $ref: '#/components/schemas/TerminalTransactionType'
           description: '`Credit` 为收款行，`Debit` 为退款行'
         order_id:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 订单号，退款行为原订单的订单号
         channel:
           type: string
@@ -2918,7 +2837,7 @@ components:
           type: string
           description: 标价币种
         refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 平台退款号；只在退款行返回
         display_amount:
           type: number
@@ -2938,7 +2857,7 @@ components:
             - 0
           description: 恒为 `0`
         client_order_id:
-          type: string
+          $ref: '#/components/schemas/MerchantOrderNo'
           description: 商户订单号；没有时不返回
         customer_payment_amount:
           type: number
@@ -2961,12 +2880,13 @@ components:
           description: 清算状态：`0` 待清算，`1` 已清算，`2` 预授权挂起中
         system_transaction_id:
           type: string
+          maxLength: 128
           description: 渠道流水号；没有时不返回
         client_refund_id:
-          type: string
+          $ref: '#/components/schemas/MerchantRefundNo'
           description: 商户退款号；只在退款行、且有商户退款号时返回
         out_refund_id:
-          type: string
+          $ref: '#/components/schemas/RefundId'
           description: 与 `refund_id` 相同；只在退款行返回
         remark:
           type: string
@@ -3065,44 +2985,6 @@ components:
           description: 区间内（或这笔订单）的每笔流水，按时间先后排列
           items:
             $ref: '#/components/schemas/RetailPrintTransaction'
-    ProductLinkType:
-      type: string
-      enum:
-        - product
-        - ticket
-        - giftcard
-      description: 券所属销售单的产品：`product` 商品 / `ticket` 票务 / `giftcard` 礼卡。
-    SalesOrderStatus:
-      type: string
-      enum:
-        - PAID
-        - PARTIALLY_REFUNDED
-        - REFUNDING
-        - REFUNDED
-      description: 销售单状态：`PAID` 已付 / `PARTIALLY_REFUNDED` 部分已退 / `REFUNDING` 退款处理中 / `REFUNDED` 全额已退。有券的销售单都已付款。
-    RedemptionStatus:
-      type: string
-      enum:
-        - NOT_REDEEMED
-        - REDEEMED
-        - VOID
-      description: 核销状态：`NOT_REDEEMED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废（只有礼卡兑换券会作废）。
-    NotRedeemableReason:
-      type: string
-      enum:
-        - ALREADY_REDEEMED
-        - VOIDED
-        - REFUND_FROZEN
-        - REFUNDED
-      description: |
-        券现在不能核销的原因：
-
-        | 值 | 含义 |
-        |---|---|
-        | `ALREADY_REDEEMED` | 已经核销过 |
-        | `VOIDED` | 已作废（礼卡兑换券被商户作废） |
-        | `REFUND_FROZEN` | 所属订单有退款正在处理，暂时不能核销；退款没有成功的，之后恢复可核销 |
-        | `REFUNDED` | 所属订单已有退款成功（全额或部分），券随之失效 |
     VoucherLine:
       type: object
       additionalProperties: false
@@ -3146,21 +3028,25 @@ components:
         - lines
       properties:
         voucherNo:
-          type: string
+          $ref: '#/components/schemas/VoucherNo'
           description: 券号，即请求路径上的券号
         salesOrderId:
-          type: string
+          $ref: '#/components/schemas/SalesOrderId'
           description: 销售单号，与商户后台销售单详情里的销售单号相同
         orderId:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 支付订单号
         productKind:
-          $ref: '#/components/schemas/ProductLinkType'
+          allOf:
+            - $ref: '#/components/schemas/ProductLinkType'
+          description: 券所属销售单的产品
         linkName:
           type: string
           description: 售出这张券的商品、票务或礼卡链接的名称
         status:
-          $ref: '#/components/schemas/SalesOrderStatus'
+          allOf:
+            - $ref: '#/components/schemas/SalesOrderStatus'
+          description: 有券的销售单都已付款，这里只会出现 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDING` / `REFUNDED`
         redemptionStatus:
           $ref: '#/components/schemas/RedemptionStatus'
         redeemable:
@@ -3248,16 +3134,6 @@ components:
           type: string
           maxLength: 200
           description: 核销备注，最长 200 字；可以不带
-    RedemptionRemarkRequest:
-      type: object
-      additionalProperties: false
-      required:
-        - remark
-      properties:
-        remark:
-          type: string
-          maxLength: 200
-          description: 新的核销备注，整段覆盖原来的；空串表示清掉备注
     RedemptionRow:
       type: object
       additionalProperties: false
@@ -3272,13 +3148,15 @@ components:
         - operator
       properties:
         voucherNo:
-          type: string
+          $ref: '#/components/schemas/VoucherNo'
           description: 券号。看详情时拿它调 `getVoucher`
         salesOrderId:
-          type: string
+          $ref: '#/components/schemas/SalesOrderId'
           description: 销售单号
         productKind:
-          $ref: '#/components/schemas/ProductLinkType'
+          allOf:
+            - $ref: '#/components/schemas/ProductLinkType'
+          description: 券所属销售单的产品
         linkName:
           type: string
           description: 售出这张券的链接的名称
@@ -3308,6 +3186,114 @@ components:
             $ref: '#/components/schemas/RedemptionRow'
         pagination:
           $ref: '#/components/schemas/RetailPagination'
+    LoginId:
+      type: string
+      minLength: 1
+      maxLength: 254
+      description: 登录名：用户名或邮箱。
+    DeviceId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台设备号。
+    TerminalRole:
+      type: integer
+      enum:
+        - 1
+        - 2
+        - 3
+      description: |
+        账号在终端上的角色，按下面的先后取第一个符合的（成员可以同时持有多个角色）：
+
+        - `1` 商户 Owner，或持有 Admin 角色。
+        - `2` 持有店长角色。
+        - `3` 其余成员。
+    TerminalFailure:
+      type: object
+      description: 失败响应体。现网的外壳加整数 `code`。
+      required:
+        - status
+        - message
+        - code
+      properties:
+        status:
+          type: integer
+          description: 与 HTTP 状态相同
+        message:
+          type: string
+          description: 可以直接展示的失败原因
+        data:
+          type:
+            - object
+            - 'null'
+          description: 恒为 `null`（现网外壳的占位键，失败响应不带数据）
+        timestamp:
+          type: string
+          description: 响应生成的时间
+        traceId:
+          type: string
+          description: 本次请求的追踪号
+        code:
+          type: integer
+          description: 整数错误码，取值见各接口说明与总说明「状态码」一节
+        context:
+          type: object
+          description: 附加信息，字段与登记该码的码表所写相同，例如 `204010` 带 `attemptsRemaining`（还可以重输的次数）。没有时不返回
+    VoucherNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 券号；实体礼卡为卡号。
+    SalesOrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售订单号。
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    ProductLinkType:
+      type: string
+      enum:
+        - product
+        - ticket
+        - giftcard
+      description: '`product` 商品 / `ticket` 票务 / `giftcard` 礼卡。'
+    SalesOrderStatus:
+      type: string
+      enum:
+        - CREATED
+        - PAID
+        - PARTIALLY_REFUNDED
+        - REFUNDING
+        - REFUNDED
+        - CLOSED
+      description: '`CREATED` 待付款 / `PAID` 已付 / `PARTIALLY_REFUNDED` 部分已退（还可按剩余额继续退）/ `REFUNDING` 退款处理中 / `REFUNDED` 全额已退 / `CLOSED` 未付关闭。与订单与退款契约里同一笔支付订单的状态一致。'
+    RedemptionStatus:
+      type: string
+      enum:
+        - NOT_REDEEMED
+        - REDEEMED
+        - VOID
+      description: 核销状态：`NOT_REDEEMED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废（只有礼卡兑换券会作废）。
+    NotRedeemableReason:
+      type: string
+      enum:
+        - ALREADY_REDEEMED
+        - VOIDED
+        - REFUND_FROZEN
+        - REFUNDED
+      description: |
+        券现在不能核销的原因：
+
+        | 值 | 含义 |
+        |---|---|
+        | `ALREADY_REDEEMED` | 已经核销过 |
+        | `VOIDED` | 已作废（礼卡兑换券被商户作废） |
+        | `REFUND_FROZEN` | 所属订单有退款正在处理，暂时不能核销；退款没有成功的，之后恢复可核销 |
+        | `REFUNDED` | 所属订单已有退款成功（全额或部分），券随之失效 |
     Timestamp:
       type: string
       format: date-time
@@ -3349,3 +3335,84 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    RedemptionRemarkRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - remark
+      properties:
+        remark:
+          type: string
+          maxLength: 200
+          description: 核销备注的新值，整段覆盖原来的；空串表示清掉备注。
+    MerchantOrderNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户单号，同一商户内不可重复。
+    TerminalOrderStatus:
+      type: integer
+      enum:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+      description: |
+        订单状态，取值与现网相同：
+
+        | 值 | 含义 |
+        |---|---|
+        | `0` | 已建单，尚未付款 |
+        | `1` | 不予受理 |
+        | `2` | 支付中 |
+        | `3` | 已关闭（过期、关闭或取消） |
+        | `4` | 支付失败 |
+        | `5` | 支付成功 |
+        | `6` | 部分退款 |
+        | `7` | 全额退款 |
+
+        预授权款项挂起不改变状态位：按已退情况为 `5` / `6` / `7`，挂起与否看所在响应里的预授权字段。
+    MicropayResult:
+      type: object
+      required:
+        - order_id
+        - status
+      properties:
+        order_id:
+          type: string
+          description: 订单号，拿它轮询订单查询接口
+        status:
+          $ref: '#/components/schemas/TerminalOrderStatus'
+          description: 返回时订单的状态
+    TerminalFlag:
+      type: integer
+      enum:
+        - 0
+        - 1
+      description: 现网的整数标志位：`1` 是 / 开，`0` 否 / 关，含义见所在字段。
+    RefundId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台退款号。
+    MerchantRefundNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户退款号，在订单所属商户内唯一。
+    TerminalRefundResultCode:
+      type: string
+      enum:
+        - SUCCESS
+        - FINISHED
+      description: 退款进展：`SUCCESS` 已提交渠道，处理中 / `FINISHED` 渠道已确认退款成功。
+    TerminalTransactionType:
+      type: string
+      enum:
+        - Credit
+        - Debit
+      description: 现网的收付方向码：`Credit` 收款 / `Debit` 退款。

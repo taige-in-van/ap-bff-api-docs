@@ -320,8 +320,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/OrderId'
       responses:
         '200':
           description: 订单详情
@@ -401,8 +400,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/OrderId'
         - $ref: '#/components/parameters/AcceptLanguage'
           description: |
             页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
@@ -448,8 +446,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/OrderId'
       requestBody:
         required: true
         content:
@@ -513,8 +510,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/OrderId'
       responses:
         '204':
           description: 已完成
@@ -695,8 +691,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RefundId'
       responses:
         '200':
           description: 退款详情
@@ -774,8 +769,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RefundId'
         - $ref: '#/components/parameters/AcceptLanguage'
           description: |
             页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
@@ -809,8 +803,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RefundId'
       responses:
         '204':
           description: 已撤销
@@ -994,8 +987,7 @@ components:
       in: query
       required: false
       schema:
-        type: string
-        minLength: 1
+        $ref: '#/components/schemas/DeviceId'
       description: 只看这台设备发起的订单，取值是 `listDevices` 的 `deviceId`。退款列表上指原订单的发起设备。
     PaymentKeyword:
       name: keyword
@@ -1156,43 +1148,12 @@ components:
         - mini_program
         - app_sdk
         - auto_debit
-    RefundStatus:
-      type: string
-      description: |
-        退款状态：`REVIEWING` 平台审核中 · `CHANNEL_PROCESSING` 已送通道、处理中 · `SUCCESS` 成功 · `FAILED` 失败 · `REJECTED` 审核被拒 · `CANCELLED` 已撤销。
-
-        后四种是终态。只有 `REVIEWING` 能撤销，只有 `CHANNEL_PROCESSING` 与 `SUCCESS` 有收据。
-      enum:
-        - REVIEWING
-        - CHANNEL_PROCESSING
-        - SUCCESS
-        - FAILED
-        - REJECTED
-        - CANCELLED
     RefundType:
       type: string
       description: 退款类型：`merchant` 退已生效订单的退款，从商户账上出钱；`system_auto` 平台自动退回的多付款项（重复支付、关单后才到的成功支付），不动商户的账，不计入订单的已退金额。
       enum:
         - merchant
         - system_auto
-    RefundFailureReason:
-      type: string
-      description: |
-        退款失败的原因，`status = FAILED` 时有。
-
-        | 取值 | 含义 |
-        |---|---|
-        | `INSUFFICIENT_FUNDS` | 账户资金不足，退款没有送到通道 |
-        | `CHANNEL_REJECTED` | 通道明确拒绝 |
-        | `CHANNEL_UNREACHABLE` | 退款请求没能送到通道 |
-        | `UNCONFIRMED` | 通道一直没有明确结果，经对账或人工核对确认没有退成 |
-      enum:
-        - INSUFFICIENT_FUNDS
-        - CHANNEL_REJECTED
-        - CHANNEL_UNREACHABLE
-        - UNCONFIRMED
-    RefundEntryPoint:
-      $ref: '#/components/schemas/EntryPoint'
     FxInfo:
       type: object
       description: 通道回报的换汇信息，只用于展示，不要拿汇率反算金额。通道没回报时详情不返回 `fx`。
@@ -1217,8 +1178,7 @@ components:
         - refundable
       properties:
         orderId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/OrderId'
           description: 平台订单号。
         paymentMethodFamily:
           description: 支付方式（品牌）。`status = REJECTED` 时不返回本键。
@@ -1291,8 +1251,7 @@ components:
         - createdAt
       properties:
         refundId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/RefundId'
         type:
           $ref: '#/components/schemas/RefundType'
         status:
@@ -1355,14 +1314,13 @@ components:
             product:
               $ref: '#/components/schemas/PaymentProduct'
             invoiceNo:
-              type: integer
-              minimum: 10001
+              $ref: '#/components/schemas/InvoiceNo'
               description: 账单号，与收款产品契约的账单号同一个数；仅 `product = invoice`。
             linkId:
-              type: string
+              $ref: '#/components/schemas/LinkId'
               description: Product Link 的 ID；仅 `product` 为 `product_code` / `ticket` / `giftcard`。
             salesOrderId:
-              type: string
+              $ref: '#/components/schemas/SalesOrderId'
               description: 销售单 ID，与 `linkId` 同有同无。
             customerName:
               type: string
@@ -1374,7 +1332,7 @@ components:
               type: string
               description: 付款账户（脱敏）；通道没给时不返回本键。
             merchantOrderNo:
-              type: string
+              $ref: '#/components/schemas/MerchantOrderNo'
               description: 商户自己的订单号；建单时没传就不返回本键。
             channelTxnNo:
               type: string
@@ -1409,12 +1367,10 @@ components:
         - createdAt
       properties:
         refundId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/RefundId'
           description: 平台退款号。
         orderId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/OrderId'
           description: 原订单的平台订单号。
         paymentMethodFamily:
           description: 被退的那笔支付的支付方式（品牌），也就是钱退回去的渠道。商户退款退的是订单成交的那笔，与原订单的支付方式相同；平台自动退回重复支付时，是多付那一笔的支付方式，可能与订单的不同。
@@ -1437,7 +1393,9 @@ components:
           allOf:
             - $ref: '#/components/schemas/Money'
         status:
-          $ref: '#/components/schemas/RefundStatus'
+          description: 退款状态。只有 `CHANNEL_PROCESSING` 与 `SUCCESS` 有收据。
+          allOf:
+            - $ref: '#/components/schemas/RefundStatus'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         note:
@@ -1486,7 +1444,7 @@ components:
               allOf:
                 - $ref: '#/components/schemas/EntryPoint'
             operatorId:
-              type: string
+              $ref: '#/components/schemas/UserId'
               description: 发起退款的商户成员（同 Users 页的 `operatorId`）。开放 API、插件、平台代操作、系统发起的没有操作员，不返回本键。
             operatorName:
               type: string
@@ -1498,7 +1456,7 @@ components:
               type: string
               description: 客户邮箱，来源同上。
             merchantRefundNo:
-              type: string
+              $ref: '#/components/schemas/MerchantRefundNo'
               description: 商户自己的退款单号；发起时没传就不返回本键。
             channelRefundNo:
               type: string
@@ -1539,8 +1497,7 @@ components:
         - status
       properties:
         refundId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/RefundId'
         status:
           allOf:
             - $ref: '#/components/schemas/RefundStatus'
@@ -1638,9 +1595,24 @@ components:
         - alipay
         - unionpay
         - credit_card
+    DeviceId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台设备号。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -1710,7 +1682,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -1722,7 +1694,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -1800,6 +1772,44 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/QuickFilterItem'
+    InvoiceNo:
+      type: integer
+      format: int32
+      minimum: 10001
+      description: 系统账单号，商户内递增、从 10001 起；与商户一起唯一定位一张账单。
+    LinkId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售链接标识。
+    SalesOrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售订单号。
+    MerchantOrderNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户单号，同一商户内不可重复。
+    RefundId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台退款号。
+    RefundStatus:
+      type: string
+      enum:
+        - REVIEWING
+        - CHANNEL_PROCESSING
+        - SUCCESS
+        - FAILED
+        - REJECTED
+        - CANCELLED
+      description: |
+        退款状态：`REVIEWING` 平台审核中 · `CHANNEL_PROCESSING` 已送通道、处理中 · `SUCCESS` 成功 · `FAILED` 失败 · `REJECTED` 审核被拒 · `CANCELLED` 已撤销。
+
+        后四种是终态，只有 `REVIEWING` 能撤销。
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
@@ -1814,6 +1824,24 @@ components:
       writeOnly: true
       pattern: ^[0-9]{6}$
       description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
+    RefundFailureReason:
+      type: string
+      enum:
+        - INSUFFICIENT_FUNDS
+        - CHANNEL_REJECTED
+        - CHANNEL_UNREACHABLE
+        - UNCONFIRMED
+      description: |
+        退款失败的原因。
+
+        | 取值 | 含义 |
+        |---|---|
+        | `INSUFFICIENT_FUNDS` | 账户资金不足，退款没有送到通道 |
+        | `CHANNEL_REJECTED` | 通道明确拒绝 |
+        | `CHANNEL_UNREACHABLE` | 退款请求没能送到通道（连接未建立、请求未发出），重提已用尽 |
+        | `UNCONFIRMED` | 通道一直没有明确结果，经对账或人工核对确认没有退成 |
+
+        请求已发出而超时、应答丢失、查单查无此单都不算失败，退款留在 `CHANNEL_PROCESSING`，由平台查单与对账收敛。
     EntryPoint:
       type: string
       description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `admin_portal` 平台运营代操作 · `system` 系统发起。
@@ -1829,6 +1857,16 @@ components:
         - plugin_allvalue_xhs
         - admin_portal
         - system
+    UserId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台用户标识；商户操作员的标识就是它。
+    MerchantRefundNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户退款号，在订单所属商户内唯一。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

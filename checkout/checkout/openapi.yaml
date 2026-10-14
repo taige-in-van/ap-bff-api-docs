@@ -81,9 +81,7 @@ paths:
           required: true
           description: 静态码编号，取自入口地址，原样传入。
           schema:
-            type: string
-            minLength: 1
-            maxLength: 32
+            $ref: '#/components/schemas/QrcodeId'
         - $ref: '#/components/parameters/AcceptLanguage'
           description: |-
             希望用哪种语言渲染**由商户配置的多语内容**（页面说明与条款等）。服务端按本头挑一份，
@@ -1132,9 +1130,7 @@ paths:
           required: true
           description: 已存卡编号，取自方式列表某一项的 `savedCards[].savedCardId`。
           schema:
-            type: string
-            minLength: 1
-            maxLength: 32
+            $ref: '#/components/schemas/PayerCardId'
       responses:
         '204':
           description: 已删除，或本来就没有这张卡
@@ -1172,7 +1168,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CheckoutOtpChallenge'
+                $ref: '#/components/schemas/OtpChallenge'
               example:
                 challengeId: chl_7d3e1a
                 deliveredTo: x***@e***.com
@@ -1212,15 +1208,14 @@ paths:
           required: true
           description: 挑战 id，取自 `requestGiftcardEmailOtp` 返回的 `challengeId`。
           schema:
-            type: string
-            minLength: 1
-            maxLength: 64
+            $ref: '#/components/schemas/ChallengeId'
       requestBody:
         required: true
+        description: 邮件里收到的验证码。
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CheckoutEmailOtpVerificationRequest'
+              $ref: '#/components/schemas/OtpCodeSubmission'
             example:
               code: '482915'
       responses:
@@ -1313,9 +1308,7 @@ paths:
           required: true
           description: 订单号，取自列表某一行的 `orderId`。
           schema:
-            type: string
-            minLength: 1
-            maxLength: 32
+            $ref: '#/components/schemas/OrderId'
       responses:
         '200':
           description: 订单详情
@@ -1390,9 +1383,7 @@ paths:
           required: true
           description: 订单号，取自订单视图或「我的订单」的 `orderId`。
           schema:
-            type: string
-            minLength: 1
-            maxLength: 32
+            $ref: '#/components/schemas/OrderId'
       responses:
         '200':
           description: 存入支付宝卡包的地址
@@ -1447,6 +1438,7 @@ components:
             付款后回到收银台时地址上带回的一次性码，取自页面地址上的 `resume` 参数，原样交上来；只能用一次，只对签发它的那个入口有效。
     CheckoutEntryCommon:
       type: object
+      x-parent: true
       description: 两个入口接口共有的返回字段。
       required:
         - state
@@ -1484,8 +1476,7 @@ components:
             - $ref: '#/components/schemas/CheckoutSessionGrant'
           description: 签发新会话（`201`）或凭 `resumeCode` 认回（`200`）时返回，规则见顶部「会话」一节。
         reauthorizeUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 需要付款人标识但没拿到时返回（没带授权码、授权码失效或已用过、会话重建后标识没了）； 此时不签发会话、不返回 `grant`。地址已带好回跳信息，原样使用、不要改写。
         paymentStarted:
           type: boolean
@@ -1585,8 +1576,7 @@ components:
         - payerInputs
       properties:
         invoiceNo:
-          type: integer
-          minimum: 10001
+          $ref: '#/components/schemas/InvoiceNo'
           description: 商户与付款人都能看到的账单号。
         amount:
           allOf:
@@ -1620,8 +1610,7 @@ components:
           type: string
           minLength: 1
         bannerUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 页面头图的长效公开地址；商户没设时不返回本键。
         currency:
           allOf:
@@ -1672,8 +1661,7 @@ components:
           type: string
           minLength: 1
         bannerUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 页面头图的长效公开地址；商户没设时不返回本键。
         currency:
           allOf:
@@ -1718,26 +1706,22 @@ components:
           type: string
           minLength: 1
         brandLogoUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 品牌 Logo 的长效公开地址；商户没设时不返回本键。
         slogan:
           type: string
           maxLength: 80
           description: 商户没写时不返回本键。
         bannerUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 页面头图的长效公开地址；商户没设时不返回本键。
         currency:
           allOf:
             - $ref: '#/components/schemas/Currency'
           description: 标价币种，各面值档的金额都是这个币种。
         promotionType:
-          type: string
-          enum:
-            - discount
-            - bonus_card
+          allOf:
+            - $ref: '#/components/schemas/GiftcardPromotionType'
           description: '`discount` 折扣 · `bonus_card` 买赠（另送一张赠卡）。决定面值档给的是 `listPrice` 与 `discountAmount`，还是 `bonusAmount`。遇到未列出的值按没有促销处理，只显示 `price`。'
         items:
           type: array
@@ -1779,8 +1763,7 @@ components:
         - saleStatus
       properties:
         itemId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/SalesItemId'
           description: 发起支付时作为 `product.items[].itemId` 或 `ticket.items[].itemId` 原样回传。
         name:
           type: string
@@ -1790,8 +1773,7 @@ components:
           minLength: 1
           description: 商品描述；商户没写时不返回本键。
         imageUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 商品图的长效公开地址；商户没设时不返回本键。
         price:
           allOf:
@@ -1834,8 +1816,7 @@ components:
         - saleStatus
       properties:
         itemId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/SalesItemId'
           description: 发起支付时作为 `giftcard.itemId` 原样回传。
         cardValue:
           allOf:
@@ -1894,13 +1875,12 @@ components:
             - $ref: '#/components/schemas/Timestamp'
           description: 订单的付款截止时刻，过了这一刻不能再发起支付。
         merchantOrderNo:
-          type: string
-          maxLength: 64
+          $ref: '#/components/schemas/MerchantOrderNo'
           description: 商户单号，供付款人对照。不给则不返回本键。
         cancelUrl:
           type: string
-          format: uri
-          maxLength: 512
+          maxLength: 2048
+          pattern: ^[A-Za-z][A-Za-z0-9+.-]*:\S+$
           description: |
             尚未付款或没付成时把付款人导回商户系统的地址：发起支付之前、等待付款结果期间、付款未成功、订单已失效或已关闭时都适用。只用于导航，不代表付款结果。这笔订单没有这个地址时不返回本键。
 
@@ -1923,8 +1903,7 @@ components:
           minLength: 1
           description: 展示名（品牌名）。
         logoUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 图标的长效公开地址；没有图标时不返回本键。
         payable:
           allOf:
@@ -2015,9 +1994,7 @@ components:
         - expiryYear
       properties:
         savedCardId:
-          type: string
-          minLength: 1
-          maxLength: 32
+          $ref: '#/components/schemas/PayerCardId'
           description: 已存卡编号。用这张卡付款时作为发起支付的 `card.savedCardId`，删除时放进路径。
         cardBrand:
           type: string
@@ -2162,6 +2139,12 @@ components:
             $ref: '#/components/schemas/SalesSelectionLine'
         collectedFields:
           $ref: '#/components/schemas/CollectedFields'
+    GiftcardPurchaseMode:
+      type: string
+      enum:
+        - self
+        - gift
+      description: 购买方式：`self` 自购，凭证发给买家 / `gift` 送礼，凭证发给收件人。
     GiftcardPaymentInput:
       type: object
       description: 礼卡会话付款人所选的面值档、购买方式与采集内容。订单金额取所选面值档此刻的 `price`。
@@ -2171,14 +2154,11 @@ components:
         - collectedFields
       properties:
         itemId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/SalesItemId'
           description: 所选面值档，取入口返回的 `giftcard.items[].itemId`。一笔订单只买一张。
         purchaseMode:
-          type: string
-          enum:
-            - self
-            - gift
+          allOf:
+            - $ref: '#/components/schemas/GiftcardPurchaseMode'
           description: '`self` 自购，凭证发给买家 · `gift` 送礼，凭证发给收件人。'
         collectedFields:
           allOf:
@@ -2207,9 +2187,7 @@ components:
             - 格式：JWE 紧凑串，`alg` 为 `RSA-OAEP-256`，`enc` 为 `A256GCM`，头里的 `kid` 取 `cardForm.encryptionKey.kid`；
             - 明文：按 `CardInput` 组成的 JSON 对象。
         savedCardId:
-          type: string
-          minLength: 1
-          maxLength: 32
+          $ref: '#/components/schemas/PayerCardId'
           description: 用已存卡付时带，取所选那一项 `savedCards[].savedCardId`。与 `methodCredential` 二选一。所选方式不带 `savedCards` 时不采信。
         rememberCard:
           type: boolean
@@ -2270,8 +2248,7 @@ components:
 
             已授权的订单为 `SUCCEEDED`；失败、已取消的订单为 `CLOSED`。遇到未列出的值按「不能再付」处理。
         orderId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/OrderId'
           description: 订单号，付款人可见。
         amount:
           allOf:
@@ -2302,9 +2279,7 @@ components:
             - $ref: '#/components/schemas/Timestamp'
           description: 付款成功的时刻（预授权订单是授权完成的时刻）；仅 `status` 为 `SUCCEEDED` 时返回。
         returnUrl:
-          type: string
-          format: uri
-          maxLength: 512
+          $ref: '#/components/schemas/ReturnUrl'
           description: |
             付款成功后把付款人带回商户系统的地址；仅 `status` 为 `SUCCEEDED` 且这笔订单有回跳地址时返回（已授权的订单同样返回）。只有经 `openOrderCheckout` 进入的会话可能返回；入口没返回 `order.cancelUrl` 的订单不会有本键。
 
@@ -2352,8 +2327,7 @@ components:
         - status
       properties:
         invoiceNo:
-          type: integer
-          minimum: 10001
+          $ref: '#/components/schemas/InvoiceNo'
           description: 账单号，同入口返回的 `invoice.invoiceNo`。
         status:
           type: string
@@ -2413,6 +2387,28 @@ components:
           allOf:
             - $ref: '#/components/schemas/GiftcardOrderBlock'
           description: 礼卡的购买方式、发放状态与凭证；仅礼卡返回。
+    GiftcardFulfillmentStatus:
+      type: string
+      enum:
+        - VERIFICATION_REQUIRED
+        - PROCESSING
+        - ON_HOLD
+        - SENT
+        - REDEEMED
+        - VOIDED
+        - REFUNDED
+      description: |
+        礼卡的发放状态：
+
+        - `VERIFICATION_REQUIRED` 待验证买家邮箱，验证通过后继续发放；
+        - `PROCESSING` 正在处理发放；
+        - `ON_HOLD` 需人工处理；
+        - `SENT` 已发出，未使用；
+        - `REDEEMED` 已使用；
+        - `VOIDED` 已作废；
+        - `REFUNDED` 已退款。
+
+        遇到未列出的值按 `PROCESSING` 显示。
     GiftcardOrderBlock:
       type: object
       description: 礼卡订单的购买方式、发放状态与凭证。
@@ -2422,10 +2418,8 @@ components:
         - buyerEmail
       properties:
         purchaseMode:
-          type: string
-          enum:
-            - self
-            - gift
+          allOf:
+            - $ref: '#/components/schemas/GiftcardPurchaseMode'
           description: '`self` 自购 · `gift` 送礼。'
         cardValue:
           allOf:
@@ -2452,15 +2446,8 @@ components:
           format: email
           description: 收件人邮箱；仅送礼返回。
         fulfillmentStatus:
-          type: string
-          enum:
-            - VERIFICATION_REQUIRED
-            - PROCESSING
-            - ON_HOLD
-            - SENT
-            - REDEEMED
-            - VOIDED
-            - REFUNDED
+          allOf:
+            - $ref: '#/components/schemas/GiftcardFulfillmentStatus'
           description: |
             发放状态；付款成功后才返回：
 
@@ -2501,8 +2488,7 @@ components:
             - bonus
           description: '`main` 主卡 · `bonus` 赠卡。遇到未列出的值照常显示凭证，不报错。'
         voucherNo:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/VoucherNo'
           description: 卡号或券号，文字显示。没有 `qrContent` 时，页面用本字段生成 Code 128 条码。
         pin:
           type: string
@@ -2564,8 +2550,7 @@ components:
             - admission
           description: '`counter_pickup` 到柜台出示取货（商品）· `admission` 到现场出示入场（票务）。遇到未列出的值照常显示凭证，不报错。'
         voucherNo:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/VoucherNo'
           description: 券号，文字显示，与 `pin` 一起供手输核销。
         pin:
           type: string
@@ -2628,12 +2613,10 @@ components:
           minLength: 1
           description: 唤起钱包的地址。仅 `kind` 为 `app_launch` 或 `open_in_browser` 时返回。
         fallbackUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 唤不起钱包时的备用地址。仅 `kind` 为 `app_launch` 或 `open_in_browser` 时可能返回。
         redirectUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 跳转或表单提交的目标地址，原样使用；跳转本身不决定结果。仅 `kind` 为 `redirect` 或 `hidden_form` 时返回。
         redirectMethod:
           type: string
@@ -2676,14 +2659,12 @@ components:
           minLength: 1
           description: 商户法定名称。
         logoUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 本入口的 Logo 地址，可直接用于 `<img>`：店铺码是收款页设的 Logo，没设时是商户 Logo；其余入口是商户 Logo。都没有时不返回本键。
         supportedLocales:
           type: array
           minItems: 1
-          uniqueItems: true
-          description: 该收银台可用语言。
+          description: 该收银台可用语言，顺序即展示顺序。
           items:
             type: string
             examples:
@@ -2779,8 +2760,7 @@ components:
         - quantity
       properties:
         itemId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/SalesItemId'
         quantity:
           type: integer
           minimum: 1
@@ -2796,41 +2776,6 @@ components:
           format: email
           maxLength: 254
           description: 要验证的邮箱。
-    CheckoutOtpChallenge:
-      type: object
-      description: 发码的返回：本次挑战的 id 与验证码投递信息。
-      required:
-        - challengeId
-        - deliveredTo
-        - cooldownSeconds
-        - expiresAt
-      properties:
-        challengeId:
-          type: string
-          minLength: 1
-          maxLength: 64
-          description: 挑战 id，提交验证码时放进路径。
-        deliveredTo:
-          type: string
-          minLength: 1
-          description: 脱敏后的投递邮箱（如 `x***@e***.com`）。
-        cooldownSeconds:
-          type: integer
-          minimum: 0
-          description: 重发冷却秒数；冷却中再发返回 `429`·`108324`。
-        expiresAt:
-          allOf:
-            - $ref: '#/components/schemas/Timestamp'
-          description: 这个验证码的过期时刻。
-    CheckoutEmailOtpVerificationRequest:
-      type: object
-      required:
-        - code
-      properties:
-        code:
-          allOf:
-            - $ref: '#/components/schemas/OtpCode'
-          description: 邮件里收到的验证码。
     GiftcardOrderListPage:
       type: object
       required:
@@ -2857,8 +2802,7 @@ components:
         - fulfillmentStatus
       properties:
         orderId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/OrderId'
           description: 订单号，取详情时放进路径。
         paidAt:
           allOf:
@@ -2877,21 +2821,12 @@ components:
             - $ref: '#/components/schemas/PositiveMoney'
           description: 这笔订单的标价金额，不含客户服务费。
         purchaseMode:
-          type: string
-          enum:
-            - self
-            - gift
+          allOf:
+            - $ref: '#/components/schemas/GiftcardPurchaseMode'
           description: '`self` 自购 · `gift` 送礼。'
         fulfillmentStatus:
-          type: string
-          enum:
-            - VERIFICATION_REQUIRED
-            - PROCESSING
-            - ON_HOLD
-            - SENT
-            - REDEEMED
-            - VOIDED
-            - REFUNDED
+          allOf:
+            - $ref: '#/components/schemas/GiftcardFulfillmentStatus'
           description: 发放状态，取值与含义同 `GiftcardOrderBlock.fulfillmentStatus`。
     GiftcardOrderDetail:
       type: object
@@ -2904,8 +2839,7 @@ components:
         - sales
       properties:
         orderId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/OrderId'
         paidAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -2937,12 +2871,26 @@ components:
         - redirectUrl
       properties:
         redirectUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 存入支付宝卡包的地址，由支付宝完成存入；原样使用、不要改写。每次调用给的地址不同。
+    QrcodeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 静态码编号。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -3012,7 +2960,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -3024,7 +2972,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -3047,6 +2995,10 @@ components:
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+    WebUrl:
+      type: string
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
     Timestamp:
       type: string
       format: date-time
@@ -3060,6 +3012,11 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    InvoiceNo:
+      type: integer
+      format: int32
+      minimum: 10001
+      description: 系统账单号，商户内递增、从 10001 起；与商户一起唯一定位一张账单。
     PositiveMoney:
       description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
       allOf:
@@ -3069,6 +3026,11 @@ components:
             amount:
               type: string
               pattern: ^[1-9][0-9]*$
+    SalesItemId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售链接条目（商品 / 票档 / 面值档）的标识，服务端签发。
     LocalDate:
       type: string
       format: date
@@ -3076,12 +3038,71 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    GiftcardPromotionType:
+      type: string
+      enum:
+        - discount
+        - bonus_card
+      description: 礼卡的促销方式：`discount` 折扣 / `bonus_card` 买赠，另送一张赠卡。
+    MerchantOrderNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户单号，同一商户内不可重复。
     CheckoutOption:
       type: string
       minLength: 1
       description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
       examples:
         - wechat
+    ReturnUrl:
+      type: string
+      maxLength: 512
+      pattern: ^[A-Za-z][A-Za-z0-9+.-]*:\S+$
+      description: 商户同步回跳地址，任意协议头（App 深链也可）；只影响导航。
+    VoucherNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 券号；实体礼卡为卡号。
+    PayerCardId:
+      type: string
+      minLength: 1
+      maxLength: 50
+      description: 已存卡标识。
+    ChallengeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 一次性验证挑战的标识。
+    OtpChallenge:
+      type: object
+      additionalProperties: false
+      description: 一次性验证码挑战句柄 = `OtpDelivery` 的三件事 + 本挑战自己的 id（供后续校验步骤引用）。 用于**挑战自带 id** 的入口；若 id 已由所在流程的资源提供（如 change-request），那里直接用 `OtpDelivery`、不重复给 id。 **各入口的绑定语义与失效细则不同**（是否绑操作摘要 / 发起会话、幂等重投是否受时限约束等），见各自端点说明。
+      required:
+        - challengeId
+        - deliveredTo
+        - cooldownSeconds
+        - expiresAt
+      properties:
+        challengeId:
+          $ref: '#/components/schemas/ChallengeId'
+          readOnly: true
+          description: 挑战实例 id，串起后续校验步骤。
+        deliveredTo:
+          type: string
+          readOnly: true
+          description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
+        cooldownSeconds:
+          type: integer
+          readOnly: true
+          minimum: 0
+          description: 重发冷却秒数（部署可配）。
+        expiresAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 该码的失效时间（部署可配）。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$
@@ -3091,6 +3112,16 @@ components:
         **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
 
         本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
+    OtpCodeSubmission:
+      type: object
+      additionalProperties: false
+      description: 只提交一个一次性验证码。
+      required:
+        - code
+      properties:
+        code:
+          $ref: '#/components/schemas/OtpCode'
+          description: 6 位验证码；收哪一种码（邮箱码、验证器码）见各接口。
   parameters:
     AcceptLanguage:
       name: Accept-Language

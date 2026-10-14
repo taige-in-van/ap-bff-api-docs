@@ -91,8 +91,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RecipientId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
@@ -119,14 +118,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - email
-              properties:
-                email:
-                  type: string
-                  format: email
+              $ref: '#/components/schemas/EmailSubmission'
             example:
               email: finance@example.com
       responses:
@@ -262,6 +254,11 @@ components:
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
         - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
   schemas:
+    RecipientId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 通知接收人标识。
     NotificationSettings:
       type: object
       additionalProperties: false
@@ -301,7 +298,7 @@ components:
         - email
       properties:
         recipientId:
-          type: string
+          $ref: '#/components/schemas/RecipientId'
         email:
           type: string
           format: email
@@ -314,7 +311,7 @@ components:
         - boundAt
       properties:
         recipientId:
-          type: string
+          $ref: '#/components/schemas/RecipientId'
         nickname:
           type: string
           minLength: 1
@@ -324,6 +321,16 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -393,7 +400,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -405,7 +412,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -441,6 +448,20 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    EmailSubmission:
+      type: object
+      additionalProperties: false
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+    ChallengeId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 一次性验证挑战的标识。
     OtpChallenge:
       type: object
       additionalProperties: false
@@ -452,7 +473,7 @@ components:
         - expiresAt
       properties:
         challengeId:
-          type: string
+          $ref: '#/components/schemas/ChallengeId'
           readOnly: true
           description: 挑战实例 id，串起后续校验步骤。
         deliveredTo:
@@ -487,8 +508,7 @@ components:
       description: 验证码凭证：发码那一步拿到的 `challengeId` 加收到的 6 位码。发码与提交分成两个接口、码随业务内容一起提交的入口都用它，键名都是 `otp`。
       properties:
         challengeId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/ChallengeId'
         code:
           $ref: '#/components/schemas/OtpCode'
     WechatQrContent:

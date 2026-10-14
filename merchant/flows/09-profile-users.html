@@ -322,7 +322,7 @@ sequenceDiagram
 
     U->>S: 点 Change
     S->>A: #35;27 [requestLoginEmailChange]<br/>POST /me/email/changes
-    A-->>S: 201 { challengeId, identityVerification: MFA_TOTP / OLD_EMAIL_OTP }
+    A-->>S: 201 { challengeId, identityVerification: MFA_TOTP / OLD_EMAIL_OTP, otpDelivery（OLD_EMAIL_OTP 时） }
     opt OLD_EMAIL_OTP
         A->>EO: 发 6 位码
     end
@@ -332,7 +332,7 @@ sequenceDiagram
     U->>S: 第 2 步：输新邮箱
     S->>A: #35;29 [submitNewLoginEmail]<br/>POST /me/email/changes/{challengeId}/address
     A->>EN: 发 6 位码
-    A-->>S: 202 { otpDelivery }
+    A-->>S: 202 { deliveredTo, cooldownSeconds, expiresAt }
     U->>S: 第 3 步：输新邮箱的码
     S->>A: #35;30 [confirmLoginEmailChange]<br/>POST /me/email/changes/{challengeId}/confirmation
     A->>EO: 安全通知：登录邮箱已改
@@ -354,7 +354,7 @@ sequenceDiagram
 | 重发太快 | `429`·`208013` | 等倒计时 |
 
 - 从 Business Profile 进来的，完成后再重调 #1 刷新 Contact 卡。
-- 旧邮箱码（#27 返回 `OLD_EMAIL_OTP` 时）与新邮箱码（#29）都按响应里的 `otpDelivery` 显示「码已发到 x***」和重发倒计时。
+- 旧邮箱码（#27 返回 `OLD_EMAIL_OTP` 时）按响应里 `otpDelivery` 的 `deliveredTo` / `cooldownSeconds`、新邮箱码（#29）与重发（#31）按响应顶层的 `deliveredTo` / `cooldownSeconds` 显示「码已发到 x***」和重发倒计时。
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>

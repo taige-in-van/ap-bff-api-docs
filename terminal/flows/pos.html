@@ -235,7 +235,7 @@ sequenceDiagram
 ```
 
 - **下单（#13）**：端发的字段见图，Poynt 版另带 `clientOrderId`；服务端读哪些、怎么处理见契约 `createMicropayOrder`。端只读响应里的 `order_id`，拿它轮询 #16。
-- **端判终态**：原生端 `status` 大于 2 或等于 1 时停，Poynt 版只在 `status` 大于 4 时停（`status` 的取值见契约 `OrderStatus`）。
+- **端判终态**：原生端 `status` 大于 2 或等于 1 时停，Poynt 版只在 `status` 大于 4 时停（`status` 的取值见契约 `TerminalOrderStatus`）。
 - **超时重发**：端自己的超时是 30 秒，超时后自动把同一请求再发一次；服务端怎么处理重复请求见契约 `createMicropayOrder`。
 
 失败时端的表现：

@@ -546,8 +546,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-            minimum: 10001
+            $ref: '#/components/schemas/InvoiceNo'
       responses:
         '204':
           description: 已删除
@@ -731,8 +730,7 @@ paths:
                   - linkId
                 properties:
                   linkId:
-                    type: string
-                    minLength: 1
+                    $ref: '#/components/schemas/LinkId'
               example:
                 linkId: pl_1000024_3001
         default:
@@ -864,8 +862,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
       responses:
         '200':
           description: 链接详情
@@ -987,8 +984,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
       requestBody:
         required: true
         content:
@@ -1057,8 +1053,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
       responses:
         '204':
           description: 已删除
@@ -1082,8 +1077,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
       requestBody:
         required: true
         content:
@@ -1161,8 +1155,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
         - name: keyword
@@ -1279,8 +1272,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
         - name: keyword
           in: query
           required: false
@@ -1377,14 +1369,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
         - name: salesOrderId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/SalesOrderId'
       responses:
         '200':
           description: 销售单详情
@@ -1498,14 +1488,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
         - name: salesOrderId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/SalesOrderId'
       requestBody:
         required: true
         content:
@@ -1547,29 +1535,18 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
         - name: salesOrderId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/SalesOrderId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - reason
-              properties:
-                reason:
-                  type: string
-                  minLength: 1
-                  maxLength: 512
-                  description: 作废原因，进动作日志。
+              $ref: '#/components/schemas/VoucherInvalidationRequest'
             example:
               reason: 客户到店改换其他商品
       responses:
@@ -1604,31 +1581,18 @@ paths:
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/LinkId'
         - name: salesOrderId
           in: path
           required: true
           schema:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/SalesOrderId'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: false
-              required:
-                - action
-              properties:
-                action:
-                  $ref: '#/components/schemas/RiskDisposition'
-                note:
-                  type: string
-                  minLength: 1
-                  maxLength: 512
-                  description: 处置备注，进动作日志。
+              $ref: '#/components/schemas/RiskDispositionRequest'
             example:
               action: approve
               note: 已电话核实买家身份
@@ -1749,11 +1713,8 @@ components:
         currency:
           $ref: '#/components/schemas/Currency'
         qrType:
-          type: string
-          enum:
-            - standard
-            - pre_auth
-            - unionpay_qrc
+          allOf:
+            - $ref: '#/components/schemas/StoreQrType'
           description: '`standard` 标准码 / `pre_auth` 预授权码 / `unionpay_qrc` 银联码（云闪付扫，不经收银台）。'
         qrContent:
           type: string
@@ -1761,7 +1722,6 @@ components:
           description: 该码二维码承载的原文，照原样编码成二维码。
         checkoutOptions:
           type: array
-          uniqueItems: true
           description: 扫这个码能用的支付方式（收款页设置里已选、且商户已开通的）；银联码为空数组。
           items:
             $ref: '#/components/schemas/CheckoutOption'
@@ -1782,15 +1742,13 @@ components:
           minLength: 1
           description: 展示名（品牌名）。
         logoUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 图标的长效公开地址；没有图标时不返回本键。
         opened:
           type: boolean
           description: 当前商户是否已开通（该项下至少一个支付方式已开通）。
         pricingCurrencies:
           type: array
-          uniqueItems: true
           description: 该商户用这一项收款时能标价的币种：结算币种，加上通道支持时的 CNY。未开通的项按平台上该项能支持的给出。
           items:
             $ref: '#/components/schemas/Currency'
@@ -1834,7 +1792,7 @@ components:
 
         - **商户自撰项**——键就是商户打的那串标题：配置时打什么，收款页就原样展示什么，付款人填的值也以这串标题为键收集。改了标题即换了一项，**历史订单保留其当时的键**（那是当时问的问题，不是数据漂移）。
         - **系统项**——键是稳定值、与展示文案无关（见 `InfoFieldEntry`）。
-        同一个列表内键**去除首尾空格后不得重复**（重复会在收款页出现两个同名输入框、收集结果还会互相覆盖），保存时校验；
+        同一个列表内键**去除首尾空格后不得重复**（重复会在收款页出现两个同名输入框、收集结果还会互相覆盖），保存时校验（违反 → `208030`）；
         **商户自撰的标题不得以 `sys:` 开头**（系统项的键一律带该前缀，两类键因此不会相撞），违反时保存被拒。
 
         自撰标题的长度上限：店铺码收款页 ≤ 10 字符，Product Link ≤ 40 字符，超出 `400`（`details` 指到字段）。本 schema 的 `maxLength: 64` 是为系统项的键留的。
@@ -1886,8 +1844,7 @@ components:
         - tips
       properties:
         logoUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 付款人看到的 Logo 的长效公开地址：设了收款页 Logo 就是它，没设就是商户 Logo；两者都没有时不返回本键。
         logoCustomized:
           type: boolean
@@ -1905,7 +1862,6 @@ components:
           description: 收款页附加说明；没有时不返回本键。
         checkoutOptions:
           type: array
-          uniqueItems: true
           description: 已选的支付方式，可能含后来停用的项（付款人看不到，重新开通后恢复）。
           items:
             $ref: '#/components/schemas/CheckoutOption'
@@ -1918,18 +1874,16 @@ components:
       description: 保存店铺码收款页设置与商户小费配置。
       properties:
         logoFileId:
-          type:
-            - string
-            - 'null'
-          minLength: 1
+          oneOf:
+            - $ref: '#/components/schemas/FileId'
+            - type: 'null'
           description: '`uploadPaymentPageLogoFile` 返回的 `fileId` = 换 Logo；`null` = 移除（回到商户 Logo）。'
         payerInputKeys:
           type: array
-          uniqueItems: true
           description: |
             保留下来的采集项，按 `key` 给全：读回来的 `payerInputs` 里要留的项放它的 `key`，删掉的不放，新加的自撰项放它的标题。空数组 = 不采集。
 
-            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。合计不超过 `inputLimit` 项，超出 `400`。
+            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。合计不超过 `inputLimit` 项，超出 `400`。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         description:
@@ -1941,7 +1895,6 @@ components:
         checkoutOptions:
           type: array
           minItems: 1
-          uniqueItems: true
           description: 选用的支付方式（整组置换）。新加的项须取自 `listCheckoutOptions` 里 `opened` 为 true 的；已选着、后来停用的项可以原样带回。
           items:
             $ref: '#/components/schemas/CheckoutOption'
@@ -1982,8 +1935,7 @@ components:
         - paymentUrl
       properties:
         invoiceNo:
-          type: integer
-          minimum: 10001
+          $ref: '#/components/schemas/InvoiceNo'
           description: 账单号：商户内递增，从 10001 起，允许有缝。
         amount:
           $ref: '#/components/schemas/Money'
@@ -1999,10 +1951,9 @@ components:
           type: string
           description: 账单说明；没有时不返回本键。
         paymentUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
         orderId:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 付款成功的支付订单号（订单与退款契约 `getPayment` 的 `orderId`）；已付时才返回。
     InvoiceSummary:
       type: object
@@ -2048,30 +1999,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/InvoiceListItem'
-    ProductLinkType:
-      type: string
-      description: '`giftcard` 礼卡 / `product` 商品 / `ticket` 票务。'
-      enum:
-        - giftcard
-        - product
-        - ticket
-    SalesOrderStatus:
-      type: string
-      description: '`CREATED` 待付款 / `PAID` 已付 / `PARTIALLY_REFUNDED` 部分已退（还可按剩余额继续退）/ `REFUNDING` 退款处理中 / `REFUNDED` 全额已退 / `CLOSED` 未付关闭。与订单与退款契约里同一笔支付订单的状态一致。'
-      enum:
-        - CREATED
-        - PAID
-        - PARTIALLY_REFUNDED
-        - REFUNDING
-        - REFUNDED
-        - CLOSED
-    RedemptionStatus:
-      type: string
-      description: '`NOT_REDEEMED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废（仅礼卡兑换券模式）。'
-      enum:
-        - NOT_REDEEMED
-        - REDEEMED
-        - VOID
     RiskLevel:
       type: string
       description: 礼卡订单风险等级。
@@ -2079,14 +2006,6 @@ components:
         - normal
         - medium
         - high
-    RiskDisposition:
-      type: string
-      description: '`escalate` 升为高风险 / `blacklist` 加入礼卡购买黑名单（两者同效）/ `approve` 放行（移出黑名单，未发放的恢复发放）/ `remove_blacklist` 移出黑名单。'
-      enum:
-        - escalate
-        - blacklist
-        - approve
-        - remove_blacklist
     SaleWindow:
       type: object
       description: 销售窗口（窗口外不可售）。
@@ -2108,14 +2027,6 @@ components:
               $ref: '#/components/schemas/Timestamp'
             end:
               $ref: '#/components/schemas/Timestamp'
-    SalesItemId:
-      type: string
-      minLength: 1
-      maxLength: 64
-      description: |
-        条目（商品 / 票档 / 面值档）的标识，服务端签发、内容不透明。
-
-        修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
     SalesItemCommittedQuantity:
       type: integer
       minimum: 0
@@ -2131,6 +2042,7 @@ components:
       properties:
         itemId:
           $ref: '#/components/schemas/SalesItemId'
+          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
         cardValue:
           $ref: '#/components/schemas/PositiveMoney'
         price:
@@ -2151,10 +2063,7 @@ components:
         bonusTerms:
           description: 赠卡条款，`promotionType=bonus_card` 时必填：`same_as_main` 范围与有效期同主卡，`custom` 独立规则、须填 `bonusNotes`。
           oneOf:
-            - type: string
-              enum:
-                - same_as_main
-                - custom
+            - $ref: '#/components/schemas/GiftcardBonusTerms'
             - type: 'null'
         bonusNotes:
           type:
@@ -2190,10 +2099,7 @@ components:
             bonusAmount:
               $ref: '#/components/schemas/Money'
             bonusTerms:
-              type: string
-              enum:
-                - same_as_main
-                - custom
+              $ref: '#/components/schemas/GiftcardBonusTerms'
             bonusNotes:
               type: string
             quantityLimit:
@@ -2210,13 +2116,12 @@ components:
           maxLength: 128
           description: 品牌名，面向付款人。
         brandLogoFileId:
-          type:
-            - string
-            - 'null'
+          oneOf:
+            - $ref: '#/components/schemas/FileId'
+            - type: 'null'
           description: '`uploadProductLinkFile`（purpose=product_link_brand_logo）返回的 `fileId`；`null` = 移除。'
         brandLogoUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           readOnly: true
           description: 品牌 Logo 的长效公开地址；没有时不返回本键。
         campaignName:
@@ -2225,10 +2130,8 @@ components:
           maxLength: 128
           description: 后台活动名，不面向付款人。
         promotionType:
-          type: string
-          enum:
-            - discount
-            - bonus_card
+          allOf:
+            - $ref: '#/components/schemas/GiftcardPromotionType'
           description: '`discount` 折扣 / `bonus_card` 赠卡。'
         redemptionRule:
           type: string
@@ -2260,12 +2163,7 @@ components:
         purchaseLimitCycle:
           description: 限购滚动周期，张数与面值两轴共用；`null` = 自活动开始累计。
           oneOf:
-            - type: string
-              enum:
-                - daily
-                - weekly
-                - biweekly
-                - monthly
+            - $ref: '#/components/schemas/GiftcardPurchaseLimitCycle'
             - type: 'null'
         purchaseCounterResetAt:
           readOnly: true
@@ -2282,29 +2180,6 @@ components:
           description: 面值档，1–10 条；读回按创建顺序。
           items:
             $ref: '#/components/schemas/GiftcardDenomination'
-    GiftcardContentRead:
-      description: '`GiftcardContent` 的读侧形态：可清空字段收窄为非空，面值档换读侧变体；未设置的不返回本键。'
-      allOf:
-        - $ref: '#/components/schemas/GiftcardContent'
-        - properties:
-            slogan:
-              type: string
-            purchaseLimitQuantity:
-              type: integer
-              minimum: 1
-            purchaseLimitAmount:
-              $ref: '#/components/schemas/PositiveMoney'
-            purchaseLimitCycle:
-              type: string
-              enum:
-                - daily
-                - weekly
-                - biweekly
-                - monthly
-            denominations:
-              type: array
-              items:
-                $ref: '#/components/schemas/GiftcardDenominationRead'
     GiftcardContentComplete:
       description: 创建时的礼卡内容：多一个创建后不可改的 `fulfillmentMode`，并收紧必填。
       required:
@@ -2319,16 +2194,27 @@ components:
         - type: object
           properties:
             fulfillmentMode:
-              type: string
-              enum:
-                - inventory
-                - voucher
-              description: 履约模式，创建后不可改：`inventory` 发预先导入的实体卡、无平台核销；`voucher` 发系统生成的兑换券、门店核销、可作废。
+              allOf:
+                - $ref: '#/components/schemas/GiftcardFulfillmentMode'
+              description: 履约模式，创建后不可改。
     GiftcardContentCompleteRead:
-      description: 详情里的礼卡内容：必填集同 `GiftcardContentComplete`，可空字段按 `GiftcardContentRead` 收窄。
+      description: 详情里的礼卡内容：必填集同 `GiftcardContentComplete`；可清空字段收窄为非空，面值档换读侧变体；未设置的不返回本键。
       allOf:
         - $ref: '#/components/schemas/GiftcardContentComplete'
-        - $ref: '#/components/schemas/GiftcardContentRead'
+        - properties:
+            slogan:
+              type: string
+            purchaseLimitQuantity:
+              type: integer
+              minimum: 1
+            purchaseLimitAmount:
+              $ref: '#/components/schemas/PositiveMoney'
+            purchaseLimitCycle:
+              $ref: '#/components/schemas/GiftcardPurchaseLimitCycle'
+            denominations:
+              type: array
+              items:
+                $ref: '#/components/schemas/GiftcardDenominationRead'
     ProductItem:
       type: object
       additionalProperties: false
@@ -2338,6 +2224,7 @@ components:
       properties:
         itemId:
           $ref: '#/components/schemas/SalesItemId'
+          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
         name:
           type: string
           minLength: 1
@@ -2349,13 +2236,12 @@ components:
           maxLength: 512
           description: 商品描述，收款页展示；`null` 清空。
         imageFileId:
-          type:
-            - string
-            - 'null'
+          oneOf:
+            - $ref: '#/components/schemas/FileId'
+            - type: 'null'
           description: '`uploadProductLinkFile`（purpose=product_link_item_image）返回的 `fileId`；`null` = 移除。'
         imageUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           readOnly: true
           description: 商品图的长效公开地址；没有时不返回本键。
         price:
@@ -2399,15 +2285,6 @@ components:
           description: 商品项，1–10 条；读回按创建顺序。
           items:
             $ref: '#/components/schemas/ProductItem'
-    ProductContentRead:
-      description: '`ProductContent` 的读侧形态：商品项换读侧变体。'
-      allOf:
-        - $ref: '#/components/schemas/ProductContent'
-        - properties:
-            items:
-              type: array
-              items:
-                $ref: '#/components/schemas/ProductItemRead'
     ProductContentComplete:
       description: 创建时的商品内容：`items` 必填。
       required:
@@ -2415,10 +2292,14 @@ components:
       allOf:
         - $ref: '#/components/schemas/ProductContent'
     ProductContentCompleteRead:
-      description: 详情里的商品内容。
+      description: 详情里的商品内容：商品项换读侧变体。
       allOf:
         - $ref: '#/components/schemas/ProductContentComplete'
-        - $ref: '#/components/schemas/ProductContentRead'
+        - properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProductItemRead'
     TicketTier:
       type: object
       additionalProperties: false
@@ -2428,6 +2309,7 @@ components:
       properties:
         itemId:
           $ref: '#/components/schemas/SalesItemId'
+          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
         name:
           type: string
           minLength: 1
@@ -2482,17 +2364,6 @@ components:
           description: 票档，1–10 档；读回按创建顺序。
           items:
             $ref: '#/components/schemas/TicketTier'
-    TicketContentRead:
-      description: '`TicketContent` 的读侧形态：票档换读侧变体；整日活动不返回 `eventTime`。'
-      allOf:
-        - $ref: '#/components/schemas/TicketContent'
-        - properties:
-            eventTime:
-              type: string
-            tiers:
-              type: array
-              items:
-                $ref: '#/components/schemas/TicketTierRead'
     TicketContentComplete:
       description: 创建时的票务内容。
       required:
@@ -2502,10 +2373,16 @@ components:
       allOf:
         - $ref: '#/components/schemas/TicketContent'
     TicketContentCompleteRead:
-      description: 详情里的票务内容。
+      description: 详情里的票务内容：票档换读侧变体；整日活动不返回 `eventTime`。
       allOf:
         - $ref: '#/components/schemas/TicketContentComplete'
-        - $ref: '#/components/schemas/TicketContentRead'
+        - properties:
+            eventTime:
+              type: string
+            tiers:
+              type: array
+              items:
+                $ref: '#/components/schemas/TicketTierRead'
     PoliciesAndSupport:
       type: object
       additionalProperties: false
@@ -2589,23 +2466,20 @@ components:
         checkoutOptions:
           type: array
           minItems: 1
-          uniqueItems: true
           description: 付款人可用的支付方式。新加的项须取自 `listCheckoutOptions`（礼卡传 `linkType=giftcard`）里 `opened` 为真、且 `pricingCurrencies` 含 `currency` 的。
           items:
             $ref: '#/components/schemas/CheckoutOption'
         buyerInputKeys:
           type: array
-          uniqueItems: true
           description: |
             保留下来的买家采集项，按 `key` 给全：以 `getProductLinkDefaults` 的 `buyerInputs`（修改时以详情的 `buyerInputs`）为起点，删掉的不放，新加的自撰项放它的标题。不传 = 用默认集。
 
-            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。系统项与自撰项合计不超过 `inputLimit` 项，超出 `400`。
+            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。系统项与自撰项合计不超过 `inputLimit` 项，超出 `400`。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         recipientInputKeys:
           type: array
-          uniqueItems: true
-          description: 保留下来的收件人采集项，规则同 `buyerInputKeys`；只有 `type=giftcard` 可带，其他类型带了 `400`。收件人邮箱是必填的系统项，删不掉。
+          description: 保留下来的收件人采集项，规则同 `buyerInputKeys`；只有 `type=giftcard` 可带，其他类型带了 `400`。收件人邮箱是必填的系统项，删不掉。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         remark:
@@ -2613,8 +2487,7 @@ components:
           maxLength: 512
           description: 商户备注，不面向付款人。
         bannerFileId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/FileId'
           description: '`uploadProductLinkFile`（purpose=product_link_banner）返回的 `fileId`。'
         giftcard:
           allOf:
@@ -2643,20 +2516,17 @@ components:
         checkoutOptions:
           type: array
           minItems: 1
-          uniqueItems: true
           description: 整组置换。新加的项规则同创建；已选着、后来停用的项可以原样带回。
           items:
             $ref: '#/components/schemas/CheckoutOption'
         buyerInputKeys:
           type: array
-          uniqueItems: true
-          description: 同创建，以详情的 `buyerInputs` 为起点。
+          description: 同创建，以详情的 `buyerInputs` 为起点。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         recipientInputKeys:
           type: array
-          uniqueItems: true
-          description: 同创建，只有礼卡可带。
+          description: 同创建，只有礼卡可带。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         remark:
@@ -2666,10 +2536,9 @@ components:
           maxLength: 512
           description: '`null` 清空。'
         bannerFileId:
-          type:
-            - string
-            - 'null'
-          minLength: 1
+          oneOf:
+            - $ref: '#/components/schemas/FileId'
+            - type: 'null'
           description: 换 Banner 传新的 `fileId`；`null` = 移除。
         enabled:
           type: boolean
@@ -2699,7 +2568,7 @@ components:
         - createdAt
       properties:
         linkId:
-          type: string
+          $ref: '#/components/schemas/LinkId'
         type:
           $ref: '#/components/schemas/ProductLinkType'
         name:
@@ -2780,7 +2649,7 @@ components:
         - policies
       properties:
         linkId:
-          type: string
+          $ref: '#/components/schemas/LinkId'
         type:
           $ref: '#/components/schemas/ProductLinkType'
         name:
@@ -2792,13 +2661,11 @@ components:
         createdAt:
           $ref: '#/components/schemas/Timestamp'
         paymentUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 付款链接，也是二维码的内容。
         checkoutOptions:
           type: array
-          uniqueItems: true
-          description: 已选的支付方式，可能含后来停用的项（付款人看不到，重新开通后恢复）。名字与图标到 `listCheckoutOptions` 取。
+          description: 已选的支付方式，可能含后来停用的项（付款人看不到，重新开通后恢复）。展示时按 `listCheckoutOptions` 的顺序逐项显示、只显示在本列表里的，名字与图标取自那里。
           items:
             $ref: '#/components/schemas/CheckoutOption'
         buyerInputs:
@@ -2817,8 +2684,7 @@ components:
           type: string
           description: 商户备注；没有不返回本键。
         bannerUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: Banner 的长效公开地址；没有不返回本键。
         policies:
           $ref: '#/components/schemas/PoliciesAndSupportRead'
@@ -2889,9 +2755,9 @@ components:
         - createdAt
       properties:
         salesOrderId:
-          type: string
+          $ref: '#/components/schemas/SalesOrderId'
         orderId:
-          type: string
+          $ref: '#/components/schemas/OrderId'
           description: 支付订单号，订单与退款契约 `getPayment` 的键。
         buyer:
           $ref: '#/components/schemas/PartyRef'
@@ -2956,13 +2822,12 @@ components:
         - lineAmount
       properties:
         itemId:
-          type: string
+          $ref: '#/components/schemas/SalesItemId'
         itemName:
           type: string
           description: 下单时的名称快照。
         imageUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 下单时的图片快照；没有不返回本键。
         unitPrice:
           $ref: '#/components/schemas/Money'
@@ -2982,16 +2847,14 @@ components:
         - status
       properties:
         voucherNo:
-          type: string
+          $ref: '#/components/schemas/VoucherNo'
           description: 券号；实体卡模式为卡号。
         pin:
           type: string
           description: PIN 明文。
         kind:
-          type: string
-          enum:
-            - MAIN
-            - BONUS
+          allOf:
+            - $ref: '#/components/schemas/SalesVoucherKind'
           description: '`MAIN` 主卡 / `BONUS` 赠卡（只出现在礼卡实体卡模式）。商品与票务恒为 `MAIN`。'
         faceAmount:
           allOf:
@@ -3002,12 +2865,8 @@ components:
             - $ref: '#/components/schemas/Money'
           description: 同一张券承载的赠卡额；只在礼卡兑换券模式且有赠卡时返回。
         status:
-          type: string
-          enum:
-            - ISSUED
-            - REDEEMED
-            - VOID
-            - CANCELLED
+          allOf:
+            - $ref: '#/components/schemas/SalesVoucherStatus'
           description: '`ISSUED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废 / `CANCELLED` 退款后失效。'
         redeemedAt:
           allOf:
@@ -3072,10 +2931,7 @@ components:
         campaignName:
           type: string
         promotionType:
-          type: string
-          enum:
-            - discount
-            - bonus_card
+          $ref: '#/components/schemas/GiftcardPromotionType'
         purchaseType:
           type: string
           enum:
@@ -3150,7 +3006,6 @@ components:
               type: boolean
             riskDispositions:
               type: array
-              uniqueItems: true
               items:
                 $ref: '#/components/schemas/RiskDisposition'
     ProductLinkOrderDetail:
@@ -3230,6 +3085,16 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -3299,7 +3164,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -3311,7 +3176,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -3334,12 +3199,35 @@ components:
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+    StoreQrType:
+      type: string
+      enum:
+        - standard
+        - pre_auth
+        - unionpay_qrc
+      description: 店铺码的种类：`standard` 标准码 / `pre_auth` 预授权码 / `unionpay_qrc` 银联码（云闪付扫，不经收银台）。
     CheckoutOption:
       type: string
       minLength: 1
       description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
       examples:
         - wechat
+    WebUrl:
+      type: string
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
+    FileId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 文件引用：上传后返回的稳定标识。
+    ProductLinkType:
+      type: string
+      enum:
+        - product
+        - ticket
+        - giftcard
+      description: '`product` 商品 / `ticket` 票务 / `giftcard` 礼卡。'
     FileUploadForm:
       type: object
       additionalProperties: false
@@ -3398,7 +3286,7 @@ components:
         - previewUrl
       properties:
         fileId:
-          type: string
+          $ref: '#/components/schemas/FileId'
           description: 该文件的稳定引用,业务写操作提交它;不要保存任何物理地址。
           examples:
             - 0f8c2a6e4b1d47f0a9c3e5d7b2148a6f
@@ -3413,8 +3301,7 @@ components:
           type: string
           description: 服务端判定的内容类型。
         previewUrl:
-          type: string
-          format: uri
+          $ref: '#/components/schemas/WebUrl'
           description: 可渲染地址(只出不入),供上传后立即回显。按用途分长效公开地址或短时效地址,短时效的不要持久化。
     LocalDate:
       type: string
@@ -3423,6 +3310,11 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    InvoiceNo:
+      type: integer
+      format: int32
+      minimum: 10001
+      description: 系统账单号，商户内递增、从 10001 起；与商户一起唯一定位一张账单。
     Timestamp:
       type: string
       format: date-time
@@ -3487,6 +3379,115 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/QuickFilterItem'
+    LinkId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售链接标识。
+    GiftcardPromotionType:
+      type: string
+      enum:
+        - discount
+        - bonus_card
+      description: 礼卡的促销方式：`discount` 折扣 / `bonus_card` 买赠，另送一张赠卡。
+    GiftcardPurchaseLimitCycle:
+      type: string
+      enum:
+        - daily
+        - weekly
+        - biweekly
+        - monthly
+      description: 限购的滚动周期：`daily` 一天 / `weekly` 一周 / `biweekly` 两周 / `monthly` 一个月。
+    SalesItemId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售链接条目（商品 / 票档 / 面值档）的标识，服务端签发。
+    GiftcardBonusTerms:
+      type: string
+      enum:
+        - same_as_main
+        - custom
+      description: 赠卡条款：`same_as_main` 使用范围与有效期同主卡 / `custom` 独立规则，另附赠卡说明。
+    GiftcardFulfillmentMode:
+      type: string
+      enum:
+        - inventory
+        - voucher
+      description: 履约模式：`inventory` 发预先导入的实体卡、无平台核销；`voucher` 发系统生成的兑换券、门店核销、可作废。
+    SalesOrderStatus:
+      type: string
+      enum:
+        - CREATED
+        - PAID
+        - PARTIALLY_REFUNDED
+        - REFUNDING
+        - REFUNDED
+        - CLOSED
+      description: '`CREATED` 待付款 / `PAID` 已付 / `PARTIALLY_REFUNDED` 部分已退（还可按剩余额继续退）/ `REFUNDING` 退款处理中 / `REFUNDED` 全额已退 / `CLOSED` 未付关闭。与订单与退款契约里同一笔支付订单的状态一致。'
+    RedemptionStatus:
+      type: string
+      enum:
+        - NOT_REDEEMED
+        - REDEEMED
+        - VOID
+      description: 核销状态：`NOT_REDEEMED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废（只有礼卡兑换券会作废）。
+    SalesOrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 销售订单号。
+    RiskDisposition:
+      type: string
+      enum:
+        - escalate
+        - blacklist
+        - approve
+        - remove_blacklist
+      description: '`escalate` 升为高风险 / `blacklist` 加入礼卡购买黑名单（两者同效）/ `approve` 放行（移出黑名单，未发放的恢复发放）/ `remove_blacklist` 移出黑名单。'
+    VoucherNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 券号；实体礼卡为卡号。
+    SalesVoucherKind:
+      type: string
+      enum:
+        - MAIN
+        - BONUS
+      description: 销售单凭证的种类：`MAIN` 主卡 / `BONUS` 赠卡。
+    SalesVoucherStatus:
+      type: string
+      enum:
+        - ISSUED
+        - REDEEMED
+        - VOID
+        - CANCELLED
+      description: 销售单凭证的状态：`ISSUED` 未核销 / `REDEEMED` 已核销 / `VOID` 已作废 / `CANCELLED` 退款成功后失效。
+    VoucherInvalidationRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 作废原因，进订单的动作日志。
+    RiskDispositionRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - action
+      properties:
+        action:
+          $ref: '#/components/schemas/RiskDisposition'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 处置备注，进订单的动作日志。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

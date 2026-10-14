@@ -105,7 +105,7 @@ paths:
         - name: roleId
           in: query
           schema:
-            type: string
+            $ref: '#/components/schemas/RoleId'
           description: 按角色筛选：只列持有该角色的成员（可同时持有别的角色）；取值 = `listAssignableRoles` 的 `roleId`（Owner 行的角色标识不在该候选集内，可从成员列表自身取）
         - name: sortField
           in: query
@@ -223,7 +223,7 @@ paths:
                   - status
                 properties:
                   operatorId:
-                    type: string
+                    $ref: '#/components/schemas/UserId'
                   status:
                     type: string
                     enum:
@@ -269,7 +269,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UserId'
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
@@ -305,7 +305,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UserId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
@@ -333,7 +333,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UserId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '202':
@@ -341,14 +341,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                required:
-                  - cooldownSeconds
-                properties:
-                  cooldownSeconds:
-                    type: integer
-                    minimum: 0
-                    description: 下次可重发前的冷却秒数（业务参数、部署可配）；前端从收到响应起本地倒计时（同 `registerOwner` / `resendVerificationEmail` / `requestPasswordReset` 的口径）
+                $ref: '#/components/schemas/ResendCooldown'
               example:
                 cooldownSeconds: 60
         default:
@@ -375,7 +368,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UserId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
@@ -405,7 +398,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UserId'
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '204':
@@ -428,7 +421,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UserId'
         - name: qrTicket
           in: path
           required: true
@@ -477,7 +470,7 @@ paths:
                         - modules
                       properties:
                         roleId:
-                          type: string
+                          $ref: '#/components/schemas/RoleId'
                           description: 稳定标识（提交与筛选用）
                         name:
                           type: string
@@ -538,19 +531,18 @@ components:
         - isOwner
       properties:
         operatorId:
-          type: string
+          $ref: '#/components/schemas/UserId'
           readOnly: true
         displayName:
           type: string
         loginId:
-          type: string
+          $ref: '#/components/schemas/LoginId'
         roleIds:
           type: array
           minItems: 1
           description: 该成员所持角色的稳定标识，一个或多个（编辑该成员时回传这组；按角色筛选用其中一个）
           items:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RoleId'
         roleNames:
           type: array
           minItems: 1
@@ -579,16 +571,9 @@ components:
         isOwner:
           type: boolean
         wechat:
-          type: object
-          additionalProperties: false
-          required:
-            - nickname
-          description: 该成员的商户后台微信登录绑定；未绑定不返回本键。不代表其平台级微信账号是否存在。
-          properties:
-            nickname:
-              type: string
-              minLength: 1
-              description: 绑定的微信昵称展示快照（绑定时写入、每次微信登录刷新；平台未拿到昵称时为兜底通用展示名，故恒非空）。只用于 Owner 辨认该成员绑的是哪个微信。
+          allOf:
+            - $ref: '#/components/schemas/WechatBindingSummary'
+          description: 该成员的商户后台微信登录绑定；未绑定不返回本键。不代表其平台级微信账号是否存在。昵称只用于 Owner 辨认该成员绑的是哪个微信。
         lastLoginAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
@@ -613,8 +598,7 @@ components:
         - roleIds
       properties:
         loginId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/LoginId'
           description: 登录 ID。合法邮箱格式 = 邮箱形式（邀请制）；其余 = 用户名形式（用户名制）
         displayName:
           type: string
@@ -622,11 +606,9 @@ components:
         roleIds:
           type: array
           minItems: 1
-          uniqueItems: true
           description: 要给的角色，一个或多个；每个取自 listAssignableRoles 的 `roleId`（不可选 Owner）
           items:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RoleId'
         visibleModules:
           $ref: '#/components/schemas/VisibleModules'
         password:
@@ -641,8 +623,7 @@ components:
       minProperties: 1
       properties:
         loginId:
-          type: string
-          minLength: 1
+          $ref: '#/components/schemas/LoginId'
           description: 改登录 ID;用户名直接生效,已激活员工改邮箱走确认链接
         displayName:
           type: string
@@ -650,11 +631,9 @@ components:
         roleIds:
           type: array
           minItems: 1
-          uniqueItems: true
           description: 改角色：整组替换成所给的这组，一个或多个；每个取自 listAssignableRoles 的 `roleId`（不可选 Owner）
           items:
-            type: string
-            minLength: 1
+            $ref: '#/components/schemas/RoleId'
         visibleModules:
           allOf:
             - $ref: '#/components/schemas/VisibleModules'
@@ -667,6 +646,16 @@ components:
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
     Currency:
       type: string
       description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
@@ -736,7 +725,7 @@ components:
               minimum: 0
               description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
             orderId:
-              type: string
+              $ref: '#/components/schemas/OrderId'
               description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
             channelErrorCode:
               type: string
@@ -748,7 +737,7 @@ components:
               type: string
               description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
             merchantMandateNo:
-              type: string
+              $ref: '#/components/schemas/MerchantMandateNo'
               description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
             purchaseLimit:
               $ref: '#/components/schemas/Money'
@@ -793,6 +782,21 @@ components:
           type: integer
           minimum: 0
           description: 该项当前的命中数(口径见 `QuickFilterCounts` 说明)。
+    RoleId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 角色标识。
+    UserId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台用户标识；商户操作员的标识就是它。
+    LoginId:
+      type: string
+      minLength: 1
+      maxLength: 254
+      description: 登录名：用户名或邮箱。
     VisibleModules:
       type: array
       description: |
@@ -806,6 +810,17 @@ components:
         minLength: 1
         examples:
           - orders
+    WechatBindingSummary:
+      type: object
+      additionalProperties: false
+      description: 微信登录绑定的摘要。
+      required:
+        - nickname
+      properties:
+        nickname:
+          type: string
+          minLength: 1
+          description: 绑定微信的昵称展示快照（绑定时写入、每次微信登录刷新；拿不到昵称时为通用展示名，故恒非空）。
     Timestamp:
       type: string
       format: date-time
@@ -819,6 +834,17 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    ResendCooldown:
+      type: object
+      description: 只回重发冷却秒数。
+      required:
+        - cooldownSeconds
+      properties:
+        cooldownSeconds:
+          type: integer
+          minimum: 0
+          readOnly: true
+          description: 重发冷却秒数（部署可配）；前端从收到响应起本地倒计时。
     WechatQrContent:
       type: string
       description: |
