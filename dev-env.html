@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>联调环境</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}pre{background:#f6f8fa;padding:.8rem 1rem;border-radius:6px;overflow-x:auto;font-size:.88em;line-height:1.5}pre code{background:none;padding:0}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}</style>
+</head><body>
+<p><a href="index.html">← 全部契约</a></p>
+
+<h1>联调环境</h1>
+<blockquote>本页由后端在联调环境变化时更新。哪些接口已可调，看各 flows 页接口表的标识：✅ 已部署、可调；⚠️ 已部署，但契约在实现之后有改动；无标识 = 尚未部署。</blockquote>
+
+<h2>环境列表</h2>
+<table>
+<tr><th>环境</th><th>商户后台 BFF</th></tr>
+<tr><td>dev</td><td><code>https://mer26-dev.hqwu.io/api/merchant/v1</code></td></tr>
+</table>
+
+<h2>本机前端怎么连（必须走 Vite proxy）</h2>
+<p>会话靠 httpOnly cookie <code>__Host-msession</code>，外加 CSRF 伴生 cookie <code>__Host-mcsrf</code>，都是 <code>SameSite=Lax</code>：浏览器跨站请求不会带上它们，后端也不开 CORS。所以本机前端要让浏览器只看到 localhost，由 Vite 转发：</p>
+<pre><code>// vite.config.ts
+export default defineConfig({
+  server: {
+    proxy: {
+      '/api/merchant/v1': {
+        target: 'https://mer26-dev.hqwu.io',
+        changeOrigin: true,
+      },
+    },
+  },
+})</code></pre>
+<p>代码里用相对路径 <code>/api/merchant/v1/...</code> 发请求即可。</p>
+<ul>
+<li>cookie 带 <code>Secure</code>、不带 <code>Domain</code>，会落在 localhost 上。Chrome / Firefox 把 <code>http://localhost</code> 视为安全上下文，可以直接用；Safari 不行：换浏览器，或给 Vite 开 https（如 <code>@vitejs/plugin-basic-ssl</code>）。</li>
+<li>不要改写 cookie 的 domain / path（不需要 <code>cookieDomainRewrite</code>）。</li>
+</ul>
+
+<h2>CSRF</h2>
+<ul>
+<li>非安全方法（POST / PUT / PATCH / DELETE）带请求头 <code>X-CSRF-Token</code>，值 = cookie <code>__Host-mcsrf</code>（前端可读），每次现读、不要缓存。</li>
+<li>未登录即可调的 POST（登录、MFA 校验等）不需要。</li>
+<li>缺失或不匹配 → <code>403</code>，错误码 <code>906002</code>；会话失效 → <code>401</code>，错误码 <code>906001</code>。</li>
+</ul>
+<p>细则见 <a href="conventions.html">API 基础约定</a>「鉴权与 CSRF」。</p>
+
+<h2>测试账号（dev）</h2>
+<p>口令都是 <code>FeTest@2026</code>，都未开 MFA（MFA 开通接口尚未部署，需要带 MFA 的账号时找后端）。</p>
+<table>
+<tr><th>登录名</th><th>角色</th><th>可见商户</th></tr>
+<tr><td><code>fe-owner@example.com</code></td><td>Owner</td><td>FE 联调主商户、FE 联调分店</td></tr>
+<tr><td><code>fe-admin@example.com</code></td><td>Admin</td><td>FE 联调主商户、FE 联调分店</td></tr>
+<tr><td><code>fe-employee@example.com</code></td><td>Employee</td><td>FE 联调分店</td></tr>
+</table>
+<p>另有 <code>p26-smoke@example.com</code> 只供后端部署冒烟使用，请不要用它。</p>
+
+<h2>须知</h2>
+<ul>
+<li>数据可能被重置：后端数据模型变更时会清库重建，你造的数据会丢，上面的账号会自动恢复。</li>
+<li>环境暂时跑在后端开发机上，偶尔不可达时请直接联系后端。</li>
+</ul>
+</body></html>
