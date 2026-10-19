@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-19T16:17:56Z",
-  "implCommit": "a278a62",
+  "generatedAt": "2026-10-19T22:52:26Z",
+  "implCommit": "e4434e4",
   "ops": {
     "merchant/auth/completeMfaChallenge": "f4b905d0b1e574c0",
     "merchant/auth/confirmPasswordReset": "e1ca2dbfb0c443ed",
@@ -9,8 +9,13 @@
     "merchant/auth/login": "1d9a83a05a8b5178",
     "merchant/auth/logout": "fa5beaf80a8fb1bf",
     "merchant/auth/requestPasswordReset": "78ea360be0f303bb",
-    "merchant/me/updateMyProfile": "d55acaae8265438a",
+    "merchant/me/changeMyPassword": "78750fe7616d6a49",
+    "merchant/me/confirmMfa": "739c392e0f403ed7",
+    "merchant/me/disableMfa": "1b4294c6ef97b0c6",
+    "merchant/me/enrollMfa": "bcc265396904a190",
+    "merchant/me/getMySecurity": "d2a3b879f23fbc5f",
+    "merchant/me/updateMyProfile": "5b40d7033505d63b",
     "merchant/merchants/listMerchants": "1a59055f4abfc04e"
   },
-  "prdStage": "stage/261017-slice-a-relogin-ignore"
+  "prdStage": "stage/261019-slice-a-r4"
 }
