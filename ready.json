@@ -1,12 +1,14 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-19T04:28:54Z",
-  "implCommit": "0339354",
+  "generatedAt": "2026-10-19T05:46:09Z",
+  "implCommit": "a278a62",
   "ops": {
     "merchant/auth/completeMfaChallenge": "f2d062ec545f8a60",
+    "merchant/auth/confirmPasswordReset": "9081f54d416e9a98",
     "merchant/auth/getCurrentSession": "78340359f992d7dc",
     "merchant/auth/login": "59c65d7be7be0630",
     "merchant/auth/logout": "84f73629524eb405",
+    "merchant/auth/requestPasswordReset": "31124b2c16be4fdd",
     "merchant/me/updateMyProfile": "7d87aa3c7df5bed5",
     "merchant/merchants/listMerchants": "4fdd5ac7331617b4"
   },
