@@ -2,8 +2,10 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>商品与票务 — 调用时序</title>
-<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"e5a50f1b0c7213c3","checkout/createGiftcardAlipayPass":"00d9808ba98b5a6a","checkout/deleteCheckoutSavedCard":"8dff9d6f0d9a8312","checkout/getCheckoutOrder":"8c1c535c30feaba8","checkout/getGiftcardOrder":"e4f963eef0bde016","checkout/listCheckoutPaymentMethods":"6826168661646e9e","checkout/listGiftcardOrders":"b6761821f5942a2d","checkout/openOrderCheckout":"463853ecdc473f04","checkout/openQrcodeCheckout":"ff6bce28c6b7a83d","checkout/requestGiftcardEmailOtp":"af056519f4faed75","checkout/verifyGiftcardEmailOtp":"7708c0ea2cdee4c3"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 商品与票务 —— 调用时序
@@ -149,6 +151,21 @@ import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.mi
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
 document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
 const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
 document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
 mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
 mermaid.run({querySelector:'.mermaid'}).then(jump,jump);

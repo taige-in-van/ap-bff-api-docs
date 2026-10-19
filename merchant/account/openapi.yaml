@@ -222,6 +222,8 @@ paths:
       description: |
         用 `uploadLogoFile` 返回的 `fileId` 替换当前 Logo，即时生效、无审核。
 
+        - 引用的文件不存在、不是本商户上传的或用途不符 → `400`·208040（`details` 指到 `fileId`）。
+
         幂等：同一 `fileId` 重复设置结果一致，不挂 Idempotency-Key。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -245,7 +247,8 @@ paths:
           description: 已生效
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
-      x-error-codes: []
+      x-error-codes:
+        - 208040
     delete:
       tags:
         - profile
@@ -287,7 +290,7 @@ paths:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
                       enum:
-                        - settlement_void_cheque
+                        - void_cheque
       responses:
         '201':
           description: 已上传（尚未归属变更请求）
@@ -321,7 +324,7 @@ paths:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '202':
-          description: 已发码（`deliveredTo` 为脱敏 Owner 邮箱）
+          description: 已受理，验证码邮件随后发出（`deliveredTo` 为脱敏 Owner 邮箱）
           content:
             application/json:
               schema:
@@ -347,13 +350,14 @@ paths:
         一次完成验码和提交：码对了就创建变更请求并进入审核，结算信息仍按旧值生效，审核通过才换成新值；同时给 Owner 发「变更审核中」通知。审核中时读面 `settlement.pendingReview` 为 true。
 
         - `changes` 含银行组（`bankName` + `bankAccount`）时，`voidChequeFileId` 必填（缺 → 400）；只改 `storeId` / `settlementCycle` 时不带。
+        - `voidChequeFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·208040（`details` 指到 `voidChequeFileId`）。
         - 码错可重试 → `400`·204010（剩余次数见 `context.attemptsRemaining`）；错到上限 → `423`·206007；码过期或已用 → `410`·206006，须重新发码。
         - 已有审核中的变更 → `409`·208002；结算周期不在候选内 → `400`·204017。
         - 结算由通道方执行（`settlement.settledByChannel` 为 true）→ `409`·208038，没有结算账户可变更。
 
         审核结果异步更新（不在本 BFF）。
 
-        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回首次结果（不重复建、也不因码已用掉而失败）；请求体有任何变化都要换新键，包括输错码后重输（码在请求体里），沿用旧键改请求体 → `409`·208005。
+        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回首次结果（不重复建、也不因码已用掉而失败）；请求体有任何变化都要换新键，包括输错码后重输（码在请求体里），沿用旧键改请求体 → `409`·908003。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -398,8 +402,8 @@ paths:
         - 206006
         - 206007
         - 208002
-        - 208005
         - 208038
+        - 208040
   /account/service:
     get:
       tags:
@@ -496,9 +500,10 @@ paths:
         | 未开通（读面里没有） | 进开通申请，待审核 | 不动 |
         | 审核中（`UNDER_REVIEW`） | 不受本次提交影响 | 不受本次提交影响 |
 
-        - **模式未开通**：整个请求建成一张开通申请，`paymentMethods` 至少一个，并带材料——`in_store` 带 `storeInsideFileId` + `storeOutsideFileId`（替换商户资料里的门店内照、外照）；`online` 带 `typeOfOnlineService`，为 `WEBSITE` 时带 `websiteUrl`。
+        - **模式未开通**：整个请求建成一张开通申请，`paymentMethods` 至少一个，并带材料——`in_store` 带 `storeInsideFileId` + `storeOutsideFileId`（提交时即写入商户资料的门店内照、外照，替换已有的，不等审核通过）；`online` 带 `typeOfOnlineService`，为 `WEBSITE` 时带 `websiteUrl`。
         - **模式已开通**：`paymentMethods` 可以为空，即全部关掉，模式仍是 `ACTIVE`。不带门店照（带了 → 400）。线上模式的 `typeOfOnlineService` / `websiteUrl` 不带就是不改；带了即时生效，同时进复审，复审期间照常收款；复审中再改，沿用同一次复审。
         - 所选方式须属于该模式、在当前商户币种的候选内（`listPaymentMethodOptions`），否则 400。
+        - `storeInsideFileId` / `storeOutsideFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·208040（`details` 逐项指到出问题的那个字段）。
         - 模式正在开通审核中，或该模式已有申请在审又勾了新的未开通方式 → `409`·`208003`。
 
         同样的请求体重发结果不变，不挂 Idempotency-Key。
@@ -544,6 +549,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208003
+        - 208040
   /account/service/files:
     post:
       tags:
@@ -552,7 +558,7 @@ paths:
       x-required-privilege: account:service:edit
       summary: 上传门店照（开通线下模式用）
       description: |
-        门店内照、外照各传一次，返回的 `fileId` 分别作为 `updateAcceptanceMode`（线下）的 `storeInsideFileId` / `storeOutsideFileId`，提交时文件才归属该商户。
+        门店内照、外照各传一次，返回的 `fileId` 分别作为 `updateAcceptanceMode`（线下）的 `storeInsideFileId` / `storeOutsideFileId`，提交开通申请时写入商户资料的门店内照、外照（替换已有的）。
 
         格式或大小不合规 → `400`·`204015`。非幂等：每次上传产生新 `fileId`。
       parameters:
@@ -700,22 +706,49 @@ paths:
       x-error-codes:
         - 208003
   /account/refund-pin:
+    get:
+      tags:
+        - refund-pin
+      operationId: getRefundPin
+      x-required-privilege: account:refund-pin:manage
+      summary: 读退款 PIN 是否已设置
+      description: 当前商户是否已设置退款 PIN。未设置时 Refund PIN 区块展示首次设置表单（新 PIN + 确认），已设置时展示修改表单（当前 PIN + 新 PIN + 确认）。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - pinSet
+                properties:
+                  pinSet:
+                    type: boolean
+                    readOnly: true
+                    description: true = 已设置；false = 尚未设置（工作人员代为建档的商户激活后、首次设置前）。
+              example:
+                pinSet: false
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
     put:
       tags:
         - refund-pin
       operationId: changeRefundPin
       x-required-privilege: account:refund-pin:manage
-      summary: 改退款 PIN（用当前 PIN 校验）
+      summary: 设置或修改退款 PIN
       description: |
-        校验当前 PIN 后改为新 PIN（不可与当前相同）。旧 PIN 立即失效，进行中的忘记 PIN 作废，给 Owner 登录邮箱发 PIN 已修改通知。
+        已设置时校验当前 PIN 后改为新 PIN（不可与当前相同），旧 PIN 立即失效，进行中的忘记 PIN 作废。尚未设置时（`getRefundPin` 的 `pinSet` 为 false）不带 `currentPin`，新 PIN 直接生效。两种情形都给 Owner 登录邮箱发 PIN 已修改通知。
 
-        幂等基准：`Idempotency-Key`。同键同请求体重发返回 `204`；同键改请求体返回 `409`·`208005`。
+        幂等基准：`Idempotency-Key`。同键同请求体重发返回 `204`；同键改请求体返回 `409`·`908003`。
 
         错误码：
 
-        - `400` 当前 PIN 错、新 PIN 与当前相同或格式非法。
+        - `400` 当前 PIN 错、已设置时没带当前 PIN、新 PIN 与当前相同或格式非法。
         - `206004` 当前 PIN 连续错到上限，临时锁定；剩余秒数见 `context.cooldownSeconds`，锁定期内不校验。
-        - `208005` 同一幂等键被用于不同的请求体。
+        - `908003` 同一幂等键被用于不同的请求体。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -727,12 +760,12 @@ paths:
               type: object
               additionalProperties: false
               required:
-                - currentPin
                 - newPin
               properties:
                 currentPin:
                   allOf:
                     - $ref: '#/components/schemas/RefundPin'
+                  description: 当前 PIN；已设置时必填，尚未设置时不传。
                 newPin:
                   allOf:
                     - $ref: '#/components/schemas/RefundPin'
@@ -747,7 +780,6 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 206004
-        - 208005
   /account/refund-pin/resets:
     post:
       tags:
@@ -763,7 +795,7 @@ paths:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '202':
-          description: 码已发到 Owner 邮箱
+          description: 已受理，验证码邮件随后发到 Owner 邮箱
           content:
             application/json:
               schema:
@@ -846,7 +878,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   schemas:
     ServiceStatus:
       type: string
@@ -1384,6 +1416,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -1464,9 +1521,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     MerchantCode:
       type: string
       minLength: 1
@@ -1611,7 +1683,7 @@ components:
           readOnly: true
           description: 该文档的**内联展示地址**（**只出不入**），供卡片缩略图 / 预览。**短时效**，过期后重新加载本申请取新值； **不要持久化、不要分享**——入驻文档含身份与银行资料。哪些面必返本键，见各面自己的读形态。
     DocumentRefFeRead:
-      description: '`DocumentRef` 的**商户前端**读侧形态：元数据 + `previewUrl` 全部必返（写侧只需 `fileId`，故收紧只在读面做）。服务面的审核读不返访问地址、不用本形态。'
+      description: '`DocumentRef` 的**前端**读侧形态：元数据 + `previewUrl` 全部必返（写侧只需 `fileId`，故收紧只在读面做）。服务面的审核读不返访问地址、不用本形态。'
       required:
         - fileId
         - fileName
@@ -1622,7 +1694,7 @@ components:
         - $ref: '#/components/schemas/DocumentRef'
     DocumentsStepRead:
       type: object
-      description: '`DocumentsStep` 的商户前端读侧形态：未上传的文档位**不返回本键**、不返 `null`；已上传的必带元数据与 `previewUrl`。'
+      description: '`DocumentsStep` 的前端读侧形态：未上传的文档位**不返回本键**、不返 `null`；已上传的必带元数据与 `previewUrl`。'
       additionalProperties: false
       properties:
         docStoreInside:
@@ -1660,35 +1732,36 @@ components:
     MerchantFilePurpose:
       type: string
       description: |
-        商户后台可上传的**文件用途**总表 —— 用途决定允许的格式、大小上限与取用方式。
-        每个上传入口只接受它所属业务范围内的用途（各入口在自己的请求体里列出），传入范围外的用途 → 400。
+        文件用途目录——用途决定允许的格式、大小上限与取用方式；每个上传入口只接受它列出的子集，传入其他用途 → 400。
 
         | 用途 | 允许格式 | 大小上限 | 传上去之后怎么取用 |
         |---|---|---|---|
         | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
-        | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
         | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `office_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址 |
         | `merchant_logo` | PNG / JPEG | **512KB（固定上限）** | 长效稳定的公开地址（要展示给外部访客） |
         | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_item_image` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `giftcard_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `product_image` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
 
         **短时效地址不要持久化、不要分享**（过期即失效，重新读取所在资源可拿到新的）；长效公开地址可直接放进页面。
       enum:
         - onboarding_document
-        - settlement_void_cheque
+        - void_cheque
         - store_photo
+        - office_photo
         - merchant_logo
         - payment_page_logo
-        - product_link_banner
-        - product_link_brand_logo
-        - product_link_item_image
+        - link_banner
+        - giftcard_brand_logo
+        - product_image
     UploadedFile:
       type: object
       additionalProperties: false
       description: |
-        已上传的文件。上传成功不等于生效:`fileId` 要随对应的业务写操作提交,文件才归属该业务对象;从未被引用的文件到期清理。
+        已上传的文件。上传成功不等于生效:`fileId` 要随对应的业务写操作提交,文件才归属该业务对象;从未被引用的文件不生效,前端无需处理。
       required:
         - fileId
         - fileName
@@ -1736,7 +1809,7 @@ components:
         deliveredTo:
           type: string
           readOnly: true
-          description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
+          description: 脱敏投递目标（如 `o***@e***.com`）——供客户端提示「码发到哪里」。
         cooldownSeconds:
           type: integer
           readOnly: true
@@ -1846,7 +1919,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
       schema:
         type: string
         minLength: 1

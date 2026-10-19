@@ -2,13 +2,15 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>商户 App — 调用时序</title>
-<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"terminal","ops":{"app/addNoticeEmail":"dae97de9462e1e17","app/changePassword":"09f13f0d39514ea3","app/closeBill":"cba3930f007852f9","app/confirmMerchantEmail":"ce1c7de2bb6d4a92","app/createBill":"1772d1f2b9f87c59","app/createEmployee":"c12db4dd80d91c4d","app/createMicropayOrder":"454769b73d65c5af","app/deleteBill":"ab685c218f109a44","app/deleteEmployee":"a9cb741ec65b0373","app/deleteNoticeEmail":"2deb851ec2f172e2","app/downloadMonthlyStatement":"5604f97e42e543f5","app/downloadPaymentReceipt":"acc487dbea83aa03","app/downloadRefundReceipt":"272e7be2f97a549a","app/getAccountBalance":"9287ee0f48dfc95a","app/getAnalyticsCharts":"0c2724015dfe8126","app/getBillDetail":"d88ffcb483393dd5","app/getEmployee":"14aba84ab008c2a1","app/getHomeSummary":"8a18055111a96c19","app/getMerchantInfo":"a1ff64144df86378","app/getNotice":"64db5f6169ee3aa2","app/getOrderMessageUnreadCount":"cb6b8a79834af04d","app/getPaymentNoticeSettings":"eddf9d34e05cf1c7","app/getSettlement":"b28062fe3f850ab2","app/getStaticQrcode":"7e8ae442c5d8e240","app/getTransaction":"294efab2cb400acd","app/getUnreadCounts":"f044d3d58eca1d56","app/getWechatBindQrcode":"ca4ad8022b2267ba","app/getWechatBindStatus":"f0e163589bf4f949","app/listBills":"695d742698c06390","app/listEmployees":"69ba68abd2371a6a","app/listMonthlyStatements":"652690a5ebdd79e3","app/listNotices":"94b4e952d7f3680b","app/listOrderMessages":"8c8ac62cdf030419","app/listPaymentMethods":"a2c748866d5c957e","app/listSettlements":"d48f1d47edd73d09","app/listSubMerchantBalances":"146c03068a924197","app/listSubMerchants":"62961da0c72fc334","app/listTransactions":"46ca318fdcc3a027","app/markAllMessagesRead":"ac08cd92dfe21cc2","app/rechargeRefundAccount":"651d8f27c19da203","app/refundOrder":"6101d123ba9d402d","app/registerPushToken":"db0197bac93853c8","app/releasePreauth":"486f3ba706c4d80c","app/resetPasswordWithEmailCode":"b431ee659867255e","app/sendMerchantEmailCode":"ac57dd751618815f","app/sendNoticeEmailCode":"6f89099dcd79f6d8","app/sendPasswordEmailCode":"4355479bad8cf7f2","app/sendRechargeEmailCode":"9c0a078132186a3e","app/setCustomerSurcharge":"2b3975686908e16b","app/setPaymentPushEnabled":"78ae58c593a33749","app/signIn":"85dd13cfec6968aa","app/signOut":"3aedffde06b4b112","app/switchMerchant":"45b77c5b07837bba","app/updateEmployee":"eddd0c5be534dc9a","app/updateMerchantContact":"be25d53edc9535bd","app/updateMerchantEmail":"b32df67f57385b43","app/updateMerchantLogo":"f2d317c2a2943b97","app/updateMerchantTimezone":"92d7f1adca044f8c","app/updateOrderExpiry":"f31b2f8ab8260426","app/updatePaymentMethods":"0f331a5c3f30852f","app/updatePaymentPageSettings":"fc7d61980daf1118","app/uploadImage":"5b24aadbbc028589","pos/createMicropayOrder":"43dcf9b7b422c777","pos/createQrcodeOrder":"6572308abece8a49","pos/createUnionpayQrcodeOrder":"6f588af2875025d9","pos/getCurrentUser":"90089a87eba12ce4","pos/getDailyReport":"be93e1cc68b66a2f","pos/getLoginCaptcha":"94142d376621d776","pos/getOrder":"099a314efd28e0bb","pos/getReceiptContent":"019cf71cabf4e34d","pos/getTipConfig":"361bd37ffd8431a4","pos/getTradeSummary":"d663c65111f4fd2c","pos/getTransactionPrintData":"092699c9fa35bd11","pos/getViewOnlyStatus":"ebf2d66c5d0f8f99","pos/getVoucher":"a26590578bb6de86","pos/listOrders":"b21d30a983945ec8","pos/listRedemptions":"ecf83d1a17323557","pos/listSubMerchants":"f6af2571dafef256","pos/precalculateSurcharge":"f1e4add3ce7e117d","pos/redeemVoucher":"529fa2dfd33094a0","pos/refundOrder":"4c88a63066d8b7fb","pos/refundOrderByPost":"8cb506767fbe311b","pos/registerDevice":"1e88246d30a0147e","pos/releasePreauth":"79be49cf3aef3907","pos/setCustomerSurcharge":"7cda16541aec8f94","pos/signIn":"1783cc8500bbb27e","pos/updateRedemptionRemark":"f0f192dc026c07c6","pos/updateTipConfig":"04a6b2559f53f9fc","pos/verifyRefundPassword":"288783cf7027ee4f"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 商户 App —— 调用时序
 
-> 调用方是商户手机 App 的 iOS 与 Android 版。接口的地址与形状和现网一致，现网已安装的版本不需要升级，切换后重新登录一次即可继续使用；只有修改银行账户与修改登录邮箱（界面上叫 Registered Email）两处要升级后才能完成，见「流程：商户资料编辑」。契约见同一发布的《商户 App》接口文档。
+> 调用方是商户手机 App 的 iOS 与 Android 版。接口的地址与形状和现网一致，现网已安装的版本不需要升级，切换后重新登录一次即可继续使用；修改登录邮箱（界面上叫 Registered Email）要升级后才能完成，修改银行账户在 App 上不受理、要到商户后台办理，见「流程：商户资料编辑」。契约见同一发布的《商户 App》接口文档。
 
 ## 域名与前缀
 
@@ -72,11 +74,11 @@
 | 46 | [`deleteNoticeEmail`](../app/index.html#tag/notifications/operation/deleteNoticeEmail) | pay | `GET /device/del/email` | 删除通知邮箱 | 收款通知设置 |
 | 47 | [`sendPasswordEmailCode`](../app/index.html#tag/auth/operation/sendPasswordEmailCode) | pay | `GET /device/merchant/reset/verifyCode` | 向 Owner 的登录邮箱发验证码，重置退款密码（要有管理退款密码的权限；`type=login` 不受理）；退款页的退款密码弹层里也用 | 账户与安全 |
 | 48 | [`resetPasswordWithEmailCode`](../app/index.html#tag/auth/operation/resetPasswordWithEmailCode) | pay | `POST /device/merchant/reset/pwd` | 凭邮箱验证码重置退款密码（要有管理退款密码的权限；`type=login` 不受理） | 账户与安全 |
-| 49 | [`uploadImage`](../app/index.html#tag/account/operation/uploadImage) | pay | `POST /device/upload` | 上传图片或 PDF（logo、作废支票），被引用后才生效 | 商户资料 |
+| 49 | [`uploadImage`](../app/index.html#tag/account/operation/uploadImage) | pay | `POST /device/upload` | 上传 logo 图片，交给 #50 后才生效 | 商户资料 |
 | 50 | [`updateMerchantLogo`](../app/index.html#tag/account/operation/updateMerchantLogo) | pay | `POST /device/mchLogo/update` | 更换商户 logo | 商户资料编辑 |
 | 51 | [`updateMerchantTimezone`](../app/index.html#tag/account/operation/updateMerchantTimezone) | pay | `POST /device/mch/timezone` | 修改商户时区 | 商户资料编辑 |
 | 52 | [`updateMerchantContact`](../app/index.html#tag/account/operation/updateMerchantContact) | pay | `POST /device/merchant/contact` | 修改公司电话与地址，或联系人姓名与电话（联系人仅 Owner） | 商户资料编辑 |
-| 53 | [`updateBankAccount`](../app/index.html#tag/account/operation/updateBankAccount) | pay | `POST /device/merchant/bank` | 修改银行账户：凭 #67 的验证码提交，进入审核 | 商户资料编辑 |
+| 53 | — | — | 不再承接，见「流程：商户资料编辑」 | 修改银行账户：提交变更 | 商户资料编辑 |
 | 54 | [`sendMerchantEmailCode`](../app/index.html#tag/account/operation/sendMerchantEmailCode) | pay | `GET /device/sendAndVerify/emailCode` | 修改登录邮箱：向当前邮箱发验证码 | 商户资料编辑 |
 | 55 | [`updateMerchantEmail`](../app/index.html#tag/account/operation/updateMerchantEmail) | pay | `POST /device/merchant/email` | 修改登录邮箱：核对当前邮箱的验证码、提交新邮箱，新邮箱随即收到验证码 | 商户资料编辑 |
 | 56 | [`updateOrderExpiry`](../app/index.html#tag/products/operation/updateOrderExpiry) | pay | `POST /device/mch/order_expiry_config` | 设置订单有效期 | 账户与安全 |
@@ -90,7 +92,7 @@
 | 64 | [`deleteEmployee`](../app/index.html#tag/team/operation/deleteEmployee) | pay | `GET /device/employee/management/del/{account_id}` | 删除员工 | 员工与微信绑定 |
 | 65 | [`getWechatBindQrcode`](../app/index.html#tag/team/operation/getWechatBindQrcode) | pay | `GET /device/bind_qrcode/{account_id}` | 取绑定微信用的二维码；绑上后这个微信同时登记为商户的通知接收微信 | 员工与微信绑定 |
 | 66 | [`getWechatBindStatus`](../app/index.html#tag/team/operation/getWechatBindStatus) | pay | `GET /device/bind_qrcode/status` | 查微信绑定结果（轮询） | 员工与微信绑定 |
-| 67 | [`sendBankEmailCode`](../app/index.html#tag/account/operation/sendBankEmailCode) | pay | `GET /device/merchant/bank/verifyCode` | 修改银行账户：向 Owner 的登录邮箱发验证码（新增，现网没有，旧包不调） | 商户资料编辑 |
+| 67 | — | — | 现网没有、不承接，见「流程：商户资料编辑」 | 修改银行账户：向 Owner 的登录邮箱发验证码 | 商户资料编辑 |
 | 68 | [`confirmMerchantEmail`](../app/index.html#tag/account/operation/confirmMerchantEmail) | pay | `POST /device/merchant/email/confirm` | 修改登录邮箱：回传新邮箱收到的验证码，完成更换（新增，现网没有，旧包不调） | 商户资料编辑 |
 
 ## 登录后的每个请求
@@ -117,7 +119,7 @@
 | 档 | 情形 | 状态码 | 端的表现 |
 |---|---|---|---|
 | 回登录页 | 令牌无效（过期、失效或认不出）、这部手机的设备被停用、当前商户被冻结；切换商户时遇到这些也一样 | 403 | 清掉本地保存的两个令牌与登录用户名，回登录页 |
-| 登录、切换商户被拒 | 密码错、滑块验证没通过、账号被锁定或停用、登录时设备被停用或主商户被冻结；切换商户的目标不在可访问范围、这部手机在目标商户下的设备被停用 | 400，`message` 写明原因 | 见各流程图下的表 |
+| 登录、切换商户被拒 | 密码错、滑块验证没通过、账号被锁定或停用、登录时设备被停用或登录所在的商户被冻结或删除；切换商户的目标不在可访问范围、这部手机在目标商户下的设备被停用 | 400，`message` 写明原因 | 见各流程图下的表 |
 | 业务性拒绝 | 权限不足、退款密码错、参数不对、状态不允许、操作太频繁等 | 400，`message` 写明原因 | 不退出登录，由各页自己处理 |
 
 端把 HTTP 401 与 403 同样处理（HTTP 200 但响应体里的 `status` 是 401 或 403 时也一样），都回登录页。
@@ -159,7 +161,7 @@ sequenceDiagram
 | #1 滑块验证的票据没通过核对 | 400 | 同上 |
 | #1 账号因连续输错密码被锁定 | 400 | 同上 |
 | #1 账号被停用 | 400 | 同上 |
-| #1 账号的主商户被冻结 | 400 | 同上 |
+| #1 登录所在的商户被冻结或删除 | 400 | 同上 |
 | #1 这部手机在该商户下的设备已被停用 | 400 | 同上 |
 | #1 本机上报的 `uuid` 不能用作设备标识 | 400 | 同上 |
 | #1 服务端故障或网络不通 | 5xx 或无响应 | 弹固定提示「登录失败，请稍后再试」 |
@@ -878,7 +880,7 @@ sequenceDiagram
 
 - **商户资料（#30）**：整份存入本地。本页读 `mch_abbreviation`（标题，为空时显示 Merchant Information）、`logo_url`、`mch_timezone` 与 `bankInfo.bank_verify`；三个子页读本地的公司信息、联系信息与 `bankInfo`（`account_number` 是打码后的，`bank_verify` 为真时银行信息一项显示「Reviewing」）。各键的含义见契约 `getMerchantInfo`。
 - **时区（#51）**：候选是端写死的 7 个加拿大时区（`America/Vancouver`、`America/Inuvik`、`America/Regina`、`America/Resolute`、`America/Toronto`、`America/Halifax`、`America/St_Johns`），`timezone` 放所选的 IANA 名；校验规则见契约 `updateMerchantTimezone`。
-- **换 logo（#49、#50）**：先上传拿 `imgUrl`，再把它作为 `logo` 提交；文件的类型与大小要求见契约 `uploadImage`、`updateMerchantLogo`。与收款页设置里的换 logo 是同一组调用。
+- **换 logo（#49、#50）**：先上传拿 `imgUrl`，再把它作为 `logo` 提交；图片的类型与大小要求见契约 `uploadImage`。与收款页设置里的换 logo 是同一组调用。
 - **退出登录（#10）**：成功后端清掉本地保存的两个令牌与登录用户名，回登录页；失败时不退出。
 
 失败时端的表现：
@@ -1477,7 +1479,7 @@ sequenceDiagram
 
 ## 流程：商户资料编辑
 
-商户信息页的三个子页右上角进编辑页（同一个页面按类型分三种），表单默认值取端本地的商户资料。公司信息与联系信息提交 #52；银行信息先发验证码（#67）再提交 #53，进入审核；修改登录邮箱（界面上叫 Registered Email）在联系信息编辑页里另走一个弹层（#54、#55、#68），新邮箱确认后立即生效、不走审核。银行信息的发码与登录邮箱的确认是新增的两步，只有升级后的 App 会调；旧包走到提交那一步收到 400，改不成。
+商户信息页的三个子页右上角进编辑页（同一个页面按类型分三种），表单默认值取端本地的商户资料。公司信息与联系信息提交 #52；银行信息在 App 上不受理，提交 #53 一律回 400·`208039`，改银行账户要到商户后台办理；修改登录邮箱（界面上叫 Registered Email）在联系信息编辑页里另走一个弹层（#54、#55、#68），新邮箱确认后立即生效、不走审核。登录邮箱的确认是新增的一步，只有升级后的 App 会调；旧包走到提交那一步收到 400，改不成。
 
 ### 页面：Business Information（公司信息编辑）
 
@@ -1600,56 +1602,40 @@ sequenceDiagram
 
 ### 页面：Bank Information（银行信息编辑）
 
-账户名只读；可改银行名、Transit、机构号、账号，并上传作废支票图片；分行一栏端照旧可填。提交时若换了图先上传（#49），再向 Owner 的登录邮箱发验证码（#67），输码后提交变更申请（#53）。提交后进入审核，端把本地标成审核中。审核中进本页时字段全部只读、没有提交按钮。
+修改银行账户在 App 上不受理，要到商户后台办理。端照旧可进编辑页、改字段、换作废支票图片并提交；提交 #53 一律回 400·`208039`，银行账户不变。
 
 ```mermaid
 sequenceDiagram
     actor U as 商户员工
     participant P as 商户 App
     participant A as 服务端
-    participant M as 邮箱
 
     U->>P: 银行信息页点右上角编辑
     Note over P: 表单默认值取 bankInfo，account_number 是打码后的<br/>bank_verify 为真时字段只读、无提交按钮
-    U->>P: 改银行字段（账号要重输完整的），换作废支票图片，点「Submit」
+    U->>P: 改银行字段，换作废支票图片，点「Submit」
     alt 字段与图片都没改
         P->>U: 直接回上一页，不调接口
     else 有改动
         opt 选了新图片
             P->>A: #35;49 [uploadImage]<br/>POST /device/upload（multipart file）
-            A-->>P: 200 { imgUrl }
+            A-->>P: 200 { imgUrl }，或 400（不是 PNG、JPEG，或超过 512KB）
         end
-        P->>A: #35;67 [sendBankEmailCode]<br/>GET /device/merchant/bank/verifyCode
-        A-->>P: 200 { ticket }
-        A-->>M: 验证码邮件（发往 Owner 的登录邮箱）
-        M-->>U: 查看验证码
-        U->>P: 输验证码，确认
-        P->>A: #35;53 [updateBankAccount]<br/>POST /device/merchant/bank<br/>{ account_name, branch, bank_name, bank_code, bank_id, account_number, prove_url, ticket, ticketValue }
-        A-->>P: 200
-        Note over P: 本地 bank_verify 标为真
-        P->>U: 弹「The request to change bank information has been submitted.」与「Processing time is approximately 24 hours.」，确认后回上一页
+        P->>A: #35;53<br/>POST /device/merchant/bank<br/>{ account_name, branch, bank_name, bank_code, bank_id, account_number, prove_url }
+        A-->>P: 400，code 为 208039，message 为固定双语提示
+        Note over P: 留在编辑页
     end
-    Note over U,A: 旧包没有发码一步，#35;53 不带 ticket，回 400，留在编辑页
 ```
 
-- **发码（#67）**：新增的接口，不带参数，验证码发往 Owner 的登录邮箱；端存下返回的 `ticket`。
-- **请求（#53）**：端带 `account_name`（只读，原样带回）、`branch`（编辑页这一栏默认为空）、`bank_name`、`bank_code`（Transit）、`bank_id`（机构号）、`account_number`、`prove_url`、`ticket` 与 `ticketValue`（#67 返回的票据与输入的验证码）。`prove_url` 新上传的取 #49 的 `imgUrl`，没换图取原 `bankInfo.prove_url`。各字段的规则、重复提交怎么认，见契约 `updateBankAccount`。
-- **账号要重输**：#30 的 `account_number` 是打码的，端对账号校验 7 到 12 位数字，打码的值过不了，所以改银行信息时要重新输入完整账号。
-- **审核**：提交成功后端把本地 `bank_verify` 标为真；审核中银行信息子页与只读的编辑页显示空值。审核期间 #30 返回什么见契约 `getMerchantInfo`。
-- **旧包**：没有发码一步，#53 不带 `ticket` 被拒；旧包不显示 `message`，只是留在编辑页。
-- **上传（#49）**：与换 logo 同一个接口；这里传的是作废支票照片。
+- **提交（#53）**：不再承接。服务端不看请求内容、权限与仅查看状态，一律回 400·`208039`，顶层 `message` 是固定的双语提示，原文见契约「修改银行账户」。现网 App 的银行信息页对此不显示提示，停留在编辑页。
+- **上传（#49）**：只按 logo 的规则收（PNG 或 JPEG，不超过 512KB）。作废支票照片是 PDF 或超过 512KB 的，#49 就回 400，端不提示、不往下走；上传成功的图片不会被引用，不生效。
+- **发码（#67）**：不承接，现网 App 本来就不调。
 
 失败时端的表现：
 
 | 情形 | 状态码 | 端的表现 |
 |---|---|---|
 | #49 文件类型或大小不符，或其他失败 | 400 或 5xx | 不提示，不往下走，留在编辑页 |
-| #67 失败（含发得太频繁） | 400 或 5xx | 留在编辑页 |
-| #53 验证码不对或已过期 | 400 | 不提示，留在编辑页 |
-| #53 已有审核中的申请、字段不合规、作废支票不合要求 | 400 | 同上 |
-| #53 没带 `ticket`（旧包） | 400 | 同上 |
-| #53、#67 没有修改结算信息的权限（店长、收银员预设都没有） | 400 | 同各自那一行 |
-| #53、#67 商户处于仅查看 | 400，`code` 为 `208035` | 同各自那一行 |
+| #53 一律 | 400，`code` 为 `208039` | 不提示，留在编辑页 |
 | 遇到令牌无效、设备被停用、商户被冻结 | 403 | 回登录页 |
 
 ## 流程：收款页设置
@@ -1969,25 +1955,25 @@ sequenceDiagram
 | 详情的 `remark` 与 `payways`（#24） | 不返回（端在读） | 返回 | 码页上显示备注与付款方式图标 |
 | 仅查看时新建、停用、删除账单码与开关「顾客承担手续费」（#22、#25、#26、#11） | App 不读这个开关，服务端也不拦 | 回 400、`code` 为 `208035`；列表与详情照常 | 处于仅查看的商户建不了、删不了账单码，收款页发起的弹出 `message`，其余不提示 |
 | 新建账单码的重复提交（#22） | 不去重，连点会建出多张 | 同一账号在同一商户下 60 秒内（可配置）同样的金额、币种、备注、有效期与预授权标记的重复新建，返回第一次的 `bill_id` | 连点不再多建 |
-| 按权限点判（#12 至 #68） | 不看角色：管理员、店长、收银员在 App 上能做的一样（员工列表里收银员只见自己） | 按商户后台的权限点判，员工可以持多个角色、权限取并集。收款（#12、#14）要终端收款的权限，查单、流水与订单消息（#13、#18、#38）要看支付订单，首页与图表（#17、#21）要看首页，账单码列表与详情（#23、#24）要看账单、建停删（#22、#25、#26）要管账单。预设的收银员没有改收款页设置与订单有效期、改商户资料与 logo、改银行账户、看清算记录、看月对账单、退款账户充值、增删通知邮箱、员工管理的权限；店长没有改商户资料与 logo、改银行账户的权限；退款密码的修改与邮箱重置要有管理退款密码的权限，店长、收银员预设都没有 | 没有权限时接口回 400，端按各页的失败处理（多数不提示）；只持商户后台其他预设角色（如 Employee）的员工能看流水、不能收款，要收款得加收银员角色 |
+| 按权限点判（#12 至 #68） | 不看角色：管理员、店长、收银员在 App 上能做的一样（员工列表里收银员只见自己） | 按商户后台的权限点判，员工可以持多个角色、权限取并集。收款（#12、#14）要终端收款的权限，查单、流水与订单消息（#13、#18、#38）要看支付订单，首页与图表（#17、#21）要看首页，账单码列表与详情（#23、#24）要看账单、建停删（#22、#25、#26）要管账单。预设的收银员没有改收款页设置与订单有效期、改商户资料与 logo、看清算记录、看月对账单、退款账户充值、增删通知邮箱、员工管理的权限；店长没有改商户资料与 logo 的权限；退款密码的修改与邮箱重置要有管理退款密码的权限，店长、收银员预设都没有 | 没有权限时接口回 400，端按各页的失败处理（多数不提示）；只持商户后台其他预设角色（如 Employee）的员工能看流水、不能收款，要收款得加收银员角色 |
 | 对象归属（#31 至 #34、#61、#63 至 #65） | 清算记录与明细、月对账单、员工详情、修改、删除、绑微信二维码不校验对象属于哪个商户，`mch_ids`、`mch_id`、`account_id` 填别家的也照办 | 只认当前商户的对象（清算记录与月对账单另含登录者可访问的关联商户），其他回 400 | 正常使用无感 |
-| 上传（#49） | 不要求登录；任何类型都收，存成公网直链，立即可用 | 要求令牌；只收 PNG、JPEG、PDF，默认不超过 2MB（可配置）；被商户 logo 或作废支票引用后才生效，商户 logo 另限 PNG 或 JPEG、默认不超过 512KB（可配置）；没被引用的到期清理 | 超出类型或大小的图片换不了 logo、交不了作废支票，端不显示原因 |
-| 改银行账户（#53、#67） | 一步提交，不要验证码；审核中的新值在 #30 的 `pendingBankInfo` 里、App 上显示；账号给全 | 先向 Owner 的登录邮箱发验证码（#67），#53 带上票据与验证码，不带回 400 提示升级；同一个 `ticket`、同一个验证码与同样的银行账户各项重复提交只建一笔申请；审核中 `pendingBankInfo` 为空对象；账号只给末 4 位 | 旧包改不了银行账户，留在编辑页、不提示，要升级 App；审核中的银行信息显示空值；改银行信息要重输完整账号 |
+| 上传（#49） | 不要求登录；任何类型都收，存成公网直链，立即可用 | 要求令牌；只供换商户 logo，只收 PNG 或 JPEG、不超过 512KB（固定上限），存成长效公开地址；交给 #50 后才生效，没交的不生效 | 超出类型或大小的图片换不了 logo，端不显示原因；银行信息页换作废支票照片时同样受此限 |
+| 改银行账户（#53） | 一步提交，不要验证码；审核中的新值在 #30 的 `pendingBankInfo` 里、App 上显示；账号给全 | App 上不受理：#53 一律回 400、`code` 为 `208039`，`message` 是固定双语提示，改银行账户到商户后台办理；商户后台有审核中的申请时 `pendingBankInfo` 为空对象；账号只给末 4 位 | App 上改不了银行账户，提交后留在编辑页、不提示；审核中的银行信息显示空值 |
 | 改登录邮箱（#54、#55、#68） | 改的是商户联系邮箱；验证码只发往当前邮箱，新邮箱不验证；提交后进运营审核，审核中 #30 带 `email_verify`、`pending_email` | 改的是本人的登录邮箱（Owner 改的即商户注册邮箱）；新邮箱也要收码确认（#68），确认后立即生效、不走审核；开了验证器的账号第一步填验证器上的码、不发邮件；现网版本的 App 提交 #55 不核对验证码、不向新邮箱发码，直接回 400 提示升级 | 旧包改不了，提交后弹通用错误文案、邮箱不变，要升级 App；联系信息页不再出现「Reviewing」 |
 | 全关支付方式（#58） | 存成空，收款页反而显示全部已开通的方式；未开通的码也收 | 全关回 400，至少留一种；新加的支付方式须已开通，已选着、后来停用的可原样保留 | 全关后保存显示失败动画 |
-| 验证码错（#36、#45、#48、#53、#55、#68） | 多数回 400 带固定文案；#48 回 500，端靠 HTTP 500 加文案认出验证码错 | 一律回 400，带 `204010` / `206006` / `206007`，`message` 写明原因 | #48 的验证码错不再显示「Wrong verification code.」，改为通用错误文案；#55 端靠 `message` 文案分辨，文案对不上时同样是通用错误文案 |
+| 验证码错（#36、#45、#48、#55、#68） | 多数回 400 带固定文案；#48 回 500，端靠 HTTP 500 加文案认出验证码错 | 一律回 400，带 `204010` / `206006` / `206007`，`message` 写明原因 | #48 的验证码错不再显示「Wrong verification code.」，改为通用错误文案；#55 端靠 `message` 文案分辨，文案对不上时同样是通用错误文案 |
 | 订单消息里的退款（#38） | 收款、退款完成时另存一条消息；退款消息关联不上，列表里出不来 | 不另存，按当前商户成交的收款与已受理的退款现算，与流水同一批行 | 退款消息出现在订单消息里 |
 | 子商户的订单消息（#38） | 子商户的一笔收款落两条，子商户看到重复的 | 按当前商户算，一笔一条 | 子商户不再看到重复的收款消息 |
 | 订单消息的已读（#27、#37、#41） | 按商户记，一人清了全商户都算已读 | 按本人记，本人上次标已读之后的才算未读；公告仍按商户 | 同一商户的员工各自清各自的订单消息未读 |
 | 解绑微信（#63） | 只清账号上的微信，这个微信照收公众号到账通知 | 同时把商户通知接收里同一个微信移除；绑定（#65）时同样登记为通知接收微信 | 解绑后这个微信不再收到收款通知 |
 | 员工的角色数字（#60 至 #63） | 账号上存的 1、2、3；新增与改角色收什么写什么，含 1 | 按持有的角色算：Owner 与持 Admin 的为 1，持店长的为 2，其余为 3，同时持多个角色时按此先后取第一个符合的；新增与改角色只收 2、3 | 只持商户后台其他角色（如 Employee）的员工显示为 Cashier |
 | 退款账户充值的重复提交（#36） | 同一令牌、同样参数 5 秒内重复提交回 400 | 同一商户 60 秒内同一个 `ticket`、同一个验证码、同样的方式与金额重复提交，返回第一次的结果；改了任何一项（含验证码）按新的请求处理 | 连点不再报错，也不重复划款；输错码后重输照常提交 |
-| 仅查看时的商户后台事务（#35、#36、#44 至 #46、#50 至 #56、#58、#59、#62 至 #65、#67、#68，以及 #9、#47、#48 的 `type=refund`） | 不拦 | 回 400、`code` 为 `208035`；本人的推送开关（#43）、标已读（#41）、本人的登录密码（#9 的 `type=login`）、上传（#49）照常 | 处于仅查看的商户改不了这些，端按各页的失败处理 |
+| 仅查看时的商户后台事务（#35、#36、#44 至 #46、#50 至 #52、#54 至 #56、#58、#59、#62 至 #65、#68，以及 #9、#47、#48 的 `type=refund`） | 不拦 | 回 400、`code` 为 `208035`；本人的推送开关（#43）、标已读（#41）、本人的登录密码（#9 的 `type=login`）、上传（#49）照常 | 处于仅查看的商户改不了这些，端按各页的失败处理 |
 | 员工的微信头像（#60、#61） | 返回头像地址 | 不返回 | 员工列表与绑定页显示缺省头像 |
 | 收款推送开关（#43） | 只管一条现网 App 不走的推送通道，关了照样收到 | 关了这个账号登录的手机就收不到收款推送 | 开关真的生效 |
 | 切换商户后的收款推送 | 这部手机在登录过的每家商户下各登记一次，两家的提醒都推 | 只推手机当前所在商户的提醒（切换后登记的令牌跟着当前商户） | 切换后仍是本人、开关只有一份，提醒按手机当前所在的商户送 |
 | 订单有效期（#56） | 收 20 秒到 24 小时，秒数不必是整分钟 | 换算成整分钟，不是整分钟或超出范围回 400 | 设成不是整分钟的秒数（如 `90s`）保存不了，端不提示 |
-| 银行账户的分行（#30、#53 的 `branch`） | #30 返回分行，#53 存下 | 结算账户没有分行：#30 的 `bankInfo` 不返回 `branch`，#53 的 `branch` 收下不用 | 银行信息页与编辑页的分行一栏为空，填了也不保存 |
+| 银行账户的分行（#30 的 `branch`） | #30 返回分行 | 结算账户没有分行：#30 的 `bankInfo` 不返回 `branch` | 银行信息页与编辑页的分行一栏为空 |
 | 收款页的自撰填写项与小费比例（#59） | 服务端不校验；端限自撰项最多 4 项、每项 20 个字符，小费比例两位数 | 自撰项最多 4 项、每项不超过 10 个字符、不以 `sys:` 开头、互不重复；小费三档是 0 到 30 的整数；不合规回 400 | 超出的设不成，显示保存失败动画 |
 | 新密码的规则（#62、#63） | 服务端不校验（端要求 8 到 30 位、含大写、无空白） | 与商户后台同一条密码规则：至少 8 位，含大写字母、小写字母、数字与特殊字符；不合规回 400 | 端校验能过、服务端不收的密码（如没有数字或特殊字符）设不成，端按各页的失败处理 |
 | 新增员工的用户名（#62） | 不限字符，邮箱形态的用户名也收 | 合法邮箱格式的用户名回 400，邮箱账号要到商户后台邀请 | 填邮箱形态的用户名建不了，端不提示 |
@@ -2001,6 +1987,21 @@ import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.mi
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
 document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
 const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
 document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
 mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
 mermaid.run({querySelector:'.mermaid'}).then(jump,jump);

@@ -123,7 +123,7 @@ paths:
               email: finance@example.com
       responses:
         '202':
-          description: 已发码（`deliveredTo` 为脱敏后的那个邮箱）
+          description: 已受理，验证码邮件随后发出（`deliveredTo` 为脱敏后的那个邮箱）
           content:
             application/json:
               schema:
@@ -252,7 +252,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   schemas:
     RecipientId:
       type: string
@@ -352,6 +352,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -432,9 +457,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     Timestamp:
       type: string
       format: date-time
@@ -479,7 +519,7 @@ components:
         deliveredTo:
           type: string
           readOnly: true
-          description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
+          description: 脱敏投递目标（如 `o***@e***.com`）——供客户端提示「码发到哪里」。
         cooldownSeconds:
           type: integer
           readOnly: true
@@ -514,12 +554,12 @@ components:
     WechatQrContent:
       type: string
       description: |
-        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 三处扫码入口（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用同一形状与渲染方式。
+        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
     WechatQrChallenge:
       type: object
       additionalProperties: false
       description: |
-        微信扫码类入口「发起」的统一响应：前端用 `qrContent` 渲染二维码，再拿 `qrTicket` 轮询该入口的结果端点。
+        微信扫码类入口「发起」的统一响应：客户端用 `qrContent` 渲染二维码，再拿 `qrTicket` 轮询该入口的结果端点。
 
         各入口的轮询状态用同一套词，见 `WechatPollStatus`。
       required:
@@ -539,15 +579,15 @@ components:
     WechatPollStatus:
       type: string
       description: |
-        微信扫码轮询（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用的状态词：`WAITING` 继续轮询、`EXPIRED` 终态需重新发起、各入口一个成功态（登录 `ESTABLISHED` / 绑定 `BOUND`）。各入口实际取值见各自 `enum`。
+        微信扫码轮询（扫码登录与各类扫码绑定）共用的状态词：`WAITING` 继续轮询、`EXPIRED` 终态需重新发起、各入口一个成功态（登录 `ESTABLISHED` / 绑定 `BOUND`）。各入口实际取值见各自 `enum`。
 
         未列出的取值按仍在进行中处理，继续轮询。
 
         状态查询恒返回 `200` + 状态：票据不存在 / 非法 / 已过期一律归为 `EXPIRED`，不用 `4xx` 表达；
-        `4xx` 只表示调用方自身问题（未登录 / 无权限 / 请求过频 / 商户上下文已变）。
+        `4xx` 只表示调用方自身问题（未登录 / 无权限 / 请求过频 / 会话上下文已变 / 本浏览器已登录（登录轮询））。
     WechatBindingPollResult:
       type: object
-      description: 微信绑定类入口（成员登录绑定 / 通知接收方绑定）轮询的统一响应。
+      description: 微信扫码绑定类入口轮询的统一响应。
       required:
         - status
       properties:
@@ -559,7 +599,7 @@ components:
             - BOUND
             - EXPIRED
           readOnly: true
-          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认，登录绑定即时生效，通知接收方随后出现在列表；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
+          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认、绑定已生效（绑定生效后在哪里呈现见各入口）；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

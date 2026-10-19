@@ -129,18 +129,19 @@ paths:
       description: |
         校验图形验证码与账号密码，通过后返回账号与商户信息，以及用于登记本机的临时登录凭据 `sign_key`（有效 30 分钟）。登录不要求二次验证，账号在商户后台开了验证器的也一样。
 
-        `loginId` 先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写。
+        `loginId` 先按用户名精确匹配，匹配不到再按邮箱，不分大小写。
 
-        登录所在的商户默认是账号的主商户，响应里的 `client_id`、`client` 就是这个商户；主商户被冻结时登录被拒，不改进其他商户。请求带了 `devId`、且该设备已登记在登录者可以访问的某个关联商户名下时，登录就在该商户，`client_id`、`client` 返回它；没带 `devId` 的，在 `registerDevice` 那一步转到该商户。
+        登录所在的商户默认按登录账号定：Owner 与主商户的员工为主商户，关联商户的员工为其所属的关联商户。响应里的 `client_id`、`client` 就是这个商户；这个商户被冻结或删除时登录被拒，不改落其他商户。请求带了 `devId`、且该设备已登记在登录者可以访问的某个关联商户名下时，登录就在该商户，`client_id`、`client` 返回它；没带 `devId` 的，在 `registerDevice` 那一步转到该商户。
 
         下列情形返回 `400`：
 
         - `204020` 图形验证码不对，或已过期、已用过。
         - `206012` 账号不存在或密码不对，两者不区分。
         - `966001` 连续登录失败次数过多，账号被锁定。默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、商户 App 登录共用计数。
+        - `906004` 同一登录名（解析不到账号）短时间内失败过多，稍后再试。默认 15 分钟内 5 次（可配置），与商户后台网页登录、商户 App 登录共用计数。
         - `208027` 账号已被停用。
         - `208029` 账号的邮箱还没有验证。
-        - `208028` 账号的主商户已被冻结。
+        - `208028` 登录所在的商户已被冻结或删除。
         - `208033` 带了 `devId`，而这台设备已被停用。
       security: []
       requestBody:
@@ -1513,7 +1514,7 @@ paths:
                     refund_count: 1
                     order_count: 2
                     additional_content: Thank you for visiting!
-                    logo_print: https://static.example.com/files/3e7a0c5d9b2f41e8a6c4d1f0b8e27a93.png
+                    logo_print: https://cdn.example.com/merchant/logo/2026/10/26e64d6f1268b027fb111e7d08b3f195.png
                 keyboard:
                   summary: 键盘机：同样的流水，tip_amount 为 0
                   value:
@@ -1728,7 +1729,7 @@ paths:
                     tip_amount: 1.5
                     clearing_amount: 9
                 additional_content: Thank you for visiting!
-                logo_print: https://static.example.com/files/3e7a0c5d9b2f41e8a6c4d1f0b8e27a93.png
+                logo_print: https://cdn.example.com/merchant/logo/2026/10/26e64d6f1268b027fb111e7d08b3f195.png
         '400':
           $ref: '#/components/responses/Rejected'
         '401':
@@ -2064,7 +2065,7 @@ components:
       properties:
         loginId:
           $ref: '#/components/schemas/LoginId'
-          description: 登录名，用户名或邮箱。先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写
+          description: 登录名，用户名或邮箱。先按用户名精确匹配，匹配不到再按邮箱，不分大小写
         password:
           type: string
           format: password

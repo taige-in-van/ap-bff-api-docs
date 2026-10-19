@@ -2,7 +2,7 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>API 基础约定</title>
-<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="index.html">← 全部契约</a></p>
 <div id="content"></div>
 <script type="text/plain" id="src">
@@ -62,15 +62,19 @@
 
 ## HTTP 状态语义
 
-用 HTTP status 表达请求结果，**语义即 RFC 原义**（本文不复述）；非 `2xx` 时响应体只返 `ErrorEnvelope`（见下）。以下几个是本平台**做了收窄或借用**的，按这里的口径认：
+用 HTTP status 表达请求结果，**语义即 RFC 原义**（本文不复述）；非 `2xx` 时响应体只返 `ErrorEnvelope`（见下）。下表列两类内容：本平台**做了收窄或借用**的口径，以及该状态下的**通用失败码**（90 段，不带业务专属文案的兜底码）。同一状态还会承载各接口自己的业务码（如 `403` 另有登录态重输因子错、无可用商户等），表里不穷举——**分流一律按 `code`**（见下「怎么读 `code`」）。
 
-| status | 本平台口径 |
+| status | 本平台口径 / 通用失败码 |
 |---|---|
-| `400` | 登录 / 二次校验的**凭据输错**走这里，**不走 `401`**（见下「凭据错 ≠ 会话失效」） |
-| `401` | **只表会话失效** → 跳登录页。凭据输错不占 `401` |
-| `409` | 除资源状态冲突外，**幂等键 payload 冲突**也走这里（见下「幂等」） |
+| `400` | 登录 / 二次校验的**凭据输错**走这里，**不走 `401`**（见下「凭据错 ≠ 会话失效」）。通用失败码：字段校验不合法 `904001`（逐字段错误在 `details[]`）、请求体无法解析、Content-Type 不支持、方法不被允许、Accept 无法满足或缺必填的 `Idempotency-Key` `904002`（415 / 405 / 406 不单独返回） |
+| `401` | **只表会话失效**（`906001`）→ 跳登录页。凭据输错不占 `401` |
+| `403` | 通用失败码：CSRF token 缺失或不匹配 `906002`（见「鉴权与 CSRF」）、缺权限点 / 非 Owner `906003` |
+| `404` | 通用失败码：资源不存在 `908001`（跨 scope 同此，见下） |
+| `409` | 除资源状态冲突外，**幂等键 payload 冲突**（`908003`）与同键首次请求还在处理（`908002`）也走这里（见下「幂等」） |
 | `410` | **一次性凭据失效**：OTP / 验证链接 过期或已用 → 回第一步重新发起 |
 | `423` | **账号临时锁定**（连续失败防爆破）→ 等冷却 |
+| `429` | 通用失败码：限流 `906004` → 稍后重试 |
+| `5xx` | 通用失败码：未预期异常 `500`·`905001`、依赖不可用 / 维护中 `503`·`905002`（可稍后重试） |
 
 **跨 scope 的资源一律 `404`**（不区分「这东西不存在」与「它不属于你」）——反枚举。所以拿到 `404` 时**不要**据此推断资源是否真的存在、更不要提示用户「无权访问该资源」；按「找不到」处理即可。
 
@@ -153,11 +157,12 @@
 **谁渲染，谁负责本地化**：
 
 - **前端渲染的一切**（页面文案、按钮、状态徽章、错误提示）用你自己的多语言资源；契约里写死的封闭枚举（状态、类型等）只给码，展示名由前端按码从这里取。
-- **所有请求统一带 `Accept-Language`**（BCP-47，页面当前的语言），由统一请求层加，不必逐个接口考虑。它只在两处起作用：
+- **所有请求统一带 `Accept-Language`**（BCP-47，页面当前的语言），由统一请求层加，不必逐个接口考虑。它只在三处起作用：
   - **后端产出的文件**（PDF / Excel 导出）——你拿不到渲染现场，所以这类端点按它渲染（取最接近的语言，如 `fr-CA` → `fr`；没有匹配的依次回退到账号的界面语言、商户语言），并在响应回 `Content-Language` 告诉你实际用了哪种语言（**以响应头为准，不要回退去猜请求头**）。哪些端点如此，见各端点参数说明。
   - **账号第一次确定界面语言**——注册、邀请设密、登录时账号还没有语言偏好，就用它记下；之后不再看它。
+  - **给还没有语言偏好的账号本人发的邮件**（如找回密码验证码）——用它的语言发；账号有语言偏好时不看它。
 - **界面语言是账号的偏好**：登录后按会话返回的 `locale` 显示（换设备也跟着账号走），顶栏切换语言时调 `updateMyProfile` 存回去。登录前的页面按浏览器本地的选择。
-- **邮件 / 通知**由后端渲染，与本次请求无关：发给某个人本人的按这个人的 `locale`，发给商户的按商户语言。
+- **邮件 / 通知**由后端渲染：发给某个人本人的按这个人的 `locale`（还没有时见上），发给商户的按商户语言。
 - **商户自己录入的多语言内容**（如 Payment Link 的 FAQ / Policy）是**数据**不是 locale 问题——字段本身按语言分组返回，按当前语言取用即可。
 - **平台配置里的候选**（`/config/*`：省州、行业、MCC 等）带 `label: { en, zh, fr }`，按当前语言取，缺该语言回落 `en`。资料、申请等业务数据里这些字段只给码，展示名拿码到对应 `/config/*` 里查。`/config/*` 需要时就调，前端不必缓存。
 - **格式类规则**（区号、邮编、时区、上传格式与大小）用前端参考数据先拦一道，服务端按同一规则校验、以服务端为准。
@@ -179,7 +184,7 @@
 - 切 tab、点侧边栏或返回、关弹窗或编辑卡（X、遮罩、Cancel）时，弹站内确认框「放弃未保存的修改？」，按钮「放弃修改」/「继续编辑」。不用浏览器原生确认框。
 - 刷新页面、关闭浏览器标签页时，用 `beforeunload` 兜底，那一步只能是浏览器自带的提示。
 - 「有未保存的修改」= 当前表单值与上次从服务端读到（或新建时的初始值）不同；只打开编辑态、没改任何东西不算。
-- 已上传、尚未随保存提交的文件不用前端清理，放弃后由服务端到期清理（见「文件上传」）。
+- 已上传、尚未随保存提交的文件不用前端清理：放弃后它不被引用、不生效（见「文件上传」）。
 
 各页在 flows 里注明哪些操作会触发确认。
 
@@ -247,10 +252,10 @@
 
 ## 幂等
 
-- **创建类 / 非天然幂等的写**（如改密〔失效其他会话〕、有副作用的写）：带 `Idempotency-Key`（header）去重。**声明了该参数的端点一律必填**——缺键 → `400`（可选就等于「客户端不发即无幂等」，故不设可选）。
+- **创建类 / 非天然幂等的写**（如改密〔失效其他会话〕、有副作用的写）：带 `Idempotency-Key`（header）去重。**声明了该参数的端点一律必填**——缺键 → `400`（`904002`；可选就等于「客户端不发即无幂等」，故不设可选）。
 - **天然幂等的 PUT / DELETE**：不声明本参数、也不必带（按业务单号或目标状态天然去重）。
 - **认证类（登录 / 登出 / MFA / 扫码）与多步 OTP 挑战类（改邮箱 / 找回）**：按流程语义**不带**幂等键（每次都应重新认证 / 校验）。
-- **命中语义**：同键 + **同请求体**重发 → 返回首次结果、不重复副作用（**异步受理类**例外：返回当前进度、完成后收敛终态——如某写操作先返 `202` 处理中、同键重发直到返终态）；同键 + **请求体不同** → `409`（`208005`）、不新建。**改了请求体就必须换新键**——哪怕只改了备注这类非关键字段。无请求体的端点，作用域 = 键 + 路径资源（同键用于不同资源 → `409`），见该端点说明。同键的首次请求还在处理 → `409`（`208011`），稍后以同键、同请求体重发即拿到首次结果。
+- **命中语义**：同键 + **同请求体**重发 → 返回首次结果、不重复副作用（**异步受理类**例外：返回当前进度、完成后收敛终态——如某写操作先返 `202` 处理中、同键重发直到返终态）；同键 + **请求体不同** → `409`（`908003`）、不新建。**改了请求体就必须换新键**——哪怕只改了备注这类非关键字段。无请求体的端点，作用域 = 键 + 路径资源（同键用于不同资源 → `409`·`908003`），见该端点说明。同键的首次请求还在处理 → `409`（`908002`），稍后以同键、同请求体重发即拿到首次结果。
 - **怎么生成**：**一次逻辑操作生成一个键**（如用户点一次「提交」），值取任意不重复字符串（UUID 即可）；**网络失败 / 超时重试时复用同一个键**，这正是幂等键的用途。不要每次请求都新生成（那样重试会变成重复下单），也不要跨不同操作复用。
 - 另有**防重提交**短窗（防双击 / 误触，窗口可配置），独立于业务幂等。
 
@@ -272,7 +277,7 @@
    ⚠️ **不要手设 `Content-Type`**：`multipart/form-data` 的 `boundary` 由浏览器生成并写进 header，手写后浏览器不再补、服务端解析不出表单。**全局 axios 实例若默认 `application/json`，这个请求要把该 header 删掉**（不是覆盖成 multipart）。
 2. **把 `fileId` 交给业务写操作** —— 上传成功**不等于生效**；`fileId` 随对应的业务写操作提交（保存草稿 / 设置 Logo / 提交结算变更 / 保存设置 / 创建或编辑链接），在那一步文件才归属该业务对象。上传后要立即回显，用响应里的 `previewUrl`。
 
-上传非幂等：每次上传产生新 `fileId`，重试即重新上传。上传后从未被引用的文件由服务端到期清理，前端不用管。
+上传非幂等：每次上传产生新 `fileId`，重试即重新上传。上传后从未被引用的文件不生效，前端不用管。
 
 **读回来时**：具体字段以各端点 schema 为准，命名有两类——`*Ref` / `*FileId` 是**引用**（可写，提交时用），`*Url` / `*previewUrl` 是**可渲染地址**（`readOnly`，只出不入，不要提交、不要持久化）。**响应同时给出两者时**：不换文件就**不传该引用**（未出现的字段保持原值，见「更新语义」），换文件传新 `fileId`，移除传 `null`；只给地址的响应直接渲染即可。地址分两类：**长效稳定的公开地址**可直接放进页面；**短时效地址**过期即失效，重新读取所在资源即可拿到新的。哪个用途属于哪类，见该入口 `purpose` 的说明。
 

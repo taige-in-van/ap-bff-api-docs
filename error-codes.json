@@ -222,6 +222,16 @@
       "name": "TEAM_ROLE_BEYOND_OPERATOR_AUTHORITY",
       "retryable": false
     },
+    "206018": {
+      "httpStatus": 410,
+      "name": "ONBOARDING_CONFIRMATION_LINK_INVALID",
+      "retryable": false
+    },
+    "206019": {
+      "httpStatus": 410,
+      "name": "IMPERSONATION_HANDOFF_INVALID",
+      "retryable": false
+    },
     "208002": {
       "httpStatus": 409,
       "name": "PENDING_REQUEST_EXISTS",
@@ -230,11 +240,6 @@
     "208003": {
       "httpStatus": 409,
       "name": "STATE_PRECONDITION_MISMATCH",
-      "retryable": false
-    },
-    "208005": {
-      "httpStatus": 409,
-      "name": "IDEMPOTENCY_PAYLOAD_CONFLICT",
       "retryable": false
     },
     "208007": {
@@ -251,11 +256,6 @@
       "httpStatus": 409,
       "name": "PREAUTH_NOT_RELEASABLE",
       "retryable": false
-    },
-    "208011": {
-      "httpStatus": 409,
-      "name": "IDEMPOTENT_REQUEST_IN_PROGRESS",
-      "retryable": true
     },
     "208012": {
       "httpStatus": 409,
@@ -338,6 +338,423 @@
       "name": "SETTLEMENT_BY_CHANNEL",
       "retryable": false
     },
+    "208040": {
+      "httpStatus": 400,
+      "name": "FILE_NOT_USABLE",
+      "retryable": false
+    },
+    "208042": {
+      "httpStatus": 409,
+      "name": "MERCHANT_AUTH_ALREADY_SIGNED_IN",
+      "retryable": false
+    },
+    "208046": {
+      "httpStatus": 409,
+      "name": "ASSISTED_APPLICATION_READ_ONLY",
+      "retryable": false
+    },
+    "208052": {
+      "httpStatus": 409,
+      "name": "REFUND_PIN_NOT_SET",
+      "retryable": false
+    },
+    "304001": {
+      "httpStatus": 400,
+      "name": "ADMIN_OTP_RETRYABLE",
+      "requiredContextFields": [
+        "attemptsRemaining"
+      ],
+      "retryable": true
+    },
+    "304002": {
+      "httpStatus": 400,
+      "name": "ADMIN_CAPTCHA_FAILED",
+      "retryable": false
+    },
+    "304003": {
+      "httpStatus": 400,
+      "name": "ADMIN_LOGIN_IP_ALLOWLIST_EXCLUDES_CURRENT_IP",
+      "retryable": false
+    },
+    "304201": {
+      "httpStatus": 400,
+      "name": "APPLICATION_DECISION_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "304202": {
+      "httpStatus": 400,
+      "name": "ASSISTED_APPLICATION_FIELD_INVALID",
+      "retryable": false
+    },
+    "304203": {
+      "httpStatus": 400,
+      "name": "ASSISTED_APPLICATION_DOCUMENTS_INCOMPLETE",
+      "retryable": false
+    },
+    "304204": {
+      "httpStatus": 400,
+      "name": "ASSISTED_APPLICATION_SETTLEMENT_CYCLE_INVALID",
+      "retryable": false
+    },
+    "304205": {
+      "httpStatus": 400,
+      "name": "MERCHANT_FILE_REJECTED",
+      "retryable": false
+    },
+    "304301": {
+      "httpStatus": 400,
+      "name": "MERCHANT_MEMBER_ROLE_NOT_ASSIGNABLE",
+      "retryable": false
+    },
+    "306001": {
+      "httpStatus": 400,
+      "name": "ADMIN_LOGIN_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "306002": {
+      "httpStatus": 410,
+      "name": "ADMIN_CHALLENGE_EXPIRED_OR_CONSUMED",
+      "retryable": false
+    },
+    "306003": {
+      "httpStatus": 423,
+      "name": "ADMIN_CHALLENGE_LOCKED",
+      "retryable": false
+    },
+    "306004": {
+      "httpStatus": 403,
+      "name": "ADMIN_STEP_UP_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "306005": {
+      "httpStatus": 410,
+      "name": "ADMIN_INVITATION_TOKEN_INVALID_OR_EXPIRED",
+      "retryable": false
+    },
+    "306006": {
+      "httpStatus": 410,
+      "name": "ADMIN_INVITATION_ALREADY_ACCEPTED",
+      "retryable": false
+    },
+    "306007": {
+      "httpStatus": 403,
+      "name": "ADMIN_ROLE_BEYOND_OPERATOR_AUTHORITY",
+      "retryable": false
+    },
+    "306008": {
+      "httpStatus": 403,
+      "name": "ADMIN_PRIVILEGE_BEYOND_OPERATOR_AUTHORITY",
+      "retryable": false
+    },
+    "306009": {
+      "httpStatus": 403,
+      "name": "ADMIN_DATA_SCOPE_BEYOND_OPERATOR",
+      "retryable": false
+    },
+    "306010": {
+      "httpStatus": 400,
+      "name": "ADMIN_LOGIN_IP_NOT_ALLOWED",
+      "retryable": false
+    },
+    "308001": {
+      "httpStatus": 403,
+      "name": "STAFF_SELF_OPERATION_FORBIDDEN",
+      "retryable": false
+    },
+    "308002": {
+      "httpStatus": 409,
+      "name": "LAST_ACCOUNT_ADMINISTRATOR_REQUIRED",
+      "retryable": false
+    },
+    "308003": {
+      "httpStatus": 409,
+      "name": "STAFF_ACCOUNT_REMOVED",
+      "retryable": false
+    },
+    "308004": {
+      "httpStatus": 409,
+      "name": "STAFF_STATE_CONFLICT",
+      "retryable": false
+    },
+    "308005": {
+      "httpStatus": 409,
+      "name": "ACCESS_GRANT_MERCHANT_IN_SCOPE",
+      "retryable": false
+    },
+    "308006": {
+      "httpStatus": 403,
+      "name": "ACCESS_GRANT_KA_MERCHANT",
+      "retryable": false
+    },
+    "308007": {
+      "httpStatus": 409,
+      "name": "STAFF_IDENTITY_NOT_ACTIVE",
+      "retryable": false
+    },
+    "308103": {
+      "httpStatus": 409,
+      "name": "PARAMETER_VERSION_CONFLICT",
+      "retryable": false
+    },
+    "308104": {
+      "httpStatus": 409,
+      "name": "ANNOUNCEMENT_STATE_CONFLICT",
+      "retryable": false
+    },
+    "308105": {
+      "httpStatus": 409,
+      "name": "NOTIFICATION_DELIVERY_NOT_REDELIVERABLE",
+      "retryable": false
+    },
+    "308106": {
+      "httpStatus": 409,
+      "name": "OUTBOUND_DELIVERY_NOT_DEAD_LETTER",
+      "retryable": false
+    },
+    "308107": {
+      "httpStatus": 409,
+      "name": "BATCH_EXECUTION_STATE_CONFLICT",
+      "retryable": false
+    },
+    "308108": {
+      "httpStatus": 409,
+      "name": "BATCH_JOB_ALREADY_RUNNING",
+      "retryable": false
+    },
+    "308201": {
+      "httpStatus": 409,
+      "name": "APPLICATION_STATE_MISMATCH",
+      "retryable": false
+    },
+    "308202": {
+      "httpStatus": 409,
+      "name": "MERCHANT_BLOCKLIST_HIT",
+      "requiredContextFields": [
+        "blocklistHits"
+      ],
+      "retryable": false
+    },
+    "308203": {
+      "httpStatus": 409,
+      "name": "APPLICATION_SIGNATURE_REQUIRED",
+      "retryable": false
+    },
+    "308204": {
+      "httpStatus": 409,
+      "name": "APPLICATION_NOT_ASSISTED",
+      "retryable": false
+    },
+    "308205": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_OWNER_IDENTITY_UNAVAILABLE",
+      "retryable": false
+    },
+    "308206": {
+      "httpStatus": 400,
+      "name": "MERCHANT_FILE_NOT_USABLE",
+      "retryable": false
+    },
+    "308301": {
+      "httpStatus": 409,
+      "name": "MERCHANT_STATE_MISMATCH",
+      "retryable": false
+    },
+    "308302": {
+      "httpStatus": 409,
+      "name": "MERCHANT_HAS_CHILD_MERCHANTS",
+      "retryable": false
+    },
+    "308303": {
+      "httpStatus": 409,
+      "name": "IMPERSONATION_UNAVAILABLE",
+      "retryable": false
+    },
+    "308304": {
+      "httpStatus": 409,
+      "name": "MERCHANT_OWNER_PROTECTED",
+      "retryable": false
+    },
+    "308305": {
+      "httpStatus": 409,
+      "name": "MERCHANT_MEMBER_HAS_NO_EMAIL",
+      "retryable": false
+    },
+    "308306": {
+      "httpStatus": 409,
+      "name": "MERCHANT_MEMBER_STATE_MISMATCH",
+      "retryable": false
+    },
+    "308307": {
+      "httpStatus": 409,
+      "name": "SETTLEMENT_CHANGE_IN_REVIEW",
+      "retryable": false
+    },
+    "308309": {
+      "httpStatus": 409,
+      "name": "MERCHANT_CODE_ALIAS_TAKEN",
+      "retryable": false
+    },
+    "308310": {
+      "httpStatus": 409,
+      "name": "MERCHANT_DOCUMENT_REQUIRED",
+      "retryable": false
+    },
+    "308311": {
+      "httpStatus": 409,
+      "name": "MERCHANT_SETTING_VERSION_CONFLICT",
+      "retryable": false
+    },
+    "308312": {
+      "httpStatus": 409,
+      "name": "MERCHANT_DOCUMENT_ALREADY_EXISTS",
+      "retryable": false
+    },
+    "308313": {
+      "httpStatus": 409,
+      "name": "MERCHANT_MEMBER_IS_ADMIN_USER",
+      "retryable": false
+    },
+    "308314": {
+      "httpStatus": 409,
+      "name": "MERCHANT_NOT_ACTIVATED",
+      "retryable": false
+    },
+    "308401": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_CHANNEL_CONCURRENT_UPDATE",
+      "retryable": false
+    },
+    "308402": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_CHANNEL_NOT_READY_TO_ENABLE",
+      "retryable": false
+    },
+    "308403": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_CHANNEL_ALREADY_SIGNED",
+      "retryable": false
+    },
+    "308404": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_APPLICATION_IN_PROGRESS",
+      "retryable": false
+    },
+    "308405": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_SUBMISSION_REJECTED",
+      "retryable": false
+    },
+    "308406": {
+      "httpStatus": 409,
+      "name": "ADMIN_FEE_RATE_ABOVE_CAP",
+      "requiredContextFields": [
+        "capPercentage"
+      ],
+      "retryable": false
+    },
+    "308407": {
+      "httpStatus": 409,
+      "name": "ADMIN_FEE_RATE_EFFECTIVE_FROM_CONFLICT",
+      "retryable": false
+    },
+    "308408": {
+      "httpStatus": 409,
+      "name": "ACQUIRING_PARAMETER_VERSION_CONFLICT",
+      "retryable": false
+    },
+    "308409": {
+      "httpStatus": 409,
+      "name": "MERCHANT_DEVICE_STATE_MISMATCH",
+      "retryable": false
+    },
+    "308410": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_CHANNEL_NOT_SIGNABLE",
+      "retryable": false
+    },
+    "308411": {
+      "httpStatus": 409,
+      "name": "CHECKOUT_OPTION_NOT_OPENED",
+      "retryable": false
+    },
+    "308412": {
+      "httpStatus": 409,
+      "name": "PAYER_INPUT_CONFIG_INVALID",
+      "retryable": false
+    },
+    "308413": {
+      "httpStatus": 409,
+      "name": "MERCHANT_STORE_QRCODE_NOT_AVAILABLE",
+      "retryable": false
+    },
+    "308414": {
+      "httpStatus": 409,
+      "name": "MERCHANT_PRODUCT_LINK_DELETED",
+      "retryable": false
+    },
+    "904001": {
+      "httpStatus": 400,
+      "name": "VALIDATION_FAILED",
+      "retryable": false
+    },
+    "904002": {
+      "httpStatus": 400,
+      "name": "MALFORMED_REQUEST",
+      "retryable": false
+    },
+    "905001": {
+      "httpStatus": 500,
+      "name": "INTERNAL_ERROR",
+      "retryable": false
+    },
+    "905002": {
+      "httpStatus": 503,
+      "name": "SERVICE_UNAVAILABLE",
+      "retryable": true
+    },
+    "906001": {
+      "httpStatus": 401,
+      "name": "SESSION_INVALID",
+      "retryable": false
+    },
+    "906002": {
+      "httpStatus": 403,
+      "name": "CSRF_REJECTED",
+      "retryable": false
+    },
+    "906003": {
+      "httpStatus": 403,
+      "name": "PERMISSION_DENIED",
+      "retryable": false
+    },
+    "906004": {
+      "httpStatus": 429,
+      "name": "RATE_LIMITED",
+      "retryable": true
+    },
+    "908001": {
+      "httpStatus": 404,
+      "name": "RESOURCE_NOT_FOUND",
+      "retryable": false
+    },
+    "908002": {
+      "httpStatus": 409,
+      "name": "IDEMPOTENCY_IN_PROGRESS",
+      "retryable": true
+    },
+    "908003": {
+      "httpStatus": 409,
+      "name": "IDEMPOTENCY_KEY_REUSED",
+      "retryable": false
+    },
+    "964001": {
+      "httpStatus": 400,
+      "name": "LOGIN_IP_ALLOWLIST_EXCLUDES_CURRENT_IP",
+      "requiredContextFields": [
+        "currentIp"
+      ],
+      "retryable": false
+    },
     "966001": {
       "httpStatus": 423,
       "name": "ACCOUNT_LOCKED",
@@ -376,6 +793,31 @@
       "name": "LOGIN_NO_ACCESS",
       "retryable": false
     },
+    "966010": {
+      "httpStatus": 403,
+      "name": "LOGIN_NOT_ELIGIBLE",
+      "retryable": false
+    },
+    "966011": {
+      "httpStatus": 401,
+      "name": "IDENTITY_LOGIN_CREDENTIAL_INVALID",
+      "retryable": false
+    },
+    "966012": {
+      "httpStatus": 403,
+      "name": "STEP_UP_BINDING_MISMATCH",
+      "retryable": false
+    },
+    "966013": {
+      "httpStatus": 401,
+      "name": "TRUSTED_BROWSER_INVALID",
+      "retryable": false
+    },
+    "966014": {
+      "httpStatus": 400,
+      "name": "LOGIN_IP_NOT_ALLOWED",
+      "retryable": false
+    },
     "968001": {
       "httpStatus": 409,
       "name": "LOGIN_ID_TAKEN",
@@ -401,19 +843,34 @@
       "name": "ACCOUNT_STATE_CONFLICT",
       "retryable": false
     },
-    "968009": {
-      "httpStatus": 409,
-      "name": "SESSION_REFRESH_CONFLICT",
-      "retryable": false
-    },
-    "968011": {
-      "httpStatus": 409,
-      "name": "XCUT_IDEMPOTENCY_PAYLOAD_CONFLICT",
-      "retryable": false
-    },
     "968014": {
       "httpStatus": 409,
-      "name": "IDENTITY_INVITATION_ALREADY_ACCEPTED",
+      "name": "IDENTITY_SET_PASSWORD_TOKEN_CONSUMED",
+      "retryable": false
+    },
+    "968015": {
+      "httpStatus": 403,
+      "name": "APPROVER_UNAVAILABLE",
+      "retryable": false
+    },
+    "968016": {
+      "httpStatus": 409,
+      "name": "PRIVILEGE_NOT_GRANTABLE",
+      "retryable": false
+    },
+    "968017": {
+      "httpStatus": 409,
+      "name": "ROLE_IN_USE",
+      "retryable": false
+    },
+    "968018": {
+      "httpStatus": 409,
+      "name": "ROLE_VERSION_CONFLICT",
+      "retryable": false
+    },
+    "968019": {
+      "httpStatus": 409,
+      "name": "LOGIN_NAME_HELD_BY_UNAVAILABLE_IDENTITY",
       "retryable": false
     }
   }

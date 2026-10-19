@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 团队成员 — 前端契约面
-  version: 2.0.0
+  version: 2.0.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -15,7 +15,7 @@ info:
     - 当前商户以会话为准；当前商户不可访问时返回 `409`·`208022`。
     - 路径里的 `operatorId` 不存在或不属于当前商户，一律返回 `403`，不区分 `404`。
     - **多角色**：一个员工可以持多个角色，有效权限点取所持各角色权限点的并集；可见分区的可选项随之取各角色模块的并集。
-    - **角色的权限边界**：逐个角色判，每个角色的权限点集合都必须是操作者在当前商户有效权限点集合的子集（可以相同），Owner 角色恒不可分配。例如只持店长角色的操作者分配不了 Employee：Employee 含商品链接管理、设备等店长没有的权限点。这条边界用在三处，都由服务端校验：新建成员给的每个角色、编辑成员改成的每个角色、以及被编辑或删除成员**现有**的每个角色（不能对权限比自己宽的成员重设密码、改登录名、改角色、删除、绑定或解绑微信、重发邀请）。`listAssignableRoles` 按同一规则返回候选，不满足时 `403`·`206013`。Owner 对所有可分配角色都满足。
+    - **角色的权限边界**：逐个角色判，每个角色的权限点集合都必须是操作者在当前商户有效权限点集合的子集（可以相同），Owner 角色恒不可分配。例如只持 Developer 角色的操作者分配不了 Employee：Employee 含商品链接、设备等收款产品分区的权限点，Developer 没有。这条边界用在三处，都由服务端校验：新建成员给的每个角色、编辑成员改成的每个角色、以及被编辑或删除成员**现有**的每个角色（不能对权限比自己宽的成员重设密码、改登录名、改角色、删除、绑定或解绑微信、重发邀请）。`listAssignableRoles` 按同一规则返回候选，不满足时 `403`·`206013`。Owner 对所有可分配角色都满足。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -190,13 +190,13 @@ paths:
 
         登录名属于已删除的账号时（不论原属哪个商户），按新建处理并沿用原账号（历史记录接续）：旧密码、MFA、微信绑定都作废，角色以本次提交的为准；邮箱登录名回到邀请中、重发邀请，用户名登录名用本次给的初始密码。原账号若被运营停用，仍保持停用（返回 `DISABLED`），只能由运营解除。
 
-        幂等基准：`Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体返回 `409`·`208005`。
+        幂等基准：`Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体返回 `409`·`908003`。
 
         错误码：
 
         - `968001` 登录名已被其他账号使用（含其他商户的账号）。
         - `206013` 要给的角色里有超出操作者权限边界的（含沿用已删除账号时本次提交的角色）。
-        - `208005` 同一幂等键被用于不同的请求体。
+        - `908003` 同一幂等键被用于不同的请求体。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -237,7 +237,6 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 206013
-        - 208005
         - 968001
   /team/members/{operatorId}:
     put:
@@ -252,18 +251,18 @@ paths:
         - `newPassword`：重设该员工密码，其全部会话失效，并给该员工登录邮箱发密码已修改通知（用户名账号不发）；邀请中的员工不能在这里设密。
         - `loginId` 为用户名：直接生效。
         - `loginId` 为邮箱：已激活员工不直接生效，向新邮箱发确认链接，员工在落地页确认（`confirmMemberLoginEmail`）后才切换，确认前旧邮箱仍有效、新邮箱不占用；同一员工的登录邮箱同时只有一笔改动在途（含员工自己在 My Profile 发起的），再改会顶掉上一笔。邀请中的员工改邮箱 = 向新邮箱重发邀请。
-        - `roleIds`：该员工在本商户的角色整组换成所给的这组，权限立即按新角色的并集判定。
+        - `roleIds`：该员工在本商户的角色整组换成所给的这组，权限按新角色的并集判定，最多晚一个会话复核间隔生效。
 
         Owner 行只能改昵称；Owner 的密码与登录邮箱由 Owner 本人在 My Profile 改。改自己这一行时不能改自己的角色。
 
-        幂等基准：`Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体返回 `409`·`208005`。
+        幂等基准：`Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体返回 `409`·`908003`。
 
         错误码：
 
         - `968001` 新登录名已被其他账号使用。
         - `206013` 改成的角色、或该成员现有的角色里有超出操作者权限边界的。
         - `208003` 给邀请中的员工填了新密码。
-        - `208005` 同一幂等键被用于不同的请求体。
+        - `908003` 同一幂等键被用于不同的请求体。
       parameters:
         - name: operatorId
           in: path
@@ -285,13 +284,12 @@ paths:
                 - role_finance
       responses:
         '204':
-          description: 已更新（改已激活员工的登录邮箱时为已受理：确认链接已发到新邮箱）
+          description: 已更新（改已激活员工的登录邮箱时为已受理：确认链接随后发到新邮箱）
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 206013
         - 208003
-        - 208005
         - 968001
     delete:
       tags:
@@ -337,7 +335,7 @@ paths:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '202':
-          description: 已重发（新链接生效、旧链接失效）;员工保持 INVITED
+          description: 已受理，新邀请邮件随后发出（新链接生效、旧链接失效）;员工保持 INVITED
           content:
             application/json:
               schema:
@@ -516,7 +514,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   schemas:
     TeamMember:
       type: object
@@ -677,6 +675,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -757,9 +780,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     QuickFilterItem:
       type: object
       additionalProperties: false
@@ -848,12 +886,12 @@ components:
     WechatQrContent:
       type: string
       description: |
-        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 三处扫码入口（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用同一形状与渲染方式。
+        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
     WechatQrChallenge:
       type: object
       additionalProperties: false
       description: |
-        微信扫码类入口「发起」的统一响应：前端用 `qrContent` 渲染二维码，再拿 `qrTicket` 轮询该入口的结果端点。
+        微信扫码类入口「发起」的统一响应：客户端用 `qrContent` 渲染二维码，再拿 `qrTicket` 轮询该入口的结果端点。
 
         各入口的轮询状态用同一套词，见 `WechatPollStatus`。
       required:
@@ -873,15 +911,15 @@ components:
     WechatPollStatus:
       type: string
       description: |
-        微信扫码轮询（扫码登录 / 成员登录绑定 / 通知接收方绑定）共用的状态词：`WAITING` 继续轮询、`EXPIRED` 终态需重新发起、各入口一个成功态（登录 `ESTABLISHED` / 绑定 `BOUND`）。各入口实际取值见各自 `enum`。
+        微信扫码轮询（扫码登录与各类扫码绑定）共用的状态词：`WAITING` 继续轮询、`EXPIRED` 终态需重新发起、各入口一个成功态（登录 `ESTABLISHED` / 绑定 `BOUND`）。各入口实际取值见各自 `enum`。
 
         未列出的取值按仍在进行中处理，继续轮询。
 
         状态查询恒返回 `200` + 状态：票据不存在 / 非法 / 已过期一律归为 `EXPIRED`，不用 `4xx` 表达；
-        `4xx` 只表示调用方自身问题（未登录 / 无权限 / 请求过频 / 商户上下文已变）。
+        `4xx` 只表示调用方自身问题（未登录 / 无权限 / 请求过频 / 会话上下文已变 / 本浏览器已登录（登录轮询））。
     WechatBindingPollResult:
       type: object
-      description: 微信绑定类入口（成员登录绑定 / 通知接收方绑定）轮询的统一响应。
+      description: 微信扫码绑定类入口轮询的统一响应。
       required:
         - status
       properties:
@@ -893,7 +931,7 @@ components:
             - BOUND
             - EXPIRED
           readOnly: true
-          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认，登录绑定即时生效，通知接收方随后出现在列表；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
+          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认、绑定已生效（绑定生效后在哪里呈现见各入口）；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。
@@ -932,7 +970,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
       schema:
         type: string
         minLength: 1

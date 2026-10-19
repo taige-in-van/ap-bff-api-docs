@@ -1,0 +1,532 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>后台账号与角色权限 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"4c6a597488777c82","acquiring/createMerchantChannelContract":"764a6b150156b5b9","acquiring/createMerchantFeeRate":"d02e5ad34bd019ba","acquiring/getMerchantCrossRefundPolicy":"b04c35e2925c1f1c","acquiring/getMerchantDeveloperAccess":"fc41ed261987d1ad","acquiring/getMerchantPaymentPageSettings":"901d6bb9589a3e98","acquiring/getMerchantReceiptSettings":"59f001409543868f","acquiring/getMerchantSettlementTerms":"f88f1084c3e8e11a","acquiring/getMerchantTipSettings":"a493f4bcb7f08948","acquiring/listFeeRateIssues":"d16ae93375ec4f29","acquiring/listMerchantAcquiringParameters":"8bd6fac609f547b4","acquiring/listMerchantChannelContracts":"5ebc994ee849826d","acquiring/listMerchantDeviceLogs":"9f97a65065d32c22","acquiring/listMerchantDevices":"d26bd0b4446363c7","acquiring/listMerchantEntryPoints":"6f15e32b68ec0c30","acquiring/listMerchantFeeRates":"322e727020c2de1f","acquiring/listMerchantInvoices":"ed77c29e6e23b141","acquiring/listMerchantProductLinks":"b9531d46b70035c1","acquiring/listMerchantStoreQrcodes":"2c28f5299baa3303","acquiring/registerMerchantChannelSubApp":"5d430a9013e95924","acquiring/reissueMerchantApiCredential":"fa18cea16d7e5187","acquiring/releaseMerchantDevice":"2b826172df5dc6b8","acquiring/syncMerchantChannelApplication":"8cee4fe1ea574025","acquiring/updateGiftcardAlipayPassTemplate":"282dfbff26f87603","acquiring/updateMerchantAcquiringParameter":"c94ca8e8867cd685","acquiring/updateMerchantChannelContract":"06885e311792f84e","acquiring/updateMerchantCrossRefundPolicy":"7d2df0d21b824739","acquiring/updateMerchantCsfCoverage":"7073e185cc1f71d2","acquiring/updateMerchantDeviceEnablement":"8b0c4d29df2ac65f","acquiring/updateMerchantEntryPoint":"b51f4fc0e629de61","acquiring/updateMerchantEntryPointEnablement":"897b02c5f1c70449","acquiring/updateMerchantPaymentPageSettings":"e90932ebd7b134f5","acquiring/updateMerchantReceiptSettings":"1e2762cb02eed9f4","acquiring/updateMerchantSettlementTerms":"d5799cb894b1679f","acquiring/updateMerchantTipSettings":"eb13f7db6d2f03e0","applications/approveApplicationOverridingBlocklist":"07d4bb6edde12d42","applications/checkAssistedOnboarding":"a2ab43b97a675ece","applications/createApplicationFileAccessUrl":"bbf5d51cd0b9f455","applications/createApplicationSignatureRequest":"4d9ac87d6b97b546","applications/createAssistedApplication":"d9dac5bc83aac19a","applications/decideApplication":"b59ce075d0bab167","applications/getApplication":"2a885506a78416ca","applications/listApplications":"96f743e2c18ba9e0","applications/listMerchantAppIdTodos":"0f5b7ea83b2a4a79","applications/submitAssistedApplication":"0f2ee8e77dcfe02e","applications/updateAssistedApplicationStep":"47dccba5a88437b9","applications/uploadAssistedApplicationFile":"d10b87cdfb9c90d1","applications/withdrawAssistedApplication":"3315dad1818bd6d3","auth/acceptInvitation":"c86a0a93008ac03f","auth/changeMyPassword":"883b9d27ca52f7e9","auth/completeMfaChallenge":"4cf06419c1075903","auth/confirmLoginEmailChange":"5ec6d0f390e034a1","auth/confirmMfa":"2f8e3ac85c8d81ce","auth/confirmPasswordReset":"f949111a47f69674","auth/deleteMyWechatBinding":"9f86c5bd21b87e9a","auth/enrollMfa":"4d08feb1683858da","auth/getCurrentSession":"a590beaa7a2b7922","auth/getMyProfile":"d730e25b969cf4c2","auth/initiateMyWechatBinding":"adc5f6fcf21a0299","auth/initiateWechatLogin":"6f24ae72af833ad9","auth/login":"4eae630e9a775e61","auth/logout":"30cf8345b848a2fc","auth/pollMyWechatBinding":"f4ddc29d405eb143","auth/pollWechatLogin":"bf22dd251173fa0f","auth/requestPasswordReset":"ebb27c8d8b099717","auth/updateMyLoginIpAllowlist":"5cbcde5fc8cb7689","auth/updateMyProfile":"6863e8d5cf4b8145","merchants/closeMerchant":"c2b233950429ae9e","merchants/createMerchantDocument":"373b7c369b1bac7b","merchants/createMerchantExport":"af2b4dfd1bbf31f7","merchants/createMerchantFileAccessUrl":"058d83f2d729e444","merchants/createMerchantImpersonation":"c71a9c58a21c97a2","merchants/createMerchantMember":"dd78fb5303e2a7dd","merchants/createMerchantMemberPasswordReset":"816beaba2503572e","merchants/deleteMerchantDocument":"2d3f4c777f90c2a7","merchants/deleteMerchantMember":"aca8913711258b6d","merchants/deleteMerchantMemberLoginLock":"fd8b8918f2b4a777","merchants/deleteMerchantMemberMfa":"e6c75623049f7799","merchants/deleteMerchantMemberWechatBinding":"fc313d38782a0864","merchants/getMerchant":"67f642e4eafc2232","merchants/listMerchantMemberRoleOptions":"70a9950e751486a4","merchants/listMerchantMembers":"08758be595193633","merchants/listMerchantSettings":"56846787e71115fe","merchants/listMerchants":"07c237de12f73f42","merchants/updateMerchantDocument":"b3a11ad20ae48258","merchants/updateMerchantMemberRoles":"9c6a098c8d109d36","merchants/updateMerchantMemberStatus":"d4c5103aa153ce92","merchants/updateMerchantOperatingAttributes":"d6278dd0de0c8c59","merchants/updateMerchantOwnerLoginEmail":"e71274a4fa76efd1","merchants/updateMerchantProfile":"88b03ee5422e0648","merchants/updateMerchantSetting":"c288357d348d4c77","merchants/updateMerchantSettlementInfo":"715a1526c5cac4c3","merchants/updateMerchantStatus":"9bc56985c0acc53c","merchants/uploadMerchantFile":"793a7b8bfea47520","ops/cancelBatchJobExecution":"13bab4211ee7967f","ops/createBatchJobExecution":"66f0a6e98325ee74","ops/getAuditEvent":"56a4795244986e13","ops/getOutboundDelivery":"5c5fb169ab509a3c","ops/listAuditEvents":"3498b5cab9cc99a4","ops/listBatchJobExecutions":"bcfaf8a48f7d6078","ops/listBatchJobs":"298a3d4bf86c3efa","ops/listNotificationDeliveries":"812e621fd4395d6f","ops/listOutboundDeliveries":"a9388af87557a915","ops/redeliverFailedNotifications":"50c5e2ee271f0cca","ops/redeliverNotification":"fc2d959563dc01de","ops/redeliverOutboundDelivery":"becd5a4716e759c1","ops/restartBatchJobExecution":"c93006a0927bdd1f","settings/createAnnouncement":"5667b6d24f80d424","settings/deleteAnnouncement":"3e6acdb3280cad56","settings/getAnnouncement":"7cc814fdd776764a","settings/listAcquiringPlatformParameters":"4536c954f00748fb","settings/listAnnouncements":"51a237213b020201","settings/listPlatformParameters":"ec02fd8e18422450","settings/publishAnnouncement":"881dedcf4ca3f67f","settings/updateAcquiringPlatformParameter":"dc8dde38425e4a7f","settings/updateAnnouncement":"03e1533fb390385b","settings/updatePlatformParameter":"2db714020f068a94","settings/withdrawAnnouncement":"edb367f80fc1c6ed","staff/createAccessGrant":"8c16676c1e8000e4","staff/createRole":"c2fdddd48f61e490","staff/createStaff":"0e3ba05ebd979700","staff/createStaffAccessGrant":"9a75fb2b5aa78993","staff/deleteAccessGrant":"44973cde2c5e3d98","staff/deleteRole":"b284a4457a9e8481","staff/deleteSession":"02bd3318ef892e1a","staff/deleteStaff":"81e97375f4627d22","staff/deleteStaffLoginLock":"06bbec325669fe6e","staff/deleteStaffMfa":"f721ee1e4cbee4ee","staff/getStaff":"a7e917983c899d06","staff/listAccessGrantCandidates":"3e63db7e164e2334","staff/listAccessGrants":"13efd8c4b6a55651","staff/listLoginLogs":"640dfe785fd674e6","staff/listMerchantResources":"a472924dd5d0e606","staff/listMerchantRoles":"6ec49e653ac68919","staff/listResources":"f03ac54803262c1a","staff/listRoles":"6a1f3227f626e621","staff/listSessions":"da28dd3d66c76551","staff/listStaff":"0010d5153a505b4e","staff/listStaffRoleOptions":"41fb114b79d02ff8","staff/resendStaffInvitation":"e93dd76f158354dc","staff/restoreStaff":"ccc539eb00145890","staff/updateMerchantRole":"9a19c25029ebd7d4","staff/updateRole":"a440fbd7adf0df84","staff/updateStaff":"3368c35aa8a8a791","staff/updateStaffPassword":"855ad9cec6f1e9a1","staff/updateStaffStatus":"e73f1c1d653e039f"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 后台账号与角色权限 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）；后台账号、角色、资源目录是平台级页面，不受数据可见范围限制，在线会话与临时授权按数据可见范围过滤商户。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 后台账号 | 导航「账号与权限 › 后台账号」 | [页面：后台账号](#页面：后台账号)；[页面：后台账号 · 邀请弹窗](#页面：后台账号%20·%20邀请弹窗) |
+| 后台账号详情 | 后台账号列表点一行 | [页面：后台账号详情](#页面：后台账号详情)；[页面：后台账号详情 · 编辑弹窗](#页面：后台账号详情%20·%20编辑弹窗)；[页面：后台账号详情 · 账号状态与凭据](#页面：后台账号详情%20·%20账号状态与凭据) |
+| 在线会话 | 导航「账号与权限 › 在线会话」 | [页面：在线会话](#页面：在线会话) |
+| 登录日志 | 导航「账号与权限 › 登录日志」 | [页面：登录日志](#页面：登录日志) |
+| 角色管理 | 导航「账号与权限 › 角色」 | [页面：角色管理](#页面：角色管理) |
+| 资源目录 | 导航「账号与权限 › 资源目录」 | [页面：资源目录](#页面：资源目录) |
+| 预设角色 | 导航「账号与权限 › 商户后台与终端预设角色」 | [页面：预设角色](#页面：预设角色) |
+| 临时授权 | 商户列表的「申请查看」；商户详情的授权用户区块 | [流程：临时授权](#流程：临时授权) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listStaff`](../staff/index.html#tag/staff/operation/listStaff) | `GET /staff` | 后台账号列表 |
+| 2 | [`listStaffRoleOptions`](../staff/index.html#tag/staff/operation/listStaffRoleOptions) | `GET /role-options` | 角色候选（筛选用全部，表单只选 `assignable`） |
+| 3 | [`createStaff`](../staff/index.html#tag/staff/operation/createStaff) | `POST /staff` | 邀请建号 |
+| 4 | [`getStaff`](../staff/index.html#tag/staff/operation/getStaff) | `GET /staff/{userId}` | 账号详情 |
+| 5 | [`updateStaff`](../staff/index.html#tag/staff/operation/updateStaff) | `PUT /staff/{userId}` | 编辑（资料、角色、数据范围与机构、白名单、登录邮箱） |
+| 6 | [`updateStaffStatus`](../staff/index.html#tag/staff/operation/updateStaffStatus) | `PUT /staff/{userId}/status` | 停用 / 启用 |
+| 7 | [`deleteStaff`](../staff/index.html#tag/staff/operation/deleteStaff) | `DELETE /staff/{userId}` | 移除管理后台身份 |
+| 8 | [`restoreStaff`](../staff/index.html#tag/staff/operation/restoreStaff) | `POST /staff/{userId}/restoration` | 加回（重新指定角色与数据范围） |
+| 9 | [`resendStaffInvitation`](../staff/index.html#tag/staff/operation/resendStaffInvitation) | `POST /staff/{userId}/invitation` | 重发邀请 |
+| 10 | [`updateStaffPassword`](../staff/index.html#tag/staff/operation/updateStaffPassword) | `PUT /staff/{userId}/password` | 为他人重置密码 |
+| 11 | [`deleteStaffMfa`](../staff/index.html#tag/staff/operation/deleteStaffMfa) | `DELETE /staff/{userId}/mfa` | 为他人重置验证器 |
+| 12 | [`deleteStaffLoginLock`](../staff/index.html#tag/staff/operation/deleteStaffLoginLock) | `DELETE /staff/{userId}/login-lock` | 为他人解除登录锁定 |
+| 13 | [`listSessions`](../staff/index.html#tag/sessions/operation/listSessions) | `GET /sessions` | 在线会话（含商户后台与代登会话） |
+| 14 | [`deleteSession`](../staff/index.html#tag/sessions/operation/deleteSession) | `DELETE /sessions/{sessionId}` | 强制下线 |
+| 15 | [`listLoginLogs`](../staff/index.html#tag/login-logs/operation/listLoginLogs) | `GET /login-logs` | 登录日志 |
+| 16 | [`listRoles`](../staff/index.html#tag/roles/operation/listRoles) | `GET /roles` | 管理后台角色（含点集与版本） |
+| 17 | [`createRole`](../staff/index.html#tag/roles/operation/createRole) | `POST /roles` | 新建角色 |
+| 18 | [`updateRole`](../staff/index.html#tag/roles/operation/updateRole) | `PUT /roles/{roleId}` | 改名、启停、勾选权限点 |
+| 19 | [`deleteRole`](../staff/index.html#tag/roles/operation/deleteRole) | `DELETE /roles/{roleId}` | 删除角色 |
+| 20 | [`listResources`](../staff/index.html#tag/resources/operation/listResources) | `GET /resources` | 管理后台资源目录（只读） |
+| 23 | [`listMerchantResources`](../staff/index.html#tag/merchant-resources/operation/listMerchantResources) | `GET /merchant-resources` | 商户后台资源目录（只读） |
+| 26 | [`listMerchantRoles`](../staff/index.html#tag/merchant-roles/operation/listMerchantRoles) | `GET /merchant-roles` | 商户后台与终端预设角色 |
+| 27 | [`updateMerchantRole`](../staff/index.html#tag/merchant-roles/operation/updateMerchantRole) | `PUT /merchant-roles/{roleId}` | 改预设角色点集 |
+| 28 | [`createAccessGrant`](../staff/index.html#tag/access-grants/operation/createAccessGrant) | `POST /access-grants` | 自助申请临时授权 |
+| 29 | [`listAccessGrants`](../staff/index.html#tag/access-grants/operation/listAccessGrants) | `GET /access-grants` | 临时授权列表 |
+| 30 | [`createStaffAccessGrant`](../staff/index.html#tag/access-grants/operation/createStaffAccessGrant) | `POST /staff/{userId}/access-grants` | 为他人指定临时授权 |
+| 31 | [`deleteAccessGrant`](../staff/index.html#tag/access-grants/operation/deleteAccessGrant) | `DELETE /access-grants/{grantId}` | 撤销临时授权 |
+
+---
+
+## 页面：后台账号
+
+后台账号列表：按显示名 / 姓名 / 登录邮箱搜索，按角色、状态、机构筛选，可排序。默认不显示已移除的账号；状态筛选选「已移除」才列出。各列取：显示名 `displayName`、登录邮箱 `loginId`、角色 `roles`、状态 `status`、数据范围 `dataScopeType` 与机构 `partner`、最近登录 `lastLoginAt`。点一行进详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入后台账号
+    par 列表
+        S->>A: #35;1 [listStaff]<br/>GET /staff?sortField=createdAt&sortOrder=descend
+        A-->>S: 200 { total, data: [ { userId, loginId, displayName,<br/>roles, status, dataScopeType, partner, lastLoginAt } ] }
+    and 角色筛选候选
+        S->>A: #35;2 [listStaffRoleOptions]<br/>GET /role-options
+        A-->>S: 200 { items: [ { roleId, name, enabled, assignable } ] }
+    end
+    U->>S: 搜索、筛选或翻页
+    S->>A: #35;1 [listStaff]<br/>GET /staff?keyword=&roleId=&status=&partnerId=
+    A-->>S: 200 { total, data }
+```
+
+- 机构筛选的候选取自机构管理的接口（随机构管理建）。
+- 没有 `opacc:user:manage` 的只读：不显示邀请、编辑与各操作按钮。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 角色列 | v1 一人一角色 | 一人可持多个角色，有效权限取并集 | 按职责组合授权 |
+| 已删除的账号 | v1 删除即不可见 | 移除后按「已移除」可查到并加回 | 人员回流不必重建 |
+
+---
+
+## 页面：后台账号 · 邀请弹窗
+
+录入登录邮箱、显示名（姓名、电话、职务可选）、角色、数据范围（选「所属机构」时再选机构），可填登录 IP 白名单。提交后系统发邀请邮件，账号状态为「邀请中」，对方设密后才能登录。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点邀请，填表单
+    Note over S: 角色候选取 #35;2 里 assignable 的项
+    U->>S: 提交
+    S->>A: #35;3 [createStaff]<br/>POST /staff（Idempotency-Key）
+    A-->>S: 201 { userId, status: INVITED, ... }
+    S->>U: 关弹窗，刷新列表 #35;1
+```
+
+- 登录邮箱属于已激活、邮箱已验证、未停用且还没有管理后台身份的已有用户时，同样成功：为该用户加上管理后台身份，不发邀请邮件、不改其密码，账号直接为 `ACTIVE`、可用原密码登录。
+- 弹窗有未保存的修改时关闭，按公共约定先确认。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 登录邮箱已被在册的后台账号使用 | #3 `409`·`968001` | 邮箱框标红 |
+| 登录邮箱属于已移除的账号 | #3 `409`·`308003` | 提示该账号已移除，给「去加回」（列表按已移除筛出它） |
+| 登录邮箱属于邀请中、待验证或已停用的已有用户 | #3 `409`·`308007` | 提示该身份尚未激活或已停用，需先完成激活 / 验证或由运营启用 |
+| 角色超出操作者权限 | #3 `403`·`306007` | 提示后重拉 #2 |
+| 数据范围宽于操作者 | #3 `403`·`306009` | 提示不能分配比自己宽的范围 |
+| 选了所属机构范围却没选机构、白名单格式不对 | #3 `400`，`details` 定位字段 | 对应字段标红 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #3 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 建号方式 | v1 管理员直接设初始密码 | 发邀请邮件、本人设密 | 管理员不经手他人密码 |
+| 数据范围 | v1 按账号类型写在代码里；BD 账号另有入口、机构写死 | 在账号上设三档范围，BD 与机构账号走同一入口 | 一个入口、范围可见可改 |
+
+---
+
+## 页面：后台账号详情
+
+显示资料、角色、数据范围与机构、验证器与企业微信是否已绑定、登录 IP 白名单、最近登录；改登录邮箱待确认时显示「新邮箱待确认：`pendingLoginEmail`」。顶部按状态给操作按钮（见「账号状态与凭据」）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点列表某行
+    S->>A: #35;4 [getStaff]<br/>GET /staff/{userId}
+    A-->>S: 200 { userId, loginId, pendingLoginEmail, roles, status,<br/>dataScopeType, partner, mfaEnrolled, wechat, loginIpAllowlist, lastLoginAt }
+```
+
+- 详情不含密码与验证器密钥。
+- 账号不存在 → `404`，回列表。
+
+---
+
+## 页面：后台账号详情 · 编辑弹窗
+
+可改显示名、姓名、电话、职务、角色、数据范围与机构、登录 IP 白名单、登录邮箱，一次提交。只提交改过的字段。不能编辑自己的角色与数据范围（自己的资料在个人设置改）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点编辑，改字段，保存
+    S->>A: #35;5 [updateStaff]<br/>PUT /staff/{userId}（Idempotency-Key）
+    A-->>S: 200 { ...更新后的详情, pendingLoginEmail }
+    S->>U: 关弹窗，用响应刷新详情
+```
+
+- 角色与数据范围的改动对该账号已在线的会话下一次请求即时生效。
+- 改已激活账号的登录邮箱：响应里出现 `pendingLoginEmail`，提示「确认邮件已发到新邮箱，确认前旧邮箱仍可登录」。改邀请中账号的邮箱 = 向新邮箱重发邀请。
+- 为他人保存白名单不要求包含操作者当前 IP。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 改自己的角色或数据范围 | #5 `403`·`308001` | 提示不能改自己的角色与范围 |
+| 改完会没有能管理账号、角色与凭据的在用账号 | #5 `409`·`308002` | 提示须保留至少一个这样的账号 |
+| 角色超出操作者权限（含对方现有角色） | #5 `403`·`306007` | 提示后重拉 #2 与 #4 |
+| 数据范围宽于操作者 | #5 `403`·`306009` | 提示不能分配比自己宽的范围 |
+| 账号已移除 | #5 `409`·`308004` | 重拉 #4 |
+| 新登录邮箱已被使用 | #5 `409`·`968001` | 邮箱框标红 |
+| 范围与机构不配、白名单格式不对 | #5 `400` | 对应字段标红 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #5 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 改角色生效时机 | v1 权限在登录时快照，改了要等对方重新登录 | 对方下一次请求即按新角色与范围判 | 收权限要立刻生效 |
+| 改登录邮箱 | Hub 超管在员工编辑里直接改，即生效 | 新邮箱确认后才生效 | 防止填错邮箱把人锁在外面 |
+| 白名单非法条目 | v1 保存不校验、登录时跳过 | 保存即校验 | 存下来的就是会生效的 |
+
+---
+
+## 页面：后台账号详情 · 账号状态与凭据
+
+详情页顶部的操作：停用 / 启用、移除（已移除的显示「加回」）、重发邀请（仅邀请中）、重置密码、重置验证器、解除锁定。都先弹确认框。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    alt 停用 / 启用
+        S->>A: #35;6 [updateStaffStatus]<br/>PUT /staff/{userId}/status { status }
+        A-->>S: 204
+    else 移除
+        S->>A: #35;7 [deleteStaff]<br/>DELETE /staff/{userId}
+        A-->>S: 204
+    else 加回（弹窗重新选角色与数据范围）
+        S->>A: #35;8 [restoreStaff]<br/>POST /staff/{userId}/restoration（Idempotency-Key）
+        A-->>S: 200 { ...加回后的详情 }
+    else 重发邀请
+        S->>A: #35;9 [resendStaffInvitation]<br/>POST /staff/{userId}/invitation
+        A-->>S: 202 { cooldownSeconds }
+    else 重置密码（弹窗输新密码）
+        S->>A: #35;10 [updateStaffPassword]<br/>PUT /staff/{userId}/password（Idempotency-Key）
+        A-->>S: 204
+    else 重置验证器
+        S->>A: #35;11 [deleteStaffMfa]<br/>DELETE /staff/{userId}/mfa
+        A-->>S: 204
+    else 解除锁定
+        S->>A: #35;12 [deleteStaffLoginLock]<br/>DELETE /staff/{userId}/login-lock
+        A-->>S: 204
+    end
+    S->>A: #35;4 [getStaff]<br/>GET /staff/{userId}
+```
+
+- 停用：对方在管理后台与商户后台都不能登录，已有会话全部即时失效；启用后须重新登录。
+- 移除：只收回管理后台访问，对方的商户后台身份不受影响。
+- 重置密码、重置验证器：对方全平台会话失效、受信浏览器失效；重置验证器后对方下次登录在登录内重新绑定。重置密码不解锁，被锁的另点解除锁定。
+- 重发邀请后按 `cooldownSeconds` 倒计时，倒计时内按钮置灰。
+- 重置密码、重置验证器、解除锁定要 `opacc:credential:manage`，其余要 `opacc:user:manage`。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 对自己停用或移除 | #6 / #7 `403`·`308001` | 提示不能对自己操作 |
+| 停用或移除后会没有能管理账号、角色与凭据的在用账号 | #6 / #7 `409`·`308002` | 提示须保留至少一个这样的账号 |
+| 对方现有角色超出操作者权限 | #6–#12 `403`·`306007` | 提示无权操作该账号 |
+| 账号状态已变（不在邀请中、未被移除、邀请中不能重置密码等） | #6 / #8–#12 `409`·`308004` | 重拉 #4 |
+| 加回时数据范围宽于操作者 | #8 `403`·`306009` | 提示不能分配比自己宽的范围 |
+| 重发冷却未过 | #9 `429`·`966006` | 按 `context.cooldownSeconds` 倒计时 |
+| 新密码不满足规则 | #10 `400` | 在新密码框下提示 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #8 / #10 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 停用 / 删除 | v1 只改库，不踢会话 | 已有会话即时失效 | 离职收口要立刻生效 |
+| 重置密码 | v1 不解锁、踢不到真实会话 | 全部会话失效；解锁另有按钮 | 两件事分开、都要生效 |
+| 重置验证器 | v1 没有入口，只能改库 | 管理员可重置 | 丢手机的同事能尽快回来 |
+| 至少保留一个管理员 | v1 只禁止删自己；Hub 至少保留一个在职超管 | 至少保留一个能管理账号、角色与凭据的在用账号 | 不会把所有人锁在外面 |
+
+---
+
+## 页面：在线会话
+
+当前有效的会话，管理后台与商户后台都在内，代登会话显示为商户后台会话并标出代登人与被代商户。来源必选、一次只看一种（管理后台 / 商户后台，默认先看管理后台），可按账号筛选。各列取：账号 `user` 与 `loginId`、来源 `client`、登录时间 `loginAt`、代登人 `impersonator`、被代商户 `impersonatedMerchant`。每行有「强制下线」。商户后台来源下查看者可见商户为空时列表直接为空。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入在线会话（默认来源 = 管理后台）
+    S->>A: #35;13 [listSessions]<br/>GET /sessions?client=admin&keyword=
+    A-->>S: 200 { total, data: [ { sessionId, client, user, loginId,<br/>loginAt } ] }
+    U->>S: 切到来源「商户后台」
+    S->>A: #35;13 [listSessions]<br/>GET /sessions?client=merchant&keyword=
+    A-->>S: 200 { total, data: [ { sessionId, client, user, loginId,<br/>loginAt, impersonator, impersonatedMerchant } ] }
+
+    U->>S: 某行点强制下线并确认
+    S->>A: #35;14 [deleteSession]<br/>DELETE /sessions/{sessionId}
+    A-->>S: 204
+    S->>A: #35;13 [listSessions]<br/>GET /sessions?client=当前来源
+```
+
+- 按账号筛选匹配登录名（用户名或邮箱），不匹配显示名。
+- 两种来源不混在一页：切换来源重新查、页码回到第一页。
+- 会话归账号、不归商户：商户后台普通会话只列在本人数据可见范围内任一商户有成员身份的账号的，不标商户；代登会话按被代商户是否在范围内列出，范围外的不出现。
+- 强制下线只结束这一个会话，同一账号的其他独立会话不受影响；下线的是管理后台会话时，由它发起的代登会话一并结束。
+- 没有 `opacc:session:manage` 的不显示强制下线按钮。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 会话已结束或不存在 | #14 `204` | 照常刷新 |
+| 会话不在可见范围内 | #14 `404` | 刷新列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 代登会话 | v1 代登不校权限与数据范围，会话与后台同长 | 标出代登人，按数据可见范围过滤；代登会话短时不续期 | 看得出谁在代登、只代登看得到的商户 |
+
+---
+
+## 页面：登录日志
+
+管理后台的每次登录尝试与登出，从新到旧。按账号、结果（可多选）、日期范围筛选。各列取：时间 `occurredAt`、账号 `user`、结果 `result`、方式 `loginMethod`、来源 IP `loginIp`、浏览器 `userAgent`。只读，没有删除或清空。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入登录日志，设筛选
+    S->>A: #35;15 [listLoginLogs]<br/>GET /login-logs?keyword=&result=&from=&to=
+    A-->>S: 200 { total, data: [ { occurredAt, user, result,<br/>loginMethod, loginIp, userAgent } ] }
+```
+
+- 按账号筛选匹配登录名（用户名或邮箱），不匹配显示名；登录名不存在的失败尝试没有账号列，按账号筛不到。
+- 结果可多选，各取值的含义见 `LoginLogResult`。
+- 日期范围按日期选，不选时刻；两端必填，默认最近 30 天，换算见[管理后台约定](../conventions.html)「列表的日期范围」。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| `to` 早于 `from` | #15 `400` | 日期选择器提示 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 删除与清空 | v1 可逐条删除、一键清空 | 只读 | 登录记录是安全追查依据 |
+
+---
+
+## 页面：角色管理
+
+左侧角色列表（含停用的），右侧选中角色的详情：角色名、启停开关、按资源目录树勾选的权限点。可新建、删除角色。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入角色管理
+    par 角色
+        S->>A: #35;16 [listRoles]<br/>GET /roles
+        A-->>S: 200 { items: [ { roleId, name, enabled, version, privileges } ] }
+    and 权限点树
+        S->>A: #35;20 [listResources]<br/>GET /resources
+        A-->>S: 200 { items: [ { resourceId, resourceType, parentResourceId,<br/>name, sortOrder, enabled } ] }
+    end
+
+    Note over U,A: 新建
+    U->>S: 输角色名
+    S->>A: #35;17 [createRole]<br/>POST /roles（Idempotency-Key）
+    A-->>S: 201 { roleId, version: 0, privileges: [] }
+
+    Note over U,A: 改名、启停、勾选权限点
+    U->>S: 改动后保存
+    S->>A: #35;18 [updateRole]<br/>PUT /roles/{roleId} { version, name, enabled, privileges }
+    A-->>S: 200 { ...新版本 }
+
+    Note over U,A: 删除
+    U->>S: 点删除并确认
+    S->>A: #35;19 [deleteRole]<br/>DELETE /roles/{roleId}
+    A-->>S: 204
+```
+
+- 权限点树按 `parentResourceId` 组树、同级按 `sortOrder` 排；只有操作点能勾，目录只作分组；已停用的节点显示为不可勾。
+- 操作者自己不持有的点显示为不可勾也不可取消（取 `getCurrentSession` 的 `privileges` 判）。
+- `version` 原样带读到的值；保存成功用响应刷新该角色。
+- 编辑态有未保存的修改时切换角色或离开，按公共约定先确认。
+- 没有 `rbac:role:manage` 的只读。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 别人先改过（版本已变） | #18 `409`·`968018` | 提示角色已被修改，重拉 #16 后在最新内容上重做 |
+| 勾了已停用或未登记的点 | #18 `409`·`968016` | 重拉 #20 后重选 |
+| 勾上或取消了自己不持有的点，或启用了点集宽于自己的角色 | #18 `403`·`306008` | 提示只能勾选 / 启用自己持有的权限点 |
+| 停用角色或去掉某点后会没有能管理账号、角色与凭据的在用账号 | #18 `409`·`308002` | 提示须保留至少一个这样的账号 |
+| 仍有账号持有该角色 | #19 `409`·`968017` | 提示先从账号上移除或改为停用 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #17 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 超级管理员 | v1 按写死的账号、角色键、角色编号放行 | 持全部权限点的普通角色，鉴权路径一样 | 没有绕过鉴权的特殊账号 |
+| 授权粒度 | Hub 矩阵到模块 | 到操作点 | 能按功能精确授权 |
+| 同时编辑 | v1 后保存的覆盖先保存的 | 版本已变时拒绝 | 不静默覆盖他人的修改 |
+| 改了何时生效 | v1 等对方重新登录 | 持有者下一次请求即生效 | 收权限要立刻生效 |
+
+---
+
+## 页面：资源目录
+
+两个页签：管理后台、商户后台，各一棵目录树（目录 / 操作点），只读。目录随版本发布：节点、命名、分类与停用都随版本走，页面上不能新建、改名、移动或停用节点。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    alt 管理后台页签
+        S->>A: #35;20 [listResources]<br/>GET /resources
+        A-->>S: 200 { items }
+    else 商户后台页签
+        S->>A: #35;23 [listMerchantResources]<br/>GET /merchant-resources
+        A-->>S: 200 { items }
+    end
+    S-->>U: 按目录组织的树，已停用的节点标出
+```
+
+- 管理后台页签要 `rbac:role:view` 才能看，商户后台页签要 `rbac:merchant-role:view`。
+- 已停用的操作点不可勾给角色；持有含它的角色的人调用对应功能即被拒。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 菜单与路由 | v1 后端下发菜单与路由地址 | 目录只供授权界面组织与命名，不存路由、不下发给前端；前端只按权限点集合渲染导航 | 导航由前端自持 |
+| 节点来源 | v1 菜单可手工新建任意权限串 | 操作点只来自功能上线时登记的权限点 | 建不出前端不认识的点 |
+
+---
+
+## 页面：预设角色
+
+商户后台预设角色（管理员、员工、开发者、Owner）与终端预设角色（店长、收银员）的点集，按商户后台资源目录树勾选。预设角色不能新建、改名或删除。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入预设角色
+    par 预设角色
+        S->>A: #35;26 [listMerchantRoles]<br/>GET /merchant-roles
+        A-->>S: 200 { items: [ { roleId, name, version, privileges } ] }
+    and 权限点树
+        S->>A: #35;23 [listMerchantResources]<br/>GET /merchant-resources
+        A-->>S: 200 { items }
+    end
+    U->>S: 选一个预设角色，勾选后保存
+    S->>A: #35;27 [updateMerchantRole]<br/>PUT /merchant-roles/{roleId} { version, privileges }
+    A-->>S: 200 { ...新版本 }
+```
+
+- 提交的 `privileges` 是该角色的完整点集。改动对全部商户持有该角色的成员即时生效；保存前提示这一点。
+- 没有 `rbac:merchant-role:manage` 的只读。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 别人先改过（版本已变） | #27 `409`·`968018` | 重拉 #26 后重做 |
+| 勾了已停用或未登记的点 | #27 `409`·`968016` | 重拉 #23 后重选 |
+
+---
+
+## 流程：临时授权
+
+两个入口都在商户运营页面：商户列表对数据范围外的商户给「申请查看」（自助申请，授权给本人）；商户详情的授权用户区块列出该商户的临时授权，可为某个后台用户指定、可撤销。商户列表与详情本身的接口随商户运营建。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    Note over U,A: 自助申请（商户列表「申请查看」）
+    U->>S: 对某个范围外商户点申请查看并确认
+    S->>A: #35;28 [createAccessGrant]<br/>POST /access-grants { merchantId }（Idempotency-Key）
+    A-->>S: 201 { grantId, merchant, status: ACTIVE, expiresAt }
+    S->>U: 提示已授权与到期时间，进入该商户详情
+
+    Note over U,A: 商户详情 · 授权用户区块
+    S->>A: #35;29 [listAccessGrants]<br/>GET /access-grants?merchantId=&status=ACTIVE
+    A-->>S: 200 { total, data: [ { grantId, user, status, grantedAt, expiresAt, grantedBy } ] }
+    U->>S: 指定授权用户（从后台账号里选人）
+    S->>A: #35;30 [createStaffAccessGrant]<br/>POST /staff/{userId}/access-grants { merchantId }（Idempotency-Key）
+    A-->>S: 201 { grantId, status: ACTIVE, expiresAt }
+    U->>S: 某行点撤销并确认
+    S->>A: #35;31 [deleteAccessGrant]<br/>DELETE /access-grants/{grantId}
+    A-->>S: 204
+    S->>A: #35;29 [listAccessGrants]<br/>GET /access-grants?merchantId=
+```
+
+- 授权时长由平台设定，页面只显示 `expiresAt`；到期自动失效，再次申请产生新授权、不延长旧的。
+- 选人用 #1 `listStaff`（见「页面：后台账号」）。
+- 自助申请要 `rbac:access-grant:create`；授权用户区块与指定、撤销要 `rbac:access-grant:manage`。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 商户已在本人范围内 | #28 `409`·`308005` | 提示无需申请，直接进商户详情 |
+| 指定的授权用户是自己 | #30 `403`·`308001` | 提示改用自助申请 |
+| 商户是 KA 商户 | #28 `403`·`308006` | 提示须由有指定权限的同事指定 |
+| 商户或账号不存在 | #28 / #30 `404` | 刷新 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #28 / #30 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 谁能临时查看 | v1 名单写在系统参数里 | 按权限点；授权有时限、可撤销、可查 | 临时访问可控可追溯 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

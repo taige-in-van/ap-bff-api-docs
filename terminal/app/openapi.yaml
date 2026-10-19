@@ -65,17 +65,21 @@ info:
 
     商户 App 上不承接找回密码，也不承接登录状态下凭邮箱验证码重置本人的登录密码。现网版本的找回密码入口（`/api/v1.0/app/device/forgotPassword/code` 与找回流程其余各步），以及 `sendPasswordEmailCode`、`resetPasswordWithEmailCode` 的 `type` 为 `login` 的请求，不再受理，回 HTTP `400`、`code` 为 `208037`、顶层 `message` 为固定的双语提示「暂不支持在 POS / App 上重置密码，请联系 Owner 在商户后台重置 / Password reset is not available on POS / App, please ask your Owner to reset it in the Merchant Portal」。
 
+    ## 修改银行账户
+
+    商户 App 上不承接修改结算银行账户，改银行账户在商户后台办理。现网版本的修改银行账户提交（`POST /api/v1.0/app/device/merchant/bank`）不再受理，不看请求内容、权限与仅查看状态，一律回 HTTP `400`、`code` 为 `208039`、顶层 `message` 为固定的双语提示「暂不支持在 App 上修改银行账户，请在商户后台修改 / Bank account changes are not available in the App, please update it in the Merchant Portal」。现网 App 的银行信息页对此不显示提示，停留在编辑页。
+
     ## 仅查看状态
 
     商户被设为仅查看时，下列请求返回 `400`、`code` 为 `208035`，查询照常：
 
     - 收款、退款、释放预授权，账单码的新建与关闭、删除。
-    - 改商户的设置与资料：顾客承担手续费、订单有效期、支付方式、收款页设置，商户 Logo、时区、联系方式与地址、银行账户（含发验证码），登录邮箱（发验证码、提交与确认）。
+    - 改商户的设置与资料：顾客承担手续费、订单有效期、支付方式、收款页设置，商户 Logo、时区、联系方式与地址，登录邮箱（发验证码、提交与确认）。
     - 退款账户充值（含发验证码），通知邮箱的发验证码、添加与删除。
     - 员工的新增、修改、删除，取绑定微信的二维码。
     - 退款密码的修改（`changePassword`）与重置（`sendPasswordEmailCode`、`resetPasswordWithEmailCode`），即 `type` 为 `refund` 的那一支。
 
-    下列请求照常可用，其余改状态的请求都拦：登录、登记推送令牌、切换商户、修改本人的登录密码（`changePassword` 的 `type` 为 `login`）、开关本人的收款推送、把消息标为已读（含读公告详情）、退出登录，以及上传图片或文件（`uploadImage`，只产生待引用的临时文件）。
+    下列请求照常可用，其余改状态的请求都拦：登录、登记推送令牌、切换商户、修改本人的登录密码（`changePassword` 的 `type` 为 `login`）、开关本人的收款推送、把消息标为已读（含读公告详情）、退出登录，以及上传 Logo 图片（`uploadImage`，只产生待引用的文件）。
 
     ## 调用时序
 
@@ -118,7 +122,7 @@ paths:
       description: |
         校验滑块票据与账号密码，通过后返回令牌。登录不要求二次验证，账号在商户后台开了验证器的也一样。
 
-        `username` 先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写。登录所在的商户是账号的主商户；主商户被冻结时登录被拒，不改进其他商户。
+        `username` 先按用户名精确匹配，匹配不到再按邮箱，不分大小写。登录所在的商户按登录账号定：Owner 与主商户的员工为主商户，关联商户的员工为其所属的关联商户；这个商户被冻结或删除时登录被拒，不改落其他商户。
 
         这部手机在该商户下还没有登记过时（按 `uuid` 与 `devType` 认），登录时顺带登记，返回的 `devId` 就是它的设备编号；登记过的沿用原来的 `devId`。这部手机上一次登录得到的令牌随之失效，不论那次登录的是哪个账号、在哪个商户。
 
@@ -127,9 +131,10 @@ paths:
         - `204021` 滑块票据没通过校验。
         - `206012` 账号不存在或密码不对，两者不区分。
         - `966001` 连续登录失败次数过多，账号被锁定。默认连续错 5 次锁 15 分钟（可配置），与商户后台网页登录、POS 登录共用计数。
+        - `906004` 同一登录名（解析不到账号）短时间内失败过多，稍后再试。默认 15 分钟内 5 次（可配置），与商户后台网页登录、POS 登录共用计数。
         - `208027` 账号已被停用。
         - `208029` 账号的邮箱还没有验证。
-        - `208028` 账号的主商户已被冻结。
+        - `208028` 登录所在的商户已被冻结或删除。
         - `108015` 这部手机在该商户下的设备已被停用。
         - `108018` 本机上报的 `uuid` 不能用作设备标识（为空，或是运行环境返回的固定占位值）。
         - 缺 `uuid`、`username`、`password` 等必填项。
@@ -294,7 +299,7 @@ paths:
                   - client_id: 23
                     client_moniker: PINE
                     short_name: Pine Street Cafe
-                    logo_thumbnail: https://static.example.com/logo/pine-thumb.png
+                    logo_thumbnail: https://cdn.example.com/merchant/logo/2026/10/1bfae8638ae9bfdeac5992645c5383db.png
                     click: true
                   - client_id: 57
                     client_moniker: PINE2
@@ -474,7 +479,7 @@ paths:
           description: 收下不用。现网的端发商户的联系邮箱
       responses:
         '200':
-          description: 已发码
+          description: 已受理，验证码邮件随后发出
           content:
             application/json:
               schema:
@@ -597,7 +602,7 @@ paths:
                   contact_name: Amy Chen
                   contact_phone: '6045550123'
                   contact_email: amy@pinestreet.example.com
-                  logo_url: https://static.example.com/logo/pine.png
+                  logo_url: https://cdn.example.com/merchant/logo/2026/10/1bfae8638ae9bfdeac5992645c5383db.png
                   order_expiry_time: 15m
                   mch_timezone: America/Vancouver
                   client_pay_surcharge: false
@@ -618,7 +623,7 @@ paths:
                     bank_name: Royal Bank of Canada
                     bank_code: '01234'
                     bank_id: '003'
-                    prove_url: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.pdf
+                    prove_url: https://storage.example.com/private/void_cheque/2026/10/5e8b2a71c4f94d0386a1b7e2d95c4f60.pdf?X-Amz-Expires=300&X-Amz-Signature=...
                     bank_verify: false
                     pendingBankInfo: {}
                 timestamp: '2026-10-07T18:05:31.406+00:00'
@@ -634,16 +639,16 @@ paths:
         - account
       operationId: uploadImage
       x-required-privilege: session
-      summary: 上传图片或文件，供更换 Logo 与修改银行账户引用
+      summary: 上传图片，只供更换 Logo
       description: |
-        上传一个文件，返回它的预览地址 `imgUrl`。文件此时还不生效：把 `imgUrl` 交给 `updateMerchantLogo`（`logo`）或 `updateBankAccount`（`prove_url`）后才被引用；一直没被引用的到期清理。商户处于仅查看状态时照常可用。
+        上传一张商户 Logo 图片，返回它的地址 `imgUrl`。图片此时还不生效：把 `imgUrl` 交给 `updateMerchantLogo`（`logo`）后才成为商户 Logo；一直没交的不生效，端无需处理。商户处于仅查看状态时照常可用。
 
-        - 表单字段名 `file`；PNG、JPEG 或 PDF，默认不超过 2MB（可配置）。
-        - 被引用时还按用途再校验一次，见那两个接口。
+        - 表单字段名 `file`；PNG 或 JPEG，不超过 512KB（固定上限）。
+        - `imgUrl` 是长效的公开地址。
 
         下列情形返回 `400`：
 
-        - 没有文件，或文件不是 PNG、JPEG、PDF，或超过大小上限。
+        - 没有文件，或文件不是 PNG、JPEG，或超过 512KB。
       requestBody:
         required: true
         content:
@@ -672,7 +677,7 @@ paths:
                 status: 200
                 message: Success
                 data:
-                  imgUrl: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.png
+                  imgUrl: https://cdn.example.com/merchant/logo/2026/10/cb18f89e8ec1ea6b2bec8b64f78d6db9.png
                 timestamp: '2026-10-07T19:00:03.118+00:00'
                 traceId: 4b7e1d09a2c36f85
         '400':
@@ -688,12 +693,11 @@ paths:
       x-required-privilege: account:profile:edit
       summary: 更换商户 Logo
       description: |
-        把商户 Logo 换成 `logo` 指向的图片，立即生效。`logo` 是 `uploadImage` 返回的 `imgUrl`，原样带回。只换商户 Logo；收款页单独设了 Logo 的，收款页上不变。`logo` 为空串时什么都不做，照常返回 `200`。成功时 `data` 为 `null`。
+        把商户 Logo 换成 `logo` 指向的图片，立即生效。`logo` 是 `uploadImage` 返回的 `imgUrl`，原样带回。只换商户 Logo；收款页单独设了 Logo 的，收款页上不变。`logo` 为空串时什么都不做，照常返回 `200`。成功时 `data` 为 `null`。同一 `logo` 重放结果相同。
 
         下列情形返回 `400`：
 
-        - `logo` 不是本商户上传得到的地址，或文件已过期清理。
-        - 图片不是 PNG 或 JPEG，或超过大小上限。Logo 图片默认不超过 512KB（可配置）。
+        - `logo` 不是本商户上传的商户 Logo 图片的地址（`uploadImage` 或商户后台上传的都算）。
         - `208035` 商户处于仅查看状态，不能改商户资料。
         - 权限不足：需要商户后台「商户资料」的编辑权限。
       requestBody:
@@ -709,7 +713,7 @@ paths:
                   type: string
                   description: '`uploadImage` 返回的 `imgUrl`；空串表示不换'
             example:
-              logo: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.png
+              logo: https://cdn.example.com/merchant/logo/2026/10/cb18f89e8ec1ea6b2bec8b64f78d6db9.png
       responses:
         '200':
           description: 已更换，`data` 为 `null`
@@ -838,107 +842,6 @@ paths:
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
         - 208035
-  /device/merchant/bank/verifyCode:
-    get:
-      tags:
-        - account
-      operationId: sendBankEmailCode
-      x-required-privilege: account:settlement:edit
-      summary: 修改银行账户 — 发邮箱验证码（现网没有，旧包不调）
-      description: |
-        向商户 Owner 的登录邮箱发一封带 6 位验证码的邮件，返回本次的 `ticket`。没有参数。修改银行账户（`updateBankAccount`）时把 `ticket` 与邮件里的验证码一起带上。重新发码后旧的验证码作废。
-
-        下列情形返回 `400`，`message` 写明原因：
-
-        - 发得太频繁，还在冷却中。
-        - `208035` 商户处于仅查看状态，不能改银行账户。
-        - 权限不足：需要商户后台「结算信息」的编辑权限。
-      responses:
-        '200':
-          description: 已发码
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmailCodeTicketEnvelope'
-              example:
-                status: 200
-                message: Success
-                data:
-                  ticket: chl_6a3d0e81f7c24b59
-                timestamp: '2026-10-07T19:05:02.731+00:00'
-                traceId: 9b1f4c60e2d75a38
-        '400':
-          $ref: '#/components/responses/Rejected'
-        '403':
-          $ref: '#/components/responses/ReloginRequired'
-      x-error-codes:
-        - 208035
-  /device/merchant/bank:
-    post:
-      tags:
-        - account
-      operationId: updateBankAccount
-      x-required-privilege: account:settlement:edit
-      summary: 修改银行账户，提交后进入审核
-      description: |
-        提交结算银行账户的修改申请，审核通过后生效；审核期间 `getMerchantInfo` 的 `bankInfo.bank_verify` 为 `true`。成功时 `data` 为 `null`。
-
-        - `bank_code` 是 transit 号（5 位数字），`bank_id` 是 institution 号（3 位数字），`account_number` 是账号（数字）。
-        - `prove_url` 是作废支票（void cheque）的图片或 PDF：`uploadImage` 返回的 `imgUrl`，原样带回；PNG、JPEG 或 PDF，默认不超过 2MB（可配置）。
-        - `ticket` 与 `ticketValue` 是 `sendBankEmailCode` 返回的票据与邮件里的验证码，验对即作废。
-        - `account_name`、`branch` 收下不用。
-
-        同一商户的 `ticket`、`ticketValue` 与银行账户各项都相同的重复请求视为同一笔，返回第一次的结果；其中任何一项不同（含验证码）都按新的请求处理。
-
-        下列情形返回 `400`，`message` 写明原因：
-
-        - 没带 `ticket` 或 `ticketValue`：`message` 提示升级 App 后再修改银行账户。
-        - `204010` 验证码不对，还可以重输。
-        - `206006` `ticket` 无效，或验证码已过期、已用过，须重新发码。
-        - `206007` 验证码输错次数超过上限，须重新发码。
-        - 已有一笔审核中的修改。
-        - `prove_url` 不是本商户上传得到的地址、文件已过期清理，或不是 PNG、JPEG、PDF，或超过大小上限。
-        - 缺 `bank_name`、`bank_code`、`bank_id`、`account_number`、`prove_url`，或格式不对。
-        - `208035` 商户处于仅查看状态，不能改银行账户。
-        - 权限不足：需要商户后台「结算信息」的编辑权限。
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BankAccountRequest'
-            example:
-              account_name: Pine Street Hospitality Ltd.
-              branch: Main Branch
-              bank_name: Royal Bank of Canada
-              bank_code: '01234'
-              bank_id: '003'
-              account_number: '1234567'
-              prove_url: https://static.example.com/files/9c1d5f7a3e2b48c6b0f4a8d29e631b57.pdf
-              ticket: chl_6a3d0e81f7c24b59
-              ticketValue: '604187'
-      responses:
-        '200':
-          description: 已提交审核，`data` 为 `null`
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Envelope'
-              example:
-                status: 200
-                message: Success
-                data: null
-                timestamp: '2026-10-07T19:06:20.044+00:00'
-                traceId: 3e8a1d75c0f24b69
-        '400':
-          $ref: '#/components/responses/Rejected'
-        '403':
-          $ref: '#/components/responses/ReloginRequired'
-      x-error-codes:
-        - 204010
-        - 206006
-        - 206007
-        - 208035
   /device/sendAndVerify/emailCode:
     get:
       tags:
@@ -953,7 +856,7 @@ paths:
 
         下列情形返回 `400`，`message` 写明原因：
 
-        - 登录名不是邮箱的账号不能修改登录邮箱。
+        - `968006` 登录名不是邮箱的账号不能修改登录邮箱。
         - `208035` 商户处于仅查看状态，不能修改登录邮箱。
       parameters:
         - name: email
@@ -982,6 +885,7 @@ paths:
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
         - 208035
+        - 968006
   /device/merchant/email:
     post:
       tags:
@@ -2000,7 +1904,7 @@ paths:
         - `208035` 商户处于仅查看状态，不能退款。
         - `108025` 这笔退款不予受理，不细分原因：订单没有支付成功、已全额退、金额不是正数或超过可退金额、成交超过最大退款期限（可配置）、商户的退款能力被关闭等。
         - `108017` 同一登录账号对同一订单在极短时间内重复提交（不论金额）。
-        - `108001` 同一部手机对同一订单、同样金额在 60 秒内（可配置）再次发起退款，但备注与前一次不同。
+        - `908003` 同一部手机对同一订单、同样金额在 60 秒内（可配置）再次发起退款，但备注与前一次不同。
         - 权限不足：需要商户后台「发起退款」的权限。
         - 订单不存在，或不在可退的范围内，两者不区分。
         - 商户可用于退款的资金不够这笔退款，`message` 里含 `balance`（中文环境含「余额」）。
@@ -2063,7 +1967,6 @@ paths:
         '403':
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
-        - 108001
         - 108017
         - 108025
         - 206003
@@ -2886,7 +2789,7 @@ paths:
         - 权限不足：需要商户后台「退款准备金充值」的权限。
       responses:
         '200':
-          description: 已发码
+          description: 已受理，验证码邮件随后发出
           content:
             application/json:
               schema:
@@ -3343,7 +3246,7 @@ paths:
           description: 要添加的邮箱
       responses:
         '200':
-          description: 已发码
+          description: 已受理，验证码邮件随后发出
           content:
             application/json:
               schema:
@@ -3946,7 +3849,7 @@ components:
       properties:
         username:
           type: string
-          description: 登录名，用户名或邮箱。先按用户名精确匹配，匹配不到再按已验证的邮箱，不分大小写
+          description: 登录名，用户名或邮箱。先按用户名精确匹配，匹配不到再按邮箱，不分大小写
         password:
           type: string
           format: password
@@ -4946,7 +4849,7 @@ components:
           description: institution 号
         prove_url:
           type: string
-          description: 作废支票（void cheque）的预览地址；没有时不返回本键
+          description: 当前生效结算账户所引用的作废支票（void cheque）文件的预览地址，会过期；没有时不返回本键
         bank_verify:
           type: boolean
           description: 是否有一笔审核中的修改
@@ -5370,7 +5273,7 @@ components:
       properties:
         imgUrl:
           type: string
-          description: 文件的预览地址；引用时原样带回
+          description: 图片的长效公开地址；交给 `updateMerchantLogo` 时原样带回即可
     MerchantContactRequest:
       type: object
       description: 只改带了、且不是空串的字段。
@@ -5399,42 +5302,6 @@ components:
         contact_phone:
           type: string
           description: 商户 Owner 的电话
-    BankAccountRequest:
-      type: object
-      required:
-        - bank_name
-        - bank_code
-        - bank_id
-        - account_number
-        - prove_url
-      properties:
-        account_name:
-          type: string
-          description: 收下不用
-        branch:
-          type: string
-          description: 收下不用
-        bank_name:
-          type: string
-          description: 银行名称
-        bank_code:
-          type: string
-          description: transit 号，5 位数字
-        bank_id:
-          type: string
-          description: institution 号，3 位数字
-        account_number:
-          type: string
-          description: 账号，数字
-        prove_url:
-          type: string
-          description: 作废支票的文件，`uploadImage` 返回的 `imgUrl`
-        ticket:
-          type: string
-          description: '`sendBankEmailCode` 返回的 `ticket`；不带时返回 `400`，提示升级 App'
-        ticketValue:
-          type: string
-          description: 邮件里的 6 位验证码；不带时返回 `400`，提示升级 App
     MerchantEmailConfirmRequest:
       type: object
       required:

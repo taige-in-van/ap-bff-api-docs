@@ -12,7 +12,7 @@ info:
 
     **幂等 / CSRF 口径**：
 
-    - 三个命令（发起退款、撤销退款、预授权完成）必带 `Idempotency-Key`，缺了 → `400`。同键同请求体重发返回首次结果，网络重试用同一个键；改了请求体要换新键，沿用旧键 → `409`·`208005`。
+    - 三个命令（发起退款、撤销退款、预授权完成）必带 `Idempotency-Key`，缺了 → `400`。同键同请求体重发返回首次结果，网络重试用同一个键；改了请求体要换新键，沿用旧键 → `409`·`908003`。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
     - 当前商户以会话为准、不看请求体；当前商户不可访问时返回 `409`·`208022`。
 servers:
@@ -429,7 +429,8 @@ paths:
         Refund PIN：
 
         - 不对 → `403`·206003；
-        - 连续输错被锁 → `423`·206004。
+        - 连续输错被锁 → `423`·206004；
+        - 商户还没设置退款 PIN → `409`·208052，提示先在 Settings › Security 设置。
 
         `201` 只表示退款单已建，结果看 `status`：
 
@@ -438,7 +439,7 @@ paths:
         - `SUCCESS`：通道当场退成；
         - `FAILED`：没有退成，`failureReason` 为 `INSUFFICIENT_FUNDS`（账户资金不足，没有送到通道）或 `CHANNEL_REJECTED`（通道当场拒绝）。占用的可退额度已放回，可以重新发起。
 
-        幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果，不会建两笔；同键改了请求体 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。PIN 不参与幂等比对。
+        幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果，不会建两笔；同键改了请求体 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。PIN 不参与幂等比对。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -488,8 +489,7 @@ paths:
         - 206003
         - 206004
         - 208003
-        - 208005
-        - 208011
+        - 208052
   /orders/payments/{orderId}/preauth-completion:
     post:
       tags:
@@ -502,7 +502,7 @@ paths:
 
         订单已不是挂起状态 → `409`·208010。
 
-        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一订单返回首次结果；同键用到别的订单 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
+        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一订单返回首次结果；同键用到别的订单 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -517,9 +517,7 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 208005
         - 208010
-        - 208011
   /orders/refunds:
     get:
       tags:
@@ -795,7 +793,7 @@ paths:
 
         其余状态不能撤 → `409`·208009；已经是 `CANCELLED` 的再撤一次也返回 `204`。
 
-        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一笔退款返回首次结果；同键用到别的退款 → `409`·208005；同键的上一次提交还在处理 → `409`·208011。
+        幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一笔退款返回首次结果；同键用到别的退款 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -810,9 +808,7 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 208005
         - 208009
-        - 208011
   /statistics/summary:
     get:
       tags:
@@ -952,7 +948,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   parameters:
     FromDate:
       name: from
@@ -1076,7 +1072,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
       schema:
         type: string
         minLength: 1
@@ -1634,6 +1630,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -1714,9 +1735,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     Timestamp:
       type: string
       format: date-time

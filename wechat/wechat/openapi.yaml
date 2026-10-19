@@ -57,12 +57,12 @@ paths:
       operationId: completeWechatOAuth
       summary: 微信网页授权回调
       description: |
-        校验一次性 `state`，服务端以 `code` 换取外部账号身份并记到原挑战上，再按挑战用途做预检，然后 `302` 到微信确认页。本步不出页面、不呈现预检结果。
+        校验一次性 `state`，服务端以 `code` 换取外部账号身份并记到原挑战上，再按挑战用途做预检，然后 `302` 到微信确认页。本步不出页面、不呈现预检结果。扫码登录的预检在访问资格之后核该用户的登录 IP 白名单（来源 IP 取发起扫码那次请求的），不在白名单记为预检未过（`failReason = IP_NOT_ALLOWED`）；本服务自身判定都通过后调用发起 client 的登录准入回调，判不准入记为预检未过（`failReason = LOGIN_NOT_ELIGIBLE`）。
 
         跳转微信确认页时 fragment 有两种形态：
 
         - `#confirmationToken=…`：成功换得身份；预检未过时，微信确认页经 `getWechatConfirmation` 拿到 `state = FAILED` 与原因码。
-        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 无效或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），挑战不推进、可重新扫码。不向浏览器返回错误体。
+        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 无效或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），挑战不推进、可重新扫码；`#failure=UNAVAILABLE`：扫码登录预检时登录准入回调超时或出错，不出确认入口、不签发，页面提示稍后再试，用户在发起页换码重扫。不向浏览器返回错误体。
       parameters:
         - name: code
           in: query
@@ -84,7 +84,7 @@ paths:
       responses:
         '302':
           description: |
-            跳转微信确认页，fragment 为 `#confirmationToken=…`，失败时为 `#failure=EXPIRED`、`#failure=INVALID` 或 `#failure=DENIED`。
+            跳转微信确认页，fragment 为 `#confirmationToken=…`，失败时为 `#failure=EXPIRED`、`#failure=INVALID`、`#failure=DENIED` 或 `#failure=UNAVAILABLE`。
         default:
           $ref: '#/components/responses/DefaultError'
   /wechat/confirmations/current:
@@ -132,9 +132,9 @@ paths:
       operationId: decideWechatChallenge
       summary: 确认或取消
       description: |
-        微信确认页凭请求头里的 `confirmationToken` 提交用户的确认或取消，返回 `200` 与结果 `result`，页面据此渲染结果态。确认时按挑战用途推进：登录 → 裁访问资格与后台可用性；微信绑定 → 原子裁外部账号占用与目标账号有效性并写入该用户的微信绑定；外部账号身份确认 → 直接成立。决定只推进一次。
+        微信确认页凭请求头里的 `confirmationToken` 提交用户的确认或取消，返回 `200` 与结果 `result`，页面据此渲染结果态。确认时按挑战用途推进：登录 → 裁访问资格与本后台的微信登录开关；微信绑定 → 原子裁外部账号占用与目标账号有效性并写入该用户的微信绑定；外部账号身份确认 → 直接成立。决定只推进一次。
 
-        确认后裁决落败（登录时访问资格或后台已不可用；绑定时目标账号已失效或微信已被其他用户占用）→ `200` 且 `result = FAILED`、带 `failReason`，只给扫码本人看。
+        确认后裁决落败（登录时访问资格已失效或本后台已关闭微信登录；绑定时目标账号已失效或微信已被其他用户占用）→ `200` 且 `result = FAILED`、带 `failReason`，只给扫码本人看。
 
         **什么时候拒绝**：只有材料对不上才拒绝 → `966002`。材料对得上但挑战不在 `PENDING_DECISION` 时不拒绝、也不推进，按现状回 `200`：已过期 → `result = EXPIRED`；预检未过 → `result = FAILED` + 预检时的 `failReason`；已有决定 → 回放首次结果。
       security:
@@ -203,13 +203,14 @@ components:
         - NOT_BOUND
         - LOGIN_NOT_ENABLED
         - ACCOUNT_UNAVAILABLE
-        - CLIENT_UNAVAILABLE
+        - IP_NOT_ALLOWED
+        - LOGIN_NOT_ELIGIBLE
         - OCCUPIED
         - TARGET_INVALID
       description: |
-        失败原因，仅 `FAILED` 时出现。预检拦下（确认前）与确认后裁决落败共用这组码：确认后落败只出现登录的访问资格或后台可用性（`ACCOUNT_UNAVAILABLE`、`CLIENT_UNAVAILABLE`、`LOGIN_NOT_ENABLED`），与绑定的目标失效或占用（`TARGET_INVALID`、`OCCUPIED`）。
+        失败原因，仅 `FAILED` 时出现。预检拦下（确认前）与确认后裁决落败共用这组码：确认后落败只出现登录的访问资格或本后台的微信登录开关（`ACCOUNT_UNAVAILABLE`、`LOGIN_NOT_ENABLED`），与绑定的目标失效或占用（`TARGET_INVALID`、`OCCUPIED`）。
 
-        - 扫码登录：`NOT_BOUND` 此微信未绑定账号；`LOGIN_NOT_ENABLED` 该后台未开通微信登录；`ACCOUNT_UNAVAILABLE` 账号已停用或无访问资格；`CLIENT_UNAVAILABLE` 该后台暂不可用。
+        - 扫码登录：`NOT_BOUND` 此微信未绑定账号；`LOGIN_NOT_ENABLED` 该后台未开通微信登录；`ACCOUNT_UNAVAILABLE` 账号已停用或无访问资格；`IP_NOT_ALLOWED` 当前网络不允许登录（发起扫码登录的网络不在该账号的登录 IP 白名单）；`LOGIN_NOT_ELIGIBLE` 无法用此微信登录该后台，只给通用提示、不说明原因（原因在该后台一侧，平台也不知道）。
         - 微信绑定：`OCCUPIED` 此微信已绑定其他账号；`TARGET_INVALID` 要绑定的账号已失效。
     WechatConfirmationContext:
       type: object
@@ -331,6 +332,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -411,9 +437,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     AvatarUrl:
       type: string
       maxLength: 512
@@ -454,6 +495,9 @@ components:
         HTTP status 只表达大类;**具体子因看响应体的整数 `code`**:该 op 承诺的业务码见其 `x-error-codes`,
         每个码的含义 / 调用方动作 / 可重试性见所属能力域的错误码表;码的构成(能力域段 · 责任方位 · 域内末段)
         见 00-骨干/07-API契约规范「错误码空间分配」。
+
+        通用失败码(90 段,码与类别见 `_design/api/error-codes-90.yaml`)由本共享契约继承,不列进 `x-error-codes`。
+        按面适用:会话 / 授权失效(906001)适用 cookie 会话面与承载授权的进程间面(如按授权取身份摘要、令牌续期),CSRF(906002)仍只出现在 cookie 会话面;挂 `Idempotency-Key` 的 op 适用 908002 / 908003。
 
         部分码另带 `context` 结构化上下文;**哪些码必带哪些字段,以码表的 `requiredContextFields` 为准**、不要按状态码猜。
 

@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>通道进件与产品配置 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"4c6a597488777c82","acquiring/createMerchantChannelContract":"764a6b150156b5b9","acquiring/createMerchantFeeRate":"d02e5ad34bd019ba","acquiring/getMerchantCrossRefundPolicy":"b04c35e2925c1f1c","acquiring/getMerchantDeveloperAccess":"fc41ed261987d1ad","acquiring/getMerchantPaymentPageSettings":"901d6bb9589a3e98","acquiring/getMerchantReceiptSettings":"59f001409543868f","acquiring/getMerchantSettlementTerms":"f88f1084c3e8e11a","acquiring/getMerchantTipSettings":"a493f4bcb7f08948","acquiring/listFeeRateIssues":"d16ae93375ec4f29","acquiring/listMerchantAcquiringParameters":"8bd6fac609f547b4","acquiring/listMerchantChannelContracts":"5ebc994ee849826d","acquiring/listMerchantDeviceLogs":"9f97a65065d32c22","acquiring/listMerchantDevices":"d26bd0b4446363c7","acquiring/listMerchantEntryPoints":"6f15e32b68ec0c30","acquiring/listMerchantFeeRates":"322e727020c2de1f","acquiring/listMerchantInvoices":"ed77c29e6e23b141","acquiring/listMerchantProductLinks":"b9531d46b70035c1","acquiring/listMerchantStoreQrcodes":"2c28f5299baa3303","acquiring/registerMerchantChannelSubApp":"5d430a9013e95924","acquiring/reissueMerchantApiCredential":"fa18cea16d7e5187","acquiring/releaseMerchantDevice":"2b826172df5dc6b8","acquiring/syncMerchantChannelApplication":"8cee4fe1ea574025","acquiring/updateGiftcardAlipayPassTemplate":"282dfbff26f87603","acquiring/updateMerchantAcquiringParameter":"c94ca8e8867cd685","acquiring/updateMerchantChannelContract":"06885e311792f84e","acquiring/updateMerchantCrossRefundPolicy":"7d2df0d21b824739","acquiring/updateMerchantCsfCoverage":"7073e185cc1f71d2","acquiring/updateMerchantDeviceEnablement":"8b0c4d29df2ac65f","acquiring/updateMerchantEntryPoint":"b51f4fc0e629de61","acquiring/updateMerchantEntryPointEnablement":"897b02c5f1c70449","acquiring/updateMerchantPaymentPageSettings":"e90932ebd7b134f5","acquiring/updateMerchantReceiptSettings":"1e2762cb02eed9f4","acquiring/updateMerchantSettlementTerms":"d5799cb894b1679f","acquiring/updateMerchantTipSettings":"eb13f7db6d2f03e0","applications/approveApplicationOverridingBlocklist":"07d4bb6edde12d42","applications/checkAssistedOnboarding":"a2ab43b97a675ece","applications/createApplicationFileAccessUrl":"bbf5d51cd0b9f455","applications/createApplicationSignatureRequest":"4d9ac87d6b97b546","applications/createAssistedApplication":"d9dac5bc83aac19a","applications/decideApplication":"b59ce075d0bab167","applications/getApplication":"2a885506a78416ca","applications/listApplications":"96f743e2c18ba9e0","applications/listMerchantAppIdTodos":"0f5b7ea83b2a4a79","applications/submitAssistedApplication":"0f2ee8e77dcfe02e","applications/updateAssistedApplicationStep":"47dccba5a88437b9","applications/uploadAssistedApplicationFile":"d10b87cdfb9c90d1","applications/withdrawAssistedApplication":"3315dad1818bd6d3","auth/acceptInvitation":"c86a0a93008ac03f","auth/changeMyPassword":"883b9d27ca52f7e9","auth/completeMfaChallenge":"4cf06419c1075903","auth/confirmLoginEmailChange":"5ec6d0f390e034a1","auth/confirmMfa":"2f8e3ac85c8d81ce","auth/confirmPasswordReset":"f949111a47f69674","auth/deleteMyWechatBinding":"9f86c5bd21b87e9a","auth/enrollMfa":"4d08feb1683858da","auth/getCurrentSession":"a590beaa7a2b7922","auth/getMyProfile":"d730e25b969cf4c2","auth/initiateMyWechatBinding":"adc5f6fcf21a0299","auth/initiateWechatLogin":"6f24ae72af833ad9","auth/login":"4eae630e9a775e61","auth/logout":"30cf8345b848a2fc","auth/pollMyWechatBinding":"f4ddc29d405eb143","auth/pollWechatLogin":"bf22dd251173fa0f","auth/requestPasswordReset":"ebb27c8d8b099717","auth/updateMyLoginIpAllowlist":"5cbcde5fc8cb7689","auth/updateMyProfile":"6863e8d5cf4b8145","merchants/closeMerchant":"c2b233950429ae9e","merchants/createMerchantDocument":"373b7c369b1bac7b","merchants/createMerchantExport":"af2b4dfd1bbf31f7","merchants/createMerchantFileAccessUrl":"058d83f2d729e444","merchants/createMerchantImpersonation":"c71a9c58a21c97a2","merchants/createMerchantMember":"dd78fb5303e2a7dd","merchants/createMerchantMemberPasswordReset":"816beaba2503572e","merchants/deleteMerchantDocument":"2d3f4c777f90c2a7","merchants/deleteMerchantMember":"aca8913711258b6d","merchants/deleteMerchantMemberLoginLock":"fd8b8918f2b4a777","merchants/deleteMerchantMemberMfa":"e6c75623049f7799","merchants/deleteMerchantMemberWechatBinding":"fc313d38782a0864","merchants/getMerchant":"67f642e4eafc2232","merchants/listMerchantMemberRoleOptions":"70a9950e751486a4","merchants/listMerchantMembers":"08758be595193633","merchants/listMerchantSettings":"56846787e71115fe","merchants/listMerchants":"07c237de12f73f42","merchants/updateMerchantDocument":"b3a11ad20ae48258","merchants/updateMerchantMemberRoles":"9c6a098c8d109d36","merchants/updateMerchantMemberStatus":"d4c5103aa153ce92","merchants/updateMerchantOperatingAttributes":"d6278dd0de0c8c59","merchants/updateMerchantOwnerLoginEmail":"e71274a4fa76efd1","merchants/updateMerchantProfile":"88b03ee5422e0648","merchants/updateMerchantSetting":"c288357d348d4c77","merchants/updateMerchantSettlementInfo":"715a1526c5cac4c3","merchants/updateMerchantStatus":"9bc56985c0acc53c","merchants/uploadMerchantFile":"793a7b8bfea47520","ops/cancelBatchJobExecution":"13bab4211ee7967f","ops/createBatchJobExecution":"66f0a6e98325ee74","ops/getAuditEvent":"56a4795244986e13","ops/getOutboundDelivery":"5c5fb169ab509a3c","ops/listAuditEvents":"3498b5cab9cc99a4","ops/listBatchJobExecutions":"bcfaf8a48f7d6078","ops/listBatchJobs":"298a3d4bf86c3efa","ops/listNotificationDeliveries":"812e621fd4395d6f","ops/listOutboundDeliveries":"a9388af87557a915","ops/redeliverFailedNotifications":"50c5e2ee271f0cca","ops/redeliverNotification":"fc2d959563dc01de","ops/redeliverOutboundDelivery":"becd5a4716e759c1","ops/restartBatchJobExecution":"c93006a0927bdd1f","settings/createAnnouncement":"5667b6d24f80d424","settings/deleteAnnouncement":"3e6acdb3280cad56","settings/getAnnouncement":"7cc814fdd776764a","settings/listAcquiringPlatformParameters":"4536c954f00748fb","settings/listAnnouncements":"51a237213b020201","settings/listPlatformParameters":"ec02fd8e18422450","settings/publishAnnouncement":"881dedcf4ca3f67f","settings/updateAcquiringPlatformParameter":"dc8dde38425e4a7f","settings/updateAnnouncement":"03e1533fb390385b","settings/updatePlatformParameter":"2db714020f068a94","settings/withdrawAnnouncement":"edb367f80fc1c6ed","staff/createAccessGrant":"8c16676c1e8000e4","staff/createRole":"c2fdddd48f61e490","staff/createStaff":"0e3ba05ebd979700","staff/createStaffAccessGrant":"9a75fb2b5aa78993","staff/deleteAccessGrant":"44973cde2c5e3d98","staff/deleteRole":"b284a4457a9e8481","staff/deleteSession":"02bd3318ef892e1a","staff/deleteStaff":"81e97375f4627d22","staff/deleteStaffLoginLock":"06bbec325669fe6e","staff/deleteStaffMfa":"f721ee1e4cbee4ee","staff/getStaff":"a7e917983c899d06","staff/listAccessGrantCandidates":"3e63db7e164e2334","staff/listAccessGrants":"13efd8c4b6a55651","staff/listLoginLogs":"640dfe785fd674e6","staff/listMerchantResources":"a472924dd5d0e606","staff/listMerchantRoles":"6ec49e653ac68919","staff/listResources":"f03ac54803262c1a","staff/listRoles":"6a1f3227f626e621","staff/listSessions":"da28dd3d66c76551","staff/listStaff":"0010d5153a505b4e","staff/listStaffRoleOptions":"41fb114b79d02ff8","staff/resendStaffInvitation":"e93dd76f158354dc","staff/restoreStaff":"ccc539eb00145890","staff/updateMerchantRole":"9a19c25029ebd7d4","staff/updateRole":"a440fbd7adf0df84","staff/updateStaff":"3368c35aa8a8a791","staff/updateStaffPassword":"855ad9cec6f1e9a1","staff/updateStaffStatus":"e73f1c1d653e039f"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 通道进件与产品配置 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）；收单配置的各页签挂在商户详情下（商户详情见 06-merchant-ops），按数据可见范围过滤商户，按标识打开范围外商户得到 `404`。费率问题清单与平台收单参数是跨商户 / 平台级的页面。本文的比例费率一律是小数字符串（`"0.022"` = 2.2%），固定单笔费是结算币种的最小单位整数串；页面展示时由前端换成百分数与金额。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 收单配置 · 通道签约 | 商户详情的「收单配置」页签；费率问题清单里「待签约」的行；线上平台标识补录待办点一行 | [页面：收单配置 · 通道签约](#页面：收单配置%20·%20通道签约) |
+| 收单配置 · 受理入口 | 收单配置页签内 | [页面：收单配置 · 受理入口](#页面：收单配置%20·%20受理入口) |
+| 收单配置 · 费率与计费 | 收单配置页签内；费率问题清单点一行 | [页面：收单配置 · 费率与计费](#页面：收单配置%20·%20费率与计费) |
+| 费率问题清单 | 导航「收单配置 › 费率问题」 | [页面：费率问题清单](#页面：费率问题清单) |
+| 收单配置 · 商户级参数 | 收单配置页签内 | [页面：收单配置 · 商户级参数](#页面：收单配置%20·%20商户级参数) |
+| 收单配置 · 收款码与链接 | 收单配置页签内 | [页面：收单配置 · 收款码与链接](#页面：收单配置%20·%20收款码与链接) |
+| 收单配置 · 设备 | 收单配置页签内 | [页面：收单配置 · 设备](#页面：收单配置%20·%20设备) |
+| 收单配置 · 开发接入 | 收单配置页签内 | [页面：收单配置 · 开发接入](#页面：收单配置%20·%20开发接入) |
+| 平台收单参数 | 导航「平台设置 › 收单参数」 | [页面：平台收单参数](#页面：平台收单参数) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listMerchantChannelContracts`](../acquiring/index.html#tag/channels/operation/listMerchantChannelContracts) | `GET /merchants/{merchantId}/channel-contracts` | 通道签约总览 |
+| 2 | [`createMerchantChannelContract`](../acquiring/index.html#tag/channels/operation/createMerchantChannelContract) | `POST /merchants/{merchantId}/channel-contracts` | 加支付方式 |
+| 3 | [`updateMerchantChannelContract`](../acquiring/index.html#tag/channels/operation/updateMerchantChannelContract) | `PATCH /merchants/{merchantId}/channel-contracts/{contractId}` | 改签约（启停、子商户号、MCC、Express） |
+| 4 | [`createMerchantChannelApplication`](../acquiring/index.html#tag/channels/operation/createMerchantChannelApplication) | `POST /merchants/{merchantId}/channel-contracts/{contractId}/applications` | 提交 / 重提报备 |
+| 5 | [`syncMerchantChannelApplication`](../acquiring/index.html#tag/channels/operation/syncMerchantChannelApplication) | `POST /merchants/{merchantId}/channel-contracts/{contractId}/applications/{channelApplicationId}/synchronization` | 刷新报备状态 |
+| 6 | [`registerMerchantChannelSubApp`](../acquiring/index.html#tag/channels/operation/registerMerchantChannelSubApp) | `PUT /merchants/{merchantId}/channel-contracts/{contractId}/sub-apps/{appId}` | 录入线上平台标识并报备 |
+| 7 | [`listMerchantEntryPoints`](../acquiring/index.html#tag/entry-points/operation/listMerchantEntryPoints) | `GET /merchants/{merchantId}/entry-points` | 受理入口 |
+| 8 | [`updateMerchantEntryPointEnablement`](../acquiring/index.html#tag/entry-points/operation/updateMerchantEntryPointEnablement) | `PUT /merchants/{merchantId}/entry-points/{entryPoint}/enablement` | 开关入口 |
+| 9 | [`updateMerchantEntryPoint`](../acquiring/index.html#tag/entry-points/operation/updateMerchantEntryPoint) | `PATCH /merchants/{merchantId}/entry-points/{entryPoint}` | 入口级收窄 |
+| 10 | [`listMerchantFeeRates`](../acquiring/index.html#tag/fees/operation/listMerchantFeeRates) | `GET /merchants/{merchantId}/fee-rates` | 商户费率（当前与历史） |
+| 11 | [`createMerchantFeeRate`](../acquiring/index.html#tag/fees/operation/createMerchantFeeRate) | `POST /merchants/{merchantId}/fee-rates` | 录入 / 调整费率 |
+| 12 | [`listFeeRateIssues`](../acquiring/index.html#tag/fees/operation/listFeeRateIssues) | `GET /fee-rate-issues` | 费率问题清单 |
+| 13 | [`getMerchantSettlementTerms`](../acquiring/index.html#tag/fees/operation/getMerchantSettlementTerms) | `GET /merchants/{merchantId}/settlement-terms` | 计费条款 |
+| 14 | [`updateMerchantSettlementTerms`](../acquiring/index.html#tag/fees/operation/updateMerchantSettlementTerms) | `PATCH /merchants/{merchantId}/settlement-terms` | 改计费条款 |
+| 15 | [`updateMerchantCsfCoverage`](../acquiring/index.html#tag/fees/operation/updateMerchantCsfCoverage) | `PUT /merchants/{merchantId}/csf-coverage` | 客户服务费适用范围 |
+| 16 | [`listMerchantAcquiringParameters`](../acquiring/index.html#tag/settings/operation/listMerchantAcquiringParameters) | `GET /merchants/{merchantId}/acquiring-parameters` | 商户级收单参数 |
+| 17 | [`updateMerchantAcquiringParameter`](../acquiring/index.html#tag/settings/operation/updateMerchantAcquiringParameter) | `PUT /merchants/{merchantId}/acquiring-parameters/{key}` | 改值 / 恢复默认 |
+| 18 | [`getMerchantCrossRefundPolicy`](../acquiring/index.html#tag/settings/operation/getMerchantCrossRefundPolicy) | `GET /merchants/{merchantId}/cross-refund-policy` | 跨主子退款两开关 |
+| 19 | [`updateMerchantCrossRefundPolicy`](../acquiring/index.html#tag/settings/operation/updateMerchantCrossRefundPolicy) | `PUT /merchants/{merchantId}/cross-refund-policy` | 设两开关 |
+| 20 | [`getMerchantReceiptSettings`](../acquiring/index.html#tag/settings/operation/getMerchantReceiptSettings) | `GET /merchants/{merchantId}/receipt-settings` | 小票内容 |
+| 21 | [`updateMerchantReceiptSettings`](../acquiring/index.html#tag/settings/operation/updateMerchantReceiptSettings) | `PUT /merchants/{merchantId}/receipt-settings` | 改小票内容 |
+| 22 | [`getMerchantPaymentPageSettings`](../acquiring/index.html#tag/settings/operation/getMerchantPaymentPageSettings) | `GET /merchants/{merchantId}/payment-page-settings` | 店铺码收款页设置 |
+| 23 | [`updateMerchantPaymentPageSettings`](../acquiring/index.html#tag/settings/operation/updateMerchantPaymentPageSettings) | `PUT /merchants/{merchantId}/payment-page-settings` | 代配收款页 |
+| 24 | [`getMerchantTipSettings`](../acquiring/index.html#tag/settings/operation/getMerchantTipSettings) | `GET /merchants/{merchantId}/tip-settings` | 小费设置 |
+| 25 | [`updateMerchantTipSettings`](../acquiring/index.html#tag/settings/operation/updateMerchantTipSettings) | `PUT /merchants/{merchantId}/tip-settings` | 代配小费 |
+| 26 | [`listMerchantStoreQrcodes`](../acquiring/index.html#tag/products/operation/listMerchantStoreQrcodes) | `GET /merchants/{merchantId}/store-qrcodes` | 店铺码 |
+| 27 | [`listMerchantInvoices`](../acquiring/index.html#tag/products/operation/listMerchantInvoices) | `GET /merchants/{merchantId}/invoices` | 账单列表 |
+| 28 | [`listMerchantProductLinks`](../acquiring/index.html#tag/products/operation/listMerchantProductLinks) | `GET /merchants/{merchantId}/product-links` | 链接列表 |
+| 29 | [`updateGiftcardAlipayPassTemplate`](../acquiring/index.html#tag/products/operation/updateGiftcardAlipayPassTemplate) | `PUT /merchants/{merchantId}/product-links/{productLinkId}/alipay-pass-template` | 礼卡卡包模板编号 |
+| 30 | [`listMerchantDevices`](../acquiring/index.html#tag/devices/operation/listMerchantDevices) | `GET /merchants/{merchantId}/devices` | 商户设备（含已解绑） |
+| 31 | [`listMerchantDeviceLogs`](../acquiring/index.html#tag/devices/operation/listMerchantDeviceLogs) | `GET /merchants/{merchantId}/devices/{deviceId}/logs` | 设备日志 |
+| 32 | [`updateMerchantDeviceEnablement`](../acquiring/index.html#tag/devices/operation/updateMerchantDeviceEnablement) | `PUT /merchants/{merchantId}/devices/{deviceId}/enablement` | 停用 / 启用设备 |
+| 33 | [`releaseMerchantDevice`](../acquiring/index.html#tag/devices/operation/releaseMerchantDevice) | `DELETE /merchants/{merchantId}/devices/{deviceId}` | 释放设备 |
+| 34 | [`getMerchantDeveloperAccess`](../acquiring/index.html#tag/developer/operation/getMerchantDeveloperAccess) | `GET /merchants/{merchantId}/developer` | 开发接入 |
+| 35 | [`reissueMerchantApiCredential`](../acquiring/index.html#tag/developer/operation/reissueMerchantApiCredential) | `POST /merchants/{merchantId}/developer/credential-reissuance` | 重置 API 凭证 |
+| 36 | [`listAcquiringPlatformParameters`](../settings/index.html#tag/acquiring-parameters/operation/listAcquiringPlatformParameters) | `GET /settings/acquiring-parameters` | 平台收单参数 |
+| 37 | [`updateAcquiringPlatformParameter`](../settings/index.html#tag/acquiring-parameters/operation/updateAcquiringPlatformParameter) | `PUT /settings/acquiring-parameters/{key}` | 改值 / 恢复默认 |
+
+---
+
+## 页面：收单配置 · 通道签约
+
+按支付方式一行：通道 `channel`（通道名与通道商户号）、子商户号 `subMerchantId`、MCC `mcc`、运营启停 `enabled`、商户自助开关 `merchantEnabled`、是否要报备才有子商户号 `applicationRequired`、银联 Express `expressPayEnabled`（只银联在线）、线上平台标识 `subApps`、各类报备的最近结果 `applications`（状态、提交时间、通道给的原因）。下方列出可以加的支付方式 `availableMethods`。入驻申请提交后由系统建立的签约与报备同样在这里。
+
+### 场景：加支付方式
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开通道签约
+    S->>A: #35;1 [listMerchantChannelContracts]<br/>GET /merchants/{merchantId}/channel-contracts
+    A-->>S: 200 { items: [ { contractId, paymentMethod, channel, enabled,<br/>applications, updatedAt } ], availableMethods }
+    U->>S: 选一个可加的方式与通道，可选填子商户号、MCC、费率
+    S->>A: #35;2 [createMerchantChannelContract]<br/>POST /merchants/{merchantId}/channel-contracts（Idempotency-Key）
+    A-->>S: 201 { contractId, enabled }
+    S->>A: #35;1 [listMerchantChannelContracts]<br/>GET /merchants/{merchantId}/channel-contracts
+    A-->>S: 200 { items }
+```
+
+- 通道只能选 `availableMethods` 里该方式的 `channels`；子商户号只有需要报备的通道（该通道的 `applicationRequired` 为是）可填。
+- 填了费率就按它写一条新费率，从当天起生效，该方式的当前费率在新费率的生效首日截断（与录入费率同规则）；不填时该方式已有当前费率的沿用、不另写，没有的取标准费率（`standardRate`）。
+- 子商户号就位即启用：不需要子商户号、或子商户号按规则生成的通道，新建即启用；需要报备的通道，填了子商户号视为已就位、新建即启用且不自动报备，没填的新建为未启用，由系统自动发起报备，首次报备成功、子商户号回写时启用。#2 响应的 `enabled` 即建成后的启停。
+- 费率问题清单里「待签约」且有可选通道的支付方式，就是在这里选一个通道加上。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 该方式已有生效签约 | #2 `409`·`308403` | 提示已签约，重拉 #1 |
+| 所选通道不能签给该商户 | #2 `409`·`308410` | 提示改选通道，重拉 #1 |
+| 填的比例费率超过平台上限 | #2 `409`·`308406`（`context.capPercentage` 是上限，小数） | 费率框标红，按上限换成百分数提示 |
+| 当天起写入的新费率与该方式已排定的未来费率重叠 | #2 `409`·`308407` | 提示该方式已有排定的未来费率，到费率与计费核对后再加 |
+| 字段格式不对、给不需要报备的通道填了子商户号 | #2 `400`，`details` 定位字段 | 对应字段标红 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #2 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+### 场景：启停与子商户号
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 改某行的启停、子商户号、MCC 或 Express
+    S->>A: #35;3 [updateMerchantChannelContract]<br/>PATCH /merchants/{merchantId}/channel-contracts/{contractId}
+    A-->>S: 204
+    S->>A: #35;1 [listMerchantChannelContracts]<br/>GET /merchants/{merchantId}/channel-contracts
+    A-->>S: 200 { items }
+```
+
+- 请求带上该行读到的 `updatedAt`，含微秒原样带回；他人先改过即被拒，重读后再改。
+- 启停不改费率，停用只影响此后的受理。需要报备的通道（`applicationRequired` 为是）在子商户号就位前不能启用。
+- 子商户号只有需要报备的通道（`applicationRequired` 为是）上的签约可录入、修改或清空。同一通道商户号下该商户的其他签约共用子商户号，录入时一并写入。子商户号由空录入为有值，这些签约随之启用（本次同时带了 `enabled: false` 的除外）；已有子商户号再改值不改启停；清空则随之停用。
+- Express 只银联在线有；签约未启用时开关值保留但不生效。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 签约在读取后已被他人改过 | #3 `409`·`308401` | 提示他人已改过，重拉 #1 |
+| 子商户号未就位却要启用 | #3 `409`·`308402` | 提示待报备成功或先录入子商户号 |
+| 要启用，而出款方式与该商户其他已启用签约不一致 | #3 `409`·`308410` | 提示不能启用，重拉 #1 |
+| 字段格式不对、非银联在线带了 Express、不需要报备的通道上的签约带了子商户号 | #3 `400`，`details` 定位字段 | 对应字段标红 |
+
+### 场景：报备提交、重提与刷新
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    alt 提交或重提
+        U->>S: 对某行的某类报备点提交 / 重提
+        S->>A: #35;4 [createMerchantChannelApplication]<br/>POST /merchants/{merchantId}/channel-contracts/{contractId}/applications（Idempotency-Key）
+        A-->>S: 201 { channelApplicationId, status: UNDER_REVIEW }
+    else 刷新状态
+        U->>S: 对审核中的报备点刷新
+        S->>A: #35;5 [syncMerchantChannelApplication]<br/>POST /merchants/{merchantId}/channel-contracts/{contractId}/applications/{channelApplicationId}/synchronization
+        A-->>S: 200 { status, rejectReason, decidedAt }
+    end
+    S->>A: #35;1 [listMerchantChannelContracts]<br/>GET /merchants/{merchantId}/channel-contracts
+    A-->>S: 200 { items }
+```
+
+- 报备内容取商户当前资料；被驳回的同类报备再提即为重提。
+- 审核结果由系统定时同步，刷新只是按需提前查一次，不进操作审计。
+- 首次子商户进件成功时，系统回写子商户号并启用签约，刷新查到成功时同样如此。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 同签约同类报备还在审 | #4 `409`·`308404` | 提示先刷新状态 |
+| 通道当场拒绝 | #4 `409`·`308405`（通道给了原因时带 `context.channelErrorCode` / `channelErrorMessage`） | 显示通道原因，提示改资料后重提 |
+| 该通道不适用这类报备 | #4 `400` | 提示不适用 |
+
+### 场景：线上平台标识
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 在微信或支付宝签约行录入公众号 / 小程序 / 移动应用标识
+    S->>A: #35;6 [registerMerchantChannelSubApp]<br/>PUT /merchants/{merchantId}/channel-contracts/{contractId}/sub-apps/{appId}
+    A-->>S: 204
+    S->>A: #35;1 [listMerchantChannelContracts]<br/>GET /merchants/{merchantId}/channel-contracts
+    A-->>S: 200 { items: [ { subApps } ] }
+```
+
+- 录入即向通道完成关联报备，通道拒绝时不登记。
+- 登记后该商户从审核中心的线上平台标识补录待办里消失（见 05-merchant-review）。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 通道拒绝关联 | #6 `409`·`308405` | 显示通道原因，提示核对标识 |
+| 签约不是微信或支付宝 | #6 `400` | 不给录入入口 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 启用签约 | 运营随时可开启通道开关 | 需要报备的通道须子商户号就位才能启用；子商户号就位（报备成功或运营录入）时系统自动启用，清空即停用；子商户号按规则生成或不需要的通道不接受手改 | 不让未完成报备的支付方式先受理 |
+
+---
+
+## 页面：收单配置 · 受理入口
+
+全部受理入口各一行：开关态 `enabled`，以及收窄后可用的支付方式族 `paymentMethodFamilies`（不返回即未收窄）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开受理入口
+    S->>A: #35;7 [listMerchantEntryPoints]<br/>GET /merchants/{merchantId}/entry-points
+    A-->>S: 200 { items: [ { entryPoint, enabled, paymentMethodFamilies } ] }
+    alt 开关入口
+        U->>S: 拨动某入口的开关
+        S->>A: #35;8 [updateMerchantEntryPointEnablement]<br/>PUT /merchants/{merchantId}/entry-points/{entryPoint}/enablement
+        A-->>S: 204
+    else 收窄支付方式族
+        U->>S: 勾选该入口要用的族
+        S->>A: #35;9 [updateMerchantEntryPoint]<br/>PATCH /merchants/{merchantId}/entry-points/{entryPoint}
+        A-->>S: 204
+    end
+    S->>A: #35;7 [listMerchantEntryPoints]<br/>GET /merchants/{merchantId}/entry-points
+    A-->>S: 200 { items }
+```
+
+- POS 与商户 App 分别开关。开放 API 入口的开关也在这里，开发接入页只显示开关态。
+- 插件入口在接入申请通过后由运营在这里开通。AllValue 首次开通时，小红书入口随之开通并写出小红书费率：比例 = AllValue 费率（没有 AllValue 专用费率的取通用费率）的比例加平台默认上浮，不受商户费率上限约束，之后可在费率与计费里调整；小红书入口可单独关闭，AllValue 不变。
+- 收窄提交该入口要用的族的完整集合，空数组 = 全部停用；只做收窄，商户未签约的族列进来也不会因此可用。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 收窄里的族不在目录内 | #9 `400` | 刷新候选 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| POS 与商户 App | 一个合并的零售开关 | 两个入口分别开关 | 两类终端可以单独停 |
+
+---
+
+## 页面：收单配置 · 费率与计费
+
+上半部分是各支付方式（含插件入口专用行）的费率，按生效窗列出当前与历史，`current` 标出今天生效的那一行，旁边只读带出标准费率 `standardRates`；下半部分是计费条款：手续费结算模式 `billingModel`、退款手续费退回 `refundFeeReturnable`、客户服务费开关 `customerServiceFeeEnabled` 与适用范围 `csfCoverage`、APP 订阅开关 `appSubscriptionEnabled`、电商托管结算锁释放期 `escrowReleaseClearingDays`。
+
+### 场景：调整费率
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开费率与计费
+    S->>A: #35;10 [listMerchantFeeRates]<br/>GET /merchants/{merchantId}/fee-rates
+    A-->>S: 200 { items: [ { feeRateId, paymentMethod, percentageRate,<br/>fixedFee, effectiveFrom, effectiveTo, current } ], standardRates }
+    U->>S: 对某方式填新比例、固定费、免收截止日与生效首日
+    S->>A: #35;11 [createMerchantFeeRate]<br/>POST /merchants/{merchantId}/fee-rates（Idempotency-Key）
+    A-->>S: 201 { feeRateId }
+    S->>A: #35;10 [listMerchantFeeRates]<br/>GET /merchants/{merchantId}/fee-rates
+    A-->>S: 200 { items }
+```
+
+- 新费率从所选的生效首日起生效，当前费率在那一天截断，历史不覆盖、不删除。`effectiveTo` 是失效日，页面显示的最后生效日取它的前一天。
+- 比例须大于 0、不超过平台上限，至多 4 位小数（折成百分数至多两位小数）；录入或调整费率不改变签约的启停。
+- 小红书专用行（`entryPoint` 为 `plugin_allvalue_xhs`）不按平台上限校验。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 比例费率超过平台上限 | #11 `409`·`308406`（`context.capPercentage` 是上限，小数） | 比例框标红，按上限换成百分数提示 |
+| 生效首日早于当前费率，或与已排定的未来费率重叠 | #11 `409`·`308407` | 生效首日标红，重拉 #10 |
+| 比例不大于 0 或小数超过 4 位、固定费格式不对 | #11 `400`，`details` 定位字段 | 对应字段标红 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #11 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+### 场景：改计费条款与适用范围
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    S->>A: #35;13 [getMerchantSettlementTerms]<br/>GET /merchants/{merchantId}/settlement-terms
+    A-->>S: 200 { billingModel, refundFeeReturnable, customerServiceFeeEnabled,<br/>csfCoverage, appSubscriptionEnabled, escrowReleaseClearingDays }
+    alt 改条款
+        S->>A: #35;14 [updateMerchantSettlementTerms]<br/>PATCH /merchants/{merchantId}/settlement-terms
+        A-->>S: 204
+    else 改客户服务费适用范围
+        S->>A: #35;15 [updateMerchantCsfCoverage]<br/>PUT /merchants/{merchantId}/csf-coverage
+        A-->>S: 204
+    end
+    S->>A: #35;13 [getMerchantSettlementTerms]<br/>GET /merchants/{merchantId}/settlement-terms
+    A-->>S: 200 { billingModel, csfCoverage }
+```
+
+- 结算模式改后，此后成交的手续费按新模式；改前未结算的仍按其发生时的模式。商户后台不显示结算模式。
+- 适用范围提交的是不加收的完整集合，没列的场景与支付方式照加。
+- APP 订阅由关转开时，为该商户名下未解绑的 POS 设备补建收费计划。
+- 释放期 2–10 个清算日，`null` 回到平台默认；改值对已加锁的托管明细同样生效。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 释放期超出范围、场景或支付方式不在目录内 | #14 / #15 `400`，`details` 定位字段 | 对应字段标红 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 写费率 | 录入费率时顺手改通道开关 | 费率与签约启停互不影响 | 改价不误开或误关通道 |
+| 新增费率的日期 | 选的日期不落库 | 按所选生效首日生效，旧费率在那一天截断 | 费率生效窗可追溯 |
+
+---
+
+## 页面：费率问题清单
+
+跨商户列出待处理的问题，只含本人数据范围内的商户。各列取：商户 `merchant`、支付方式 `paymentMethod`（插件入口专用行另带 `entryPoint`）、问题类型 `issueType`、失效日 `effectiveTo`（只即将到期有）、原因 `pendingReason`（只待签约有）。纯读页面，只调 #12。
+
+- 问题类型：`no_effective_rate` 已启用签约今天没有生效费率；`expiring` 当前费率将在 `warningDays` 天内到期；`pending_setup` 商户在入驻申请提交后（被拒或已撤回的申请不算）、或受理模式开通申请通过后，申请里所选的支付方式该商户当前没有签约（已解绑的不算），全部列出（卡类支付方式商户自助接入，不列），`pendingReason` 按当前可签的通道数给出（`no_candidate_channel` 没有可签的通道、`single_candidate_channel` 恰有一个、`multiple_candidate_channels` 有多个可选通道）。
+- `warningDays` 是平台设定的到期预警天数，在平台收单参数里改。
+- 点「无生效费率」或「即将到期」的行进该商户的费率与计费；点「待签约」的行进该商户的通道签约，有可选通道的用「加支付方式」选一个补上。
+
+---
+
+## 页面：收单配置 · 商户级参数
+
+商户级收单参数（退款能力开关、退款免审开关、退款周期、订单有效期、终端仅查看模式），跨主子退款两开关，小票内容，店铺码收款页设置与小费。
+
+### 场景：改参数
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    S->>A: #35;16 [listMerchantAcquiringParameters]<br/>GET /merchants/{merchantId}/acquiring-parameters
+    A-->>S: 200 { items: [ { key, valueType, value, effectiveValue, version } ] }
+    U->>S: 改某项的值，或恢复默认
+    S->>A: #35;17 [updateMerchantAcquiringParameter]<br/>PUT /merchants/{merchantId}/acquiring-parameters/{key}
+    A-->>S: 204
+    S->>A: #35;16 [listMerchantAcquiringParameters]<br/>GET /merchants/{merchantId}/acquiring-parameters
+    A-->>S: 200 { items }
+```
+
+- `value` 传 `null` 恢复默认；`version` 原样带回读到的值，部分参数后写覆盖先写、`version` 恒为 0。
+- 退款周期内的订单可直接退，超期转人工审核、不拒；关闭退款能力后该商户的退款被拒。
+- 订单有效期未设时用平台兜底值。
+- 仅查看模式下终端不能收款，查单照常。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 版本已过期 | #17 `409`·`308408` | 提示他人已改过，重拉 #16 |
+| 值的类型或取值不合值域 | #17 `400`，`details` 定位到 `value` | 输入框标红 |
+
+### 场景：跨主子两开关
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    S->>A: #35;18 [getMerchantCrossRefundPolicy]<br/>GET /merchants/{merchantId}/cross-refund-policy
+    A-->>S: 200 { parentRefundChildEnabled, siblingRefundEnabled, isParent }
+    U->>S: 拨动开关并保存
+    S->>A: #35;19 [updateMerchantCrossRefundPolicy]<br/>PUT /merchants/{merchantId}/cross-refund-policy
+    A-->>S: 204
+```
+
+- `isParent` 为否（名下没有子商户）时两开关置灰。
+- 跨主子退款的出资方恒为订单所属商户。
+
+### 场景：小票
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    S->>A: #35;20 [getMerchantReceiptSettings]<br/>GET /merchants/{merchantId}/receipt-settings
+    A-->>S: 200 { headerLines, footerLines, orderCodeType }
+    U->>S: 改抬头、页脚或订单号码制并保存
+    S->>A: #35;21 [updateMerchantReceiptSettings]<br/>PUT /merchants/{merchantId}/receipt-settings
+    A-->>S: 204
+```
+
+- 抬头、页脚各自所有行合计不超过 200 字符，不限行数；空数组 = 不打该段。商户后台只读展示同一份。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 抬头或页脚超长 | #21 `400`，`details` 定位字段 | 对应段标红 |
+
+### 场景：收款页与小费
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    par 收款页
+        S->>A: #35;22 [getMerchantPaymentPageSettings]<br/>GET /merchants/{merchantId}/payment-page-settings
+        A-->>S: 200 { payerInputs, inputLimit, description,<br/>checkoutOptions, checkoutOptionCandidates }
+    and 小费
+        S->>A: #35;24 [getMerchantTipSettings]<br/>GET /merchants/{merchantId}/tip-settings
+        A-->>S: 200 { enabled, presets }
+    end
+    alt 保存收款页
+        S->>A: #35;23 [updateMerchantPaymentPageSettings]<br/>PUT /merchants/{merchantId}/payment-page-settings
+        A-->>S: 204
+    else 保存小费
+        S->>A: #35;25 [updateMerchantTipSettings]<br/>PUT /merchants/{merchantId}/tip-settings
+        A-->>S: 204
+    end
+```
+
+- 收款页与小费是两份设置、各自保存；小费是商户级的，店铺码收款页与终端收款共用。
+- 采集项提交保留下来的键（读回来的项放它的 `key`，新加的自撰项放标题），合计不超过 `inputLimit`，自撰标题不超过 10 字符。Logo 由商户自己维护，本页只读。
+- 收款页支付方式至少 1 项；新加的须是候选里 `opened` 为是的，已选着、后来停用的项可以原样带回。
+- 小费三档，每档 0–30 的整数百分比。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 新加的支付方式未开通 | #23 `409`·`308411` | 提示该方式未开通，重拉 #22 |
+| 采集项缺必填项，或自撰标题以 `sys:` 开头、重复 | #23 `409`·`308412` | 采集项区标红 |
+| 项数或标题超限、支付方式为空、小费档位不合 | #23 / #25 `400`，`details` 定位字段 | 对应字段标红 |
+
+---
+
+## 页面：收单配置 · 收款码与链接
+
+只读展示该商户的店铺码（各币种与标准 / 预授权 / 银联码）、账单与链接（商品码、票务、礼卡）的列表与状态；码牌与海报物料由前端按 `qrContent` / `paymentUrl` 生成，同商户后台。本页不提供增改，代操作经代登。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    par 店铺码
+        S->>A: #35;26 [listMerchantStoreQrcodes]<br/>GET /merchants/{merchantId}/store-qrcodes
+        A-->>S: 200 { items: [ { currency, qrType, qrContent } ] }
+    and 账单
+        S->>A: #35;27 [listMerchantInvoices]<br/>GET /merchants/{merchantId}/invoices
+        A-->>S: 200 { total, data: [ { invoiceNo, amount, status, paymentUrl } ] }
+    and 链接
+        S->>A: #35;28 [listMerchantProductLinks]<br/>GET /merchants/{merchantId}/product-links
+        A-->>S: 200 { total, data: [ { productLinkId, productLinkType,<br/>enabled, alipayPassTemplateId } ] }
+    end
+    opt 礼卡填卡包模板编号
+        U->>S: 对礼卡链接填写或清空模板编号
+        S->>A: #35;29 [updateGiftcardAlipayPassTemplate]<br/>PUT /merchants/{merchantId}/product-links/{productLinkId}/alipay-pass-template
+        A-->>S: 204
+        S->>A: #35;28 [listMerchantProductLinks]<br/>GET /merchants/{merchantId}/product-links
+        A-->>S: 200 { data }
+    end
+```
+
+- 卡包模板编号只对礼卡链接；清空即该礼卡不再提供存入支付宝卡包。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 店铺码对该商户未开通或已停用 | #26 `409`·`308413` | 店铺码区显示未开通 |
+| 对非礼卡链接填编号 | #29 `400` | 不给填写入口 |
+| 链接在读取后已被商户删除 | #29 `409`·`308414` | 提示链接已删除，重拉 #28 |
+
+---
+
+## 页面：收单配置 · 设备
+
+列出该商户名下的设备，含已解绑的；可按状态与关键词筛选。各列取：设备号 `deviceId`、型号 `deviceModel`、来源 `deviceSource`、序列号 `serialNumber`、门店 `storeName`、状态 `status`、App 版本 `appVersion`、最近活跃 `lastActiveAt`、最近登录的操作员 `lastLoginOperator`。点一行看日志。
+
+### 场景：停用 / 启用
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    S->>A: #35;30 [listMerchantDevices]<br/>GET /merchants/{merchantId}/devices?status=&keyword=
+    A-->>S: 200 { total, data: [ { deviceId, deviceModel, status, lastActiveAt } ] }
+    opt 查看日志
+        U->>S: 点某台设备
+        S->>A: #35;31 [listMerchantDeviceLogs]<br/>GET /merchants/{merchantId}/devices/{deviceId}/logs?from=&to=
+        A-->>S: 200 { total, data: [ { logType, severity, eventName, createdAt } ] }
+    end
+    U->>S: 对某台设备点停用 / 启用
+    S->>A: #35;32 [updateMerchantDeviceEnablement]<br/>PUT /merchants/{merchantId}/devices/{deviceId}/enablement
+    A-->>S: 204
+    S->>A: #35;30 [listMerchantDevices]<br/>GET /merchants/{merchantId}/devices
+    A-->>S: 200 { data }
+```
+
+- 规则同商户自助：停用即不可受理、凭据保留，启用后恢复。待激活的设备不能停用或启用。
+- 已解绑设备的日志照样可查；日志的日期范围两端必填，默认最近 30 天。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 待激活的设备 | #32 `409`·`308409` | 提示待激活不能停用或启用，重拉 #30 |
+| 已解绑的设备 | #32 `404` | 不给停用 / 启用入口；出现就重拉 #30 |
+
+### 场景：释放与跨商户转移
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 对某台设备点释放并确认
+    S->>A: #35;33 [releaseMerchantDevice]<br/>DELETE /merchants/{merchantId}/devices/{deviceId}
+    A-->>S: 204
+    S->>A: #35;30 [listMerchantDevices]<br/>GET /merchants/{merchantId}/devices
+    A-->>S: 200 { data: [ { deviceId, status: RELEASED } ] }
+```
+
+- 待激活的即取消激活，已接入的即解绑：设备移出该商户、凭据作废，记录留存、显示为已解绑。
+- 跨商户转移：先在原商户这里释放，新商户的终端首次登录即接入。
+- 已解绑的设备只可查看，不再有任何处置。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 设备已解绑 | #33 `404` | 不给释放入口；出现就重拉 #30 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 已释放的设备 | 可清理掉 | 记录留存、只可查看 | 设备与历史交易可追溯 |
+
+---
+
+## 页面：收单配置 · 开发接入
+
+显示对接用商户号 `merchantCode`、开放 API 入口开关态 `openApiEnabled` 与 API 凭证末 4 位 `credentialLast4`。开放 API 的开关在受理入口页改。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    S->>A: #35;34 [getMerchantDeveloperAccess]<br/>GET /merchants/{merchantId}/developer
+    A-->>S: 200 { merchantCode, openApiEnabled, credentialLast4 }
+    U->>S: 点重置 API 凭证
+    S->>U: 二次确认：旧凭证将在宽限期后失效
+    U->>S: 确认
+    S->>A: #35;35 [reissueMerchantApiCredential]<br/>POST /merchants/{merchantId}/developer/credential-reissuance（Idempotency-Key）
+    A-->>S: 204
+    S->>A: #35;34 [getMerchantDeveloperAccess]<br/>GET /merchants/{merchantId}/developer
+    A-->>S: 200 { credentialLast4 }
+```
+
+- 运营看不到凭证全文；商户在商户后台的开发者页查看新凭证。
+- 旧凭证在宽限期内仍可用，之后失效。
+- 商户还没有签发过凭证（未激活）时不给重置按钮。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 商户还没有凭证 | #35 `404` | 提示商户激活后才有凭证 |
+| 同一幂等键用于不同内容 / 首次请求处理中 | #35 `409`·`908003` / `908002` | 换新键重提 / 稍后同键重发 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 重置凭证后的旧凭证 | 立即失效 | 宽限期内仍可用，之后失效 | 商户来得及换上新凭证，不中断接入 |
+
+---
+
+## 页面：平台收单参数
+
+收单相关的平台级参数：APP 订阅的首月分界日、单台月费与合约期数，小费默认三档，AllValue 小红书默认上浮，商户费率上限，费率到期预警天数。形态与平台参数页相同（见 03-settings）。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开平台收单参数
+    S->>A: #35;36 [listAcquiringPlatformParameters]<br/>GET /settings/acquiring-parameters
+    A-->>S: 200 { items: [ { key, groupName, value, effectiveValue, version } ] }
+    U->>S: 改某项的值，或恢复默认
+    S->>A: #35;37 [updateAcquiringPlatformParameter]<br/>PUT /settings/acquiring-parameters/{key}
+    A-->>S: 200 { key, value, effectiveValue, version }
+```
+
+- `value` 传 `null` 恢复默认。对此后的判定生效，改前已经发生的不受影响（如改费率上限不影响已录入的费率）。
+- 单台月费按商户的结算币种解释。
+- AllValue 小红书默认上浮与商户费率上限用比例小数字符串（`stringValue`，如 `"0.05"` = 5%，至多 4 位小数），与费率同形，换算为百分数只在页面展示。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 版本已过期 | #37 `409`·`308103` | 提示他人已改过，重拉 #36 |
+| 值的类型或取值不合值域 | #37 `400`，`details` 定位到 `value` | 输入框标红 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

@@ -11,10 +11,6 @@
       ],
       "retryable": true
     },
-    "108001": {
-      "name": "CORE_IDEMPOTENCY_PAYLOAD_CONFLICT",
-      "retryable": false
-    },
     "108005": {
       "name": "SETTLEMENT_HOLD_STATE_CONFLICT",
       "retryable": false
@@ -182,8 +178,52 @@
       "name": "TERMINAL_PASSWORD_RESET_UNSUPPORTED",
       "retryable": false
     },
+    "208039": {
+      "name": "TERMINAL_BANK_ACCOUNT_CHANGE_UNSUPPORTED",
+      "retryable": false
+    },
+    "904001": {
+      "name": "VALIDATION_FAILED",
+      "retryable": false
+    },
+    "904002": {
+      "name": "MALFORMED_REQUEST",
+      "retryable": false
+    },
+    "905001": {
+      "name": "INTERNAL_ERROR",
+      "retryable": false
+    },
+    "905002": {
+      "name": "SERVICE_UNAVAILABLE",
+      "retryable": true
+    },
+    "906003": {
+      "name": "PERMISSION_DENIED",
+      "retryable": false
+    },
+    "906004": {
+      "name": "RATE_LIMITED",
+      "retryable": true
+    },
+    "908001": {
+      "name": "RESOURCE_NOT_FOUND",
+      "retryable": false
+    },
+    "908002": {
+      "name": "IDEMPOTENCY_IN_PROGRESS",
+      "retryable": true
+    },
+    "908003": {
+      "name": "IDEMPOTENCY_KEY_REUSED",
+      "retryable": false
+    },
     "966001": {
       "name": "ACCOUNT_LOCKED",
+      "retryable": false
+    },
+    "968006": {
+      "name": "ACCOUNT_STATE_CONFLICT",
       "retryable": false
     }
   }

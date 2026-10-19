@@ -2,8 +2,10 @@
 <html lang="zh"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>设置 — 调用时序</title>
-<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}</style></head><body>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"merchant","ops":{"account/changeRefundPin":"c87f6a2240a61338","account/confirmRefundPinReset":"eedf6b111f34b5ae","account/createSettlementChangeRequest":"d78f6465bb8bf647","account/deleteLogo":"1c165137907e5f38","account/disableTerminalIntegration":"60f5bc0858af8015","account/getAccountProfile":"22e0616a6bb41e05","account/getAccountService":"ede58c4da9f5fbdc","account/getRefundPin":"415c39eab076691b","account/requestRefundPinReset":"f990a234f58a2e2d","account/requestSettlementOtp":"dfca80012719749e","account/updateAcceptanceMode":"cb8a91ee404cd82f","account/updateBusinessInformation":"6f4a04c2b1479e58","account/updateEcommerceIntegration":"2fff1327c721b7d8","account/updateLogo":"1c59946766ed303e","account/updateOwnerContact":"c2a724191489b539","account/updateTerminalIntegration":"2f51f4355ed6ed95","account/uploadLogoFile":"3f65c362eac9031a","account/uploadSettlementVoidChequeFile":"cba7128570a814d5","account/uploadStorePhotoFile":"c04039b374ccdf16","auth/acceptInvitation":"2243e29ba786a580","auth/completeMfaChallenge":"639642c0d7ba9260","auth/confirmMemberLoginEmail":"a1307328398d1949","auth/confirmPasswordReset":"65f81cdf4b3b7699","auth/disputeOnboardingConfirmation":"b69c921bcb393658","auth/establishImpersonationSession":"526f4e5e5d7492aa","auth/getCurrentSession":"f33b57ea9ef5610d","auth/getOnboardingConfirmation":"6003e720144afe6c","auth/initiateWechatLogin":"969f06e289150199","auth/login":"ac9986fefc08286f","auth/logout":"30cf8345b848a2fc","auth/pollWechatLogin":"7f920e216fbfaa26","auth/registerOwner":"20b588d807994acb","auth/requestPasswordReset":"778a410e247ca2c8","auth/resendVerificationEmail":"3c3d315ae50699f5","auth/signOnboardingConfirmation":"99d91f9112adfa8e","auth/switchCurrentMerchant":"6115ccb12dc7c485","auth/verifyRegistrationEmail":"3723323ca2595c5d","devices/createDevice":"e0d035a5a55fc0bf","devices/deleteDevice":"6d4afc6ec23b1e02","devices/exportDeviceLogs":"5c6e75d9d7dd94e4","devices/getDevice":"736ce41ceffc8928","devices/getDeviceCounts":"9c67d42f924a0558","devices/getDeviceLogCounts":"23d8148327252eed","devices/listDeviceLogs":"2702916b8a068ffb","devices/listDeviceStores":"b09c6bb7f38f16f4","devices/listDevices":"2f3d53503797186b","devices/updateDevice":"8a90ccb8382f0fb6","funds/exportSettlementDetails":"1c90fba27e3884dc","funds/exportSettlements":"7c0308e779224a4d","funds/fundRefundReserve":"8a85d9cc60dfe2bd","funds/getBalance":"4c7076ff935c94ed","funds/getStatement":"728579787df9694e","funds/getStatementPdf":"c15ed354c2697b81","funds/listSettlementDetails":"683f7b822fff43bf","funds/listSettlements":"82c72d4b607bb561","funds/listStatements":"f07dcb32b142e50b","funds/requestRefundReserveOtp":"7169d30435aa0162","funds/withdrawRefundReserve":"cb61a284627a1a13","me/changeMyPassword":"2133fd0c75a19736","me/confirmLoginEmailChange":"491f3532208f7d80","me/confirmMfa":"bf82507f51efb156","me/disableMfa":"4288ecbb24481f55","me/enrollMfa":"f9dbd1ffbe95938c","me/getMySecurity":"b20294d8b79d1750","me/requestLoginEmailChange":"e1fa36e4c7bf773a","me/resendLoginEmailChangeCode":"a9b0f5fa411c6c66","me/submitNewLoginEmail":"1d24b4f0f0c263ea","me/updateMyProfile":"399c916e6de20395","me/verifyLoginEmailChangeIdentity":"576ff10d51aee940","merchants/createMerchant":"c3bcae451e7b409f","merchants/deleteMerchant":"a666f6df15a9c29e","merchants/getOnboardingApplication":"033792f01c75c049","merchants/listMerchants":"24afe818554fac2f","merchants/submitOnboardingApplication":"5addc4b7f8893af9","merchants/updateOnboardingStep":"e4d8814ee9a48d3b","merchants/uploadOnboardingDocumentFile":"9d2bb8651c080b65","notifications/addNotificationEmail":"aeebae9b441cf907","notifications/deleteNotificationRecipient":"d8d0a7ec52c14f72","notifications/getNotificationSettings":"c9284f4e073f977a","notifications/initiateNotificationWechatBinding":"3615394fb7b79c7b","notifications/pollNotificationWechatBinding":"208926d855599a5a","notifications/requestNotificationEmailOtp":"84e036d2ca8d4bc9","notifications/updateNotificationSettings":"779e3b66e8d4ac26","orders/cancelRefund":"51d14a5d4735207b","orders/createRefund":"ac29b92ef61cd7c0","orders/exportPayments":"beaede7a045652c7","orders/exportRefunds":"8e740e26362bb82c","orders/getPayment":"8a8b271f419539cc","orders/getPaymentCounts":"db15aba3bb5e55b4","orders/getPaymentReceipt":"a384e00c71ea991d","orders/getPaymentSummary":"4f7375acbd18dab3","orders/getRefund":"8f052e0d16b3028c","orders/getRefundCounts":"fe35786902c25341","orders/getRefundReceipt":"0ba9b7b02129c5e5","orders/getStatisticsSummary":"db9f3b0bcd993ac7","orders/getStatisticsTrend":"4e7f42f96d5eb8d9","orders/listPayments":"3a59d0f63248b832","orders/listRecentPayments":"7c48662c77ce91ed","orders/listRefunds":"3a91bff6fcd908ce","orders/releasePreAuth":"968b4de71e0b2580","products/createInvoice":"ea67ad928359409a","products/createProductLink":"ef88e7483c9d0400","products/deleteInvoice":"189d762e5dffb3fa","products/deleteProductLink":"09845ff36a314253","products/disposeProductLinkOrderRisk":"dadd15a13277df0a","products/getCheckoutSettings":"8e36ff321e66859c","products/getInvoiceCounts":"2189a35271b6eff3","products/getInvoiceSummary":"2c3b9da48fe0ff89","products/getPaymentPageSettings":"fbab444cb0d08f4c","products/getProductLink":"ba655dfa80053036","products/getProductLinkCounts":"af74b464b7274473","products/getProductLinkDefaults":"f0ec802572fdd177","products/getProductLinkOrder":"76b1e9ca0781d0a9","products/getProductLinkOrderCounts":"3f1e2bc0728f64d6","products/listCheckoutOptions":"42672f2b06a7f393","products/listInvoices":"cc94c4083fed4d08","products/listProductLinkOrders":"19496012164ef08d","products/listProductLinks":"2d1a77b5b08f2f30","products/listStoreQrcodes":"cc7ca60edf963b42","products/resendProductLinkOrderCredential":"62dc98d63cf62ad7","products/updateCheckoutSettings":"f358e2a101a5314c","products/updatePaymentPageSettings":"b33a5a287bacb5e3","products/updateProductLink":"850e2539d60d1377","products/updateProductLinkPolicies":"da91d36cc78041fc","products/uploadPaymentPageLogoFile":"d30d49c982b02aec","products/uploadProductLinkFile":"be9282678b452f7f","products/voidProductLinkOrderVoucher":"3c92fb8426dc6033","system/getDeveloperSettings":"476d28f6b556da04","system/getNotice":"f3d4d437ae50ed3d","system/getNoticeSummary":"5db22ded841e8303","system/getSettlementConfig":"8ffdde15c84c7349","system/listCountryOptions":"46c23de42bb8ff6b","system/listCurrencyOptions":"8f508cdac76d1396","system/listIndustryOptions":"67c84641c43242e5","system/listNotices":"cb1a472b51c33dbc","system/listPaymentMethodOptions":"1b92ea7dbac296fb","system/markAllNoticesRead":"32b197fee4386d49","system/markNoticeRead":"c863976902421bbf","system/replaceSigningKey":"88749879a4dfd745","system/revealGatewayCredential":"5042a5b597162d01","team/createTeamMember":"1e47a98f04f75a11","team/deleteMemberWechatBinding":"f66e1799c297ad8a","team/deleteTeamMember":"00b07bc771ff724e","team/getTeamMemberCounts":"68c920e0c308ba77","team/initiateMemberWechatBinding":"8c293135d5243697","team/listAssignableRoles":"673fe43ff03f7d7f","team/listTeamMembers":"ce366301351021ec","team/pollMemberWechatBinding":"55596c324a863dcc","team/resendInvitation":"af5620650592a525","team/updateTeamMember":"3661c5341175a71d"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 设置 —— 调用时序
@@ -34,7 +36,7 @@
 | 9 | [`confirmMfa`](../me/index.html#tag/security/operation/confirmMfa) | `POST /me/security/mfa/confirmation` | 开启 MFA 第 2 步(输验证器码) |
 | 10 | [`disableMfa`](../me/index.html#tag/security/operation/disableMfa) | `POST /me/security/mfa/deactivation` | 关闭 MFA(输验证器码) |
 | 11 | [`changeMyPassword`](../me/index.html#tag/security/operation/changeMyPassword) | `PUT /me/security/password` | 登录态改密(当前密码校验) |
-| 12 | [`changeRefundPin`](../account/index.html#tag/refund-pin/operation/changeRefundPin) | `PUT /account/refund-pin` | 改 Refund PIN（当前 PIN + 新 PIN） |
+| 12 | [`changeRefundPin`](../account/index.html#tag/refund-pin/operation/changeRefundPin) | `PUT /account/refund-pin` | 设置或改 Refund PIN（未设置时只带新 PIN，已设置时当前 PIN + 新 PIN） |
 | 13 | [`requestRefundPinReset`](../account/index.html#tag/refund-pin/operation/requestRefundPinReset) | `POST /account/refund-pin/resets` | 忘记 PIN 第 1 步：发码到 Owner 邮箱（脱敏邮箱 + 冷却） |
 | 14 | [`confirmRefundPinReset`](../account/index.html#tag/refund-pin/operation/confirmRefundPinReset) | `POST /account/refund-pin/resets/{challengeId}/confirmation` | 忘记 PIN 第 2 步：码 + 新 PIN |
 | 15 | [`getNotificationSettings`](../notifications/index.html#tag/notifications/operation/getNotificationSettings) | `GET /notifications` | 通知设置：两个通道开关、主邮箱、附加邮箱、微信接收方 |
@@ -48,6 +50,7 @@
 | 23 | [`revealGatewayCredential`](../system/index.html#tag/developer/operation/revealGatewayCredential) | `POST /developer/credential/disclosures` | Gateway Credential 完整值 |
 | 24 | [`replaceSigningKey`](../system/index.html#tag/developer/operation/replaceSigningKey) | `PUT /developer/signing-key` | 登记或替换商户公钥 |
 | 25 | [`listPaymentMethodOptions`](../system/index.html#tag/config/operation/listPaymentMethodOptions) | `GET /config/payment-methods/{currency}` | 支付方式的展示名，客户服务费一栏用 |
+| 26 | [`getRefundPin`](../account/index.html#tag/refund-pin/operation/getRefundPin) | `GET /account/refund-pin` | Refund PIN 是否已设置（决定展示首次设置还是修改表单） |
 
 ---
 
@@ -149,7 +152,8 @@ sequenceDiagram
 | 情形 | 响应 | 页面动作 |
 |---|---|---|
 | 开 MFA 时当前密码错；开 / 关 MFA 时验证器码错 | `403`·`206011` | 留在弹窗重输，不跳登录页 |
-| 开 MFA 扫码后太久没确认 | `410`·`206006` | 回第一步重新开启 |
+| 开 MFA 第 2 步时没有待确认的密钥 | `410`·`206006` | 回第一步重新开启 |
+| 开 MFA 时已开启（另一个标签页已开，或第 2 步的响应丢了后重试） | `409`·`968004` | 重拉 `getMySecurity`，按已开启显示 |
 
 - `LOW` 只会出现在 v1 迁移来的旧密码上（v2 新设的密码都经过 5 条规则校验）。升级提示可在本次会话关掉，下次登录再出现，直到改成达标的密码。
 - 改密码卡上的「上次修改」取 `passwordUpdatedAt`，没有这个键就不显示这一句。
@@ -175,8 +179,11 @@ sequenceDiagram
     participant A as 商户后台 BFF
     participant E as Owner 邮箱
 
-    Note over U,A: 改退款 PIN
-    U->>S: 输当前 PIN + 新 PIN + 确认 PIN<br/>（前端校验 6 位数字、两次一致）
+    S->>A: #35;26 [getRefundPin]<br/>GET /account/refund-pin
+    A-->>S: 200 { pinSet }
+
+    Note over U,A: 设置 / 改退款 PIN
+    U->>S: pinSet=false 输新 PIN + 确认 PIN<br/>pinSet=true 输当前 PIN + 新 PIN + 确认 PIN<br/>（前端校验 6 位数字、两次一致）
     S->>A: #35;12 [changeRefundPin]<br/>PUT /account/refund-pin
     A->>E: PIN 已修改通知
     A-->>S: 204
@@ -198,14 +205,22 @@ sequenceDiagram
 | 情形 | 响应 | 页面动作 |
 |---|---|---|
 | 改 PIN 时当前 PIN 错 | `400` | 留在表单重输 |
+| 按首次设置提交，但 PIN 已被别处设好 | `400` | 重拉 #26，按修改表单展示 |
 | 当前 PIN 连续错到上限 | `423`·`206004` | 提示等待，剩余秒数见 `context.cooldownSeconds` |
 | 忘记 PIN 的码错、还有次数 | `400`·`204010` | 留在弹窗重输，剩余次数见 `context.attemptsRemaining` |
 | 忘记 PIN 的码错到上限 / 过期或已作废 | `423`·`206007` / `410`·`206006` | 回第一步重新发起 |
 | 重发太快 | `429`·`208013` | 等倒计时 |
-| 改 PIN 时同一个幂等键改了请求体 | `409`·`208005` | 改过内容就换新键 |
+| 改 PIN 时同一个幂等键改了请求体 | `409`·`908003` | 改过内容就换新键 |
 
 - #12 带 `Idempotency-Key`，点一次生成一个键。
 - 确认的响应丢了、重试拿到 `410`·`206006`：PIN 可能已经改好，拿不准就重新发起一次。
+- `pinSet` 为 false 时不显示「Forgot your PIN?」。
+
+**相对 demo 的改动**
+
+| demo | 本契约 | 原因 |
+|---|---|---|
+| 只有修改表单（当前 PIN + 新 PIN） | 未设置时展示首次设置表单（新 PIN + 确认） | 工作人员代为建档的商户激活时还没有退款 PIN，由商户自己设，工作人员不经手 |
 
 ---
 
@@ -369,6 +384,21 @@ import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.mi
 document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
 document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
 const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
 document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
 mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
 mermaid.run({querySelector:'.mermaid'}).then(jump,jump);

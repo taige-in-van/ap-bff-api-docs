@@ -137,6 +137,7 @@ paths:
 
         - 带了 `checkoutOptions` 时至少 1 项（空 → `400`·`204005`）。相对已保存的集合新加的项须已开通（`listCheckoutOptions` 里 `opened` 为 true），否则 → `409`·`208007`；已选着、后来停用的项可以原样保留，付款人看不到它，重新开通后即恢复。
         - 带了 `payerInputKeys` 时提交保留下来的完整键列表；缺了必填项、或自撰标题以 `sys:` 开头 → `409`·`208030`。第一次保存时系统项按当时的系统目录固化，此后系统目录变化不追溯。
+        - `logoFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 指到 `logoFileId`）。
         - 保存涉及收款页设置与商户小费两处，全部校验通过才写入；返回失败时原样重发同一请求体即可。
 
         同样的请求体重发结果不变，不挂 Idempotency-Key。
@@ -175,6 +176,7 @@ paths:
         - 204005
         - 208007
         - 208030
+        - 208040
   /products/checkout/options:
     get:
       tags:
@@ -390,7 +392,7 @@ paths:
         - 标价币种须是 `listCheckoutOptions` 里已开通项的 `pricingCurrencies` 之一，否则 → `400`。
         - 到期日早于当天 → `400`·`204004`。
 
-        必带 `Idempotency-Key`：同键 + 同请求体重发返回首次结果、不重复建单；改了请求体须换新键，沿用旧键 → `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
+        必带 `Idempotency-Key`：同键 + 同请求体重发返回首次结果、不重复建单；改了请求体须换新键，沿用旧键 → `409`·`908003`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -427,8 +429,6 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 204004
-        - 208005
-        - 208011
   /products/invoices/counts:
     get:
       tags:
@@ -669,8 +669,9 @@ paths:
         - 采集项按 `key` 给全（见 `buyerInputKeys`）：缺了必填项、或自撰标题以 `sys:` 开头 `409`·`208030`。
         - 政策条款不在本请求里：新链接自动带上商户当前的默认条款，之后在详情页改。
         - 礼卡：`fulfillmentMode` 创建后不可改；`campaignEndDate` 不早于今天；`bonusTerms` 为 `custom` 时 `bonusNotes` 必填——不满足均为 `400`。
+        - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
 
-        幂等：同一个键改了请求体 `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
+        幂等：同一个键改了请求体 `409`·`908003`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -737,10 +738,9 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 204005
-        - 208005
         - 208007
-        - 208011
         - 208030
+        - 208040
   /products/links/counts:
     get:
       tags:
@@ -911,7 +911,7 @@ paths:
                     type: email
                     needConfirm: true
                 inputLimit: 10
-                bannerUrl: https://cdn.example.com/core/product-link-banner/2026/07/5a2c84f1d09b4e73ac16f8b3e047d92c.jpg
+                bannerUrl: https://cdn.example.com/core/link-banner/2026/07/5a2c84f1d09b4e73ac16f8b3e047d92c.jpg
                 policies:
                   faq:
                     en: How do I redeem the card?
@@ -920,7 +920,7 @@ paths:
                     en: support@merchant.com
                 giftcard:
                   brandName: lululemon
-                  brandLogoUrl: https://cdn.example.com/core/product-link-brand-logo/2026/07/3b6d9e07f4a24c1e8b52d079c6134ae8.png
+                  brandLogoUrl: https://cdn.example.com/core/giftcard-brand-logo/2026/07/3b6d9e07f4a24c1e8b52d079c6134ae8.png
                   campaignName: 2026 Christmas Promotion
                   promotionType: discount
                   fulfillmentMode: inventory
@@ -973,10 +973,11 @@ paths:
         - 条目（商品 / 票档 / 面值档）：带回 `itemId` = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。`quantityLimit` 不能低于该项的 `committedQuantity`，否则 `409`·`208031`（`context.committedQuantity` 是那个数）；带了不属于本链接的 `itemId` → `409`·`208032`。
         - 支付方式与采集项的校验同 `createProductLink`（`208007` / `204005` / `208030`）；只改 `currency` 时按新币种复核已选的方式。已选着、后来停用的项可以原样带回。
         - 礼卡：切换 `enabled` 会让该活动的限购计数重新开始。
+        - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
 
         已成交的订单不受修改影响：下单时已把名称、单价、数量、活动信息抄进订单。
 
-        幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体 → `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
+        幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果；同键改请求体 → `409`·`908003`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1031,12 +1032,11 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 204005
-        - 208005
         - 208007
-        - 208011
         - 208030
         - 208031
         - 208032
+        - 208040
     delete:
       tags:
         - links
@@ -1101,7 +1101,7 @@ paths:
         - links
       operationId: uploadProductLinkFile
       x-required-privilege: products:link:manage
-      summary: 上传 Banner / 品牌 Logo / 商品图（随创建或修改生效）
+      summary: 上传 Banner / 礼卡品牌图 / 商品图（随创建或修改生效）
       description: |
         返回的 `fileId` 按 `purpose` 作 `bannerFileId`、`giftcard.brandLogoFileId` 或 `product.items[].imageFileId`，在 `createProductLink` 或 `updateProductLink` 生效时文件才归属该链接。不需要链接已存在。
 
@@ -1121,9 +1121,9 @@ paths:
                       allOf:
                         - $ref: '#/components/schemas/MerchantFilePurpose'
                       enum:
-                        - product_link_banner
-                        - product_link_brand_logo
-                        - product_link_item_image
+                        - link_banner
+                        - giftcard_brand_logo
+                        - product_image
       responses:
         '201':
           description: 已上传（随链接写操作生效）
@@ -1136,7 +1136,7 @@ paths:
                 fileName: campaign-banner.jpg
                 fileSize: 512000
                 contentType: image/jpeg
-                previewUrl: https://cdn.example.com/core/product-link-banner/2026/07/5a2c84f1d09b4e73ac16f8b3e047d92c.jpg
+                previewUrl: https://cdn.example.com/core/link-banner/2026/07/5a2c84f1d09b4e73ac16f8b3e047d92c.jpg
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1480,7 +1480,7 @@ paths:
       description: |
         仅礼卡销售单可重发。按所填邮箱重发凭证邮件并写入动作日志，不改变订单状态与凭证内容。不传 `email` 就发到当前投递邮箱。不是礼卡销售单、凭证已失效、已核销、订单有处理中的退款或处于风控冻结时不可重发 → `409`·`208019`。
 
-        幂等：同键同请求体重发不会再投递一封；换收件邮箱要换新键，沿用旧键改邮箱 → `409`·`208005`；同键的上一次提交还在处理 → `409`·`208011`。
+        幂等：同键同请求体重发不会再投递一封；换收件邮箱要换新键，沿用旧键改邮箱 → `409`·`908003`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1514,8 +1514,6 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 208005
-        - 208011
         - 208019
   /products/links/{linkId}/orders/{salesOrderId}/voucher-invalidation:
     post:
@@ -1527,7 +1525,7 @@ paths:
       description: |
         仅礼卡兑换券模式、已付、未核销、且没有处理中退款的单可作废；作废后该券不可核销、也不可退款，`redemptionStatus` 变为 `VOID`。已核销、已作废、退款处理中 → `409`·`208018`。
 
-        幂等：同键同请求体重发不重复作废；换新键再作废已作废的券落 `208018`，不当作重放；同键的上一次提交还在处理 → `409`·`208011`。
+        幂等：同键同请求体重发不重复作废；换新键再作废已作废的券落 `208018`，不当作重放；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1555,8 +1553,6 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 208005
-        - 208011
         - 208018
   /products/links/{linkId}/orders/{salesOrderId}/risk-disposition:
     post:
@@ -1573,7 +1569,7 @@ paths:
 
         可用与否只看上面的条件，不看活动当前是否开着订单风险评估。
 
-        幂等：同键同请求体重发不重复处置；改动作要换新键，沿用旧键改动作 → `409`·`208005`。换新键提交时风险等级已被别人改过、该动作不再可执行 → `409`·`208020`；同键的上一次提交还在处理 → `409`·`208011`。
+        幂等：同键同请求体重发不重复处置；改动作要换新键，沿用旧键改动作 → `409`·`908003`。换新键提交时风险等级已被别人改过、该动作不再可执行 → `409`·`208020`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1602,8 +1598,6 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 208005
-        - 208011
         - 208020
   /products/checkout:
     get:
@@ -1686,7 +1680,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   schemas:
     StoreQrVariantList:
       type: object
@@ -2119,11 +2113,11 @@ components:
           oneOf:
             - $ref: '#/components/schemas/FileId'
             - type: 'null'
-          description: '`uploadProductLinkFile`（purpose=product_link_brand_logo）返回的 `fileId`；`null` = 移除。'
+          description: '`uploadProductLinkFile`（purpose=giftcard_brand_logo）返回的 `fileId`；`null` = 移除。'
         brandLogoUrl:
           $ref: '#/components/schemas/WebUrl'
           readOnly: true
-          description: 品牌 Logo 的长效公开地址；没有时不返回本键。
+          description: 礼卡品牌图的长效公开地址；没有时不返回本键。
         campaignName:
           type: string
           minLength: 1
@@ -2239,7 +2233,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/FileId'
             - type: 'null'
-          description: '`uploadProductLinkFile`（purpose=product_link_item_image）返回的 `fileId`；`null` = 移除。'
+          description: '`uploadProductLinkFile`（purpose=product_image）返回的 `fileId`；`null` = 移除。'
         imageUrl:
           $ref: '#/components/schemas/WebUrl'
           readOnly: true
@@ -2488,7 +2482,7 @@ components:
           description: 商户备注，不面向付款人。
         bannerFileId:
           $ref: '#/components/schemas/FileId'
-          description: '`uploadProductLinkFile`（purpose=product_link_banner）返回的 `fileId`。'
+          description: '`uploadProductLinkFile`（purpose=link_banner）返回的 `fileId`。'
         giftcard:
           allOf:
             - $ref: '#/components/schemas/GiftcardContentComplete'
@@ -3116,6 +3110,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -3196,9 +3215,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     StoreQrType:
       type: string
       enum:
@@ -3249,35 +3283,36 @@ components:
     MerchantFilePurpose:
       type: string
       description: |
-        商户后台可上传的**文件用途**总表 —— 用途决定允许的格式、大小上限与取用方式。
-        每个上传入口只接受它所属业务范围内的用途（各入口在自己的请求体里列出），传入范围外的用途 → 400。
+        文件用途目录——用途决定允许的格式、大小上限与取用方式；每个上传入口只接受它列出的子集，传入其他用途 → 400。
 
         | 用途 | 允许格式 | 大小上限 | 传上去之后怎么取用 |
         |---|---|---|---|
         | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
-        | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
         | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `office_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址 |
         | `merchant_logo` | PNG / JPEG | **512KB（固定上限）** | 长效稳定的公开地址（要展示给外部访客） |
         | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_item_image` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `giftcard_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `product_image` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
 
         **短时效地址不要持久化、不要分享**（过期即失效，重新读取所在资源可拿到新的）；长效公开地址可直接放进页面。
       enum:
         - onboarding_document
-        - settlement_void_cheque
+        - void_cheque
         - store_photo
+        - office_photo
         - merchant_logo
         - payment_page_logo
-        - product_link_banner
-        - product_link_brand_logo
-        - product_link_item_image
+        - link_banner
+        - giftcard_brand_logo
+        - product_image
     UploadedFile:
       type: object
       additionalProperties: false
       description: |
-        已上传的文件。上传成功不等于生效:`fileId` 要随对应的业务写操作提交,文件才归属该业务对象;从未被引用的文件到期清理。
+        已上传的文件。上传成功不等于生效:`fileId` 要随对应的业务写操作提交,文件才归属该业务对象;从未被引用的文件不生效,前端无需处理。
       required:
         - fileId
         - fileName
@@ -3535,7 +3570,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
       schema:
         type: string
         minLength: 1

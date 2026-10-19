@@ -41,6 +41,7 @@ paths:
 
         - 已激活的商户 `status` 为 `ACTIVE`；未激活的返回入驻申请的状态（`DRAFT` / `UNDER_REVIEW` / `MORE_INFO_REQUIRED`）。
         - 当前商户以 `getCurrentSession` 的 `merchantId` 为准，本接口不返回。
+        - 代登会话只列被代的那个商户。
       responses:
         '200':
           description: OK
@@ -83,7 +84,7 @@ paths:
         - `BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 只带本请求里的字段；预填结果在入驻向导读申请时返回。
         - `country` 与 `currency` 须是 `/config/currencies` 里的一条组合，否则 400。
 
-        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不会重复建商户；改了请求体就必须换新键，沿用旧键改内容 → `409`·208005。
+        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不会重复建商户；改了请求体就必须换新键，沿用旧键改内容 → `409`·908003。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -109,8 +110,7 @@ paths:
                 merchantId: '1000042'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
-      x-error-codes:
-        - 208005
+      x-error-codes: []
   /merchants/{merchantId}:
     delete:
       tags:
@@ -124,6 +124,7 @@ paths:
         - 只有 Owner 能调，其他人 → 403。
         - 已激活的商户 → `409`·208003；
         - 主商户 → `409`·208024；
+        - 工作人员代为建档的待激活商户 → `409`·208046（撤回由工作人员办理）；
         - 商户不存在、或当前用户不在该商户在册 → 404（已删除的按下面的幂等规则返回 204）。
 
         幂等：已删除的商户再删返回 204，不挂 Idempotency-Key。
@@ -142,6 +143,7 @@ paths:
       x-error-codes:
         - 208003
         - 208024
+        - 208046
   /merchants/{merchantId}/application:
     get:
       tags:
@@ -165,6 +167,7 @@ paths:
                 merchantCode: C3BM68
                 status: MORE_INFO_REQUIRED
                 entryMode: FIRST_ONBOARDING
+                assistedOnboarding: false
                 completedSteps:
                   - contact
                   - business
@@ -273,6 +276,8 @@ paths:
         - `204001` 字段缺失或格式错，`details` 逐项指到 `<step>.<field>`。
         - `204017` 结算周期不在候选内。
         - `208003` 申请不在 `DRAFT` / `MORE_INFO_REQUIRED`，不能保存。
+        - `208046` 工作人员代为建档的申请（`assistedOnboarding` 为 true），向导里只读。
+        - `208040` `documents` 步引用的文件不存在、不是本商户上传的或用途不符，`details` 逐项指到 `documents.<docKey>`。
       parameters:
         - $ref: '#/components/parameters/MerchantId'
         - name: step
@@ -374,6 +379,8 @@ paths:
         - 204001
         - 204017
         - 208003
+        - 208040
+        - 208046
   /merchants/{merchantId}/application/files:
     post:
       tags:
@@ -436,6 +443,7 @@ paths:
         - `204002` 必传文档不全，`details` 指到 `documents.<docKey>`。
         - `204017` 结算周期不在候选内。
         - `208003` 申请状态不可提交。
+        - `208046` 工作人员代为建档的申请（`assistedOnboarding` 为 true）不在这里提交，由 Owner 在确认邮件里的确认页签署。
       parameters:
         - $ref: '#/components/parameters/MerchantId'
         - $ref: '#/components/parameters/CsrfToken'
@@ -449,6 +457,7 @@ paths:
         - 204002
         - 204017
         - 208003
+        - 208046
 components:
   securitySchemes:
     cookieAuth:
@@ -461,7 +470,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   parameters:
     MerchantId:
       name: merchantId
@@ -474,7 +483,7 @@ components:
       name: Idempotency-Key
       in: header
       required: true
-      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒。缺键 → 400)
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
       schema:
         type: string
         minLength: 1
@@ -571,6 +580,7 @@ components:
         - merchantCode
         - status
         - entryMode
+        - assistedOnboarding
         - completedSteps
         - readonlyFields
         - steps
@@ -582,6 +592,10 @@ components:
           description: 对外商户号（如 C3BM68），只读。
         status:
           $ref: '#/components/schemas/ApplicationStatus'
+        assistedOnboarding:
+          type: boolean
+          readOnly: true
+          description: true = 工作人员代为建档的申请：向导整份只读，不能分步保存或提交（`208046`），签署在确认邮件里的确认页完成。
         entryMode:
           type: string
           enum:
@@ -627,257 +641,6 @@ components:
           $ref: '#/components/schemas/SettlementStep'
         documents:
           $ref: '#/components/schemas/DocumentsStep'
-    ContactStep:
-      type: object
-      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：注册时已填的只读，没填的在本步补填并写回账号资料。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
-      additionalProperties: false
-      properties:
-        email:
-          type: string
-          format: email
-          readOnly: true
-          description: Owner 登录邮箱，只读、不提交。
-        firstName:
-          type: string
-        lastName:
-          type: string
-        businessTitle:
-          type: string
-          description: 职务文本。预设 Business Owner / Manager / Employee 可直选；选 Other 时提交用户填写的自定义文本，不提交字面 "Other"。
-        phone:
-          allOf:
-            - $ref: '#/components/schemas/Phone'
-          description: 联系人电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
-        referredBy:
-          type: string
-          description: 来源；注册链接带来则只读，否则可填；填 Moneris 触发条件字段。
-        monerisMid:
-          type: string
-          description: 条件必填：referredBy = Moneris 时。
-        monerisManagerName:
-          type: string
-          description: 条件必填：referredBy = Moneris 时。
-    ServicesStep:
-      type: object
-      description: Services 步（向导第 3 步）；至少选 1 个支付方式——该 ≥1 是提交完整性、不是本形状的约束：由服务端在 `mode=next` 校验，草稿态可为空。
-      additionalProperties: false
-      properties:
-        selectedPaymentMethods:
-          type: array
-          description: 选中的支付方式目录码，须在 Business 步所选结算币种的候选内。数组整组置换，草稿态允许 `[]`。
-          items:
-            $ref: '#/components/schemas/PaymentMethod'
-    BusinessStep:
-      type: object
-      description: Business 步（向导第 2 步）。Currency × Country 有效组合以后端配置为准；Services 步选了任一线上支付方式时 typeOfOnlineService 必填、为 WEBSITE 时 websiteUrl 必填（在 Services 步保存与提交时校验）。
-      additionalProperties: false
-      properties:
-        currency:
-          $ref: '#/components/schemas/Currency'
-        country:
-          type: string
-          description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
-        legalBusinessName:
-          type: string
-          description: 身份字段（激活后不可改）。
-        tradeName:
-          type: string
-        typeOfOwnership:
-          allOf:
-            - $ref: '#/components/schemas/OwnershipType'
-          description: 身份字段（激活后不可改）。
-        registrationNumber:
-          type: string
-        businessAddress:
-          type: string
-        city:
-          type: string
-        province:
-          type: string
-          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
-        postalCode:
-          type: string
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
-        timeZone:
-          type: string
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
-        language:
-          allOf:
-            - $ref: '#/components/schemas/Language'
-          description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出；界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
-        businessPhone:
-          allOf:
-            - $ref: '#/components/schemas/Phone'
-          description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
-        industryCategory:
-          type: string
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
-        mcc:
-          type: string
-          description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
-        typeOfOnlineService:
-          oneOf:
-            - $ref: '#/components/schemas/OnlineServiceType'
-            - type: 'null'
-          description: 线上服务类型。本步选填、无默认值；Services 步选了任一线上支付方式时必填。`null` = 清空。
-        websiteUrl:
-          oneOf:
-            - $ref: '#/components/schemas/WebsiteUrl'
-            - type: 'null'
-          description: 经营网址（http / https）。typeOfOnlineService = WEBSITE 且选了线上支付方式时必填。`null` = 清空。
-        note:
-          type:
-            - string
-            - 'null'
-    BusinessStepRead:
-      type: object
-      description: '`BusinessStep` 的读侧形态：条件字段与备注**不适用 / 未填时不返回本键、不返** `null`。'
-      additionalProperties: false
-      properties:
-        currency:
-          $ref: '#/components/schemas/Currency'
-        country:
-          type: string
-          description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
-        legalBusinessName:
-          type: string
-          description: 身份字段（激活后不可改）。
-        tradeName:
-          type: string
-        typeOfOwnership:
-          allOf:
-            - $ref: '#/components/schemas/OwnershipType'
-          description: 身份字段（激活后不可改）。
-        registrationNumber:
-          type: string
-        businessAddress:
-          type: string
-        city:
-          type: string
-        province:
-          type: string
-          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
-        postalCode:
-          type: string
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
-        timeZone:
-          type: string
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
-        language:
-          allOf:
-            - $ref: '#/components/schemas/Language'
-          description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出；界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
-        businessPhone:
-          allOf:
-            - $ref: '#/components/schemas/Phone'
-          description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
-        industryCategory:
-          type: string
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
-        mcc:
-          type: string
-          description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
-        typeOfOnlineService:
-          $ref: '#/components/schemas/OnlineServiceType'
-          description: 线上服务类型。本步选填、无默认值；Services 步选了任一线上支付方式时必填。
-        websiteUrl:
-          $ref: '#/components/schemas/WebsiteUrl'
-          description: 经营网址（http / https）。typeOfOnlineService = WEBSITE 且选了线上支付方式时必填。
-        note:
-          type: string
-    SettlementStep:
-      type: object
-      description: |
-        Step 4 Settlement。
-
-        - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
-        - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
-        - Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
-        - Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目（平台不对该币种出款）时，本步不采集 `bankName` / `bankAccount` / `settlementCycle` / `storeId`，只收 Refund PIN。
-      additionalProperties: false
-      properties:
-        bankName:
-          type: string
-        bankAccount:
-          allOf:
-            - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
-        settlementCycle:
-          allOf:
-            - $ref: '#/components/schemas/SettlementCycleCode'
-          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
-        settlementCycleDisplayName:
-          type: string
-          minLength: 1
-          readOnly: true
-          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
-        storeId:
-          oneOf:
-            - $ref: '#/components/schemas/StoreId'
-            - type: 'null'
-          description: 可选；后续可改。
-        refundPin:
-          allOf:
-            - $ref: '#/components/schemas/RefundPin'
-          description: 入驻时初设的 Refund PIN。
-        confirmRefundPin:
-          allOf:
-            - $ref: '#/components/schemas/RefundPin'
-          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
-        refundPinSet:
-          type: boolean
-          readOnly: true
-          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
-    SettlementStepRead:
-      type: object
-      description: '`SettlementStep` 的读侧形态：未指定门店时不返回 `storeId` 键。'
-      additionalProperties: false
-      properties:
-        bankName:
-          type: string
-        bankAccount:
-          allOf:
-            - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
-        settlementCycle:
-          allOf:
-            - $ref: '#/components/schemas/SettlementCycleCode'
-          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
-        settlementCycleDisplayName:
-          type: string
-          minLength: 1
-          readOnly: true
-          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
-        storeId:
-          $ref: '#/components/schemas/StoreId'
-          description: 可选；后续可改。
-        refundPin:
-          allOf:
-            - $ref: '#/components/schemas/RefundPin'
-          description: 入驻时初设的 Refund PIN。
-        confirmRefundPin:
-          allOf:
-            - $ref: '#/components/schemas/RefundPin'
-          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
-        refundPinSet:
-          type: boolean
-          readOnly: true
-          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
-    ApplicationSteps:
-      type: object
-      description: 各 step 的已保存草稿字段聚合（GET 加载时返回）。**读侧聚合**——各 step 用读侧变体，未填字段不返回本键。
-      additionalProperties: false
-      properties:
-        contact:
-          $ref: '#/components/schemas/ContactStep'
-        services:
-          $ref: '#/components/schemas/ServicesStep'
-        business:
-          $ref: '#/components/schemas/BusinessStepRead'
-        settlement:
-          $ref: '#/components/schemas/SettlementStepRead'
-        documents:
-          $ref: '#/components/schemas/DocumentsStepRead'
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
@@ -912,6 +675,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -992,9 +780,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     MerchantId:
       type: string
       minLength: 1
@@ -1018,6 +821,36 @@ components:
       pattern: ^\+[1-9]\d{1,14}$
       maxLength: 16
       description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
+    ContactStep:
+      type: object
+      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：注册时已填的只读，没填的在本步补填并写回账号资料。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
+      additionalProperties: false
+      properties:
+        email:
+          type: string
+          format: email
+          readOnly: true
+          description: Owner 登录邮箱，只读、不提交。
+        firstName:
+          type: string
+        lastName:
+          type: string
+        businessTitle:
+          type: string
+          description: 职务文本。预设 Business Owner / Manager / Employee 可直选；选 Other 时提交用户填写的自定义文本，不提交字面 "Other"。
+        phone:
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 联系人电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
+        referredBy:
+          type: string
+          description: 来源；注册链接带来则只读，否则可填；填 Moneris 触发条件字段。
+        monerisMid:
+          type: string
+          description: 条件必填：referredBy = Moneris 时。
+        monerisManagerName:
+          type: string
+          description: 条件必填：referredBy = Moneris 时。
     PaymentMethod:
       type: string
       minLength: 1
@@ -1025,6 +858,16 @@ components:
       description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
+    ServicesStep:
+      type: object
+      description: Services 步（向导第 3 步）；至少选 1 个支付方式——该 ≥1 是提交完整性、不是本形状的约束：由服务端在 `mode=next` 校验，草稿态可为空。
+      additionalProperties: false
+      properties:
+        selectedPaymentMethods:
+          type: array
+          description: 选中的支付方式目录码，须在 Business 步所选结算币种的候选内。数组整组置换，草稿态允许 `[]`。
+          items:
+            $ref: '#/components/schemas/PaymentMethod'
     OwnershipType:
       type: string
       enum:
@@ -1053,6 +896,62 @@ components:
       maxLength: 256
       pattern: ^https?://\S+$
       description: 商户经营网址（http / https）。
+    BusinessStepRead:
+      type: object
+      description: '`BusinessStep` 的读侧形态：条件字段与备注**不适用 / 未填时不返回本键、不返** `null`。'
+      additionalProperties: false
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        country:
+          type: string
+          description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
+        legalBusinessName:
+          type: string
+          description: 身份字段（激活后不可改）。
+        tradeName:
+          type: string
+        typeOfOwnership:
+          allOf:
+            - $ref: '#/components/schemas/OwnershipType'
+          description: 身份字段（激活后不可改）。
+        registrationNumber:
+          type: string
+        businessAddress:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
+        postalCode:
+          type: string
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
+        timeZone:
+          type: string
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+        language:
+          allOf:
+            - $ref: '#/components/schemas/Language'
+          description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出；界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
+        businessPhone:
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
+        industryCategory:
+          type: string
+          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+        mcc:
+          type: string
+          description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
+        typeOfOnlineService:
+          $ref: '#/components/schemas/OnlineServiceType'
+          description: 线上服务类型。本步选填、无默认值；Services 步选了任一线上支付方式时必填。
+        websiteUrl:
+          $ref: '#/components/schemas/WebsiteUrl'
+          description: 经营网址（http / https）。typeOfOnlineService = WEBSITE 且选了线上支付方式时必填。
+        note:
+          type: string
     BankAccountScheme:
       type: string
       enum:
@@ -1126,6 +1025,41 @@ components:
       writeOnly: true
       pattern: ^[0-9]{6}$
       description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
+    SettlementStepRead:
+      type: object
+      description: '`SettlementStep` 的读侧形态：未指定门店时不返回 `storeId` 键。'
+      additionalProperties: false
+      properties:
+        bankName:
+          type: string
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+        settlementCycle:
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
+          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
+        settlementCycleDisplayName:
+          type: string
+          minLength: 1
+          readOnly: true
+          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
+        storeId:
+          $ref: '#/components/schemas/StoreId'
+          description: 可选；后续可改。
+        refundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 入驻时初设的 Refund PIN。
+        confirmRefundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
+        refundPinSet:
+          type: boolean
+          readOnly: true
+          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
     FileId:
       type: string
       minLength: 1
@@ -1177,7 +1111,7 @@ components:
           readOnly: true
           description: 该文档的**内联展示地址**（**只出不入**），供卡片缩略图 / 预览。**短时效**，过期后重新加载本申请取新值； **不要持久化、不要分享**——入驻文档含身份与银行资料。哪些面必返本键，见各面自己的读形态。
     DocumentRefFeRead:
-      description: '`DocumentRef` 的**商户前端**读侧形态：元数据 + `previewUrl` 全部必返（写侧只需 `fileId`，故收紧只在读面做）。服务面的审核读不返访问地址、不用本形态。'
+      description: '`DocumentRef` 的**前端**读侧形态：元数据 + `previewUrl` 全部必返（写侧只需 `fileId`，故收紧只在读面做）。服务面的审核读不返访问地址、不用本形态。'
       required:
         - fileId
         - fileName
@@ -1188,7 +1122,7 @@ components:
         - $ref: '#/components/schemas/DocumentRef'
     DocumentsStepRead:
       type: object
-      description: '`DocumentsStep` 的商户前端读侧形态：未上传的文档位**不返回本键**、不返 `null`；已上传的必带元数据与 `previewUrl`。'
+      description: '`DocumentsStep` 的前端读侧形态：未上传的文档位**不返回本键**、不返 `null`；已上传的必带元数据与 `previewUrl`。'
       additionalProperties: false
       properties:
         docStoreInside:
@@ -1205,6 +1139,126 @@ components:
           $ref: '#/components/schemas/DocumentRefFeRead'
         docOther2:
           $ref: '#/components/schemas/DocumentRefFeRead'
+    ApplicationSteps:
+      type: object
+      description: 各 step 的已保存草稿字段聚合（GET 加载时返回）。**读侧聚合**——各 step 用读侧变体，未填字段不返回本键。
+      additionalProperties: false
+      properties:
+        contact:
+          $ref: '#/components/schemas/ContactStep'
+        services:
+          $ref: '#/components/schemas/ServicesStep'
+        business:
+          $ref: '#/components/schemas/BusinessStepRead'
+        settlement:
+          $ref: '#/components/schemas/SettlementStepRead'
+        documents:
+          $ref: '#/components/schemas/DocumentsStepRead'
+    BusinessStep:
+      type: object
+      description: Business 步（向导第 2 步）。Currency × Country 有效组合以后端配置为准；Services 步选了任一线上支付方式时 typeOfOnlineService 必填、为 WEBSITE 时 websiteUrl 必填（在 Services 步保存与提交时校验）。
+      additionalProperties: false
+      properties:
+        currency:
+          $ref: '#/components/schemas/Currency'
+        country:
+          type: string
+          description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
+        legalBusinessName:
+          type: string
+          description: 身份字段（激活后不可改）。
+        tradeName:
+          type: string
+        typeOfOwnership:
+          allOf:
+            - $ref: '#/components/schemas/OwnershipType'
+          description: 身份字段（激活后不可改）。
+        registrationNumber:
+          type: string
+        businessAddress:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
+        postalCode:
+          type: string
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
+        timeZone:
+          type: string
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+        language:
+          allOf:
+            - $ref: '#/components/schemas/Language'
+          description: 商户语言：发给商户的通知（邮件、微信、站内信）与月对账单 PDF 按它出；界面语言、收据与导出文件、发给某个人本人的邮件不看它，按用户自己的语言。
+        businessPhone:
+          allOf:
+            - $ref: '#/components/schemas/Phone'
+          description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
+        industryCategory:
+          type: string
+          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+        mcc:
+          type: string
+          description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
+        typeOfOnlineService:
+          oneOf:
+            - $ref: '#/components/schemas/OnlineServiceType'
+            - type: 'null'
+          description: 线上服务类型。本步选填、无默认值；Services 步选了任一线上支付方式时必填。`null` = 清空。
+        websiteUrl:
+          oneOf:
+            - $ref: '#/components/schemas/WebsiteUrl'
+            - type: 'null'
+          description: 经营网址（http / https）。typeOfOnlineService = WEBSITE 且选了线上支付方式时必填。`null` = 清空。
+        note:
+          type:
+            - string
+            - 'null'
+    SettlementStep:
+      type: object
+      description: |
+        Step 4 Settlement。
+
+        - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
+        - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
+        - Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
+        - Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目（平台不对该币种出款）时，本步不采集 `bankName` / `bankAccount` / `settlementCycle` / `storeId`，只收 Refund PIN。
+      additionalProperties: false
+      properties:
+        bankName:
+          type: string
+        bankAccount:
+          allOf:
+            - $ref: '#/components/schemas/BankAccountIdentification'
+          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+        settlementCycle:
+          allOf:
+            - $ref: '#/components/schemas/SettlementCycleCode'
+          description: 结算周期——传**候选项的** `code`（取自 `/config/settlement` 的 `settlementCycleOptions`）。初始选中口径见该数组的说明，本字段不重述。
+        settlementCycleDisplayName:
+          type: string
+          minLength: 1
+          readOnly: true
+          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
+        storeId:
+          oneOf:
+            - $ref: '#/components/schemas/StoreId'
+            - type: 'null'
+          description: 可选；后续可改。
+        refundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 入驻时初设的 Refund PIN。
+        confirmRefundPin:
+          allOf:
+            - $ref: '#/components/schemas/RefundPin'
+          description: 再次输入 Refund PIN；须与 `refundPin` 一致，不一致 → 400。
+        refundPinSet:
+          type: boolean
+          readOnly: true
+          description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
     DocumentsStep:
       type: object
       description: Step 5 Documents。docIncorporation / docOwnerId / docVoidCheque 必传；docStoreInside / docStoreOutside 在 Services 步选了线下支付方式时必传；docOther1 / docOther2 可选。绑定按 fileId。
@@ -1259,35 +1313,36 @@ components:
     MerchantFilePurpose:
       type: string
       description: |
-        商户后台可上传的**文件用途**总表 —— 用途决定允许的格式、大小上限与取用方式。
-        每个上传入口只接受它所属业务范围内的用途（各入口在自己的请求体里列出），传入范围外的用途 → 400。
+        文件用途目录——用途决定允许的格式、大小上限与取用方式；每个上传入口只接受它列出的子集，传入其他用途 → 400。
 
         | 用途 | 允许格式 | 大小上限 | 传上去之后怎么取用 |
         |---|---|---|---|
         | `onboarding_document` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（含身份与银行资料，仅授权主体可取） |
-        | `settlement_void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `void_cheque` | PNG / JPEG / PDF | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
         | `store_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址（仅授权主体可取） |
+        | `office_photo` | PNG / JPEG | 默认 2MB（可配置） | 每次取用现签一个短时效地址 |
         | `merchant_logo` | PNG / JPEG | **512KB（固定上限）** | 长效稳定的公开地址（要展示给外部访客） |
         | `payment_page_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
-        | `product_link_item_image` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `link_banner` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `giftcard_brand_logo` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
+        | `product_image` | PNG / JPEG | 默认 2MB（可配置） | 长效稳定的公开地址（渲染给付款人） |
 
         **短时效地址不要持久化、不要分享**（过期即失效，重新读取所在资源可拿到新的）；长效公开地址可直接放进页面。
       enum:
         - onboarding_document
-        - settlement_void_cheque
+        - void_cheque
         - store_photo
+        - office_photo
         - merchant_logo
         - payment_page_logo
-        - product_link_banner
-        - product_link_brand_logo
-        - product_link_item_image
+        - link_banner
+        - giftcard_brand_logo
+        - product_image
     UploadedFile:
       type: object
       additionalProperties: false
       description: |
-        已上传的文件。上传成功不等于生效:`fileId` 要随对应的业务写操作提交,文件才归属该业务对象;从未被引用的文件到期清理。
+        已上传的文件。上传成功不等于生效:`fileId` 要随对应的业务写操作提交,文件才归属该业务对象;从未被引用的文件不生效,前端无需处理。
       required:
         - fileId
         - fileName

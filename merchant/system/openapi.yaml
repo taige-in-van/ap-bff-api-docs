@@ -537,7 +537,7 @@ components:
         浏览器只持此会话 cookie、不持后端 token。会话裁决商户 scope（当前商户从会话取、不信请求体）。
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读**可读伴生 cookie** `__Host-mcsrf`、原样放进 `X-CSRF-Token`（详见公共约定「鉴权与 CSRF」）；
-        - 依赖当前商户的接口在会话没有当前商户时返回 `409`·`208022`（见公共约定「当前商户」）。
+        - 依赖当前商户的接口在当前商户不可访问时返回 `409`·`208022`（见公共约定「当前商户」）。
   schemas:
     SettlementConfig:
       type: object
@@ -773,6 +773,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -853,13 +878,28 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     CurrencyCountry:
       type: object
       additionalProperties: false
-      description: 一条**有效 Currency × Country 组合**（入驻向导 Business 步与 Add Merchant 弹窗共用同一形状）。组合集**由后端配置决定、契约不写死**：客户端一律从所在面的配置接口取候选集渲染、按组合联动，不自行拼组合。`currency` 与 `countries` 都是 ISO 标准码（4217 / 3166），币种与国家的展示名由客户端按它们解析（浏览器内置 `Intl.DisplayNames` 即可）。
+      description: 一条**有效 Currency × Country 组合**（各前端面选币种与国家时共用同一形状）。组合集**由后端配置决定、契约不写死**：客户端一律从所在面的配置接口取候选集渲染、按组合联动，不自行拼组合。`currency` 与 `countries` 都是 ISO 标准码（4217 / 3166），币种与国家的展示名由客户端按它们解析（浏览器内置 `Intl.DisplayNames` 即可）。
       required:
         - currency
         - countries
@@ -905,7 +945,7 @@ components:
     CountryOption:
       type: object
       additionalProperties: false
-      description: 一个可选国家及其省 / 州候选（入驻向导 Business 步与商户资料 Business Information 编辑面共用）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。邮编格式按国家（没有邮编制度的国家不填）、时区候选按省 / 州（无省 / 州的国家按国家），均取前端参考数据，服务端按同一规则校验；改国家后省 / 州与时区须重选。
+      description: 一个可选国家及其省 / 州候选（各前端面录入或编辑国家与省 / 州时共用）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。邮编格式按国家（没有邮编制度的国家不填）、时区候选按省 / 州（无省 / 州的国家按国家），均取前端参考数据，服务端按同一规则校验；改国家后省 / 州与时区须重选。
       required:
         - code
         - provinces

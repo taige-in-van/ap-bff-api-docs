@@ -240,13 +240,13 @@ paths:
                     paymentStarted: false
                     product:
                       title: Weekend Pastry Box
-                      bannerUrl: https://cdn.example.com/core/product-link-banner/2026/10/7c1e9a3f52b84d06a1f3e8c2d4b57a90.png
+                      bannerUrl: https://cdn.example.com/core/link-banner/2026/10/7c1e9a3f52b84d06a1f3e8c2d4b57a90.png
                       currency: CAD
                       items:
                         - itemId: it_4Rk8mQ2xLp7Vn3Td
                           name: Croissant
                           description: Butter croissant, baked every morning
-                          imageUrl: https://cdn.example.com/core/product-link-item-image/2026/10/1b8d4f2e6a9c40d7b3e5f1a2c8d06e94.png
+                          imageUrl: https://cdn.example.com/core/product-image/2026/10/1b8d4f2e6a9c40d7b3e5f1a2c8d06e94.png
                           price:
                             amount: '450'
                             currency: CAD
@@ -1164,7 +1164,7 @@ paths:
               email: xiaoming.wang@example.com
       responses:
         '202':
-          description: 已发码（`deliveredTo` 为脱敏后的那个邮箱）
+          description: 已受理，验证码邮件随后发出（`deliveredTo` 为脱敏后的那个邮箱）
           content:
             application/json:
               schema:
@@ -1707,7 +1707,7 @@ components:
           minLength: 1
         brandLogoUrl:
           $ref: '#/components/schemas/WebUrl'
-          description: 品牌 Logo 的长效公开地址；商户没设时不返回本键。
+          description: 礼卡品牌图的长效公开地址；商户没设时不返回本键。
         slogan:
           type: string
           maxLength: 80
@@ -2912,6 +2912,31 @@ components:
           description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
         currency:
           $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
     ErrorEnvelope:
       type: object
       description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
@@ -2992,9 +3017,24 @@ components:
               type: integer
               minimum: 1
               description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
     WebUrl:
       type: string
       pattern: ^https?://\S+$
@@ -3092,7 +3132,7 @@ components:
         deliveredTo:
           type: string
           readOnly: true
-          description: 脱敏投递目标（如 `o***@e***.com`）——供 FE 提示「码发到哪里」。
+          description: 脱敏投递目标（如 `o***@e***.com`）——供客户端提示「码发到哪里」。
         cooldownSeconds:
           type: integer
           readOnly: true
@@ -3160,6 +3200,9 @@ components:
         HTTP status 只表达大类;**具体子因看响应体的整数 `code`**:该 op 承诺的业务码见其 `x-error-codes`,
         每个码的含义 / 调用方动作 / 可重试性见所属能力域的错误码表;码的构成(能力域段 · 责任方位 · 域内末段)
         见 00-骨干/07-API契约规范「错误码空间分配」。
+
+        通用失败码(90 段,码与类别见 `_design/api/error-codes-90.yaml`)由本共享契约继承,不列进 `x-error-codes`。
+        按面适用:会话 / 授权失效(906001)适用 cookie 会话面与承载授权的进程间面(如按授权取身份摘要、令牌续期),CSRF(906002)仍只出现在 cookie 会话面;挂 `Idempotency-Key` 的 op 适用 908002 / 908003。
 
         部分码另带 `context` 结构化上下文;**哪些码必带哪些字段,以码表的 `requiredContextFields` 为准**、不要按状态码猜。
 

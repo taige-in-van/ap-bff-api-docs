@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>管理后台约定</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../index.html">← 全部契约</a> · <a href="../conventions.html">API 基础约定</a></p>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 管理后台 API 约定（与商户后台的差异）
+
+> 管理后台前端面（`/api/admin/v1`）的跨接口约定。编码与内容类型、HTTP 状态语义、错误响应体与怎么读 `code`、分页、排序、快捷筛选、幂等、未保存的修改、更新语义（PUT）、`null` 只出现在请求里、验证码与扫码与文件下载、时间与金额，全部同 [API 基础约定](../conventions.html)，本文不复述；下面只写管理后台不一样的地方。
+>
+> ⚠️ **design / review 阶段**约定 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
+
+## 会话与 CSRF
+
+- 会话 cookie 是 `__Host-asession`，可读的 CSRF 伴生 cookie 是 `__Host-acsrf`；用法同基础约定「鉴权与 CSRF」（非安全方法从伴生 cookie 现读、原样放进 `X-CSRF-Token`）。与商户后台的 cookie 互不相干，同一浏览器可同时登录两边。
+- 登录一律要过动态码步（`login` → `completeMfaChallenge`），首次登录或验证器被重置后在登录内绑定验证器；企业微信扫码确认后同样进动态码步。没有记住登录（Keep me signed in）选项。
+- **受信浏览器**：动态码步勾「信任本浏览器」后，服务端把受信凭据写进另一个 HttpOnly cookie；有效期内在本浏览器登录，`login` / `pollWechatLogin` 直接返回 `ESTABLISHED`。前端不读、不写、不转发这个 cookie，也不必判断它是否还有效——失效时接口照常返回动态码步。有效期由平台设定，页面不显示具体天数；本人改密、被重置密码、被重置验证器时失效；登出不影响它。
+
+## 启动链路
+
+登录成功后只调一次 `getCurrentSession`，拿 `privileges` 渲染导航，进入管理后台首页（不按角色选落地页）。管理后台**没有「当前商户」**：
+
+- 不需要也没有切换商户、`listMerchants` 那一步；基础约定里「当前商户」「商户可访问性（区域分流）」两节、`208022` / `208028` 两个码不适用于管理后台。
+- 商户是操作对象，按商户组织的接口在路径或参数里带 `merchantId`。
+
+## 权限点与 `403`
+
+- 每个接口要哪个点看它的 `x-required-privilege`：是权限点就查 `privileges` 里有没有；`session` 任何已登录者都能调。管理后台没有 `owner`。
+- 页面入口、按钮与只读态一律按 `privileges` 判，不要按角色名判：角色由运营在本后台配置，名字与点集随时会变。角色或点集被改后，下一次 `getCurrentSession` 即反映；某个接口因权限被收回返回无权的 `403`（不是下一条列的业务码）时，重调 `getCurrentSession` 刷新导航与按钮即可，不跳登录页。
+- 带业务码的 `403` 是业务规则而不是缺权限，按码处理，见各接口说明：如 `306007`（要分配的角色或被操作的账号权限比你宽）、`306008`（勾选了你自己不持有的权限点）、`306009`（数据范围比你宽）、`308001`（不能对自己做该操作）、`308006`（KA 商户须由他人指定授权）。
+
+## 数据可见范围
+
+每个后台用户有一档数据范围（全部商户 / 本人名下商户 / 所属机构及其直接下级机构的商户），再加上本人生效中的临时授权。按商户组织的接口按它过滤；平台级接口（后台账号、角色、资源目录、平台参数、公告等）不受它限制。
+
+- **列表**：范围外的商户及其数据**不出现**，`total` 也不计入。按一个范围外的 `merchantId` 筛选，结果为空，不报错。
+- **详情与写**：按标识访问范围外的商户或其数据，返回 `404`——与「不存在」一样，不暴露它是否存在（同基础约定「跨 scope 的资源一律 `404`」）。
+- 范围或临时授权变化后，下一次请求即按新范围求值；之前加载的列表可能含已不可见的行，点进去得到 `404` 时按「找不到」刷新列表。
+
+## 列表的日期范围
+
+- 按日期范围筛选的列表与按筛选条件的批量操作，`from` / `to` 两端都必填，不能只传一端或都不传。页面默认带最近 30 天（含今天），用户可改。
+- 日期按字面传（同基础约定「日期」），前端不换算成时刻、不带时区。服务端按平台运营时区把日期换成时刻区间：筛选里的「一天」是平台运营时区的那一天，不是浏览器所在时区的那一天。
+
+## 代登会话
+
+后台用户代登商户后，商户后台里的那个会话是代登会话：它出现在本后台的在线会话里（来源为商户后台、带代登人 `impersonator`），可强制下线；代登期间在商户后台的写操作在操作审计里同时记商户用户与代登人。代登会话有效期短、不续期，由平台设定。
+
+## 管理后台的错误码
+
+码表是同一份 `error-codes.json`；管理后台的业务码在域段 `30`。基础约定「一次性挑战的失败码」「凭据错 ≠ 会话失效」两张表里的商户后台码，在管理后台对应：
+
+| 情形 | 商户后台 | 管理后台 |
+|---|---|---|
+| 登录 / 登录动态码步输错（含账号停用、无访问资格，不区分） | `400`·`206012` | `400`·`306001` |
+| 登录态重输当前密码 / 动态码（改密、重绑验证器） | `403`·`206011` | `403`·`306004` |
+| 挑战过期 / 已消费 / 无效 | `410`·`206006` | `410`·`306002` |
+| 该挑战错误尝试超限、已作废 | `423`·`206007` | `423`·`306003` |
+| 验证码输错、有尝试预算 | `400`·`204010` | `400`·`304001`（带 `context.attemptsRemaining`） |
+| 重发过于频繁 | `429`·`208013` | `429`·`966006`（带 `context.cooldownSeconds`） |
+| 幂等键 payload 冲突 / 首次请求处理中 | `409`·`908003` / `908002` | `409`·`908003` / `908002` |
+
+处置与基础约定相同。账号锁定 `966001`、登录名占用 `968001` 等身份类码两边相同。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

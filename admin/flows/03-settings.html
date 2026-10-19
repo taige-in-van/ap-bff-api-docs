@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>平台设置与公告 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"4c6a597488777c82","acquiring/createMerchantChannelContract":"764a6b150156b5b9","acquiring/createMerchantFeeRate":"d02e5ad34bd019ba","acquiring/getMerchantCrossRefundPolicy":"b04c35e2925c1f1c","acquiring/getMerchantDeveloperAccess":"fc41ed261987d1ad","acquiring/getMerchantPaymentPageSettings":"901d6bb9589a3e98","acquiring/getMerchantReceiptSettings":"59f001409543868f","acquiring/getMerchantSettlementTerms":"f88f1084c3e8e11a","acquiring/getMerchantTipSettings":"a493f4bcb7f08948","acquiring/listFeeRateIssues":"d16ae93375ec4f29","acquiring/listMerchantAcquiringParameters":"8bd6fac609f547b4","acquiring/listMerchantChannelContracts":"5ebc994ee849826d","acquiring/listMerchantDeviceLogs":"9f97a65065d32c22","acquiring/listMerchantDevices":"d26bd0b4446363c7","acquiring/listMerchantEntryPoints":"6f15e32b68ec0c30","acquiring/listMerchantFeeRates":"322e727020c2de1f","acquiring/listMerchantInvoices":"ed77c29e6e23b141","acquiring/listMerchantProductLinks":"b9531d46b70035c1","acquiring/listMerchantStoreQrcodes":"2c28f5299baa3303","acquiring/registerMerchantChannelSubApp":"5d430a9013e95924","acquiring/reissueMerchantApiCredential":"fa18cea16d7e5187","acquiring/releaseMerchantDevice":"2b826172df5dc6b8","acquiring/syncMerchantChannelApplication":"8cee4fe1ea574025","acquiring/updateGiftcardAlipayPassTemplate":"282dfbff26f87603","acquiring/updateMerchantAcquiringParameter":"c94ca8e8867cd685","acquiring/updateMerchantChannelContract":"06885e311792f84e","acquiring/updateMerchantCrossRefundPolicy":"7d2df0d21b824739","acquiring/updateMerchantCsfCoverage":"7073e185cc1f71d2","acquiring/updateMerchantDeviceEnablement":"8b0c4d29df2ac65f","acquiring/updateMerchantEntryPoint":"b51f4fc0e629de61","acquiring/updateMerchantEntryPointEnablement":"897b02c5f1c70449","acquiring/updateMerchantPaymentPageSettings":"e90932ebd7b134f5","acquiring/updateMerchantReceiptSettings":"1e2762cb02eed9f4","acquiring/updateMerchantSettlementTerms":"d5799cb894b1679f","acquiring/updateMerchantTipSettings":"eb13f7db6d2f03e0","applications/approveApplicationOverridingBlocklist":"07d4bb6edde12d42","applications/checkAssistedOnboarding":"a2ab43b97a675ece","applications/createApplicationFileAccessUrl":"bbf5d51cd0b9f455","applications/createApplicationSignatureRequest":"4d9ac87d6b97b546","applications/createAssistedApplication":"d9dac5bc83aac19a","applications/decideApplication":"b59ce075d0bab167","applications/getApplication":"2a885506a78416ca","applications/listApplications":"96f743e2c18ba9e0","applications/listMerchantAppIdTodos":"0f5b7ea83b2a4a79","applications/submitAssistedApplication":"0f2ee8e77dcfe02e","applications/updateAssistedApplicationStep":"47dccba5a88437b9","applications/uploadAssistedApplicationFile":"d10b87cdfb9c90d1","applications/withdrawAssistedApplication":"3315dad1818bd6d3","auth/acceptInvitation":"c86a0a93008ac03f","auth/changeMyPassword":"883b9d27ca52f7e9","auth/completeMfaChallenge":"4cf06419c1075903","auth/confirmLoginEmailChange":"5ec6d0f390e034a1","auth/confirmMfa":"2f8e3ac85c8d81ce","auth/confirmPasswordReset":"f949111a47f69674","auth/deleteMyWechatBinding":"9f86c5bd21b87e9a","auth/enrollMfa":"4d08feb1683858da","auth/getCurrentSession":"a590beaa7a2b7922","auth/getMyProfile":"d730e25b969cf4c2","auth/initiateMyWechatBinding":"adc5f6fcf21a0299","auth/initiateWechatLogin":"6f24ae72af833ad9","auth/login":"4eae630e9a775e61","auth/logout":"30cf8345b848a2fc","auth/pollMyWechatBinding":"f4ddc29d405eb143","auth/pollWechatLogin":"bf22dd251173fa0f","auth/requestPasswordReset":"ebb27c8d8b099717","auth/updateMyLoginIpAllowlist":"5cbcde5fc8cb7689","auth/updateMyProfile":"6863e8d5cf4b8145","merchants/closeMerchant":"c2b233950429ae9e","merchants/createMerchantDocument":"373b7c369b1bac7b","merchants/createMerchantExport":"af2b4dfd1bbf31f7","merchants/createMerchantFileAccessUrl":"058d83f2d729e444","merchants/createMerchantImpersonation":"c71a9c58a21c97a2","merchants/createMerchantMember":"dd78fb5303e2a7dd","merchants/createMerchantMemberPasswordReset":"816beaba2503572e","merchants/deleteMerchantDocument":"2d3f4c777f90c2a7","merchants/deleteMerchantMember":"aca8913711258b6d","merchants/deleteMerchantMemberLoginLock":"fd8b8918f2b4a777","merchants/deleteMerchantMemberMfa":"e6c75623049f7799","merchants/deleteMerchantMemberWechatBinding":"fc313d38782a0864","merchants/getMerchant":"67f642e4eafc2232","merchants/listMerchantMemberRoleOptions":"70a9950e751486a4","merchants/listMerchantMembers":"08758be595193633","merchants/listMerchantSettings":"56846787e71115fe","merchants/listMerchants":"07c237de12f73f42","merchants/updateMerchantDocument":"b3a11ad20ae48258","merchants/updateMerchantMemberRoles":"9c6a098c8d109d36","merchants/updateMerchantMemberStatus":"d4c5103aa153ce92","merchants/updateMerchantOperatingAttributes":"d6278dd0de0c8c59","merchants/updateMerchantOwnerLoginEmail":"e71274a4fa76efd1","merchants/updateMerchantProfile":"88b03ee5422e0648","merchants/updateMerchantSetting":"c288357d348d4c77","merchants/updateMerchantSettlementInfo":"715a1526c5cac4c3","merchants/updateMerchantStatus":"9bc56985c0acc53c","merchants/uploadMerchantFile":"793a7b8bfea47520","ops/cancelBatchJobExecution":"13bab4211ee7967f","ops/createBatchJobExecution":"66f0a6e98325ee74","ops/getAuditEvent":"56a4795244986e13","ops/getOutboundDelivery":"5c5fb169ab509a3c","ops/listAuditEvents":"3498b5cab9cc99a4","ops/listBatchJobExecutions":"bcfaf8a48f7d6078","ops/listBatchJobs":"298a3d4bf86c3efa","ops/listNotificationDeliveries":"812e621fd4395d6f","ops/listOutboundDeliveries":"a9388af87557a915","ops/redeliverFailedNotifications":"50c5e2ee271f0cca","ops/redeliverNotification":"fc2d959563dc01de","ops/redeliverOutboundDelivery":"becd5a4716e759c1","ops/restartBatchJobExecution":"c93006a0927bdd1f","settings/createAnnouncement":"5667b6d24f80d424","settings/deleteAnnouncement":"3e6acdb3280cad56","settings/getAnnouncement":"7cc814fdd776764a","settings/listAcquiringPlatformParameters":"4536c954f00748fb","settings/listAnnouncements":"51a237213b020201","settings/listPlatformParameters":"ec02fd8e18422450","settings/publishAnnouncement":"881dedcf4ca3f67f","settings/updateAcquiringPlatformParameter":"dc8dde38425e4a7f","settings/updateAnnouncement":"03e1533fb390385b","settings/updatePlatformParameter":"2db714020f068a94","settings/withdrawAnnouncement":"edb367f80fc1c6ed","staff/createAccessGrant":"8c16676c1e8000e4","staff/createRole":"c2fdddd48f61e490","staff/createStaff":"0e3ba05ebd979700","staff/createStaffAccessGrant":"9a75fb2b5aa78993","staff/deleteAccessGrant":"44973cde2c5e3d98","staff/deleteRole":"b284a4457a9e8481","staff/deleteSession":"02bd3318ef892e1a","staff/deleteStaff":"81e97375f4627d22","staff/deleteStaffLoginLock":"06bbec325669fe6e","staff/deleteStaffMfa":"f721ee1e4cbee4ee","staff/getStaff":"a7e917983c899d06","staff/listAccessGrantCandidates":"3e63db7e164e2334","staff/listAccessGrants":"13efd8c4b6a55651","staff/listLoginLogs":"640dfe785fd674e6","staff/listMerchantResources":"a472924dd5d0e606","staff/listMerchantRoles":"6ec49e653ac68919","staff/listResources":"f03ac54803262c1a","staff/listRoles":"6a1f3227f626e621","staff/listSessions":"da28dd3d66c76551","staff/listStaff":"0010d5153a505b4e","staff/listStaffRoleOptions":"41fb114b79d02ff8","staff/resendStaffInvitation":"e93dd76f158354dc","staff/restoreStaff":"ccc539eb00145890","staff/updateMerchantRole":"9a19c25029ebd7d4","staff/updateRole":"a440fbd7adf0df84","staff/updateStaff":"3368c35aa8a8a791","staff/updateStaffPassword":"855ad9cec6f1e9a1","staff/updateStaffStatus":"e73f1c1d653e039f"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 平台设置与公告 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 平台参数 | 导航「平台设置 › 平台参数」 | [页面：平台参数](#页面：平台参数) |
+| 公告管理 | 导航「公告」 | [页面：公告管理](#页面：公告管理)；[页面：公告管理 · 新建 / 编辑草稿弹窗](#页面：公告管理%20·%20新建%20/%20编辑草稿弹窗) |
+| 公告详情 | 公告管理列表点一行 | [页面：公告详情](#页面：公告详情) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listPlatformParameters`](../settings/index.html#tag/parameters/operation/listPlatformParameters) | `GET /settings/parameters` | 平台参数：展示名、生效值、默认值、写入用的版本 |
+| 2 | [`updatePlatformParameter`](../settings/index.html#tag/parameters/operation/updatePlatformParameter) | `PUT /settings/parameters/{key}` | 改一个参数的值，或恢复默认（`value` 传 `null`） |
+| 3 | [`listAnnouncements`](../settings/index.html#tag/announcements/operation/listAnnouncements) | `GET /announcements` | 公告列表：搜索、按状态筛选、排序、分页 |
+| 4 | [`createAnnouncement`](../settings/index.html#tag/announcements/operation/createAnnouncement) | `POST /announcements` | 新建草稿 |
+| 5 | [`getAnnouncement`](../settings/index.html#tag/announcements/operation/getAnnouncement) | `GET /announcements/{announcementId}` | 公告详情：标题、正文、发布与撤回信息 |
+| 6 | [`updateAnnouncement`](../settings/index.html#tag/announcements/operation/updateAnnouncement) | `PUT /announcements/{announcementId}` | 编辑草稿（改哪项传哪项） |
+| 7 | [`deleteAnnouncement`](../settings/index.html#tag/announcements/operation/deleteAnnouncement) | `DELETE /announcements/{announcementId}` | 弃用草稿 |
+| 8 | [`publishAnnouncement`](../settings/index.html#tag/announcements/operation/publishAnnouncement) | `POST /announcements/{announcementId}/publication` | 发布 |
+| 9 | [`withdrawAnnouncement`](../settings/index.html#tag/announcements/operation/withdrawAnnouncement) | `POST /announcements/{announcementId}/withdrawal` | 撤回 |
+
+---
+
+## 页面：平台参数
+
+平台级运营参数里没有专属业务页面的那些，按分组列出；每个参数一行：展示名、当前生效值、默认值、是否为默认、值域说明，行内可改值、可恢复默认。订单有效期平台兜底值（商户没设、下单也没指定有效期时用的分钟数）是其中一行。各行各自保存，没有整页的保存按钮。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入平台参数
+    S->>A: #35;1 [listPlatformParameters]<br/>GET /settings/parameters
+    A-->>S: 200 { items: [ { key, groupName, displayName, valueType,<br/>defaultValue, value, effectiveValue, version } ] }
+
+    Note over U,A: 改值
+    U->>S: 点某行的 Edit，填新值后 Save
+    S->>A: #35;2 [updatePlatformParameter]<br/>PUT /settings/parameters/{key} { value, version }
+    A-->>S: 200 { effectiveValue, value, version }
+
+    Note over U,A: 恢复默认
+    U->>S: 点某行的恢复默认并确认
+    S->>A: #35;2 [updatePlatformParameter]<br/>PUT /settings/parameters/{key} { value: null, version }
+    A-->>S: 200 { effectiveValue, version }（不带 value）
+```
+
+- 分组按 `groupName`，组内与组间顺序照 `items` 的顺序。
+- 「是否为默认」看有没有 `value`：没有 `value` 就是在用默认值，此时不给恢复默认。
+- 值的类型看 `valueType`，提交时把值放进对应的槽位（`number` → `numberValue`、`boolean` → `booleanValue`、`string` → `stringValue`、`number_list` → `numberListValue`）。值域说明取 `valueRangeNote`，前端不另做范围校验，以服务端的 `400` 为准。
+- 提交时 `version` 原样带上读到的值；保存成功用响应里的整行刷新该行（含新的 `version`），不必重调 #1。
+- 编辑态有未保存的修改时离开页面或关编辑态，按公共约定先确认。
+- 页面只显示有 `syscfg:parameter:view` 的用户；没有 `syscfg:parameter:edit` 的只读显示，不给 Edit 与恢复默认。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 别人先改过这个参数（版本已变） | #2 `409`·`308103` | 提示「该参数已被修改」，重调 #1 刷新后让用户决定是否重改 |
+| 值的类型或范围不对 | #2 `400`，`details` 指向 `value` | 在该行输入框下提示，留在编辑态 |
+| 参数已不存在 | #2 `404` | 重调 #1 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 谁能看、谁能改 | v1 登录即可读写全部参数 | 看与改各要权限点 | 平台参数直接改变平台行为 |
+| 本页有哪些参数 | v1 风控配置页一页放全部参数；Hub 系统设置按页签放 | 只放没有专属业务页面的参数；费率、退款审核、风控限额等在各自的业务页面改 | 参数跟着它所属的业务维护 |
+| 同时修改 | 后保存的覆盖先保存的 | 版本已变时拒绝，提示刷新 | 不静默覆盖他人的修改 |
+| 改值留痕 | v1 不记修改人、不进操作日志 | 每次改值与恢复默认都留下操作记录 | 可追查谁在何时改了什么 |
+| 任意键值的参数页 | v1 另有一页可增删任意键值 | 没有 | 只能改已声明的参数 |
+
+---
+
+## 页面：公告管理
+
+发给全体商户的公告列表：按标题搜索，按状态（草稿、已发布、已撤回）筛选，可新建公告。列表各列取：标题 `title`、状态 `status`、发布人与发布时间 `publishedBy` / `publishedAt`、撤回人与撤回时间 `withdrawnBy` / `withdrawnAt`、创建时间 `createdAt`；点一行进公告详情，草稿行另有编辑。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 进入公告管理
+    S->>A: #35;3 [listAnnouncements]<br/>GET /announcements?sortField=createdAt&sortOrder=descend
+    A-->>S: 200 { total, data: [ { announcementId, title, status,<br/>publishedAt, publishedBy, withdrawnAt, withdrawnBy, createdAt } ] }
+
+    U->>S: 输入关键字或选状态
+    S->>A: #35;3 [listAnnouncements]<br/>GET /announcements?keyword=…&status=…
+    A-->>S: 200 { total, data }
+
+    Note over U,A: 新建与编辑草稿见「页面：公告管理 · 新建 / 编辑草稿弹窗」
+```
+
+- 默认按创建时间从新到旧，由前端显式传；表头点「发布时间」排序时传 `publishedAt`，未发布的恒在末尾。
+- 发布人、撤回人显示 `displayName`；没有的列留空。
+- 已弃用的草稿不在列表里。
+- 新建与编辑入口按 `syscfg:announcement:manage` 显示；只有 `syscfg:announcement:view` 的只能看列表与详情。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 状态 | v1 启用 / 停用，商户端不看它；Hub 另有「发送中」 | 草稿 / 已发布 / 已撤回 | 发布即对商户可见，撤回即不可见 |
+| 发送情况列 | Hub 显示渠道、受众数、邮件已发与失败数 | 没有 | 公告只发站内信、面向全体商户，不记逐家送达 |
+
+---
+
+## 页面：公告管理 · 新建 / 编辑草稿弹窗
+
+两栏：标题、正文（富文本，只有排版，没有插图）。保存只存草稿，不在弹窗里发布。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    Note over U,A: 新建
+    U->>S: 点新建公告，填标题与正文后保存
+    S->>A: #35;4 [createAnnouncement]<br/>POST /announcements { title, body }
+    A-->>S: 201 { announcementId, status: DRAFT, … }
+    S->>S: 关弹窗，重调 #35;3 刷新列表
+
+    Note over U,A: 编辑草稿
+    U->>S: 在草稿行点编辑
+    S->>A: #35;5 [getAnnouncement]<br/>GET /announcements/{announcementId}
+    A-->>S: 200 { title, body, status: DRAFT, … }
+    U->>S: 改标题或正文后保存
+    S->>A: #35;6 [updateAnnouncement]<br/>PUT /announcements/{announcementId} { title } 或 { body } 或两者
+    A-->>S: 200 { title, body, status: DRAFT, … }
+```
+
+- #4 带 `Idempotency-Key`，点一次保存生成一个键；网络失败重试沿用同一个键。
+- #6 只传改了的字段。
+- 弹窗有未保存的修改时关弹窗，按公共约定先确认。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 标题或正文为空 | #4 / #6 `400` | 在对应输入框下提示 |
+| 编辑时公告已被他人发布或撤回 | #6 `409`·`308104` | 提示「公告已发布，不能再改」，关弹窗、刷新列表 |
+| 编辑时草稿已被他人弃用 | #5 / #6 `404` | 提示后关弹窗、刷新列表 |
+| 同一个幂等键改了请求体 | #4 `409`·`908003` | 改过内容就换新键 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 正文插图 | v1 富文本可上传图片 | 正文只有排版，不能插图 | 正文是受限富文本 |
+| 发送渠道、不发送的商户 | Hub 可勾邮件 / App / PC 渠道、选排除商户、看预估受众 | 没有 | 公告只发站内信、面向全体商户 |
+
+---
+
+## 页面：公告详情
+
+标题、状态、正文，以及发布人与发布时间、撤回人与撤回时间。按状态给操作：草稿有编辑、发布、弃用；已发布有撤回；已撤回没有操作。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开详情
+    S->>A: #35;5 [getAnnouncement]<br/>GET /announcements/{announcementId}
+    A-->>S: 200 { title, body, status, publishedAt, publishedBy,<br/>withdrawnAt, withdrawnBy }
+
+    Note over U,A: 发布（草稿）
+    U->>S: 点发布，确认「将发给全体商户」
+    S->>A: #35;8 [publishAnnouncement]<br/>POST /announcements/{announcementId}/publication
+    A-->>S: 200 { status: PUBLISHED, publishedAt, publishedBy, … }
+
+    Note over U,A: 撤回（已发布）
+    U->>S: 点撤回，确认「撤回后不能再发布」
+    S->>A: #35;9 [withdrawAnnouncement]<br/>POST /announcements/{announcementId}/withdrawal
+    A-->>S: 200 { status: WITHDRAWN, withdrawnAt, withdrawnBy, … }
+
+    Note over U,A: 弃用（草稿）
+    U->>S: 点弃用并确认
+    S->>A: #35;7 [deleteAnnouncement]<br/>DELETE /announcements/{announcementId}
+    A-->>S: 204
+    S->>S: 回公告管理并刷新列表
+```
+
+- 正文按受限 HTML 渲染；商户端看到的是同一份正文经过清理后的样子。
+- 发布与撤回成功后用响应里的整条刷新页面，不必重调 #5。
+- 编辑走「页面：公告管理 · 新建 / 编辑草稿弹窗」的编辑草稿那一段。
+- 发布、撤回、弃用都要二次确认：发布后商户站内信立即出现、不能再改正文；撤回后不能再发布，要重新告知须新建一条。
+- 操作按钮按 `syscfg:announcement:manage` 显示。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 状态已被他人改变（如已被发布、已被撤回） | #7 / #8 / #9 `409`·`308104` | 提示后重调 #5，按最新状态显示操作 |
+| 草稿已被他人弃用 | #5 / #7 / #8 `404` | 提示后回公告管理并刷新列表 |
+| 发布或撤回的响应丢了、重试得到 `308104` | #8 / #9 `409`·`308104` | 同上，重调 #5 即可看到上一次已经生效 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 已发布公告改正文 | v1 可编辑 | 不能改；要改须撤回后新建 | 商户已经看到的内容不被悄悄改掉 |
+| 发布后的收件明细与邮件预览 | Hub 有逐家收件明细、邮件状态与邮件预览 | 没有 | 只发站内信，不记逐家送达 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>
