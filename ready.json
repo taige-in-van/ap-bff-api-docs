@@ -1,14 +1,17 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-20T00:21:59Z",
-  "implCommit": "ff09b10",
+  "generatedAt": "2026-10-20T19:28:53Z",
+  "implCommit": "bcebc0f",
   "ops": {
     "merchant/auth/completeMfaChallenge": "f4b905d0b1e574c0",
     "merchant/auth/confirmPasswordReset": "e1ca2dbfb0c443ed",
     "merchant/auth/getCurrentSession": "99d70bb7af1588b2",
     "merchant/auth/login": "1d9a83a05a8b5178",
     "merchant/auth/logout": "fa5beaf80a8fb1bf",
+    "merchant/auth/registerOwner": "23bcf43614bdda9c",
     "merchant/auth/requestPasswordReset": "78ea360be0f303bb",
+    "merchant/auth/resendVerificationEmail": "ca4f8ca069373fa9",
+    "merchant/auth/verifyRegistrationEmail": "be5e45f66c8e7eaa",
     "merchant/me/changeMyPassword": "78750fe7616d6a49",
     "merchant/me/confirmMfa": "739c392e0f403ed7",
     "merchant/me/disableMfa": "1b4294c6ef97b0c6",
@@ -17,5 +20,5 @@
     "merchant/me/updateMyProfile": "5b40d7033505d63b",
     "merchant/merchants/listMerchants": "1a59055f4abfc04e"
   },
-  "prdStage": "stage/261019-slice-a-r5"
+  "prdStage": "stage/261019-slice-b-r2"
 }
