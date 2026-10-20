@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.0.0
+  version: 2.1.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -95,7 +95,7 @@ paths:
                     status: MFA_ENROLLMENT_REQUIRED
                     mfaChallenge: chl_51c0d2e8aa
                     mfaEnrollment:
-                      otpauthUri: otpauth://totp/AdminPortal:alice@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=AdminPortal
+                      otpauthUri: otpauth://totp/Platform:alice@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=Platform
                       secret: KRUGKIDROVUWG2ZAMJZG653OEBTG66BA
                 trusted:
                   summary: 受信浏览器，已建会话
@@ -630,7 +630,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MfaEnrollment'
               example:
-                otpauthUri: otpauth://totp/AdminPortal:alice@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=AdminPortal
+                otpauthUri: otpauth://totp/Platform:alice@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=Platform
                 secret: KRUGKIDROVUWG2ZAMJZG653OEBTG66BA
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
@@ -940,16 +940,16 @@ components:
         displayName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         firstName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
           description: 名；没填过不返回本键。
         lastName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
           description: 姓；没填过不返回本键。
         phone:
           $ref: '#/components/schemas/Phone'
@@ -992,19 +992,19 @@ components:
         displayName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         firstName:
           type:
             - string
             - 'null'
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         lastName:
           type:
             - string
             - 'null'
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         phone:
           oneOf:
             - $ref: '#/components/schemas/Phone'
@@ -1198,8 +1198,8 @@ components:
           description: TOTP provisioning URI（Key Uri Format），据此渲染二维码供 Authenticator 扫描；其 `secret` 参数即下方 `secret` 字段。
         secret:
           type: string
-          minLength: 26
-          description: 手工录入用的密钥（Authenticator 里的 setup key）。Base32、不带分组空格，展示时要不要分组由消费面定；与 `otpauthUri` 的 `secret` 参数同值，消费面不要解析那串 URI 取值。下限 26 字符 = RFC 4226 的 128 bit 硬下限按 Base32 每字符 5 bit 换算；实际长度取服务端配置（RFC 推荐 160 bit，即 32 字符）。
+          pattern: ^[A-Z2-7]{32}$
+          description: 手工录入用的密钥（Authenticator 里的 setup key）。固定 160 bit，Base32 大写、不带补位与分组空格，恒为 32 字符；展示时要不要分组由消费面定；与 `otpauthUri` 的 `secret` 参数同值，消费面不要解析那串 URI 取值。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$

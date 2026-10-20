@@ -30,11 +30,11 @@ fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getEl
 </ul>
 <h3>接口（按资源）</h3>
 <ul>
-    <li><a href="merchant/auth/index.html">认证</a> <small>(v2.1.0)</small> — <a href="merchant/auth/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="merchant/me/index.html">个人账号</a> <small>(v2.0.0)</small> — <a href="merchant/me/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="merchant/team/index.html">团队成员</a> <small>(v2.0.1)</small> — <a href="merchant/team/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="merchant/merchants/index.html">商户与入驻</a> <small>(v2.0.0)</small> — <a href="merchant/merchants/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="merchant/account/index.html">商户资料</a> <small>(v2.0.0)</small> — <a href="merchant/account/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/auth/index.html">认证</a> 🆕 <small>(v2.1.0 → v2.2.0)</small> — <a href="merchant/auth/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/me/index.html">个人账号</a> 🆕 <small>(v2.0.0 → v2.1.1)</small> — <a href="merchant/me/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/team/index.html">团队成员</a> 🆕 <small>(v2.0.1 → v2.1.0)</small> — <a href="merchant/team/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/merchants/index.html">商户与入驻</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="merchant/merchants/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/account/index.html">商户资料</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="merchant/account/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/products/index.html">收款产品</a> <small>(v2.0.0)</small> — <a href="merchant/products/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/devices/index.html">设备</a> <small>(v2.0.0)</small> — <a href="merchant/devices/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/orders/index.html">订单与退款</a> <small>(v2.0.0)</small> — <a href="merchant/orders/openapi.yaml">openapi.yaml</a></li>
@@ -56,12 +56,12 @@ fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getEl
 </ul>
 <h3>接口（按资源）</h3>
 <ul>
-    <li><a href="admin/auth/index.html">登录与个人设置</a> <small>(v2.0.0)</small> — <a href="admin/auth/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/staff/index.html">后台账号与角色权限</a> <small>(v2.0.0)</small> — <a href="admin/staff/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/auth/index.html">登录与个人设置</a> 🆕 <small>(v2.0.0 → v2.1.1)</small> — <a href="admin/auth/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/staff/index.html">后台账号与角色权限</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="admin/staff/openapi.yaml">openapi.yaml</a></li>
     <li><a href="admin/settings/index.html">平台设置与公告</a> <small>(v2.0.0)</small> — <a href="admin/settings/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/ops/index.html">运维与审计</a> <small>(v2.0.0)</small> — <a href="admin/ops/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/applications/index.html">商户入驻审批与合规</a> <small>(v2.0.0)</small> — <a href="admin/applications/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/merchants/index.html">商户运营管理</a> <small>(v2.0.0)</small> — <a href="admin/merchants/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/ops/index.html">运维与审计</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="admin/ops/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/applications/index.html">商户入驻审批与合规</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="admin/applications/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/merchants/index.html">商户运营管理</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="admin/merchants/openapi.yaml">openapi.yaml</a></li>
     <li><a href="admin/acquiring/index.html">通道进件与产品配置</a> <small>(v2.0.0)</small> — <a href="admin/acquiring/openapi.yaml">openapi.yaml</a></li>
 </ul>
 <h2>收银台 (Checkout)</h2>
@@ -96,5 +96,5 @@ fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getEl
 <ul>
     <li><a href="wechat/wechat/index.html">微信确认页</a> <small>(v2.0.0)</small> — <a href="wechat/wechat/openapi.yaml">openapi.yaml</a></li>
 </ul>
-<p><small>各模块 `openapi.yaml` 自包含可 codegen;变更经本仓 commit 追踪。接口疑问 → 提 issue。</small></p>
+<p><small>🆕 = 本次发布相对上一次有更新的模块(括号里是上次 → 本次的版本)。各模块 `openapi.yaml` 自包含可 codegen;变更经本仓 commit 追踪。接口疑问 → 提 issue。</small></p>
 </body></html>

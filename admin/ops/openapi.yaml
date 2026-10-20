@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 运维与审计 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -40,7 +40,7 @@ paths:
       description: |
         全平台的操作记录，固定按发生时间从新到旧，可叠加下列筛选。全局横查与商户详情的「本商户操作记录」页签都用本接口，页签固定带 `merchantId`，同条件下两处结果相同。
 
-        **记了什么**：人在各端界面上做的敏感操作与账号安全事件。权限检查被拒的尝试没有发生操作，不在其中；后台程序自己的动作也不在其中。
+        **记了什么**：人在各端界面上做的敏感操作。权限检查被拒的尝试没有发生操作，不在其中；后台程序自己的动作也不在其中。
 
         **看得到哪些**：与商户相关的记录（该商户用户的操作、代登期间的操作、后台用户对该商户的操作）只返回本人数据可见范围内的商户；不涉及商户的记录（平台参数、公告、后台账号等）有本权限点即可看到。按一个不在范围内的商户筛选，结果为空。
       parameters:
@@ -816,6 +816,7 @@ components:
         - eventId
         - occurredAt
         - actorType
+        - actor
         - action
         - targetType
         - targetRef
@@ -830,12 +831,11 @@ components:
           enum:
             - merchant_user
             - admin_user
-            - identity
-          description: 操作主体：`merchant_user` 商户用户 / `admin_user` 后台用户 / `identity` 账号安全机制自身（如连续输错被锁定）。
+          description: 操作主体：`merchant_user` 商户用户 / `admin_user` 后台用户。
         actor:
           allOf:
             - $ref: '#/components/schemas/UserRef'
-          description: 操作人；代登期间的操作为被代的商户用户。`actorType` 为 `identity` 且不针对具体用户时不返回。
+          description: 操作人；代登期间的操作为被代的商户用户。
         impersonator:
           allOf:
             - $ref: '#/components/schemas/UserRef'
@@ -854,9 +854,11 @@ components:
           $ref: '#/components/schemas/AuditResult'
         stateBefore:
           type: string
+          maxLength: 64
           description: 状态迁移前的状态。不是状态迁移时不返回。
         stateAfter:
           type: string
+          maxLength: 64
           description: 状态迁移后的状态。不是状态迁移时不返回。
         clientIp:
           type: string

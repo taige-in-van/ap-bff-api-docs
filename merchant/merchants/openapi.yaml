@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -554,15 +554,6 @@ components:
           description: 本部署可用的币种以 `/config/currencies` 为准，窄于本枚举
         relationType:
           $ref: '#/components/schemas/RelationType'
-    ApplicationStatus:
-      type: string
-      enum:
-        - DRAFT
-        - UNDER_REVIEW
-        - MORE_INFO_REQUIRED
-        - APPROVED
-        - REJECTED
-      description: 入驻申请状态；服务端裁决，前端只读。闭枚举（取值集固定、可穷举分支）。商户删除时申请随之撤回，已删除的商户读申请返回 404，不会读到撤回态。
     StepName:
       type: string
       enum:
@@ -592,6 +583,7 @@ components:
           description: 对外商户号（如 C3BM68），只读。
         status:
           $ref: '#/components/schemas/ApplicationStatus'
+          description: 入驻申请状态；服务端裁决，前端只读。商户删除时申请随之撤回，已删除的商户读申请返回 404，不会读到 `WITHDRAWN`。
         assistedOnboarding:
           type: boolean
           readOnly: true
@@ -816,6 +808,16 @@ components:
       minLength: 1
       maxLength: 20
       description: 对外商户码。
+    ApplicationStatus:
+      type: string
+      enum:
+        - DRAFT
+        - UNDER_REVIEW
+        - MORE_INFO_REQUIRED
+        - APPROVED
+        - REJECTED
+        - WITHDRAWN
+      description: 申请状态：`DRAFT` 草稿 / `UNDER_REVIEW` 审核中 / `MORE_INFO_REQUIRED` 待补料 / `APPROVED` 已通过 / `REJECTED` 已拒绝 / `WITHDRAWN` 已撤回。
     Phone:
       type: string
       pattern: ^\+[1-9]\d{1,14}$
@@ -833,10 +835,13 @@ components:
           description: Owner 登录邮箱，只读、不提交。
         firstName:
           type: string
+          maxLength: 128
         lastName:
           type: string
+          maxLength: 128
         businessTitle:
           type: string
+          maxLength: 64
           description: 职务文本。预设 Business Owner / Manager / Employee 可直选；选 Other 时提交用户填写的自定义文本，不提交字面 "Other"。
         phone:
           allOf:

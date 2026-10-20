@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -1068,13 +1068,16 @@ components:
         firstName:
           type: string
           minLength: 1
+          maxLength: 128
         lastName:
           type: string
           minLength: 1
+          maxLength: 128
         businessTitle:
           type:
             - string
             - 'null'
+          maxLength: 64
           description: 职务文本；选 Other 时提交自定义文本、不提交字面 "Other"。`null` = 清空。
         phone:
           oneOf:

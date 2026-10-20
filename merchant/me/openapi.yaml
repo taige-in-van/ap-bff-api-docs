@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 个人账号 — 前端契约面
-  version: 2.0.0
+  version: 2.1.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -53,6 +53,7 @@ paths:
                 displayName:
                   type: string
                   minLength: 1
+                  maxLength: 128
                 locale:
                   allOf:
                     - $ref: '#/components/schemas/Language'
@@ -415,7 +416,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MfaEnrollment'
               example:
-                otpauthUri: otpauth://totp/MerchantPortal:jane@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=MerchantPortal
+                otpauthUri: otpauth://totp/Platform:jane@example.com?secret=KRUGKIDROVUWG2ZAMJZG653OEBTG66BA&issuer=Platform
                 secret: KRUGKIDROVUWG2ZAMJZG653OEBTG66BA
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -781,8 +782,8 @@ components:
           description: TOTP provisioning URI（Key Uri Format），据此渲染二维码供 Authenticator 扫描；其 `secret` 参数即下方 `secret` 字段。
         secret:
           type: string
-          minLength: 26
-          description: 手工录入用的密钥（Authenticator 里的 setup key）。Base32、不带分组空格，展示时要不要分组由消费面定；与 `otpauthUri` 的 `secret` 参数同值，消费面不要解析那串 URI 取值。下限 26 字符 = RFC 4226 的 128 bit 硬下限按 Base32 每字符 5 bit 换算；实际长度取服务端配置（RFC 推荐 160 bit，即 32 字符）。
+          pattern: ^[A-Z2-7]{32}$
+          description: 手工录入用的密钥（Authenticator 里的 setup key）。固定 160 bit，Base32 大写、不带补位与分组空格，恒为 32 字符；展示时要不要分组由消费面定；与 `otpauthUri` 的 `secret` 参数同值，消费面不要解析那串 URI 取值。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。

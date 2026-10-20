@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -841,16 +841,6 @@ components:
         - entry_point
         - settlement_change
       description: 申请类型：`onboarding` 入驻 / `acceptance_mode` 受理模式开通 / `entry_point` 插件入口开通（含改店铺网址的复审）/ `settlement_change` 结算信息变更。
-    ApplicationStatus:
-      type: string
-      enum:
-        - DRAFT
-        - UNDER_REVIEW
-        - MORE_INFO_REQUIRED
-        - APPROVED
-        - REJECTED
-        - WITHDRAWN
-      description: 申请状态：`DRAFT` 草稿 / `UNDER_REVIEW` 审核中 / `MORE_INFO_REQUIRED` 待补料 / `APPROVED` 已通过 / `REJECTED` 已拒绝 / `WITHDRAWN` 已撤回。
     SignupSource:
       type: string
       enum:
@@ -1418,6 +1408,16 @@ components:
         activatedAt:
           $ref: '#/components/schemas/Timestamp'
           description: 激活时刻。
+    ApplicationStatus:
+      type: string
+      enum:
+        - DRAFT
+        - UNDER_REVIEW
+        - MORE_INFO_REQUIRED
+        - APPROVED
+        - REJECTED
+        - WITHDRAWN
+      description: 申请状态：`DRAFT` 草稿 / `UNDER_REVIEW` 审核中 / `MORE_INFO_REQUIRED` 待补料 / `APPROVED` 已通过 / `REJECTED` 已拒绝 / `WITHDRAWN` 已撤回。
     MerchantId:
       type: string
       minLength: 1
@@ -1658,10 +1658,13 @@ components:
           description: Owner 登录邮箱，只读、不提交。
         firstName:
           type: string
+          maxLength: 128
         lastName:
           type: string
+          maxLength: 128
         businessTitle:
           type: string
+          maxLength: 64
           description: 职务文本。预设 Business Owner / Manager / Employee 可直选；选 Other 时提交用户填写的自定义文本，不提交字面 "Other"。
         phone:
           allOf:
@@ -1913,6 +1916,21 @@ components:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
           description: 固定单笔费免收截止日（含）；不带 = 不免。
+    ApplicationFeeTerm:
+      type: object
+      additionalProperties: false
+      required:
+        - paymentMethod
+        - rate
+      properties:
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        entryPoint:
+          allOf:
+            - $ref: '#/components/schemas/FeeRateEntryPoint'
+          description: 专用行所属的插件入口；不带即通用行。
+        rate:
+          $ref: '#/components/schemas/FeeRateWrite'
     BillingModel:
       type: string
       enum:
@@ -1933,20 +1951,7 @@ components:
           type: array
           description: 约定费率，一行一个支付方式（或其插件入口专用行）。
           items:
-            type: object
-            additionalProperties: false
-            required:
-              - paymentMethod
-              - rate
-            properties:
-              paymentMethod:
-                $ref: '#/components/schemas/PaymentMethod'
-              entryPoint:
-                allOf:
-                  - $ref: '#/components/schemas/FeeRateEntryPoint'
-                description: 专用行所属的插件入口；不带即通用行。
-              rate:
-                $ref: '#/components/schemas/FeeRateWrite'
+            $ref: '#/components/schemas/ApplicationFeeTerm'
         billingModel:
           allOf:
             - $ref: '#/components/schemas/BillingModel'

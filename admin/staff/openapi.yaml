@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 后台账号与角色权限 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1540,16 +1540,16 @@ components:
         displayName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         firstName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
           description: 名；没填过不返回本键。
         lastName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
           description: 姓；没填过不返回本键。
         roles:
           type: array
@@ -1618,15 +1618,15 @@ components:
         displayName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         firstName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         lastName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         phone:
           $ref: '#/components/schemas/Phone'
         jobTitle:
@@ -1656,19 +1656,19 @@ components:
         displayName:
           type: string
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         firstName:
           type:
             - string
             - 'null'
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         lastName:
           type:
             - string
             - 'null'
           minLength: 1
-          maxLength: 64
+          maxLength: 128
         phone:
           oneOf:
             - $ref: '#/components/schemas/Phone'

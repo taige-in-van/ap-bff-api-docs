@@ -8,7 +8,7 @@
 
 ## ⚠️ 阶段
 
-**design / review 阶段**契约 —— 实现前可能调整,勿当冻结契约。变更经本仓 commit 追踪,版本见各 `openapi.yaml` 的 `info.version`。
+**design / review 阶段**契约 —— 实现前可能调整,勿当冻结契约。变更经本仓 commit 追踪,版本见各 `openapi.yaml` 的 `info.version`。根 `index.html` 的接口清单里,标 🆕 的模块是本次发布相对上一次版本有变化的(括号里写上次 → 本次的版本;新加的模块写「新增」)。
 
 ## 联调就绪标识
 

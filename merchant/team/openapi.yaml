@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 团队成员 — 前端契约面
-  version: 2.0.1
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -601,6 +601,7 @@ components:
         displayName:
           type: string
           minLength: 1
+          maxLength: 128
         roleIds:
           type: array
           minItems: 1
@@ -626,6 +627,7 @@ components:
         displayName:
           type: string
           minLength: 1
+          maxLength: 128
         roleIds:
           type: array
           minItems: 1
