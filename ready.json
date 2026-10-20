@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-19T22:52:26Z",
-  "implCommit": "e4434e4",
+  "generatedAt": "2026-10-20T00:21:59Z",
+  "implCommit": "ff09b10",
   "ops": {
     "merchant/auth/completeMfaChallenge": "f4b905d0b1e574c0",
     "merchant/auth/confirmPasswordReset": "e1ca2dbfb0c443ed",
@@ -12,10 +12,10 @@
     "merchant/me/changeMyPassword": "78750fe7616d6a49",
     "merchant/me/confirmMfa": "739c392e0f403ed7",
     "merchant/me/disableMfa": "1b4294c6ef97b0c6",
-    "merchant/me/enrollMfa": "bcc265396904a190",
+    "merchant/me/enrollMfa": "805d6dc6c7639759",
     "merchant/me/getMySecurity": "d2a3b879f23fbc5f",
     "merchant/me/updateMyProfile": "5b40d7033505d63b",
     "merchant/merchants/listMerchants": "1a59055f4abfc04e"
   },
-  "prdStage": "stage/261019-slice-a-r4"
+  "prdStage": "stage/261019-slice-a-r5"
 }
