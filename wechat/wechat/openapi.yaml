@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 微信侧公开面 · 微信确认页
-  version: 2.0.1
+  version: 2.0.2
   contact:
     name: 微信确认页契约
   description: |
@@ -62,24 +62,20 @@ paths:
         跳转微信确认页时 fragment 有两种形态：
 
         - `#confirmationToken=…`：成功换得身份；预检未过时，微信确认页经 `getWechatConfirmation` 拿到 `state = FAILED` 与原因码。
-        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 无效或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），本次 `state` 作废，挑战不推进、不被认领，同一二维码可重新扫码；`#failure=UNAVAILABLE`：以 `code` 换外部账号身份失败（微信返回错误或不可达），或扫码登录预检时登录准入回调超时或出错，或预检出现其他系统异常，不出确认入口、不签发、不写登录流水，页面提示稍后再试；同时释放认领（清掉本次 `state` 与扫码时刻），挑战回到未扫，同一张二维码可以直接重扫。不向浏览器返回错误体。
+        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 缺失、格式不符或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），本次 `state` 作废，挑战不推进、不被认领，同一二维码可重新扫码；`#failure=UNAVAILABLE`：以 `code` 换外部账号身份失败（微信返回错误或不可达），或扫码登录预检时登录准入回调超时或出错，或预检出现其他系统异常，不出确认入口、不签发、不写登录流水，页面提示稍后再试；同时释放认领（清掉本次 `state` 与扫码时刻），挑战回到未扫，同一张二维码可以直接重扫。不向浏览器返回错误体。
       parameters:
+        - name: state
+          in: query
+          required: false
+          description: '`enterWechatChallenge` 生成的一次性 state，只含字母数字、不超过 128 字节；缺失或不符都算 `state` 无效。'
+          schema:
+            type: string
         - name: code
           in: query
           required: false
-          description: 微信网页授权返回的 code；用户拒绝授权时微信不带它回跳。
+          description: 微信网页授权返回的 code；用户拒绝授权时微信不带它回跳，带了空值按没带处理。
           schema:
             type: string
-            minLength: 1
-        - name: state
-          in: query
-          required: true
-          description: '`enterWechatChallenge` 生成的一次性 state，只含字母数字、不超过 128 字节。'
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 128
-            pattern: ^[A-Za-z0-9]+$
       x-error-codes: []
       responses:
         '302':
