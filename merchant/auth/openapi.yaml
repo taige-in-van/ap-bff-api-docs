@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.3.0
+  version: 2.3.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -342,7 +342,7 @@ paths:
         把会话的当前商户切到目标商户，返回切换后的会话（`privileges` / `visibleModules` / `isOwner` 按新商户算；员工切到关联商户仍用自己在主商户的角色）。
 
         - 目标须是 `listMerchants` 里 `ACTIVE` 的商户；在列表里但还没激活 → `409`·208003。
-        - 目标不在 `listMerchants` 里（不存在、不在册、已删除、已冻结、入驻被拒）→ 404。
+        - 目标不在 `listMerchants` 里（不存在、不是登录者名下的、已删除、已冻结、入驻被拒）→ 404。
 
         重复切到同一商户结果相同，不挂 Idempotency-Key。
       parameters:
@@ -1448,12 +1448,15 @@ components:
           description: 联系人电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         referredBy:
           type: string
+          maxLength: 128
           description: 来源；注册链接带来则只读，否则可填；填 Moneris 触发条件字段。
         monerisMid:
           type: string
+          maxLength: 64
           description: 条件必填：referredBy = Moneris 时。
         monerisManagerName:
           type: string
+          maxLength: 128
           description: 条件必填：referredBy = Moneris 时。
     PaymentMethod:
       type: string

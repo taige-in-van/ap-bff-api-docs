@@ -1676,12 +1676,15 @@ components:
           description: 联系人电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         referredBy:
           type: string
+          maxLength: 128
           description: 来源；注册链接带来则只读，否则可填；填 Moneris 触发条件字段。
         monerisMid:
           type: string
+          maxLength: 64
           description: 条件必填：referredBy = Moneris 时。
         monerisManagerName:
           type: string
+          maxLength: 128
           description: 条件必填：referredBy = Moneris 时。
     PaymentMethod:
       type: string
@@ -2011,30 +2014,39 @@ components:
           $ref: '#/components/schemas/Currency'
         country:
           type: string
+          maxLength: 2
           description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
         legalBusinessName:
           type: string
+          maxLength: 128
           description: 身份字段（激活后不可改）。
         tradeName:
           type: string
+          maxLength: 128
         typeOfOwnership:
           allOf:
             - $ref: '#/components/schemas/OwnershipType'
           description: 身份字段（激活后不可改）。
         registrationNumber:
           type: string
+          maxLength: 64
         businessAddress:
           type: string
+          maxLength: 256
         city:
           type: string
+          maxLength: 64
         province:
           type: string
+          maxLength: 64
           description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
         postalCode:
           type: string
+          maxLength: 16
           description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
         timeZone:
           type: string
+          maxLength: 64
           description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
         language:
           allOf:
@@ -2046,9 +2058,11 @@ components:
           description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         industryCategory:
           type: string
+          maxLength: 64
           description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
+          maxLength: 4
           description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
         typeOfOnlineService:
           oneOf:
@@ -2064,6 +2078,7 @@ components:
           type:
             - string
             - 'null'
+          maxLength: 300
     DocumentsStep:
       type: object
       description: Step 5 Documents。docIncorporation / docOwnerId / docVoidCheque 必传；docStoreInside / docStoreOutside 在 Services 步选了线下支付方式时必传；docOther1 / docOther2 可选。绑定按 fileId。

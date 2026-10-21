@@ -42,7 +42,7 @@
 登录 / 微信扫码成功 → BFF 建立会话（set-cookie，httpOnly opaque `__Host-msession`）。会话建立后 FE 按**固定链路**初始化，**不要依赖登录响应直接携带 merchantId 或路由**：
 
 1. `getCurrentSession`（`GET /auth/sessions/current`）→ 取 `merchantId`（当前商户内部 id，必返）、`privileges`（可见权限点集合，导航 / 入口 / 按钮 / 只读态一律查它）。每个接口要哪个点看它的 `x-required-privilege`：是权限点就查集合里有没有；`session` 任何已登录者都能调；`owner` 只有当前商户的 Owner 能调（`isOwner`），不在集合里。不要按 `roleNames` 写判断：角色随部署配置而变，写死角色名的判断换了配置会静默失效。返回 `403`·`208028` 时会话已被服务端结束，回登录页显示提示。
-2. `listMerchants`（`GET /merchants`）→ 当前商户**在列表里**就按它的 `status` 分流：`ACTIVE` 进商户后台，`DRAFT` / `MORE_INFO_REQUIRED` 进入驻向导，`UNDER_REVIEW` 进审核状态页；**不在列表里**（被拒的商户不进列表）调 `getOnboardingApplication`（`GET /merchants/{merchantId}/application`），`REJECTED` 进拒绝结果页——申请接口按「在册且未删除」授权，比列表宽，被拒的商户也能读。
+2. `listMerchants`（`GET /merchants`）→ 当前商户**在列表里**就按它的 `status` 分流：`ACTIVE` 进商户后台，`DRAFT` / `MORE_INFO_REQUIRED` 进入驻向导，`UNDER_REVIEW` 进审核状态页；**不在列表里**（被拒的商户不进列表）调 `getOnboardingApplication`（`GET /merchants/{merchantId}/application`），`REJECTED` 进拒绝结果页——申请接口按「登录者名下的商户、未删除」授权，比列表宽，被拒、已冻结的商户也能读。
 3. 进商户后台时落 Dashboard；按 `privileges` / `visibleModules` 看不到 Dashboard 时，落侧边栏里第一个能看到的页面（前端自行决定，服务端不下发落地页）。
 
 > 当前商户在会话期间被冻结或删除时，由服务端在下一次 `getCurrentSession` 换一个，或在一个都取不到时结束会话（`208028`），前端不做判断。

@@ -358,6 +358,11 @@
       "name": "REFUND_PIN_NOT_SET",
       "retryable": false
     },
+    "208054": {
+      "httpStatus": 409,
+      "name": "MAIN_MERCHANT_FROZEN",
+      "retryable": false
+    },
     "304001": {
       "httpStatus": 400,
       "name": "ADMIN_OTP_RETRYABLE",

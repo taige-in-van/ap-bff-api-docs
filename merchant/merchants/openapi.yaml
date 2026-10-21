@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.1.0
+  version: 2.3.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -14,7 +14,7 @@ info:
     - 入驻申请的分步保存（PUT）与提交（重放命中已提交态返回相同结果）天然幂等，不挂；文档上传非幂等，每次产生新 `fileId`。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
 
-    **按路径定位商户**：入驻申请按路径里的 `merchantId` 定位（一个商户一张入驻申请），不看会话的当前商户：首次入驻取 `getCurrentSession` 的 `merchantId`，关联商户取 `createMerchant` 返回或商户列表里的 `merchantId`。授权看当前用户是否在该商户在册、商户是否未删除，不满足 → `404`；入驻被拒的商户不在商户列表里，但申请仍可读。
+    **按路径定位商户**：入驻申请按路径里的 `merchantId` 定位（一个商户一张入驻申请），不看会话的当前商户：首次入驻取 `getCurrentSession` 的 `merchantId`，关联商户取 `createMerchant` 返回或商户列表里的 `merchantId`。商户须是登录者名下的商户（登录者所属的商户，及其所属主商户名下的关联商户），已删除 → `404`；入驻被拒、已冻结的商户不在商户列表里，但申请仍可读。
 servers:
   - url: /api/merchant/v1
     description: 商户后台 BFF（浏览器经边缘网关 merchant.* 可达；cookieAuth 会话 + CSRF）
@@ -80,7 +80,9 @@ paths:
         建一个关联商户和它的入驻申请草稿（`DRAFT`），返回 `merchantId`。不改变会话的当前商户。
 
         - 只有 Owner 能调，其他人 → 403。
+        - 以会话当前商户为发起商户：当前商户未激活或不可访问 → `409`·208022。
         - 新商户一律挂在主商户下面、Owner 同主商户，不论当前商户是主商户还是关联商户。
+        - 所属主商户已冻结 → `409`·208054，不建商户也不建申请。
         - `BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 只带本请求里的字段；预填结果在入驻向导读申请时返回。
         - `country` 与 `currency` 须是 `/config/currencies` 里的一条组合，否则 400。
 
@@ -110,7 +112,8 @@ paths:
                 merchantId: '1000042'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
-      x-error-codes: []
+      x-error-codes:
+        - 208054
   /merchants/{merchantId}:
     delete:
       tags:
@@ -122,10 +125,11 @@ paths:
         删除一个还没激活的关联商户：商户标记删除，在途的入驻申请撤回。删除后不再出现在商户列表里，填过的资料不能恢复。
 
         - 只有 Owner 能调，其他人 → 403。
-        - 已激活的商户 → `409`·208003；
+        - 已激活（含已冻结）的商户 → `409`·208003；
+        - 入驻被拒的商户 → `409`·208003；
         - 主商户 → `409`·208024；
         - 工作人员代为建档的待激活商户 → `409`·208046（撤回由工作人员办理）；
-        - 商户不存在、或当前用户不在该商户在册 → 404（已删除的按下面的幂等规则返回 204）。
+        - 商户不存在、或不是登录者名下的商户 → 404（已删除的按下面的幂等规则返回 204）。
 
         幂等：已删除的商户再删返回 204，不挂 Idempotency-Key。
       parameters:
@@ -476,7 +480,7 @@ components:
       name: merchantId
       in: path
       required: true
-      description: 申请所属的商户（一个商户一张入驻申请）。当前用户须在该商户在册、且商户未删除，否则 404；入驻被拒的商户同样可读（拒绝结果页要用），这一点和商户列表不同
+      description: 申请所属的商户（一个商户一张入驻申请）。须是登录者名下的商户、且商户未删除，否则 404；入驻被拒的商户同样可读（拒绝结果页要用），这一点和商户列表不同
       schema:
         $ref: '#/components/schemas/MerchantId'
     IdempotencyKey:
@@ -543,10 +547,12 @@ components:
         tradeName:
           type: string
           minLength: 1
+          maxLength: 128
           description: 允许与现有商户同名
         country:
           type: string
-          minLength: 1
+          minLength: 2
+          maxLength: 2
           description: ISO 3166-1 alpha-2。与 `currency` 须是 `/config/currencies` 里的一条组合，否则 400
         currency:
           allOf:
@@ -853,12 +859,15 @@ components:
           description: 联系人电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         referredBy:
           type: string
+          maxLength: 128
           description: 来源；注册链接带来则只读，否则可填；填 Moneris 触发条件字段。
         monerisMid:
           type: string
+          maxLength: 64
           description: 条件必填：referredBy = Moneris 时。
         monerisManagerName:
           type: string
+          maxLength: 128
           description: 条件必填：referredBy = Moneris 时。
     PaymentMethod:
       type: string
@@ -1172,30 +1181,39 @@ components:
           $ref: '#/components/schemas/Currency'
         country:
           type: string
+          maxLength: 2
           description: ISO-3166 国家码（有效 Currency × Country 组合以后端配置为准）。
         legalBusinessName:
           type: string
+          maxLength: 128
           description: 身份字段（激活后不可改）。
         tradeName:
           type: string
+          maxLength: 128
         typeOfOwnership:
           allOf:
             - $ref: '#/components/schemas/OwnershipType'
           description: 身份字段（激活后不可改）。
         registrationNumber:
           type: string
+          maxLength: 64
         businessAddress:
           type: string
+          maxLength: 256
         city:
           type: string
+          maxLength: 64
         province:
           type: string
+          maxLength: 64
           description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
         postalCode:
           type: string
+          maxLength: 16
           description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
         timeZone:
           type: string
+          maxLength: 64
           description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
         language:
           allOf:
@@ -1207,9 +1225,11 @@ components:
           description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         industryCategory:
           type: string
+          maxLength: 64
           description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
+          maxLength: 4
           description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
         typeOfOnlineService:
           oneOf:
@@ -1225,6 +1245,7 @@ components:
           type:
             - string
             - 'null'
+          maxLength: 300
     SettlementStep:
       type: object
       description: |
@@ -1238,6 +1259,7 @@ components:
       properties:
         bankName:
           type: string
+          maxLength: 128
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'

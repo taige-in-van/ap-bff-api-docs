@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.1.0
+  version: 2.1.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -896,6 +896,7 @@ components:
     TimeZone:
       type: string
       minLength: 1
+      maxLength: 64
       description: |
         商户时区，取 **IANA tz database 标识**（如 `America/Toronto`）；**不用 PT/ET 等缩写**（缩写无法表达夏令时 DST）。
 
@@ -1036,20 +1037,25 @@ components:
         businessAddress:
           type: string
           minLength: 1
+          maxLength: 256
         city:
           type: string
           minLength: 1
+          maxLength: 64
         province:
           type: string
           minLength: 1
+          maxLength: 64
           description: 取自 `/config/countries` 里所选国家的 `provinces[].code`；改 `country` 后须重选。所选国家有省 / 州候选时必填，否则不传
         postalCode:
           type: string
           minLength: 1
+          maxLength: 16
           description: 所选国家有邮编制度时必填，否则不传
         country:
           type: string
           minLength: 1
+          maxLength: 2
           description: 取自 `/config/countries` 的 `items[].code`（ISO 3166-1 alpha-2）
         timeZone:
           $ref: '#/components/schemas/TimeZone'
