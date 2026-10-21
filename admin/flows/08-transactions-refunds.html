@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>交易管理 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"317630757a395982","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"5cfb066c8c2bb623","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"783384102ec6d58d","acquiring/listMerchantDeviceLogs":"af8aa54d044370cd","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"c52d46fddc685fb3","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"f5a450d98d00d8b3","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"5847c1e5c9321c87","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"bdb459f03acbc462","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/approveApplicationOverridingBlocklist":"d1750d32d9cf4d5f","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"ec49b8b7e563cbff","applications/decideApplication":"9d0dd93d5ae2097c","applications/getApplication":"323a0e0b17a20172","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"7c452d86b133cab5","applications/uploadAssistedApplicationFile":"ab166c51073a4dc5","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"23e7fc12bfc147a6","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"f29b250553b107a9","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"5f9d9c49919e247b","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"a710101da2c18398","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"ddf615a90cfafdc6","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"19671acd796c2415","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"e46694a40e226f6f","settings/listAnnouncements":"c002a9041c562754","settings/listPlatformParameters":"c842be2eb7147646","settings/listRefundPlatformParameters":"021c75d5bb821fdf","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"3d53cd01c262a582","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updatePlatformParameter":"50d26b94ca9e5ec7","settings/updateRefundPlatformParameter":"7fc784284d4ef3c3","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"1e861e3410235b54","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"d94af526a2faedd5","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"ba8194eca0389618","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"8cac4305ce75225a","staff/updateStaffPassword":"84fbb3a012b7c5e1","staff/updateStaffStatus":"7c2834e413a97563","transactions/createPaymentExport":"8f266814617b7e78","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"fab61c1b5640e94d","transactions/getPaymentSummary":"833bb8ecbfd8154d","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"bc283118d9883c6c","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 交易管理 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）；交易、退款单、退款审核与代扣协议按数据可见范围过滤商户（按订单所属商户），按标识打开范围外商户的单据得到 `404`。商户详情的订单页签挂在商户详情下（商户详情见 06-merchant-ops）。本文的金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 交易查询 | 导航「交易 › 交易」 | [页面：交易查询](#页面：交易查询) |
+| 订单详情 | 交易查询点一行；商户详情 · 订单点一行；退款详情与退款审核里的原订单 | [页面：订单详情](#页面：订单详情) |
+| 商户详情 · 订单 | 商户详情的「订单」页签 | [页面：商户详情 · 订单](#页面：商户详情%20·%20订单) |
+| 退款单 | 导航「交易 › 退款单」 | [页面：退款单](#页面：退款单) |
+| 退款详情 | 退款单点一行；订单详情的关联退款点一行；退款审核点一行的「详情」 | [页面：退款详情](#页面：退款详情) |
+| 退款审核 | 导航「交易 › 退款审核」；运营企业微信群消息里的链接 | [页面：退款审核](#页面：退款审核) |
+| 代扣协议 | 导航「交易 › 代扣协议」 | [页面：代扣协议](#页面：代扣协议) |
+| 平台退款参数 | 导航「平台设置 › 退款参数」 | [页面：平台退款参数](#页面：平台退款参数) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listPayments`](../transactions/index.html#tag/payments/operation/listPayments) | `GET /payments` | 交易列表 |
+| 2 | [`getPaymentSummary`](../transactions/index.html#tag/payments/operation/getPaymentSummary) | `GET /payments/summary` | 即时合计（按结算币种分组） |
+| 3 | [`getPayment`](../transactions/index.html#tag/payments/operation/getPayment) | `GET /payments/{orderId}` | 订单详情 |
+| 4 | [`createPaymentExport`](../transactions/index.html#tag/payments/operation/createPaymentExport) | `POST /payment-exports` | 导出交易 |
+| 5 | [`listRefunds`](../transactions/index.html#tag/refunds/operation/listRefunds) | `GET /refunds` | 退款单列表 |
+| 6 | [`getRefund`](../transactions/index.html#tag/refunds/operation/getRefund) | `GET /refunds/{refundId}` | 退款详情 |
+| 7 | [`createRefundExport`](../transactions/index.html#tag/refunds/operation/createRefundExport) | `POST /refund-exports` | 导出退款单 |
+| 8 | [`listRefundReviews`](../transactions/index.html#tag/refund-reviews/operation/listRefundReviews) | `GET /refund-reviews` | 退款待审队列与待审数 |
+| 9 | [`decideRefundReview`](../transactions/index.html#tag/refund-reviews/operation/decideRefundReview) | `POST /refund-reviews/{refundId}/decision` | 审核通过或拒绝 |
+| 10 | [`listMandates`](../transactions/index.html#tag/mandates/operation/listMandates) | `GET /mandates` | 商户代扣协议 |
+| 11 | [`listRefundPlatformParameters`](../settings/index.html#tag/refund-parameters/operation/listRefundPlatformParameters) | `GET /settings/refund-parameters` | 平台退款参数 |
+| 12 | [`updateRefundPlatformParameter`](../settings/index.html#tag/refund-parameters/operation/updateRefundPlatformParameter) | `PUT /settings/refund-parameters/{key}` | 改值 / 恢复默认 |
+
+---
+
+## 页面：交易查询
+
+跨商户的支付订单。筛选：日期范围（按订单创建日期）、商户 `merchantId`、关键词 `keyword`、状态 `status`、支付方式 `paymentMethodFamily`、来源 `source`、是否预授权订单 `preauthOrder`、结算锁生效中 `settlementHoldActive`。列表调 #1，合计调 #2，两者带同一组筛选。
+
+- 日期范围两端必填，默认最近 30 天（含今天）；换算见[管理后台约定](../conventions.html)「列表的日期范围」。状态默认选收到钱的四种（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`），用户可改。不传排序时按创建时间从新到旧，可改按金额排序（`sortField = amount`）。
+- 插件订单与账单码订单不另设页面：来源筛选里给「插件订单」（`shopify`、`allvalue`）与「账单码订单」（`invoice`）两个预置项。
+- 各列取：商户 `merchant` 与商户码 `merchantCode`、机构 `partnerId`、平台订单号 `orderId`、商户订单号 `merchantOrderNo`、金额 `amount`、已退金额 `refundedAmount`、汇率 `fxRate`、状态 `status`、已结算 `settled`、加收客户服务费 `customerServiceFeeCharged`、支付方式 `paymentMethodFamily`、来源 `source`、创建时间 `createdAt`。行上标记：`hasReviewingRefund` 为真标「有待审退款」，`preauthOrder` 为真标「预授权」，`settlementHoldActive` 为真另标「结算锁生效中」。
+- `amount` 已成交的是结算币种的成交金额，没成交的（`FAILED` / `REJECTED`）是标价金额，按各行自带的币种显示。
+- 合计常显，按结算币种每个币种一行（笔数、成交额、已退额、净额）；只涉及一个结算币种时只有一行，没有计入的订单时显示为空。合计只算收到钱的四种状态，所以笔数可能小于列表行数。筛选变化时 #1 与 #2 一起重调。
+- 「导出」调 #4，请求体带当前的全部筛选与排序，同步下载 xlsx。
+- 点一行进订单详情。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期范围缺一端或 `to` 早于 `from` | #1 / #2 / #4 `400` | 在日期选择器下提示 |
+| 日期区间跨度超过允许的最大查询窗口 | #1 / #2 / #4 `400` | 在日期选择器下提示缩小范围 |
+| 导出命中行数超过上限 | #4 `409`·`308503`（`context.maxRows` 是上限） | 提示「超过 N 行，请缩小范围后再导出」，N 取 `maxRows` |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 交易列表 | v1 两套交易列表并存，列与筛选不一 | 一套交易查询 | 同一批订单只有一个口径 |
+| 全局交易导出 | Hub 只在商户详情的订单页签能导出 | 跨商户的交易查询也能按筛选导出 | 运营按条件导出不必逐个商户进 |
+| 账单码交易与插件订单 | v1 各有单独页面 | 交易查询的来源预置筛选 | 是同一批订单按来源看 |
+| 导出方式 | Hub 超过一定条数转下载中心 | 一律同步出文件，超过上限提示缩小范围 | 不建异步导出中心 |
+
+---
+
+## 页面：订单详情
+
+单张订单，调 #3。分块展示：
+
+- 订单：平台订单号 `orderId`、商户订单号 `merchantOrderNo`、商户 `merchant` 与商户码、机构 `partnerId`、订单描述 `orderDescription`、订单明细 `orderDetail`、采集项 `collectedFields`、买家与收件人填写项 `buyerFields` / `recipientFields`。
+- 金额：标价 `orderAmount`、小费 `tipAmount`、订单总额 `totalAmount`、客户服务费 `customerServiceFee`、应付 `customerPaymentAmount`、成交额 `paidSettleAmount`、已退 `refundedAmount` / `refundedSettleAmount`、可退 `refundableAmount`、人民币实扣 `cnyAmount` 与汇率 `fxRate`。
+- 支付：支付方式 `paymentMethod`、通道 `channelId`、通道交易类型 `channelTradeType`、产品形态 `product`、来源 `source`、受理模式 `acceptanceMode`、创建 / 确认 / 通道成功时间（`createdAt` / `confirmedAt` / `channelSuccessAt`）、通道交易号 `channelTxnNo`、通道错误 `channelError`、付款人通道侧标识 `payerChannelUserId`（完整显示）与 IP `customerIp`、回调地址 `notifyUrl`、发起设备 `device`。
+- 结算锁：`preauthOrder` 为真时显示「预授权订单」，并按 `settlementHoldActive` 显示锁生效中或已释放。只展示，没有释放按钮。
+- 关联退款：`refunds` 每行带类型、状态、金额与时间，`type = system_auto` 的标「系统自动退款」；点一行进退款详情。
+- 回调投递：`callbackDeliveries` 每行带事件 `eventType`、状态 `status`、尝试次数 `attemptCount`、最近一次的应答码 `lastHttpStatus` 与失败类别 `lastFailureClass`。`status = DEAD_LETTER` 的行给「去重投」，跳到运维与审计的对外投递任务详情（`getOutboundDelivery`，要 `opscon:delivery:view`；重投在那里做，见 04-ops-audit「页面：对外投递 · 任务详情 抽屉」）。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 订单不存在或不在数据范围内 | #3 `404` | 提示找不到，回到来源列表并刷新 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 重发支付通知 | v1 订单详情可补发从未成功的支付通知 | 只看该单回调的投递状态，死信到运维与审计重投 | 重投都落在同一份对外投递记录上，可追查每次尝试 |
+
+---
+
+## 页面：商户详情 · 订单
+
+商户详情下的订单页签：就是交易查询固定了 `merchantId`，筛选、列、合计、详情与导出同[页面：交易查询](#页面：交易查询)，调 #1 / #2 / #4 时都带该商户的 `merchantId`。
+
+- 日期范围默认最近 30 天（含今天）。
+- 合计常显，一个商户只有一个结算币种，所以是一行。
+- 导出只含该商户的订单。
+
+---
+
+## 页面：退款单
+
+跨商户的退款单，调 #5。筛选：日期范围（按退款单创建日期）、商户 `merchantId`、关键词 `keyword`、状态 `status`、失败原因 `failureReason`、支付方式 `paymentMethodFamily`、原订单来源 `source`。
+
+- 日期范围两端必填，默认最近 30 天（含今天）。列表固定按创建时间从新到旧。
+- 各列取：商户 `merchant` 与商户码 `merchantCode`（跨主子代退另显示发起方商户 `initiatorMerchant`）、平台订单号 `orderId` 与商户订单号 `merchantOrderNo`、平台退款号 `refundId` 与商户退款单号 `merchantRefundNo`、退款金额 `amount`、结算币种退款额 `settleAmount`、创建时间 `createdAt`、状态 `status`（失败的带原因 `failureReason`）、支付方式 `paymentMethodFamily`、原订单来源 `source`、发起入口 `entryPoint`、类型 `type`（`system_auto` 标「系统自动退款」）。
+- 「导出」调 #7，请求体带当前的全部筛选，同步下载 xlsx。
+- 点一行进退款详情。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期范围缺一端或 `to` 早于 `from` | #5 / #7 `400` | 在日期选择器下提示 |
+| 日期区间跨度超过允许的最大查询窗口 | #5 / #7 `400` | 在日期选择器下提示缩小范围 |
+| 导出命中行数超过上限 | #7 `409`·`308503`（`context.maxRows` 是上限） | 提示「超过 N 行，请缩小范围后再导出」，N 取 `maxRows` |
+
+---
+
+## 页面：退款详情
+
+单笔退款，调 #6；要看原订单时另调 #3。列表行的字段，加通道退款号 `channelRefundNo`、发起操作员 `operator` 与发起设备 `device`、退款备注 `note`、通知地址 `notifyUrl`、受理时间 `acceptedAt`、完成时间 `completedAt`、审核时间 `reviewedAt`、审核人 `reviewer` 与审批说明 `reviewNote`、退回商户的手续费 `feeRefunded`。
+
+- 失败的退款显示失败原因 `failureReason`（四类）与通道原文 `channelError`（码与文字原样）。本页没有任何处置按钮：重新发起只能由商户在商户后台做，失败与结果未明的核对在清算结算处理。
+- 回调投递 `callbackDeliveries` 同订单详情：死信行给「去重投」，跳运维与审计的对外投递任务详情。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 退款不存在或不在数据范围内 | #6 `404` | 提示找不到，回到来源列表并刷新 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 重发退款通知 | v1 退款详情可对任意状态的退款再推一次通知 | 只看该退款回调的投递状态，死信到运维与审计重投 | 只补投没送达的，不另造一次通知 |
+
+---
+
+## 页面：退款审核
+
+走过审核的退款，按 `reviewState` 分「待审」（`PENDING`，默认）、「已通过」（`APPROVED`）、「已拒绝」（`REJECTED`）三个页签；筛选：商户 `merchantId`、关键词 `keyword`（商户码、商户名、退款备注、平台订单号）；「已通过」「已拒绝」两个页签另按审核日期区间 `from` / `to` 筛选，两端必填、默认最近 30 天（含今天），换算见[管理后台约定](../conventions.html)「列表的日期范围」；「待审」不按日期。
+
+各列取：商户 `merchant` 与商户码、商户订单号 `merchantOrderNo` 与平台订单号 `orderId`、退款金额 `amount`、申请人（发起入口 `entryPoint` 与操作员 `operator`）、申请时间 `createdAt`、申请原因 `note`、状态 `status`、审核人 `reviewer`、审批说明 `reviewNote`、审核时间 `reviewedAt`。
+
+### 场景：通过或拒绝
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开退款审核
+    S->>A: #35;8 [listRefundReviews]<br/>GET /refund-reviews?reviewState=PENDING
+    A-->>S: 200 { total, data: [ { refundId, merchant, orderId, amount,<br/>entryPoint, operator, createdAt, note } ] }
+    U->>S: 点一行的「详情」
+    S->>A: #35;6 [getRefund]<br/>GET /refunds/{refundId}
+    A-->>S: 200 { refundId, amount, status, operator, device, note }
+    S->>A: #35;3 [getPayment]<br/>GET /payments/{orderId}
+    A-->>S: 200 { orderId, amount, status, refunds }
+    U->>S: 选通过或拒绝，可填审批说明
+    S->>A: #35;9 [decideRefundReview]<br/>POST /refund-reviews/{refundId}/decision
+    A-->>S: 200 { refundId, status }
+    S->>A: #35;8 [listRefundReviews]<br/>GET /refund-reviews?reviewState=PENDING
+    A-->>S: 200 { total, data }
+```
+
+- 导航上「退款审核」的红点 = `reviewState = PENDING` 时 #8 的 `total`；页面加载时与每次下完结论后刷新。
+- 审核只在登录后的管理后台里进行。运营企业微信群消息里的链接打开时先登录，登录后落到这条退款的审核页（按退款号调 #6、#3 取内容）；没有审核权限的用户没有审核动作、提交审核决定被拒。
+- 审核人取当前登录的用户，页面不填。审批说明可不填，至多 256 字。
+- 打开详情要另持 `txadm:refund:view` 与 `txadm:payment:view`；配置审核角色时一并勾上。
+- 通过后响应的 `status` 一般是 `CHANNEL_PROCESSING`（已送往通道），行从「待审」移到「已通过」；拒绝后为 `REJECTED`，行移到「已拒绝」。
+- 没有「撤回待审」：审核中的退款只能由发起的商户撤销。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 退款已不在审核中（他人先下了结论，或商户已撤销，或自己上一次已成功〔提交后超时重点〕） | #9 `409`·`308501` | 提示「该退款已被处理（可能是你上一次提交已生效）」，重拉 #8 |
+| 跨主子代退的授权在审核期间被撤 | #9 `409`·`308502` | 提示授权已撤、不能通过，建议改为拒绝 |
+| 已通过 / 已拒绝页签的日期区间缺一端、`to` 早于 `from` 或跨度超过允许的最大查询窗口 | #8 `400` | 在日期选择器下提示 |
+| 审批说明超长 | #9 `400` | 说明框标红 |
+| 退款不存在或不在数据范围内 | #9 `404` | 提示找不到，重拉 #8 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 审核入口 | v1 企业微信群消息里的链接免登录即可查看并审批 | 链接只定位，打开先登录，按权限审核 | 审批是资金动作，须在已认证的会话里做 |
+| 已通过 / 已拒绝页签 | v1 审核页不按日期筛选 | 按审核日期区间筛选，两端必填、默认最近 30 天 | 历史结论按时间窗查，不整表扫 |
+| 拒绝说明 | v1 经链接页拒绝时填的原因不落库 | 拒绝可填说明，在退款详情与已拒绝页签可见 | 可追查为什么被拒 |
+| 审核人 | v1 记法不一（链接页的拒绝记为系统） | 一律取当前登录用户，进操作审计 | 可追查谁审的 |
+| 退款审核页 | Hub 没有 | 有 | 承接 v1 的审核能力 |
+
+---
+
+## 页面：代扣协议
+
+按商户只读查看委托代扣协议，调 #10。先选商户（必填），可按状态 `status` 筛选（可多选）。
+
+- 各列取：平台协议号 `mandateId`、商户协议号 `merchantMandateNo`、通道协议号 `channelMandateNo`、支付方式 `paymentMethod`、状态 `status`、生效时间 `activatedAt`、有效期至 `validUntil`、解约时间 `terminatedAt`、创建时间 `createdAt`。
+- 列表固定按建立时间从新到旧；没有解约等操作。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 没选商户 | #10 `400` | 选商户后再查 |
+
+代扣协议的只读查看是新增的页面，Hub 没有对应页面。
+
+---
+
+## 页面：平台退款参数
+
+退款相关的平台级参数：退款审核总开关、退款审核金额阈值、最大退款期限。形态与平台参数页相同（见 03-settings），调 #11 列出、#12 改值或恢复默认（`value` 传 `null`）。
+
+- 总开关打开后，金额达到阈值的退款要经审核才送往通道；对此后发起的退款生效，已送往通道的不受影响。
+- 阈值是结算币种的最小单位整数，按各商户的结算币种解释，不带币种；页面按「金额」展示时提示这一点。
+- 最大退款期限是天数，订单成交超过这个天数的不能再发起退款。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 版本已过期 | #12 `409`·`308103` | 提示他人已改过，重拉 #11 |
+| 值的类型或取值不合值域 | #12 `400`，`details` 定位到 `value` | 输入框标红 |
+| 参数已不存在 | #12 `404` | 重拉 #11 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

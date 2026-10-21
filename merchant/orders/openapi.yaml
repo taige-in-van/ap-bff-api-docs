@@ -528,7 +528,7 @@ paths:
       description: |
         当前商户的退款，分页。日期范围必填，按退款的创建日，服务端不设默认。
 
-        只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件、平台代操作发起的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
+        只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件发起的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
 
         支付方式与来源是原订单的。状态 chip 的各项与计数另取 `getRefundCounts`。
       parameters:
@@ -1441,7 +1441,7 @@ components:
                 - $ref: '#/components/schemas/EntryPoint'
             operatorId:
               $ref: '#/components/schemas/UserId'
-              description: 发起退款的商户成员（同 Users 页的 `operatorId`）。开放 API、插件、平台代操作、系统发起的没有操作员，不返回本键。
+              description: 发起退款的商户成员（同 Users 页的 `operatorId`）。开放 API、插件、系统发起的没有操作员，不返回本键。
             operatorName:
               type: string
               description: 该成员的姓名，与 `operatorId` 同有同无。
@@ -1753,6 +1753,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     Timestamp:
       type: string
       format: date-time
@@ -1880,7 +1884,7 @@ components:
         请求已发出而超时、应答丢失、查单查无此单都不算失败，退款留在 `CHANNEL_PROCESSING`，由平台查单与对账收敛。
     EntryPoint:
       type: string
-      description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `admin_portal` 平台运营代操作 · `system` 系统发起。
+      description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `system` 系统发起。
       enum:
         - pos
         - merchant_app
@@ -1891,7 +1895,6 @@ components:
         - plugin_shopify
         - plugin_allvalue
         - plugin_allvalue_xhs
-        - admin_portal
         - system
     UserId:
       type: string

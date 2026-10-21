@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.2.0
+  version: 2.3.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -166,7 +166,7 @@ paths:
                 $ref: '#/components/schemas/WechatQrChallenge'
               example:
                 qrTicket: wxq_3f8a1c0d92b47e5f1a
-                qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
+                qrContent: https://checkout.example.com/identity/wechat/v1/wechat/challenges/8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-06-22T14:10:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -181,7 +181,7 @@ paths:
       description: |
         轮询扫码登录结果，除本浏览器已登录外恒返回 `200`。`ESTABLISHED` 时已 set-cookie（会话按未勾 Keep me signed in 处理）；扫码登录不追加 MFA。
 
-        未绑定、账号禁用、能进的商户全部不可用等拒绝，只在微信里告诉扫码本人，本接口不返回原因、维持 `WAITING` 直至过期。
+        扫码后的拒绝（未绑定、账号禁用、能进的商户全部不可用等，含确认后才被拒的）只在微信里告诉扫码本人，本接口不返回原因、维持 `SCANNED` 直至过期。
 
         错误码：
 
@@ -208,19 +208,28 @@ paths:
                       - $ref: '#/components/schemas/WechatPollStatus'
                     enum:
                       - WAITING
+                      - SCANNED
                       - EXPIRED
                       - ESTABLISHED
                     readOnly: true
                     description: |
                       扫码登录状态：
 
-                      - `WAITING`：继续轮询（未扫、未确认、已被拒都表现为它，直到二维码过期）。
+                      - `WAITING`：二维码还没被扫，继续轮询。扫码人那边临时出错、提示稍后再试时也回到它，同一张二维码可以直接重扫。
+                      - `SCANNED`：已扫码、等用户在手机上确认，继续轮询；页面显示「扫码成功，请在手机上确认」。扫码后被拒也表现为它，直到二维码过期。
                       - `EXPIRED`：终态，重新发起。包括二维码过期、票据非法、用户在微信里取消。
                       - `ESTABLISHED`：已登录，cookie 已下发。
 
                       未知值按 `WAITING` 处理。
-              example:
-                status: WAITING
+              examples:
+                waiting:
+                  summary: 等待扫码
+                  value:
+                    status: WAITING
+                scanned:
+                  summary: 已扫码，等手机上确认
+                  value:
+                    status: SCANNED
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1285,6 +1294,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$
@@ -1297,7 +1310,7 @@ components:
     WechatQrContent:
       type: string
       description: |
-        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
+        微信二维码的**待编码内容**（短时、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
     Timestamp:
       type: string
       format: date-time

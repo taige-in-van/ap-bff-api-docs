@@ -692,6 +692,24 @@
       "name": "MERCHANT_PRODUCT_LINK_DELETED",
       "retryable": false
     },
+    "308501": {
+      "httpStatus": 409,
+      "name": "ADMIN_REFUND_NOT_UNDER_REVIEW",
+      "retryable": false
+    },
+    "308502": {
+      "httpStatus": 409,
+      "name": "ADMIN_REFUND_CROSS_MERCHANT_ADMISSION_REVOKED",
+      "retryable": false
+    },
+    "308503": {
+      "httpStatus": 409,
+      "name": "ADMIN_EXPORT_ROW_LIMIT_EXCEEDED",
+      "requiredContextFields": [
+        "maxRows"
+      ],
+      "retryable": false
+    },
     "904001": {
       "httpStatus": 400,
       "name": "VALIDATION_FAILED",

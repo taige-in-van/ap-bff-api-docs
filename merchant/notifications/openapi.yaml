@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 通知设置 — 前端契约面
-  version: 2.0.0
+  version: 2.0.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -209,7 +209,7 @@ paths:
                 $ref: '#/components/schemas/WechatQrChallenge'
               example:
                 qrTicket: wxn_7c4e1a9d20b3
-                qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
+                qrContent: https://checkout.example.com/identity/wechat/v1/wechat/challenges/Nx4Rb9Tq2wHs6Ue1Ka7Pjv
                 expiresAt: '2026-07-22T10:10:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -475,6 +475,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     Timestamp:
       type: string
       format: date-time
@@ -554,7 +558,7 @@ components:
     WechatQrContent:
       type: string
       description: |
-        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
+        微信二维码的**待编码内容**（短时、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
     WechatQrChallenge:
       type: object
       additionalProperties: false

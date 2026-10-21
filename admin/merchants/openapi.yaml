@@ -16,7 +16,7 @@ info:
 
     **数据可见范围**：同管理后台约定「数据可见范围」：列表与导出只含范围内的商户（含本人生效中的临时授权），按标识访问范围外的商户及其成员、文件、设置一律 `404`。成员接口里的 `userId` 不是该商户的在册成员 → `404`。
 
-    **操作审计**：本面的写操作记入操作审计并带上商户；例外（与现状相同的幂等重放、只发链接或待确认的提交）见各 op。可在该商户详情的操作记录页签查到；列表、详情、文件查看不记。
+    **操作审计**：本面的写操作记入操作审计并带上商户；例外（与现状相同的幂等重放、只发链接或待确认的提交）见各 op。可在该商户详情的操作记录页签查到；列表、详情、导出、文件查看不记。
 servers:
   - url: /api/admin/v1
     description: 管理后台 BFF（浏览器经边缘网关 admin.* 可达；cookieAuth 会话 + CSRF）
@@ -123,7 +123,7 @@ paths:
       description: |
         按所给筛选导出命中的全部商户，不只是当前页；筛选字段与 `listMerchants` 相同，只含本人数据范围内的商户。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
 
-        每次导出记一条操作审计（含筛选条件与行数）。按读处理，不挂幂等键。
+        按读处理：不记操作审计，不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/AcceptLanguage'
@@ -2117,6 +2117,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     MerchantId:
       type: string
       minLength: 1
@@ -2290,7 +2294,7 @@ components:
         nickname:
           type: string
           minLength: 1
-          description: 绑定微信的昵称展示快照（绑定时写入、每次微信登录刷新；拿不到昵称时为通用展示名，故恒非空）。
+          description: 绑定微信的昵称展示快照（绑定时写入；拿不到昵称时为通用展示名，故恒非空）。
     ResendCooldown:
       type: object
       description: 只回重发冷却秒数。

@@ -886,7 +886,8 @@ components:
       enum:
         - email
         - wechat
-      description: '`email` 邮件 / `wechat` 微信模板消息。'
+        - wecom
+      description: '`email` 邮件 / `wechat` 微信模板消息 / `wecom` 企业微信群机器人（运营内部通知）。'
     NotificationScene:
       type: string
       minLength: 1
@@ -930,13 +931,14 @@ components:
             - admin_user
             - applicant
             - payer
+            - email_address
             - internal
-          description: 收件人类型：`merchant` 商户接收方 / `merchant_user` 商户用户本人 / `admin_user` 后台用户本人 / `applicant` 入驻申请人 / `payer` 付款人 / `internal` 运营内部地址。
+          description: 收件人类型：`merchant` 商户接收方 / `merchant_user` 商户用户本人 / `admin_user` 后台用户本人 / `applicant` 入驻申请人 / `payer` 付款人 / `email_address` 仅凭待验证邮箱地址投递 / `internal` 运营内部地址。
         recipientAddress:
           type: string
           minLength: 1
           maxLength: 256
-          description: 收件地址：邮箱，或微信接收方标识。
+          description: 收件地址：邮箱、微信接收方标识，或企业微信群机器人地址。
         merchant:
           allOf:
             - $ref: '#/components/schemas/MerchantBrief'
@@ -1377,6 +1379,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     Timestamp:
       type: string
       format: date-time

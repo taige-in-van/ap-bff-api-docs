@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.1.1
+  version: 2.2.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -169,7 +169,7 @@ paths:
                 $ref: '#/components/schemas/WechatQrChallenge'
               example:
                 qrTicket: wxq_3f8a1c0d92b47e5f1a
-                qrContent: 8f3Kd0pQzR2vLxA7nB1cYw
+                qrContent: https://checkout.example.com/identity/wechat/v1/wechat/challenges/8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-10-16T14:10:00Z'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
@@ -183,7 +183,8 @@ paths:
       description: |
         轮询扫码登录结果，恒返回 `200`。扫码后先检查能否登录，不通过的在企业微信里直接告知扫码人原因、不出确认按钮；确认后再过动态码步（受信浏览器免动态码）：
 
-        - `WAITING`：继续轮询（未扫、未确认，或扫码后检查未通过，都表现为它，直到二维码过期）。
+        - `WAITING`：二维码还没被扫，继续轮询。扫码人那边临时出错、提示稍后再试时也回到它，同一张二维码可以直接重扫。
+        - `SCANNED`：已扫码、等用户在手机上确认，继续轮询；页面显示「扫码成功，请在手机上确认」。扫码后检查未通过也表现为它，不返回原因，直到二维码过期。
         - `EXPIRED`：终态，重新发起。含二维码过期、票据非法、扫码人在企业微信里取消。
         - `REJECTED`：终态，登录失败（确认后访问资格已失效）；提示与密码登录失败相同的文案，重新发起。
         - `MFA_REQUIRED` / `MFA_ENROLLMENT_REQUIRED`：确认成功，去动态码步，形状与处理同 `login` 的同名状态；动态码步完成前再轮询，返回同一个 `mfaChallenge`。
@@ -208,9 +209,13 @@ paths:
                 $ref: '#/components/schemas/WechatLoginPollResult'
               examples:
                 waiting:
-                  summary: 等待扫码确认
+                  summary: 等待扫码
                   value:
                     status: WAITING
+                scanned:
+                  summary: 已扫码，等手机上确认
+                  value:
+                    status: SCANNED
                 mfaRequired:
                   summary: 已确认，去动态码步
                   value:
@@ -692,7 +697,7 @@ paths:
                 $ref: '#/components/schemas/WechatQrChallenge'
               example:
                 qrTicket: wxb_6c1e0a9d72f4
-                qrContent: Zq8Lw3nR0pXa1cVb7yTe
+                qrContent: https://checkout.example.com/identity/wechat/v1/wechat/challenges/Zq8Lw3nR0pXa1cVb7yTe
                 expiresAt: '2026-10-16T14:10:00Z'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
@@ -854,6 +859,7 @@ components:
           type: string
           enum:
             - WAITING
+            - SCANNED
             - EXPIRED
             - REJECTED
             - MFA_REQUIRED
@@ -1185,6 +1191,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     MfaEnrollment:
       type: object
       required:
@@ -1212,7 +1222,7 @@ components:
     WechatQrContent:
       type: string
       description: |
-        微信二维码的**待编码内容**（短时、一次性、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
+        微信二维码的**待编码内容**（短时、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
     Timestamp:
       type: string
       format: date-time
@@ -1272,7 +1282,7 @@ components:
         nickname:
           type: string
           minLength: 1
-          description: 绑定微信的昵称展示快照（绑定时写入、每次微信登录刷新；拿不到昵称时为通用展示名，故恒非空）。
+          description: 绑定微信的昵称展示快照（绑定时写入；拿不到昵称时为通用展示名，故恒非空）。
     LoginIpAllowlist:
       type: array
       maxItems: 64

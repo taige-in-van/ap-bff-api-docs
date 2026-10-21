@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 微信侧公开面 · 微信确认页
-  version: 2.0.0
+  version: 2.0.1
   contact:
     name: 微信确认页契约
   description: |
@@ -30,16 +30,16 @@ paths:
       operationId: enterWechatChallenge
       summary: 扫码落地并跳微信网页授权
       description: |
-        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信网页授权。
+        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信网页授权。挑战被认领（网页授权回调带回 `code`）之前，或认领后因系统失败释放（`completeWechatOAuth` 回 `#failure=UNAVAILABLE`）之后，同一 `scanToken` 可以重复落地：每次落地换发新的 `state`，之前发出的 `state` 随即失效。
 
         发给微信的 `redirect_uri` 为登记域名上的回调中转静态页，其 `redirect` 参数指向本面的授权回调（`completeWechatOAuth`）；`state` 为本面生成的一次性字母数字串。
 
-        **失败也是跳转**：`scanToken` 无效或对不上 → `302` 到微信确认页、fragment 带 `#failure=INVALID`；挑战已过期或材料已用 → fragment 带 `#failure=EXPIRED`。不向浏览器返回错误体。
+        **失败也是跳转**：`scanToken` 无效或对不上 → `302` 到微信确认页、fragment 带 `#failure=INVALID`；挑战已过期或已被认领 → fragment 带 `#failure=EXPIRED`。不向浏览器返回错误体。
       parameters:
         - name: scanToken
           in: path
           required: true
-          description: 二维码专用的高熵、短时、单次材料。
+          description: 二维码专用的高熵、短时材料；挑战被认领之前、或认领因系统失败释放之后可重复落地。
           schema:
             type: string
             minLength: 1
@@ -62,7 +62,7 @@ paths:
         跳转微信确认页时 fragment 有两种形态：
 
         - `#confirmationToken=…`：成功换得身份；预检未过时，微信确认页经 `getWechatConfirmation` 拿到 `state = FAILED` 与原因码。
-        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 无效或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），挑战不推进、可重新扫码；`#failure=UNAVAILABLE`：扫码登录预检时登录准入回调超时或出错，不出确认入口、不签发，页面提示稍后再试，用户在发起页换码重扫。不向浏览器返回错误体。
+        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 无效或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），本次 `state` 作废，挑战不推进、不被认领，同一二维码可重新扫码；`#failure=UNAVAILABLE`：以 `code` 换外部账号身份失败（微信返回错误或不可达），或扫码登录预检时登录准入回调超时或出错，或预检出现其他系统异常，不出确认入口、不签发、不写登录流水，页面提示稍后再试；同时释放认领（清掉本次 `state` 与扫码时刻），挑战回到未扫，同一张二维码可以直接重扫。不向浏览器返回错误体。
       parameters:
         - name: code
           in: query
@@ -210,7 +210,7 @@ components:
       description: |
         失败原因，仅 `FAILED` 时出现。预检拦下（确认前）与确认后裁决落败共用这组码：确认后落败只出现登录的访问资格或本后台的微信登录开关（`ACCOUNT_UNAVAILABLE`、`LOGIN_NOT_ENABLED`），与绑定的目标失效或占用（`TARGET_INVALID`、`OCCUPIED`）。
 
-        - 扫码登录：`NOT_BOUND` 此微信未绑定账号；`LOGIN_NOT_ENABLED` 该后台未开通微信登录；`ACCOUNT_UNAVAILABLE` 账号已停用或无访问资格；`IP_NOT_ALLOWED` 当前网络不允许登录（发起扫码登录的网络不在该账号的登录 IP 白名单）；`LOGIN_NOT_ELIGIBLE` 无法用此微信登录该后台，只给通用提示、不说明原因（原因在该后台一侧，平台也不知道）。
+        - 扫码登录：`NOT_BOUND` 此微信未绑定账号；`LOGIN_NOT_ENABLED` 该后台未开通微信登录；`ACCOUNT_UNAVAILABLE` 账号已停用、处于登录失败锁定中（锁定影响全平台登录）或无访问资格；`IP_NOT_ALLOWED` 当前网络不允许登录（发起扫码登录的网络不在该账号的登录 IP 白名单）；`LOGIN_NOT_ELIGIBLE` 无法用此微信登录该后台，只给通用提示、不说明原因（原因在该后台一侧，平台也不知道）。
         - 微信绑定：`OCCUPIED` 此微信已绑定其他账号；`TARGET_INVALID` 要绑定的账号已失效。
     WechatConfirmationContext:
       type: object
@@ -455,6 +455,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     AvatarUrl:
       type: string
       maxLength: 512

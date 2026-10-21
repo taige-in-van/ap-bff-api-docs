@@ -5,7 +5,7 @@ info:
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的平台设置契约：平台参数（`/settings/parameters`）、平台级收单参数（`/settings/acquiring-parameters`）与发给全体商户的公告（`/announcements`）。
+    管理后台 React SPA 消费的平台设置契约：平台参数（`/settings/parameters`）、平台级收单参数（`/settings/acquiring-parameters`）、平台退款参数（`/settings/refund-parameters`）与发给全体商户的公告（`/announcements`）。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
@@ -22,6 +22,9 @@ tags:
   - name: acquiring-parameters
     x-displayName: 平台收单参数
     description: 收单相关的平台级参数（APP 订阅、小费默认档位、小红书默认上浮、费率上限与到期预警天数）：可改值、可恢复默认。
+  - name: refund-parameters
+    x-displayName: 平台退款参数
+    description: 退款相关的平台级参数（退款审核总开关、审核金额阈值、最大退款期限）：可改值、可恢复默认。
   - name: announcements
     x-displayName: 公告
     description: 发给全体商户的公告：草稿、发布、撤回。
@@ -34,7 +37,7 @@ paths:
       x-required-privilege: syscfg:parameter:view
       summary: 平台参数列表（含生效值、默认值与写入用的版本）
       description: |
-        平台参数页上的全部参数，按分组给出。每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`，没有 `value` 即当前用的是默认值。收单相关的平台参数在平台收单参数页（`listAcquiringPlatformParameters`），不在本列表。
+        平台参数页上的全部参数，按分组给出。每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`，没有 `value` 即当前用的是默认值。收单相关的平台参数在平台收单参数页（`listAcquiringPlatformParameters`）；退款审核开关、审核金额阈值与最大退款期限在平台退款参数页（`listRefundPlatformParameters`），都不在本列表。
 
         顺序即展示顺序。
       responses:
@@ -284,6 +287,138 @@ paths:
                 effectiveValue:
                   stringValue: '0.04'
                 version: 2
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308103
+  /settings/refund-parameters:
+    get:
+      tags:
+        - refund-parameters
+      operationId: listRefundPlatformParameters
+      x-required-privilege: txadm:parameter:view
+      summary: 平台退款参数列表（含生效值、默认值与写入用的版本）
+      description: |
+        退款相关的平台级参数：退款审核总开关、退款审核金额阈值、最大退款期限。形态与平台参数相同：每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`。
+
+        总开关打开后，金额达到阈值的退款要经后台审核才送往通道；阈值是结算币种的最小单位整数，按各商户的结算币种解释，不带币种。最大退款期限是天数，订单成交超过这个天数的不能再发起退款。顺序即展示顺序。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlatformParameter'
+              example:
+                items:
+                  - key: refund.review.amount-rule-enabled
+                    groupName: 退款
+                    displayName: 退款审核总开关
+                    valueType: boolean
+                    defaultValue:
+                      booleanValue: false
+                    value:
+                      booleanValue: true
+                    effectiveValue:
+                      booleanValue: true
+                    version: 1
+                  - key: refund.review.amount-threshold
+                    groupName: 退款
+                    displayName: 退款审核金额阈值
+                    valueType: number
+                    valueRangeNote: 非负整数，结算币种的最小单位，按商户结算币种解释
+                    defaultValue:
+                      numberValue: 500000
+                    effectiveValue:
+                      numberValue: 500000
+                    version: 0
+                  - key: refund.max-age-days
+                    groupName: 退款
+                    displayName: 最大退款期限（天）
+                    valueType: number
+                    valueRangeNote: 正整数天
+                    defaultValue:
+                      numberValue: 365
+                    effectiveValue:
+                      numberValue: 365
+                    version: 0
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /settings/refund-parameters/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 参数标识，取列表里的 `key`。
+        schema:
+          $ref: '#/components/schemas/ParameterKey'
+    put:
+      tags:
+        - refund-parameters
+      operationId: updateRefundPlatformParameter
+      x-required-privilege: txadm:parameter:edit
+      summary: 改一个平台退款参数的值，或恢复默认
+      description: |
+        把这个参数在平台上的值设为 `value`；`value` 传 `null` 即恢复默认。对此后的判定生效，改前已经发生的不受影响（如打开审核总开关不影响已送往通道的退款）。成功返回写入后的参数，每次成功都留下一条操作记录。
+
+        **全量覆盖**：请求体就是目标本身，`value` 与 `version` 都要传，缺省不代表保持原样。
+
+        **什么时候拒绝**：
+
+        - `version` 不是读到时的那个（别人已经改过）→ `409`·`308103`。重新调 `listRefundPlatformParameters` 读最新值，再决定是否重改。
+        - `value` 的类型或取值不合该参数的值域 → `400`，由 `details` 定位到 `value`；参数不变。
+        - 参数不存在或不在本页 → `404`。
+
+        **重复提交**：不带幂等键。上一次其实已经成功、响应丢了再提交，会因版本已变得到 `308103`，重读即可看到上次写入的值。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformParameterWrite'
+            examples:
+              setValue:
+                summary: 改值
+                value:
+                  value:
+                    numberValue: 300000
+                  version: 0
+              restoreDefault:
+                summary: 恢复默认
+                value:
+                  value: null
+                  version: 1
+      responses:
+        '200':
+          description: 写入后的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformParameter'
+              example:
+                key: refund.review.amount-threshold
+                groupName: 退款
+                displayName: 退款审核金额阈值
+                valueType: number
+                valueRangeNote: 非负整数，结算币种的最小单位，按商户结算币种解释
+                defaultValue:
+                  numberValue: 500000
+                value:
+                  numberValue: 300000
+                effectiveValue:
+                  numberValue: 300000
+                version: 1
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
@@ -906,6 +1041,10 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
     ParameterValue:
       type: object
       additionalProperties: false
