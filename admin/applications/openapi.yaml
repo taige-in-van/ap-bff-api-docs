@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.1.0
+  version: 2.1.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -380,11 +380,11 @@ paths:
         - `REJECTED`：拒绝，`remark` 必填，作为拒绝说明。结算信息变更被拒，旧值保留。
         - `MORE_INFO_REQUIRED`：要求补料，只用于入驻申请；`missingFields` 至少一项，不带原因、不给商户发邮件。
 
-        通过不改 Owner 的凭据，任何通知都不带明文凭据。两人同时决定以先到者为准。带状态前置，不挂幂等键。
+        通过不改 Owner 的凭据，任何通知都不带明文凭据。两人同时决定以先到者为准。带状态前置，不挂幂等键。通过后同步支付核心（结算信息变更的新周期、开通申请的签约与报备）失败时返回 `503`，决定已记录；再提交一次同一「通过」即补做同步、返回成功。
 
         **什么时候拒绝**：
 
-        - `308201` 申请已不在审核中（他人先决定过，或已撤回），重读详情。
+        - `308201` 申请已不在审核中（他人先决定过，或已撤回），重读详情；已通过的申请再次「通过」不算，见上。
         - `308202` 入驻申请禁入名单命中，`context.blocklistHits` 列出命中项；持跳过权限的改走 `approveApplicationOverridingBlocklist`。
         - `304201` 对非入驻申请要求补料。
         - 拒绝没填说明、要求补料没给待补项 → `400`。
@@ -703,11 +703,11 @@ paths:
       x-required-privilege: mrev:assisted-onboarding:manage
       summary: 代客建档：代补料后代提交
       description: |
-        审核员要求补料后，由运营代补并代为提交：申请从待补料回到审核中，待补项清空，商户侧不收补料通知。须最近一次确认已由 Owner 签署、且签署后没改过签署关键字段；改过的须重新发起确认，Owner 签署后申请自动回到审核中，不必再调本接口。带状态前置，不挂幂等键。
+        审核员要求补料后，由运营代补并代为提交：申请从待补料回到审核中，待补项清空，商户侧不收补料通知。须最近一次确认已由 Owner 签署、且签署后没改过签署关键字段；改过的须重新发起确认，Owner 签署后申请自动回到审核中，不必再调本接口。带状态前置，不挂幂等键。提交后的开通准备（签约、费率与报备）失败时返回 `503`，申请已在审核中；再调一次本接口即补做。Owner 签署后开通准备失败的，同样用本接口补做。
 
         **什么时候拒绝**：
 
-        - `308201` 申请不在待补料。
+        - `308201` 申请不在待补料；已在审核中的再调只补做开通准备、返回成功，不算。
         - `308203` 从未签署，或签署后改过签署关键字段，须重新发起确认（`createApplicationSignatureRequest`）。
         - `308204` 不是代客建档的申请。
         - `304202` 有必填项未填或不合规的字段；`304203` 必传文档不全。两者的 `details` 都逐项指到缺项（字段路径同 `updateAssistedApplicationStep`），前端跳到缺项所在步标出。
@@ -1051,7 +1051,7 @@ components:
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户；账号明文只写不回显。制式须在该商户结算币种允许的制式里。草稿可先缺账号。
+          description: 结算银行账户；账号明文只写不回显。制式须在该商户结算币种允许的制式里。银行账户组（银行名、制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存；账号已保存且本次未传时沿用已存值。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
@@ -1652,7 +1652,7 @@ components:
           minLength: 1
     ContactStep:
       type: object
-      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：注册时已填的只读，没填的在本步补填并写回账号资料。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
+      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：本步回显当前值、可修改，保存即写回账号资料；哪些字段只读看申请的 `readonlyFields`。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
       additionalProperties: false
       properties:
         email:
@@ -1757,7 +1757,7 @@ components:
           description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
         timeZone:
           type: string
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
@@ -1800,7 +1800,7 @@ components:
 
         各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
 
-        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
         - type
       properties:
@@ -2047,7 +2047,7 @@ components:
         timeZone:
           type: string
           maxLength: 64
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'

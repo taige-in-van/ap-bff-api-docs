@@ -1424,7 +1424,7 @@ components:
           format: email
     ContactStep:
       type: object
-      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：注册时已填的只读，没填的在本步补填并写回账号资料。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
+      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：本步回显当前值、可修改，保存即写回账号资料；哪些字段只读看申请的 `readonlyFields`。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
       additionalProperties: false
       properties:
         email:
@@ -1529,7 +1529,7 @@ components:
           description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
         timeZone:
           type: string
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
@@ -1572,7 +1572,7 @@ components:
 
         各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
 
-        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
         - type
       properties:
@@ -1635,7 +1635,10 @@ components:
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+          description: |
+            结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。
+
+            银行账户组（`bankName` + 制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存、`accountNumberSet` 为 false；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准；`storeId` 随该组保存。`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'

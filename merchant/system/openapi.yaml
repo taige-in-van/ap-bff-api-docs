@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -71,9 +71,9 @@ paths:
         - config
       operationId: listCountryOptions
       x-required-privilege: session
-      summary: 国家及其省州（省州带三语展示名）
+      summary: 国家及其省州（省州带三语展示名）（含时区候选）
       description: |
-        可选国家及其省 / 州，平台配置、和当前商户无关。用在入驻向导 Business 步、Business Profile 显示省州名与编辑地址。国家展示名由前端按 ISO 码解析，省州展示名取 `label`；邮编格式与时区候选取前端参考数据。没有省 / 州的国家 `provinces` 为空数组。
+        可选国家及其省 / 州，平台配置、和当前商户无关。用在入驻向导 Business 步、Business Profile 显示省州名与编辑地址。国家展示名由前端按 ISO 码解析，省州展示名取 `label`；邮编格式取前端参考数据预校、服务端重校；时区候选随省 / 州项下发（无省 / 州的国家在国家项上）。没有省 / 州的国家 `provinces` 为空数组。
 
         需要时就调，前端不必缓存。
       responses:
@@ -102,11 +102,15 @@ paths:
                           en: British Columbia
                           zh: 不列颠哥伦比亚省
                           fr: Colombie-Britannique
+                        timeZones:
+                          - America/Vancouver
                       - code: 'ON'
                         label:
                           en: Ontario
                           zh: 安大略省
                           fr: Ontario
+                        timeZones:
+                          - America/Toronto
                   - code: US
                     provinces:
                       - code: WA
@@ -114,13 +118,19 @@ paths:
                           en: Washington
                           zh: 华盛顿州
                           fr: Washington
+                        timeZones:
+                          - America/Los_Angeles
                       - code: NY
                         label:
                           en: New York
                           zh: 纽约州
                           fr: New York
+                        timeZones:
+                          - America/New_York
                   - code: HK
                     provinces: []
+                    timeZones:
+                      - Asia/Hong_Kong
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -552,7 +562,7 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/SettlementCycleOption'
-          description: 结算周期档位，顺序即展示顺序，提交选中项的 `code`。
+          description: 结算周期档位，顺序即展示顺序，提交选中项的 `code`。初始选中：读申请返回的 `settlementCycle` 有值即为选中项，无值不预选。
         bankAccountTypes:
           type: array
           minItems: 1
@@ -933,23 +943,31 @@ components:
         fr:
           type: string
           minLength: 1
-    CodeLabelOption:
+    CountryProvinceOption:
       type: object
       additionalProperties: false
-      description: 一个候选项：稳定码 + 按语言分组的展示名。
+      description: 一个省 / 州候选：稳定码 + 按语言分组的展示名 + 该省 / 州可选的时区。
       required:
         - code
         - label
+        - timeZones
       properties:
         code:
           type: string
           minLength: 1
         label:
           $ref: '#/components/schemas/LocalizedLabel'
+        timeZones:
+          type: array
+          minItems: 1
+          description: 可选的 IANA 时区标识，顺序即展示顺序。
+          items:
+            type: string
+            minLength: 1
     CountryOption:
       type: object
       additionalProperties: false
-      description: 一个可选国家及其省 / 州候选（各前端面录入或编辑国家与省 / 州时共用）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。邮编格式按国家（没有邮编制度的国家不填）、时区候选按省 / 州（无省 / 州的国家按国家），均取前端参考数据，服务端按同一规则校验；改国家后省 / 州与时区须重选。
+      description: 一个可选国家及其省 / 州候选（各前端面录入或编辑国家与省 / 州时共用）。`code` 是 ISO 3166 标准码，国家展示名由客户端按它解析（浏览器内置 `Intl.DisplayNames` 即可）。邮编格式按国家取前端参考数据预校、服务端重校（没有邮编制度的国家不填）；时区候选随本条下发：省 / 州项各带 `timeZones`，无省 / 州的国家在国家项上带；改国家后省 / 州与时区须重选。
       required:
         - code
         - provinces
@@ -963,7 +981,27 @@ components:
           type: array
           description: 该国的省 / 州候选（顺序即展示顺序）；没有省 / 州的国家（如香港）为空数组，此时省 / 州不填、时区候选按国家给。候选项的 `code` 是 ISO 3166-2 的地区部分（如 `BC`）；展示名随项下发——浏览器的本地化能力不解析行政区划。
           items:
-            $ref: '#/components/schemas/CodeLabelOption'
+            $ref: '#/components/schemas/CountryProvinceOption'
+        timeZones:
+          type: array
+          minItems: 1
+          description: 可选的 IANA 时区标识，顺序即展示顺序。仅没有省 / 州的国家带本键。
+          items:
+            type: string
+            minLength: 1
+    CodeLabelOption:
+      type: object
+      additionalProperties: false
+      description: 一个候选项：稳定码 + 按语言分组的展示名。
+      required:
+        - code
+        - label
+      properties:
+        code:
+          type: string
+          minLength: 1
+        label:
+          $ref: '#/components/schemas/LocalizedLabel'
     PaymentMethod:
       type: string
       minLength: 1

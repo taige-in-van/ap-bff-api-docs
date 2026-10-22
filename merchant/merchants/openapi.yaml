@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.3.0
+  version: 2.3.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -83,7 +83,7 @@ paths:
         - 以会话当前商户为发起商户：当前商户未激活或不可访问 → `409`·208022。
         - 新商户一律挂在主商户下面、Owner 同主商户，不论当前商户是主商户还是关联商户。
         - 所属主商户已冻结 → `409`·208054，不建商户也不建申请。
-        - `BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 只带本请求里的字段；预填结果在入驻向导读申请时返回。
+        - `BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 只预填 Contact 步（含推荐来源）与本请求里的字段；预填结果在入驻向导读申请时返回。
         - `country` 与 `currency` 须是 `/config/currencies` 里的一条组合，否则 400。
 
         幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返首次结果、不会重复建商户；改了请求体就必须换新键，沿用旧键改内容 → `409`·908003。
@@ -179,10 +179,6 @@ paths:
                   - settlement
                 readonlyFields:
                   - contact.email
-                  - contact.firstName
-                  - contact.lastName
-                  - contact.phone
-                  - contact.businessTitle
                   - contact.referredBy
                 steps:
                   contact:
@@ -265,7 +261,7 @@ paths:
       x-required-privilege: owner
       summary: 分步保存一个步骤
       description: |
-        `mode=next` 校验本步完整后保存；`mode=draft` 只校验已填字段的格式、放宽必填。
+        `mode=next` 校验本步完整后保存；`mode=draft` 只校验已填字段的格式、放宽必填。`settlement` 的银行账户组（银行名、制式与制式全部字段含账号）不齐时不保存该组，`storeId` 随组；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准。
         请求体恰含一个步骤键，且须与 path 的 `{step}` 一致。完整性按已存值叠加本次提交判定，只写字段（银行账号、Refund PIN）按 `accountNumberSet` / `refundPinSet` 判。Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目时，`settlement` 步只收 `refundPin` / `confirmRefundPin`，`bankName` / `bankAccount` / `settlementCycle` / `storeId` 不传（传了 → 400 `204001`），完整性只看 `refundPinSet`。
 
         - `business`：Currency × Country 须是 `/config/currencies` 里的有效组合；改了币种后 Services 已选方式不在新币种候选内的，在下次保存 Services 时报错。
@@ -439,7 +435,7 @@ paths:
       summary: 提交审核
       description: |
         校验全部步骤与必传文档（营业执照、Owner 证件、Void Cheque；选了线下方式时加门店内照、外照；结算币种在 `/config/settlement` 的 `bankAccountTypes` 无条目时不要 Void Cheque、`204002` 不因它触发）后，申请从 `DRAFT` / `MORE_INFO_REQUIRED` 进入 `UNDER_REVIEW`，同时清空待补项。
-        首次提交发「申请已收到」邮件，补料重提不发。已是 `UNDER_REVIEW` 时重放同样返回 `204`、不重发邮件。
+        首次提交发「申请已收到」邮件，补料重提不发。申请已是 `UNDER_REVIEW` 时再次提交 = 只重做提交后的开通准备、不改状态、不重发邮件、同样返回 `204`；提交成功但开通准备失败回 `503`，重发本请求收敛。
 
         错误码：
 
@@ -507,7 +503,7 @@ components:
       enum:
         - BRANCH
         - NEW_LEGAL_ENTITY
-      description: 新建关联商户的方式，创建即定、不再变动：`BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 全新填写。与入驻申请 `entryMode` 的同名取值一致。
+      description: 新建关联商户的方式，创建即定、不再变动：`BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 只预填 Contact 步（含推荐来源）与弹窗三字段、其余全新填写。与入驻申请 `entryMode` 的同名取值一致。
     MerchantListItem:
       type: object
       additionalProperties: false
@@ -611,7 +607,7 @@ components:
         readonlyFields:
           type: array
           readOnly: true
-          description: 本申请只读的字段，写作 `<step>.<field>`（如 `contact.referredBy`）。注册时已填的联系人字段、来源链接带来的推荐来源、新增关联商户时继承的字段都在此列。
+          description: 本申请只读的字段，写作 `<step>.<field>`（如 `contact.referredBy`）。首次入驻 = 登录邮箱与已有值的推荐来源；新增的关联商户（`entryMode` 为 `BRANCH` / `NEW_LEGAL_ENTITY`）= Contact 步全部字段。
           items:
             type: string
         steps:
@@ -835,7 +831,7 @@ components:
       description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
     ContactStep:
       type: object
-      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：注册时已填的只读，没填的在本步补填并写回账号资料。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
+      description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：本步回显当前值、可修改，保存即写回账号资料；哪些字段只读看申请的 `readonlyFields`。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
       additionalProperties: false
       properties:
         email:
@@ -947,7 +943,7 @@ components:
           description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
         timeZone:
           type: string
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
@@ -990,7 +986,7 @@ components:
 
         各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
 
-        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是**草稿宽松形**（账号可缺）；写面与读面各自用 allOf 收紧必填（写面须带 `accountNumber`，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
         - type
       properties:
@@ -1053,7 +1049,10 @@ components:
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+          description: |
+            结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。
+
+            银行账户组（`bankName` + 制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存、`accountNumberSet` 为 false；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准；`storeId` 随该组保存。`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
@@ -1214,7 +1213,7 @@ components:
         timeZone:
           type: string
           maxLength: 64
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取前端参考数据，服务端按同一映射校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
@@ -1263,7 +1262,10 @@ components:
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。草稿可先缺账号；`mode=next` 的完整性按 `accountNumberSet` 判。
+          description: |
+            结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。
+
+            银行账户组（`bankName` + 制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存、`accountNumberSet` 为 false；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准；`storeId` 随该组保存。`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
