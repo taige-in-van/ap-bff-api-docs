@@ -1203,17 +1203,23 @@ components:
           type: string
           maxLength: 64
         province:
-          type: string
+          type:
+            - string
+            - 'null'
           maxLength: 64
-          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
+          description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填；没有的国家不设值：新填不传，已存的旧值传 `null` 清掉。
         postalCode:
-          type: string
+          type:
+            - string
+            - 'null'
           maxLength: 16
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）。所选国家有邮编制度时必填；没有的国家不设值：新填不传，改 country 后已存的旧值传 `null` 清掉。
         timeZone:
-          type: string
+          type:
+            - string
+            - 'null'
           maxLength: 64
-          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
+          description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。改 country 后须重选，还没选定时传 `null` 清掉旧值。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
