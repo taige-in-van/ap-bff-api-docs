@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -537,6 +537,7 @@ paths:
       description: |
         保存代客建档申请的一步资料，申请须为草稿或待补料。请求体恰含一个步骤键，且须与路径的 `{step}` 一致；各步字段规则同商户自己填入驻向导时的那一步。保存只校验已填字段的格式、不要求本步填齐，资料是否齐全在发起确认与代提交时统一校验。
 
+        - `business`：改了 `country`，且已存结算银行账户的制式与新国家的制式不同（含新国家无条目）时，该账户整组视为未填：读申请不再返回 `bankAccount` / `bankName` / `storeId`，`settlement` 步要重填。
         - `documents`：按文档位绑定上传得到的 `fileId`，未传的文档位保持原绑定，传 `null` 移除。
         - `terms`：议价条款，只代客建档的入驻申请有。按支付方式（含插件入口专用行）的比例费率、固定单笔费与固定费免收截止日，外加手续费结算模式；整组置换。比例费率是小数字符串（`"0.022"` = 2.2%），须大于 0、不超过平台上限，至多 4 位小数（折成百分数至多两位小数）；固定单笔费是结算币种的最小单位整数串。条款随申请进合同，商户签署、申请提交后按它建立该商户的费率与结算模式。
         - 有未签的确认请求时，任何改动都使它作废（链接失效），须重新发起确认、按改后资料重新生成合同；已签的确认只在改到签署关键字段（议价条款、结算账户、法定名、注册号）时作废，须重新发起确认、Owner 重签。作废时响应 `signatureInvalidated = true`。
@@ -1056,7 +1057,7 @@ components:
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
-          description: 结算银行账户；账号明文只写不回显。制式须在该商户结算币种允许的制式里。银行账户组（银行名、制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存；账号已保存且本次未传时沿用已存值。
+          description: 结算银行账户；账号明文只写不回显。制式须等于该商户 Country 对应的制式。银行账户组（银行名、制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存；账号已保存且本次未传时沿用已存值。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
@@ -1798,12 +1799,12 @@ components:
       type: object
       additionalProperties: false
       description: |
-        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+        结算银行账户（按商户 Country 对应的制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
 
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:

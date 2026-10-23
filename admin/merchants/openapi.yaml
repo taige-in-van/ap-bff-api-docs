@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户运营管理 — 前端契约面
-  version: 2.1.2
+  version: 2.1.3
   contact:
     name: 管理后台 BFF
   description: |
@@ -402,7 +402,7 @@ paths:
         - `308314` 商户未激活：待激活商户的结算信息在审核中心的代客建档里改。
         - `308307` 商户有审核中的结算变更申请（先在审核中心处理它），或刚通过的申请新周期尚未同步（在审核中心重发该通过补做同步）。
         - `308206` 作废支票文件不可用（不是本商户上传的，或用途不符），重新上传后再引用。
-        - 结算周期不在候选内、账户制式不在该商户结算币种允许的制式里、字段格式不对 → `400`，`details` 定位字段。
+        - 结算周期不在候选内、账户制式不是该商户 Country 对应的制式、字段格式不对 → `400`，`details` 定位字段。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -2204,12 +2204,12 @@ components:
       type: object
       additionalProperties: false
       description: |
-        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+        结算银行账户（按商户 Country 对应的制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
 
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:

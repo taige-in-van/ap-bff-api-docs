@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.2.0
+  version: 2.3.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -111,7 +111,7 @@ paths:
       x-required-privilege: account:profile:edit
       summary: 编辑 Business Information（可编辑字段，直接生效）
       description: |
-        改 Business Information 的可编辑字段（地址、城市、省州、邮编、国家、时区、语言、营业电话），只提交要改的，保存直接生效、无审核。
+        改 Business Information 的可编辑字段（地址、城市、省州、邮编、时区、语言、营业电话），只提交要改的，保存直接生效、无审核。
         锁定的字段不在请求体里，带了按未知字段返回 400。
 
         幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。
@@ -128,7 +128,6 @@ paths:
               city: Vancouver
               province: BC
               postalCode: V6B1A1
-              country: CA
               timeZone: America/Toronto
               businessPhone: '+16045550199'
       responses:
@@ -943,7 +942,7 @@ components:
       description: |
         Business Information 卡，字段名与取值同入驻 Business 步。
 
-        锁定字段（激活后商户不能改）：`legalBusinessName`、`tradeName`、`typeOfOwnership`、`registrationNumber`、`referredBy`、`industryCategory`、`mcc`。其余可编辑，改走 `updateBusinessInformation`。
+        锁定字段（激活后商户不能改）：`legalBusinessName`、`tradeName`、`typeOfOwnership`、`registrationNumber`、`referredBy`、`industryCategory`、`mcc`。`country` 入驻后不可变、只读（不是锁定字段，无线下办理路径）。其余可编辑，改走 `updateBusinessInformation`。
 
         展示名：行业、MCC 取 `/config/industries` 同码项的 `label`，省州取 `/config/countries` 的 `label`，企业类型由前端按枚举码 i18n，国家由前端按 ISO 码解析。
       required:
@@ -1032,7 +1031,7 @@ components:
       description: |
         改 Business Information 的可编辑字段，只提交要改的；锁定字段不在这里，带了按未知字段 400。空提交 400。
 
-        校验：`province` 须属 `/config/countries` 里所选国家的省州（没有省 / 州的国家不设值：新填不传、已存旧值传 `null` 清掉）；`postalCode` 按所选国家的格式（没有邮编制度的国家不设值，同上；前端取参考数据先校，服务端重校）、`timeZone` 须在所选省州的时区候选内（没有省 / 州的国家按国家）（候选由 `/config/countries` 下发，服务端按同一候选重校）；`businessPhone` 的区号须在白名单内。
+        校验：`province` 须属 `/config/countries` 里商户所在国的省州（没有省 / 州的国家不设值：新填不传、已存旧值传 `null` 清掉）；`postalCode` 按商户所在国的格式（没有邮编制度的国家不设值，同上；前端取参考数据先校，服务端重校）、`timeZone` 须在所选省州的时区候选内（没有省 / 州的国家按国家）（候选由 `/config/countries` 下发，服务端按同一候选重校）；`businessPhone` 的区号须在白名单内。
       properties:
         businessAddress:
           type: string
@@ -1048,19 +1047,14 @@ components:
             - 'null'
           minLength: 1
           maxLength: 64
-          description: 取自 `/config/countries` 里所选国家的 `provinces[].code`；改 `country` 后须重选。所选国家有省 / 州候选时必填；没有的国家不设值：新填不传，已存的旧值传 `null` 清掉
+          description: 取自 `/config/countries` 里商户所在国的 `provinces[].code`。商户所在国有省 / 州候选时必填；没有的国家不设值：新填不传，已存的旧值传 `null` 清掉
         postalCode:
           type:
             - string
             - 'null'
           minLength: 1
           maxLength: 16
-          description: 所选国家有邮编制度时必填；没有的国家不设值：新填不传，改 `country` 后已存的旧值传 `null` 清掉
-        country:
-          type: string
-          minLength: 1
-          maxLength: 2
-          description: 取自 `/config/countries` 的 `items[].code`（ISO 3166-1 alpha-2）
+          description: 商户所在国有邮编制度时必填；没有的国家不设值：新填不传，已存的旧值传 `null` 清掉
         timeZone:
           $ref: '#/components/schemas/TimeZone'
         language:
@@ -1108,7 +1102,7 @@ components:
           description: true = 结算由通道方执行，平台不出款；此时无结算账户、周期与 Store ID，不可提交结算变更。
         bankName:
           type: string
-          description: 结算币种无平台出款制式的商户不返回本键。
+          description: 平台不对该商户出款的商户不返回本键。
         bankAccount:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
@@ -1116,11 +1110,11 @@ components:
               required:
                 - accountNumberMasked
                 - accountNumberSet
-          description: 当前生效的结算银行账户；账号只给末 4 位掩码，任何面都不回明文。允许的制式取 `/config/settlement` 的 `bankAccountTypes`。结算币种无平台出款制式的商户不返回本键。
+          description: 当前生效的结算银行账户；账号只给末 4 位掩码，任何面都不回明文。制式 = `/config/settlement` 的 `bankAccountTypes` 里商户 Country 对应的 `type`。平台不对该商户出款的商户不返回本键。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
-          description: 当前结算周期档位 code；展示名取 `/config/settlement` 同 code 项。结算币种无平台出款制式的商户不返回本键。
+          description: 当前结算周期档位 code；展示名取 `/config/settlement` 同 code 项。平台不对该商户出款的商户不返回本键。
         storeId:
           $ref: '#/components/schemas/StoreId'
           description: 没有时不返回本键；结算由通道方执行的商户不返回本键。
@@ -1152,7 +1146,7 @@ components:
             - type: object
               required:
                 - accountNumber
-          description: 新的结算银行账户（整组提交、**账号必填**；`type` 须 ∈ 商户结算币种允许的制式集；账号明文 write-only）。与 `bankName` 同进同出。
+          description: 新的结算银行账户（整组提交、**账号必填**；`type` 须等于商户 Country 对应的制式；账号明文 write-only）。与 `bankName` 同进同出。
     SettlementChangeRequestInput:
       type: object
       additionalProperties: false
@@ -1598,12 +1592,12 @@ components:
       type: object
       additionalProperties: false
       description: |
-        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+        结算银行账户（按商户 Country 对应的制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
 
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:

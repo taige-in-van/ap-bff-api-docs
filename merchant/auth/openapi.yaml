@@ -1565,12 +1565,12 @@ components:
       type: object
       additionalProperties: false
       description: |
-        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+        结算银行账户（按商户 Country 对应的制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
 
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
@@ -1636,7 +1636,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
           description: |
-            结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。
+            结算银行账户（制式 = `/config/settlement` 的 `bankAccountTypes` 里 Business 步所填 Country 对应的 `type`）。
 
             银行账户组（`bankName` + 制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存、`accountNumberSet` 为 false；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准；`storeId` 随该组保存。`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:

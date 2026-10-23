@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.3.2
+  version: 2.3.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -262,12 +262,12 @@ paths:
       summary: 分步保存一个步骤
       description: |
         `mode=next` 校验本步完整后保存；`mode=draft` 只校验已填字段的格式、放宽必填。`settlement` 的银行账户组（银行名、制式与制式全部字段含账号）不齐时不保存该组，`storeId` 随组；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准。
-        请求体恰含一个步骤键，且须与 path 的 `{step}` 一致。完整性按已存值叠加本次提交判定，只写字段（银行账号、Refund PIN）按 `accountNumberSet` / `refundPinSet` 判。Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目时，`settlement` 步只收 `refundPin` / `confirmRefundPin`，`bankName` / `bankAccount` / `settlementCycle` / `storeId` 不传（传了 → 400 `204001`），完整性只看 `refundPinSet`。
+        请求体恰含一个步骤键，且须与 path 的 `{step}` 一致。完整性按已存值叠加本次提交判定，只写字段（银行账号、Refund PIN）按 `accountNumberSet` / `refundPinSet` 判。Business 步所填 Country 在 `/config/settlement` 的 `bankAccountTypes` 里无条目（平台不对该国商户出款）时，`settlement` 步只收 `refundPin` / `confirmRefundPin`，`bankName` / `bankAccount` / `settlementCycle` / `storeId` 不传（传了 → 400 `204001`），完整性只看 `refundPinSet`。
 
-        - `business`：Currency × Country 须是 `/config/currencies` 里的有效组合；改了币种后 Services 已选方式不在新币种候选内的，在下次保存 Services 时报错。
+        - `business`：Currency × Country 须是 `/config/currencies` 里的有效组合；改了币种后 Services 已选方式不在新币种候选内的，在下次保存 Services 时报错。`business` 步改了 `country`，且已存结算银行账户的制式与新国家的制式不同（含新国家无条目）时，该账户整组视为未填：读申请不再返回 `bankAccount` / `bankName` / `storeId`，`settlement` 步要重填。
         - `services`：所选方式须在 Business 步所选结算币种的候选内；选了线上方式时，Business 的 `typeOfOnlineService` 必填、为 `WEBSITE` 时 `websiteUrl` 必填，缺了在 `details` 里指向 `business.*`。
         - `settlement`：两次 Refund PIN 须一致。
-        - `documents`：按 docKey 绑定上传得到的 `fileId`，未传的 docKey 保持原绑定，传 `null` 移除。门店内照、外照在 Services 选了线下方式时才必传；Business 步所选结算币种在 `bankAccountTypes` 无条目时 `docVoidCheque` 不必传。
+        - `documents`：按 docKey 绑定上传得到的 `fileId`，未传的 docKey 保持原绑定，传 `null` 移除。门店内照、外照在 Services 选了线下方式时才必传；Business 步所填 Country 在 `bankAccountTypes` 无条目时 `docVoidCheque` 不必传。
 
         `readonlyFields` 里的字段服务端忽略写入。
 
@@ -434,7 +434,7 @@ paths:
       x-required-privilege: owner
       summary: 提交审核
       description: |
-        校验全部步骤与必传文档（营业执照、Owner 证件、Void Cheque；选了线下方式时加门店内照、外照；结算币种在 `/config/settlement` 的 `bankAccountTypes` 无条目时不要 Void Cheque、`204002` 不因它触发）后，申请从 `DRAFT` / `MORE_INFO_REQUIRED` 进入 `UNDER_REVIEW`，同时清空待补项。
+        校验全部步骤与必传文档（营业执照、Owner 证件、Void Cheque；选了线下方式时加门店内照、外照；Country 在 `/config/settlement` 的 `bankAccountTypes` 无条目时不要 Void Cheque、`204002` 不因它触发）后，申请从 `DRAFT` / `MORE_INFO_REQUIRED` 进入 `UNDER_REVIEW`，同时清空待补项。
         首次提交发「申请已收到」邮件，补料重提不发。提交时先做开通准备（按所选支付方式建签约与费率），成功后申请才进入 `UNDER_REVIEW`；开通准备暂时没做成（可稍后重试的失败）回 `503`，申请未提交、状态不变，重发本请求即可。申请已是 `UNDER_REVIEW` 时再次提交返回 `204`、不做任何事、不重发邮件。
 
         错误码：
@@ -979,12 +979,12 @@ components:
       type: object
       additionalProperties: false
       description: |
-        结算银行账户（按收款银行所在国的本地制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
+        结算银行账户（按商户 Country 对应的制式）。`type` 定制式、随制式带对应字段，不属该制式的字段不传（传了 → 400）：
 
         - `ca_local`（加拿大 EFT）—— 须带 `transitNumber` + `institutionNumber`；
         - `us_local`（美国 ACH）—— 须带 `routingNumber` + `accountType`。
 
-        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。允许哪些 `type` 按结算币种由所在面的配置接口给出（形状见 `CurrencyBankAccountTypes`）。
+        各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
         账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
       required:
@@ -1050,7 +1050,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
           description: |
-            结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。
+            结算银行账户（制式 = `/config/settlement` 的 `bankAccountTypes` 里 Business 步所填 Country 对应的 `type`）。
 
             银行账户组（`bankName` + 制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存、`accountNumberSet` 为 false；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准；`storeId` 随该组保存。`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:
@@ -1259,7 +1259,7 @@ components:
         - `refundPin` + `confirmRefundPin` / `bankAccount.accountNumber` 均 write-only 输入、绝不在响应回明文；read 走掩码 + 已填标志（`bankAccount.accountNumberMasked` / `accountNumberSet` / `refundPinSet`）供跨设备恢复。
         - `refundPin` 两者须一致否则 400（格式见 `RefundPin`）。
         - Legal Business Name 的核对回显由前端直接读 `steps.business.legalBusinessName`（不重复为独立字段）。
-        - Business 步所选结算币种在 `/config/settlement` 的 `bankAccountTypes` 里无条目（平台不对该币种出款）时，本步不采集 `bankName` / `bankAccount` / `settlementCycle` / `storeId`，只收 Refund PIN。
+        - Business 步所填 Country 在 `/config/settlement` 的 `bankAccountTypes` 里无条目（平台不对该国商户出款）时，本步不采集 `bankName` / `bankAccount` / `settlementCycle` / `storeId`，只收 Refund PIN。
       additionalProperties: false
       properties:
         bankName:
@@ -1269,7 +1269,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
           description: |
-            结算银行账户（制式按收款银行所在国、须 ∈ `/config/settlement` 的 `bankAccountTypes` 中 Business 步所选结算币种允许的 `types`；与营业地址 Country 无关）。
+            结算银行账户（制式 = `/config/settlement` 的 `bankAccountTypes` 里 Business 步所填 Country 对应的 `type`）。
 
             银行账户组（`bankName` + 制式与该制式全部字段含账号）齐全才保存，缺任一项整组不保存、`accountNumberSet` 为 false；账号为只写字段，已保存（`accountNumberSet = true`）且本次未传时沿用已存值、其余字段以本次提交为准；`storeId` 随该组保存。`mode=next` 的完整性按 `accountNumberSet` 判。
         settlementCycle:
