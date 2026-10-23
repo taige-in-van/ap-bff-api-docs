@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.3.1
+  version: 2.3.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -759,7 +759,7 @@ paths:
       operationId: signOnboardingConfirmation
       summary: 签署合同并提交入驻申请
       description: |
-        Owner 核对无误后签署：手写签名（`drawn`，带签名图）或键入姓名（`typed`）。签署成功即令牌失效，申请提交审核；页面展示已提交，之后再打开链接按无效处理。签署时的姓名、方式、时间与来源网络随签署记录保存。
+        Owner 核对无误后签署：手写签名（`drawn`，带签名图）或键入姓名（`typed`）。签署成功即令牌失效，系统随后为申请完成开通准备并提交审核；开通准备暂时没做成时签署仍有效、申请留在原状态，由运营完成提交。页面只展示签署完成，不承诺已进入审核；之后再打开链接按无效处理。签署时的姓名、方式、时间与来源网络随签署记录保存。
 
         确认令牌就是这次提交的去重依据：令牌一经签署即失效，重复提交得到 `206018`，不会签两次。
 
@@ -789,7 +789,7 @@ paths:
                   signatureImage: iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
       responses:
         '204':
-          description: 已签署，申请已提交审核
+          description: 已签署；申请随后由系统提交审核，暂时没提交成的由运营完成
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:

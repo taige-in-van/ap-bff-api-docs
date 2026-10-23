@@ -559,6 +559,11 @@
       "name": "MERCHANT_FILE_NOT_USABLE",
       "retryable": false
     },
+    "308207": {
+      "httpStatus": 409,
+      "name": "SETTLEMENT_CHANGE_SYNC_PENDING",
+      "retryable": false
+    },
     "308301": {
       "httpStatus": 409,
       "name": "MERCHANT_STATE_MISMATCH",

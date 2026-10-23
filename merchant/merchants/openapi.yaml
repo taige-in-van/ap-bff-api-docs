@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.3.1
+  version: 2.3.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -435,7 +435,7 @@ paths:
       summary: 提交审核
       description: |
         校验全部步骤与必传文档（营业执照、Owner 证件、Void Cheque；选了线下方式时加门店内照、外照；结算币种在 `/config/settlement` 的 `bankAccountTypes` 无条目时不要 Void Cheque、`204002` 不因它触发）后，申请从 `DRAFT` / `MORE_INFO_REQUIRED` 进入 `UNDER_REVIEW`，同时清空待补项。
-        首次提交发「申请已收到」邮件，补料重提不发。申请已是 `UNDER_REVIEW` 时再次提交 = 只重做提交后的开通准备、不改状态、不重发邮件、同样返回 `204`；提交成功但开通准备失败回 `503`，重发本请求收敛。
+        首次提交发「申请已收到」邮件，补料重提不发。提交时先做开通准备（按所选支付方式建签约与费率），成功后申请才进入 `UNDER_REVIEW`；开通准备暂时没做成（可稍后重试的失败）回 `503`，申请未提交、状态不变，重发本请求即可。申请已是 `UNDER_REVIEW` 时再次提交返回 `204`、不做任何事、不重发邮件。
 
         错误码：
 

@@ -256,7 +256,7 @@ sequenceDiagram
             U->>S: 手写签名或键入姓名，点确认
             S->>A: #35;17 [signOnboardingConfirmation]<br/>POST /auth/onboarding-confirmation/signature
             A-->>S: 204
-            S->>U: 已提交，等待审核
+            S->>U: 签署完成
         else 提异议
             U->>S: 填异议原因，点提交
             S->>A: #35;18 [disputeOnboardingConfirmation]<br/>POST /auth/onboarding-confirmation/dispute
