@@ -145,7 +145,7 @@ sequenceDiagram
 - 字段名与取值和入驻申请对应步骤一致，展示和编辑表单可与入驻向导共用。锁定字段（见 `BusinessInformationView`）只读显示，需修改时联系客服。没有 `logoUrl` 时头卡显示默认首字母图标。
 - Business Information 里的商户语言 `language` 可改、立即生效，决定之后发给商户的通知（邮件、微信、站内信）与之后出具的月对账单的语言，已发出、已出具的不变；它不是界面语言，界面语言是每个账号自己的偏好（见 [flows 03-shell-dashboard「页面：顶栏 · 语言切换 区块」](03-shell-dashboard.html#页面：顶栏%20·%20语言切换%20区块)）。
 - 三张卡的 Edit：Business Information 与 Settlement 按各自保存接口的权限点显示；Contact Information 是 Owner 专属（接口标 `owner`），按 `isOwner` 显示。结算变更的验证码发到 Owner 邮箱，不是 Owner 本人发起时要向 Owner 要码。
-- Settlement 卡的 Legal Business Name 回显 Business Information 的值；Store ID 取 `settlement.storeId`，没有该键就不显示这一行；`pendingReview` 为真时隐藏 Edit、显示审核中提示。编辑弹窗按 `bankAccount.type` 渲染对应表单，账号框用 `accountNumberMasked` 作提示、要重新输入；结算周期初始选中已保存的值，没有才选第一项。
+- Settlement 卡的 Legal Business Name 回显 Business Information 的值；Store ID 取 `settlement.storeId`，没有该键就不显示这一行；`pendingReview` 为真时隐藏 Edit、显示审核中提示。编辑弹窗按 `bankAccount.type` 渲染对应表单，账号框用 `accountNumberMasked` 作提示、要重新输入；结算周期初始选中 `settlement.settlementCycle` 的当前值。
 - 输错码重输要换新的 `Idempotency-Key`，也不会重复建变更：同一商户最多一个审核中的变更，先前那次若其实已成功，重提会得到 `409`·`208002` 或 `410`·`206006`，重调 #1 即可看到审核中。
 - Contact 卡邮箱旁的 Change 仅在当前登录者的 `loginId` 等于 `contactInformation.email` 时显示，流程见「页面：My Profile · 改登录邮箱 弹窗」。
 - Documents 只读，缩略图用 `previewUrl`，图片还是文件按文件名后缀判断，没上传的必传项显示占位。

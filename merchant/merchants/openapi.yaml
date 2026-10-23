@@ -1061,7 +1061,7 @@ components:
           type: string
           minLength: 1
           readOnly: true
-          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
+          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键，没有就**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
         storeId:
           $ref: '#/components/schemas/StoreId'
           description: 可选；后续可改。
@@ -1280,7 +1280,7 @@ components:
           type: string
           minLength: 1
           readOnly: true
-          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键；草稿还没选结算周期时**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
+          description: '`settlementCycle` 的展示名（如 `T+2 Business Days`）。**与 `settlementCycle` 同进退**： 有 `settlementCycle` 就一定有本键，没有就**两者都没有**。 **能读到候选集的消费方可忽略本键**、按 `code` 取自己的展示文案；拿不到候选集时直接展示本键即可。 ⚠️ 极少数情况下本键可能就等于 `code` 本身（服务端解析不出时的兜底），FE 直接展示、不必特判。'
         storeId:
           oneOf:
             - $ref: '#/components/schemas/StoreId'

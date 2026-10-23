@@ -159,7 +159,7 @@ sequenceDiagram
 - Contact：姓名、职务、电话是 Owner 的账号资料，在这里可改、保存即写回账号资料；登录邮箱与 Merchant ID（`merchantCode`）只读，Referred By 有值即只读。Referred By 为 Moneris（不分大小写）时 Moneris MID 与客户经理名必填。
 - Business：先定币种与国家；改国家后省 / 州、邮编、时区重选，新国家用不上的旧值（没有省 / 州或邮编制度的国家）传 `null` 清掉（邮编格式按国家取前端参考数据预校；时区候选按省 / 州从 `listCountryOptions` 下发的候选里选）；已填的结算银行账户若制式对不上新国家（含新国家平台不出款）会被清掉，Settlement 步要重填。商户语言 `language`（English / Français / 中文）和时区一起填，决定发给商户的通知（邮件、微信、站内信）与月对账单的语言；语言还没填时前端按浏览器语言预选（法语 → Français，中文 → 中文，其余 → English），商户可改，服务端不代填。线上服务类型与网址常显、选填。行业 / MCC 下拉在前端本地搜索（码前缀 + 当前语言名称子串），两级联动（选大类列出 MCC，搜到 MCC 反推大类），MCC 按「名称 (码)」显示。
 - Services：候选用 Business 所选币种调 #5，改了币种重新取；按 `acceptanceMode` 分线下 / 线上两组展示；每项显示 `standardRate`（前端格式化成「1.5% + $0.10 per transaction」），`recommended` 为真的标 Recommended。勾了任一线上方式时，点 Next 先校验 Business 的线上服务类型与网址，缺了提示回 Business 补（服务端同样校验，见 `updateOnboardingStep`）。
-- Settlement：银行账号、Refund PIN 已填看 `accountNumberSet` / `refundPinSet`；两次 PIN 一致前端先校验。银行账户表单按 Business 步 `country` 在 `bankAccountTypes` 里对应的 `type` 渲染，只有一种。结算周期初始选中已保存的值，没有才选第一项。Legal Business Name 只读回显 Business 的值。
+- Settlement：银行账号、Refund PIN 已填看 `accountNumberSet` / `refundPinSet`；两次 PIN 一致前端先校验。银行账户表单按 Business 步 `country` 在 `bankAccountTypes` 里对应的 `type` 渲染，只有一种。结算周期初始选中读申请返回的 `settlementCycle`（Branch 尚未保存时后端按主商户当前档位返回），没有不预选。Legal Business Name 只读回显 Business 的值。
 - 保存拿到 `409`·`208003`（申请已不在可编辑状态）时重调 #1，按新状态进对应页面。
 - `assistedOnboarding` 为 true（工作人员代为建档）时向导整份只读：不显示 Next / 保存 / Submit，提示到确认邮件里的确认页签署；出现 `409`·`208046` 就按只读重渲染。
 
