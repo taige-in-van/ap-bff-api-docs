@@ -7,7 +7,7 @@
 <h1>BFF API 契约</h1>
 <p>前端、收银台、终端（POS / 商户 App）与微信确认页消费的 REST 契约,按 consumer / module 分目录。</p>
 <p class="warn">⚠️ <strong>design / review 阶段</strong>契约 —— 实现前可能调整;可据此并行开发,勿当冻结契约。</p>
-<p><small>契约版本:<code>stage/261022-slice-d-r3</code><span id="ready-stage" hidden> · 联调环境按 <code id="ready-stage-name"></code> 部署</span></small></p>
+<p><small>契约版本:<code>stage/261022-wechat-r1</code><span id="ready-stage" hidden> · 联调环境按 <code id="ready-stage-name"></code> 部署</span></small></p>
 <p id="stage-diff" class="warn" hidden>⚠️ 本页契约与联调环境部署所依据的版本不同:接口以各调用时序页的就绪标识为准(⚠️ 表示该接口契约在实现之后有改动)。</p>
 <p id="ready-legend" hidden>🧪 调用时序页的接口表带<strong>联调就绪标识</strong>:✅ 已部署到联调环境、可对接调试;⚠️ 契约在实现之后有改动、待后端重验;无标识 = 尚未部署。</p>
 <p id="dev-env-link" class="conv" hidden>🔌 <a href="dev-env.html"><strong>联调指南（dev-env.html）</strong></a> —— 联调环境地址、本地代理、CSRF、测试账号与数据重置说明，后端随环境变化更新。</p>
@@ -15,7 +15,7 @@
 fetch('ready.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():null;}).then(function(rd){
   if(!rd)return; document.getElementById('ready-legend').hidden=false;
   if(!rd.prdStage)return; document.getElementById('ready-stage-name').textContent=rd.prdStage; document.getElementById('ready-stage').hidden=false;
-  if(rd.prdStage!=='stage/261022-slice-d-r3'||!true)document.getElementById('stage-diff').hidden=false;
+  if(rd.prdStage!=='stage/261022-wechat-r1'||!true)document.getElementById('stage-diff').hidden=false;
 }).catch(function(){});
 fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getElementById('dev-env-link').hidden=false;}).catch(function(){});
 </script>
@@ -36,10 +36,10 @@ fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getEl
 </ul>
 <h3>接口（按资源）</h3>
 <ul>
-    <li><a href="merchant/auth/index.html">认证</a> 🆕 <small>(v2.3.1 → v2.3.2)</small> — <a href="merchant/auth/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/auth/index.html">认证</a> <small>(v2.3.2)</small> — <a href="merchant/auth/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/me/index.html">个人账号</a> <small>(v2.1.1)</small> — <a href="merchant/me/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/team/index.html">团队成员</a> <small>(v2.1.1)</small> — <a href="merchant/team/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="merchant/merchants/index.html">商户与入驻</a> 🆕 <small>(v2.3.1 → v2.3.2)</small> — <a href="merchant/merchants/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="merchant/merchants/index.html">商户与入驻</a> <small>(v2.3.2)</small> — <a href="merchant/merchants/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/account/index.html">商户资料</a> <small>(v2.2.0)</small> — <a href="merchant/account/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/products/index.html">收款产品</a> <small>(v2.0.0)</small> — <a href="merchant/products/openapi.yaml">openapi.yaml</a></li>
     <li><a href="merchant/devices/index.html">设备</a> <small>(v2.0.0)</small> — <a href="merchant/devices/openapi.yaml">openapi.yaml</a></li>
@@ -67,9 +67,9 @@ fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getEl
     <li><a href="admin/staff/index.html">后台账号与角色权限</a> <small>(v2.1.0)</small> — <a href="admin/staff/openapi.yaml">openapi.yaml</a></li>
     <li><a href="admin/settings/index.html">平台设置与公告</a> <small>(v2.0.0)</small> — <a href="admin/settings/openapi.yaml">openapi.yaml</a></li>
     <li><a href="admin/ops/index.html">运维与审计</a> <small>(v2.1.0)</small> — <a href="admin/ops/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/applications/index.html">商户入驻审批与合规</a> 🆕 <small>(v2.1.1 → v2.2.0)</small> — <a href="admin/applications/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/merchants/index.html">商户运营管理</a> <small>(v2.1.1)</small> — <a href="admin/merchants/openapi.yaml">openapi.yaml</a></li>
-    <li><a href="admin/acquiring/index.html">通道进件与产品配置</a> <small>(v2.0.0)</small> — <a href="admin/acquiring/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/applications/index.html">商户入驻审批与合规</a> <small>(v2.2.0)</small> — <a href="admin/applications/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/merchants/index.html">商户运营管理</a> 🆕 <small>(v2.1.1 → v2.1.2)</small> — <a href="admin/merchants/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="admin/acquiring/index.html">通道进件与产品配置</a> 🆕 <small>(v2.0.0 → v2.1.0)</small> — <a href="admin/acquiring/openapi.yaml">openapi.yaml</a></li>
     <li><a href="admin/transactions/index.html">交易管理</a> <small>(v2.0.0)</small> — <a href="admin/transactions/openapi.yaml">openapi.yaml</a></li>
 </ul>
 <h2>收银台 (Checkout)</h2>

@@ -702,6 +702,16 @@
       "name": "MERCHANT_PRODUCT_LINK_DELETED",
       "retryable": false
     },
+    "308415": {
+      "httpStatus": 400,
+      "name": "ADMIN_CHANNEL_APPLICATION_MATERIAL_INCOMPLETE",
+      "retryable": false
+    },
+    "308416": {
+      "httpStatus": 400,
+      "name": "ADMIN_CHANNEL_APPLICATION_FILE_NOT_USABLE",
+      "retryable": false
+    },
     "308501": {
       "httpStatus": 409,
       "name": "ADMIN_REFUND_NOT_UNDER_REVIEW",

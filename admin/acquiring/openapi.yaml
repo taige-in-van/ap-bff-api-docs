@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -240,10 +240,21 @@ paths:
       description: |
         对该签约向通道提交报备，内容取商户当前资料。上一次被驳回的同类报备即为重提。通道当场受理即返回，审核结果此后由系统同步，也可用 `syncMerchantChannelApplication` 按需刷新；首次子商户进件成功时系统回写子商户号并启用签约。
 
+        **微信 H5 支付权限**（`applicationType = h5_authorization`）另收以下字段，其他报备类型带了 → `400`：
+
+        - `limitType` 限额档，不传按 `normal`；选 `unlimited` 时 `businessDescription` 必填，且须有营业执照。
+        - `websiteState` 网站状态，不传按 `launched`；选 `not_launched` 时 `websiteHomepageScreenshotFileIds` 与 `websiteBusinessPageScreenshotFileIds` 都必填。
+        - 不传 `businessLicenseFileId` 时取商户入驻证照中的图片件（PNG / JPEG）。
+        - 另传的营业执照与网站截图先经 `uploadMerchantFile` 上传（用途 `channel_application_material`），再带上传得到的 `fileId`。
+
+        系统自动发起的 H5 申请是普通限额、已上线、不带材料；被驳回后在这里补改材料重提，仍是同一条报备。重提时档位与材料以本次请求为准整体改写、不与上次合并：先用 `ChannelApplication` 回读的上次提交内容预填，改好要改的再整份提交。
+
         幂等基准：`Idempotency-Key`。
 
         **什么时候拒绝**：
 
+        - `308415` H5 申请的档位与材料不齐：选了无限额而缺营业执照或业务说明（没传营业执照时先取商户入驻证照中的图片件，仍无才拒），或选了未上线而缺网站首页或业务页截图。`details` 指到缺的字段，不向通道提交。
+        - `308416` 带的 `fileId` 不可用于这里（不存在、不是本商户上传的，或用途不是 `channel_application_material`）。`details` 指到该字段，重新上传后再带。
         - `308404` 同签约同类报备还在审，不能再提；刷新状态后再定。
         - `308405` 通道当场拒绝，`context.channelErrorCode` / `context.channelErrorMessage` 是通道给的原因（通道给了才带）；改资料后重提。
         - 该签约的通道不适用这类报备 → `400`。
@@ -262,8 +273,52 @@ paths:
               properties:
                 applicationType:
                   $ref: '#/components/schemas/ChannelApplicationType'
-            example:
-              applicationType: maintain
+                limitType:
+                  type: string
+                  enum:
+                    - normal
+                    - unlimited
+                  default: normal
+                  description: H5 申请的限额档：`normal` 普通限额 / `unlimited` 无限额。只收 `h5_authorization`。
+                websiteState:
+                  type: string
+                  enum:
+                    - launched
+                    - not_launched
+                  default: launched
+                  description: H5 申请时商户网站的状态：`launched` 已上线 / `not_launched` 未上线。只收 `h5_authorization`。
+                businessDescription:
+                  type: string
+                  minLength: 1
+                  description: 业务说明；`limitType = unlimited` 时必填。只收 `h5_authorization`。
+                businessLicenseFileId:
+                  allOf:
+                    - $ref: '#/components/schemas/FileId'
+                  description: 另传的营业执照（`uploadMerchantFile` 用途 `channel_application_material`，只收 PNG / JPEG）；不传取商户入驻证照中的图片件。只收 `h5_authorization`。
+                websiteHomepageScreenshotFileIds:
+                  type: array
+                  minItems: 1
+                  description: 网站首页截图（`uploadMerchantFile` 用途 `channel_application_material`）；`websiteState = not_launched` 时必填。只收 `h5_authorization`。
+                  items:
+                    $ref: '#/components/schemas/FileId'
+                websiteBusinessPageScreenshotFileIds:
+                  type: array
+                  minItems: 1
+                  description: 网站业务页截图（`uploadMerchantFile` 用途 `channel_application_material`）；`websiteState = not_launched` 时必填。只收 `h5_authorization`。
+                  items:
+                    $ref: '#/components/schemas/FileId'
+            examples:
+              maintain:
+                summary: 子商户进件 / 资料修改
+                value:
+                  applicationType: maintain
+              h5Unlimited:
+                summary: H5 支付权限，无限额
+                value:
+                  applicationType: h5_authorization
+                  limitType: unlimited
+                  websiteState: launched
+                  businessDescription: Online store selling apparel to overseas customers.
       responses:
         '201':
           description: 通道已受理
@@ -288,6 +343,8 @@ paths:
       x-error-codes:
         - 308404
         - 308405
+        - 308415
+        - 308416
   /merchants/{merchantId}/channel-contracts/{contractId}/applications/{channelApplicationId}/synchronization:
     parameters:
       - $ref: '#/components/parameters/MerchantIdPath'
@@ -340,16 +397,15 @@ paths:
         - channels
       operationId: registerMerchantChannelSubApp
       x-required-privilege: chcfg:channel:manage
-      summary: 录入线上平台标识并向通道报备
+      summary: 录入线上平台标识
       description: |
-        为微信或支付宝签约登记商户自有应用，录入即向通道完成关联报备；通道拒绝时不登记。登记后该商户从线上平台标识补录待办里消失。
+        为微信或支付宝签约登记商户自有应用，录入即本地登记，不向通道发起关联；通道侧绑定由运营在渠道服务商平台完成。登记后该商户从线上平台标识补录待办里消失。
 
         **全量覆盖**：请求体就是目标本身。同一标识已登记时同样返回 `204`。置值写，不挂幂等键。
 
         **什么时候拒绝**：
 
-        - `308405` 通道拒绝关联，`context.channelErrorCode` / `context.channelErrorMessage` 是通道给的原因（通道给了才带）；核对标识后重录。
-        - 签约不是微信或支付宝 → `400`。
+        - 签约不是微信或支付宝、或签约还没有子商户号 → `400`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -368,11 +424,10 @@ paths:
               appType: mini_program
       responses:
         '204':
-          description: 已关联并登记
+          description: 已登记
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
-      x-error-codes:
-        - 308405
+      x-error-codes: []
   /merchants/{merchantId}/entry-points:
     parameters:
       - $ref: '#/components/parameters/MerchantIdPath'
@@ -1857,6 +1912,37 @@ components:
           type: string
           minLength: 1
           description: 通道给的授权状态原值；只微信 H5 支付权限有，其余不返回本键。
+        limitType:
+          type: string
+          enum:
+            - normal
+            - unlimited
+          description: 上次提交的限额档；只我方提交过的微信 H5 支付权限记录有，其余不返回本键。重提时据此预填。
+        websiteState:
+          type: string
+          enum:
+            - launched
+            - not_launched
+          description: 上次提交时的网站状态；返回条件同 `limitType`。
+        businessDescription:
+          type: string
+          minLength: 1
+          description: 上次提交的业务说明；没提交过不返回本键。
+        businessLicenseFileId:
+          $ref: '#/components/schemas/FileId'
+          description: 上次提交另传的营业执照；取的是入驻证照时不返回本键。
+        websiteHomepageScreenshotFileIds:
+          type: array
+          minItems: 1
+          description: 上次提交的网站首页截图；没提交过不返回本键。
+          items:
+            $ref: '#/components/schemas/FileId'
+        websiteBusinessPageScreenshotFileIds:
+          type: array
+          minItems: 1
+          description: 上次提交的网站业务页截图；没提交过不返回本键。
+          items:
+            $ref: '#/components/schemas/FileId'
     SubAppType:
       type: string
       enum:
@@ -2908,6 +2994,11 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    FileId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 文件引用：上传后返回的稳定标识。
     LocalDate:
       type: string
       format: date
