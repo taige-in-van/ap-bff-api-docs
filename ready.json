@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-22T22:41:34Z",
-  "implCommit": "3a0c31d",
+  "generatedAt": "2026-10-23T16:02:17Z",
+  "implCommit": "72f5e3c",
   "ops": {
     "merchant/auth/completeMfaChallenge": "f4b905d0b1e574c0",
     "merchant/auth/confirmPasswordReset": "e1ca2dbfb0c443ed",
@@ -24,13 +24,17 @@
     "merchant/me/updateMyProfile": "5b40d7033505d63b",
     "merchant/merchants/createMerchant": "8b444f94da70d94b",
     "merchant/merchants/deleteMerchant": "5a00c040b9fcf7ec",
+    "merchant/merchants/getOnboardingApplication": "1a0beb3670027835",
     "merchant/merchants/listMerchants": "1a59055f4abfc04e",
-    "merchant/merchants/uploadOnboardingDocumentFile": "c6c5ffb1fe132192",
+    "merchant/merchants/submitOnboardingApplication": "c026375e989e0fe3",
+    "merchant/merchants/updateOnboardingStep": "83cf6bb40628bcff",
+    "merchant/merchants/uploadOnboardingDocumentFile": "997d69ef40ae1cb8",
     "merchant/orders/getStatisticsSummary": "69765b63109942bb",
     "merchant/orders/getStatisticsTrend": "295512c7e00a5cd3",
     "merchant/orders/listRecentPayments": "71705aeec156322d",
     "merchant/system/getNotice": "1d07c5fd823e1fe3",
     "merchant/system/getNoticeSummary": "79e57392dd46bdd6",
+    "merchant/system/getSettlementConfig": "be0180edc9237cd5",
     "merchant/system/listCountryOptions": "97046bdfaaf3769a",
     "merchant/system/listCurrencyOptions": "bc463efc1d90e374",
     "merchant/system/listIndustryOptions": "d7205ed29fc1ec75",
@@ -43,5 +47,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261022-slice-d-r1"
+  "prdStage": "stage/261022-slice-d-r4"
 }
