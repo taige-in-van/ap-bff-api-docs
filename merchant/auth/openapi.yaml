@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.3.3
+  version: 2.3.4
   contact:
     name: 商户后台 BFF
   description: |
@@ -630,7 +630,7 @@ paths:
       description: |
         校验链接里的一次性令牌并写入新密码。不建会话，成功后回登录页用新密码登录。三种链接共用本接口：
 
-        - 员工邀请链接、代客建档 Owner 的开户设密链接：账号由邀请中激活为 `ACTIVE`，邮箱同时标为已验证。
+        - 员工邀请链接、代客建档 Owner 的开户设密链接：账号由邀请中激活为 `ACTIVE`，邮箱同时标为已验证（被运营停用的账号仍为已停用，设密成功但解除停用前不能登录）。
         - 运营发出的重置密码链接：账号本就是 `ACTIVE`，状态不变；设密成功即旧密码失效、该账号所有已登录会话失效。设密前旧密码照常可用。
 
         链接形如 `/invite/set-password#token=…&email=…`：页面从地址的 fragment 取令牌和该账号的邮箱，邮箱只供页面展示，提交以令牌为准。令牌只在设密成功时消费，之前失败的可用同一令牌重试。
@@ -667,7 +667,7 @@ paths:
               newPassword: Str0ng!Pass
       responses:
         '204':
-          description: 已设密;账号 ACTIVE，不建会话
+          description: 已设密；账号 ACTIVE（被运营停用的仍为已停用），不建会话
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1140,7 +1140,7 @@ components:
       type: string
       minLength: 1
       maxLength: 254
-      description: 登录名：用户名或邮箱。
+      description: 登录名：用户名或邮箱。新建或修改登录名时：含 `@` 的按邮箱格式校验；其余是用户名，须为去首尾空白后 1–64 个字符、不含空白，比较不区分大小写、按输入的大小写保存。登录时按已保存的登录名匹配，不套这条形状规则（早期账号的用户名可能不满足它）。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
