@@ -363,6 +363,11 @@
       "name": "MAIN_MERCHANT_FROZEN",
       "retryable": false
     },
+    "208056": {
+      "httpStatus": 409,
+      "name": "OWNER_ACCOUNT_UNAVAILABLE",
+      "retryable": false
+    },
     "304001": {
       "httpStatus": 400,
       "name": "ADMIN_OTP_RETRYABLE",

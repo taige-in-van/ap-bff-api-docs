@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.3.0
+  version: 2.4.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -318,7 +318,7 @@ paths:
         发 6 位码到 Owner 的登录邮箱（不论谁发起），返回 `challengeId`。
         本步只发码、不带变更内容；码和变更内容在第 2 步一起提交。非 Owner 的操作员发起时，要拿到 Owner 收到的码才能提交，等于每次结算变更都经 Owner 过目。
 
-        重新发码会让旧码作废，冷却中 → `429`·208013。按挑战流程语义不挂幂等键。
+        重新发码会让旧码作废，冷却中 → `429`·208013。Owner 账号不可用（已停用、已删除或没有已验证邮箱）→ `409`·208056。按挑战流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -338,6 +338,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208013
+        - 208056
   /account/profile/settlement/change-requests:
     post:
       tags:
@@ -350,7 +351,7 @@ paths:
 
         - `changes` 含银行组（`bankName` + `bankAccount`）时，`voidChequeFileId` 必填（缺 → 400）；只改 `storeId` / `settlementCycle` 时不带。
         - `voidChequeFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·208040（`details` 指到 `voidChequeFileId`）。
-        - 码错可重试 → `400`·204010（剩余次数见 `context.attemptsRemaining`）；错到上限 → `423`·206007；码过期或已用 → `410`·206006，须重新发码。
+        - 码错可重试 → `400`·204010（剩余次数见 `context.attemptsRemaining`）；错到上限 → `423`·206007；码过期、已用，或不是在发起它的同一次登录里提交 → `410`·206006，须重新发码。
         - 已有审核中的变更 → `409`·208002；结算周期不在候选内 → `400`·204017。
         - 结算由通道方执行（`settlement.settledByChannel` 为 true）→ `409`·208038，没有结算账户可变更。
 
@@ -789,7 +790,7 @@ paths:
       description: |
         生成 6 位码发到 Owner 的登录邮箱（不论谁发起），返回 `challengeId`、脱敏邮箱与冷却秒数，不需要当前 PIN。重新调用得到新 `challengeId`，旧码作废。
 
-        不挂幂等键（挑战类，每次发新码）。冷却内重复调用返回 `429`·`208013`。
+        不挂幂等键（挑战类，每次发新码）。冷却内重复调用返回 `429`·`208013`。Owner 账号不可用（已停用、已删除或没有已验证邮箱）→ `409`·`208056`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -809,6 +810,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208013
+        - 208056
   /account/refund-pin/resets/{challengeId}/confirmation:
     post:
       tags:
@@ -825,7 +827,7 @@ paths:
 
         - `204010` 码错、还有次数；剩余次数见 `context.attemptsRemaining`。
         - `206007` 码错到上限，这次重置作废，须重新发起。
-        - `206006` 这次重置已过期、已完成或已被新发的码顶掉。
+        - `206006` 这次重置已过期、已完成、已被新发的码顶掉、发起后退款 PIN 已被修改，或不是在发起它的同一次登录里提交。
       parameters:
         - name: challengeId
           in: path

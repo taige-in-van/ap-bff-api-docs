@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 团队成员 — 前端契约面
-  version: 2.1.1
+  version: 2.1.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -39,7 +39,7 @@ paths:
       description: |
         成员列表顶部角色快捷筛选的各项与计数（各项用法同 `QuickFilterCounts`，但本端点另给 `total`、各项可重叠）。`value` 原样回传给 `listTeamMembers` 的 `roleId`；本端点**不接受** `roleId`，其余筛选（按显示名 / 邮箱搜索）与列表一致。
 
-        项集覆盖该商户可分配的角色**以及 Owner**（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行），某角色当期无成员时**仍返回该项、**`count` 为 `0`。`label` 是角色名，随管理后台维护的角色配置走。
+        项集不按操作者的权限边界收窄（与 `listAssignableRoles` 不同）：在册成员持有的每个角色各一项（含已停用的角色），另加当期无成员的可分配角色（`count` 为 `0`）以及 Owner（Owner 不在 `listAssignableRoles` 里，但成员列表有这一行）。`label` 是角色名，随管理后台维护的角色配置走。
 
         成员可持多个角色，各项计数可重叠，All 取 `total`。
       parameters:
@@ -263,6 +263,7 @@ paths:
         - `206013` 改成的角色、或该成员现有的角色里有超出操作者权限边界的。
         - `208003` 给邀请中的员工填了新密码。
         - `908003` 同一幂等键被用于不同的请求体。
+        - `906003` 对 Owner 行改昵称以外的字段，或改自己这一行的角色。
       parameters:
         - name: operatorId
           in: path
@@ -297,7 +298,7 @@ paths:
       operationId: deleteTeamMember
       x-required-privilege: account:team:manage
       summary: 删除员工（删后不在列表显示、全部会话失效；Owner 不可删）
-      description: 软删除：员工从本商户移除、不能再登录，历史记录保留。之后可用同一登录名再新建（见 `createTeamMember`）。Owner 行不可删，返回 `403`；该成员的角色里有超出操作者权限边界的 → `403`·`206013`。
+      description: 软删除：员工从本商户移除、不能再登录，历史记录保留。之后可用同一登录名再新建（见 `createTeamMember`）。Owner 行不可删，返回 `403`；该成员的角色里有超出操作者权限边界的 → `403`·`206013`。已删除的员工再删同样回 `204`（并重做该员工终端登录的撤销）。
       parameters:
         - name: operatorId
           in: path

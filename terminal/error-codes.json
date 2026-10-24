@@ -225,6 +225,10 @@
     "968006": {
       "name": "ACCOUNT_STATE_CONFLICT",
       "retryable": false
+    },
+    "968015": {
+      "name": "APPROVER_UNAVAILABLE",
+      "retryable": false
     }
   }
 }

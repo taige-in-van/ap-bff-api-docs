@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 资金 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -78,7 +78,7 @@ paths:
         发 6 位码到 Owner 的登录邮箱，返回 `challengeId`。
         本步只发码、不带充值内容；码和内容在第 2 步一起提交。
 
-        重新发码会让旧码作废，冷却中 → `429`·208013。按挑战流程语义不挂幂等键。
+        重新发码会让旧码作废，冷却中 → `429`·208013。Owner 账号不可用（已停用、已删除或没有已验证邮箱）→ `409`·208056。按挑战流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -97,6 +97,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208013
+        - 208056
   /funds/balance/reserve/funding:
     post:
       tags:
@@ -110,7 +111,7 @@ paths:
         验证码：
 
         - 不对 → `400`·204010，剩余次数在 `context.attemptsRemaining`；
-        - 已过期 → `410`·206006；
+        - 已过期，或不是在发起它的同一次登录里提交 → `410`·206006；
         - 错太多次被锁 → `423`·206007。
 
         以上任一情形，充值与设置都不生效。

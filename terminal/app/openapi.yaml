@@ -464,6 +464,7 @@ paths:
         - 登录者没有管理退款密码的权限。
         - `208035` 商户处于仅查看状态，不能重置退款密码。
         - `208037` `type` 为 `login`。
+        - `968015` 商户 Owner 的账号不可用（已停用、已删除或没有已验证邮箱），验证码发不出去。
       parameters:
         - name: type
           in: query
@@ -498,6 +499,7 @@ paths:
       x-error-codes:
         - 208035
         - 208037
+        - 968015
   /device/merchant/reset/pwd:
     post:
       tags:
@@ -2786,6 +2788,7 @@ paths:
 
         - 发得太频繁，还在冷却中。
         - `208035` 商户处于仅查看状态，不能充值。
+        - `968015` 商户 Owner 的账号不可用（已停用、已删除或没有已验证邮箱），验证码发不出去。
         - 权限不足：需要商户后台「退款准备金充值」的权限。
       responses:
         '200':
@@ -2807,6 +2810,7 @@ paths:
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
         - 208035
+        - 968015
   /device/account/recharge:
     post:
       tags:
