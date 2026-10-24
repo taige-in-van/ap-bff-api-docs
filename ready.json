@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-24T20:20:08Z",
-  "implCommit": "157d172b",
+  "generatedAt": "2026-10-24T23:44:46Z",
+  "implCommit": "27cc0aaa",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/deleteLogo": "eb29dde061658cb5",
@@ -55,14 +55,16 @@
     "merchant/system/markAllNoticesRead": "d1083931e2b554ab",
     "merchant/system/markNoticeRead": "63ff2a1e072421d1",
     "merchant/team/createTeamMember": "29f68656a8acf1d9",
+    "merchant/team/deleteTeamMember": "b22d06dac0e12975",
     "merchant/team/getTeamMemberCounts": "4db5d9c1ee440b48",
     "merchant/team/listAssignableRoles": "67f366b9bba29c0c",
     "merchant/team/listTeamMembers": "54c3a276772d227f",
     "merchant/team/resendInvitation": "0f8014db42d7a7ef",
+    "merchant/team/updateTeamMember": "49324d75dfd75a8b",
     "wechat/wechat/completeWechatOAuth": "b9679ef4149990fd",
     "wechat/wechat/decideWechatChallenge": "bf6d786c4324cff2",
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261024-slice-e-r3"
+  "prdStage": "stage/261024-slice-e-r4"
 }
