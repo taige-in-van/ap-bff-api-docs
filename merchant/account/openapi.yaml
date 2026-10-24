@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -112,7 +112,7 @@ paths:
       summary: 编辑 Business Information（可编辑字段，直接生效）
       description: |
         改 Business Information 的可编辑字段（地址、城市、省州、邮编、时区、语言、营业电话），只提交要改的，保存直接生效、无审核。
-        锁定的字段不在请求体里，带了按未知字段返回 400。
+        锁定的字段不在请求体里。
 
         幂等：纯 PUT、天然幂等（同字段集重复提交结果一致），不挂 Idempotency-Key。
       parameters:
@@ -1031,7 +1031,7 @@ components:
       additionalProperties: false
       minProperties: 1
       description: |
-        改 Business Information 的可编辑字段，只提交要改的；锁定字段不在这里，带了按未知字段 400。空提交 400。
+        改 Business Information 的可编辑字段，只提交要改的；锁定字段不在这里。空提交 400。
 
         校验：`province` 须属 `/config/countries` 里商户所在国的省州（没有省 / 州的国家不设值：新填不传、已存旧值传 `null` 清掉）；`postalCode` 按商户所在国的格式（没有邮编制度的国家不设值，同上；前端取参考数据先校，服务端重校）、`timeZone` 须在所选省州的时区候选内（没有省 / 州的国家按国家）（候选由 `/config/countries` 下发，服务端按同一候选重校）；`businessPhone` 的区号须在白名单内。
       properties:
