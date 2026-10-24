@@ -1,10 +1,12 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-24T04:07:47Z",
-  "implCommit": "bd08d238",
+  "generatedAt": "2026-10-24T17:48:17Z",
+  "implCommit": "28daf64c",
   "ops": {
+    "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/deleteLogo": "eb29dde061658cb5",
     "merchant/account/getAccountProfile": "9de053b99b991771",
+    "merchant/account/getRefundPin": "1332552b55ee8873",
     "merchant/account/updateBusinessInformation": "fe4b4177411cf6c5",
     "merchant/account/updateLogo": "2822e57b94676142",
     "merchant/account/updateOwnerContact": "e96e725a563164f6",
@@ -35,6 +37,9 @@
     "merchant/merchants/submitOnboardingApplication": "c026375e989e0fe3",
     "merchant/merchants/updateOnboardingStep": "83cf6bb40628bcff",
     "merchant/merchants/uploadOnboardingDocumentFile": "997d69ef40ae1cb8",
+    "merchant/notifications/deleteNotificationRecipient": "f497531bc4066aaa",
+    "merchant/notifications/getNotificationSettings": "21b49c9712608b8c",
+    "merchant/notifications/updateNotificationSettings": "003f1b195ae33090",
     "merchant/orders/getStatisticsSummary": "69765b63109942bb",
     "merchant/orders/getStatisticsTrend": "295512c7e00a5cd3",
     "merchant/orders/listRecentPayments": "71705aeec156322d",
@@ -53,5 +58,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261023-slice-e-r1"
+  "prdStage": "stage/261023-alipay-mapi"
 }
