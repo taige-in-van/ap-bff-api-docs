@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.0.0
+  version: 2.1.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -39,7 +39,7 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 支付订单列表
       description: |
-        当前商户的支付订单，分页。日期范围必填，服务端不设默认。已成交的行金额是结算币种的成交金额，没成交的是标价金额。
+        当前商户的支付订单，分页。日期范围必填，服务端不设默认。已成交的行金额是结算币种的成交金额（结算额待定的暂为标价金额，并带 `settleAmountPending: true`），没成交的是标价金额。
 
         列表含 `FAILED` 与 `REJECTED` 两种没收到钱的行；汇总卡不算它们，见 `getPaymentSummary`。状态 chip 的各项与计数另取 `getPaymentCounts`。
 
@@ -119,7 +119,7 @@ paths:
       description: |
         与 `listPayments` 用同一组筛选参数、基于同一批订单的合计，金额是商户结算币种（每笔按实际结算金额相加）。
 
-        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态的行金额之和。
+        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态、结算额已到的行金额之和；结算额待定的笔不计入金额合计、计入笔数。
 
         `refundAmount` 是这批订单至今已退的金额（随订单计入，不按退款发生日），`netSales` = `grossSales` − `refundAmount`。
       parameters:
@@ -819,7 +819,7 @@ paths:
       description: |
         当前商户在 `from` 到 `to`（都含）这段日期里的汇总。日期范围必填，服务端不设默认。
 
-        - `grossSales`：成交订单的收款额合计。
+        - `grossSales`：成交订单的收款额合计；结算额待定的笔不计入金额合计，结算额到达后计入。
         - `refundAmount`：受理的商户退款合计，减去受理后失败回冲的；回冲多于退款的范围内为负。系统自动退款不算。
         - `netSales`：`grossSales` − `refundAmount`，可能为负。
         - `distribution`：`grossSales` 按支付方式品牌拆开，各项之和等于 `grossSales`。
@@ -895,7 +895,7 @@ paths:
       x-required-privilege: dashboard:overview:view
       summary: 本月或上月的逐日收款额与笔数
       description: |
-        当前商户本月或上月每天的收款额与成交笔数，不含退款。哪个月是本月由服务端认定，实际月份在响应的 `month` 里。
+        当前商户本月或上月每天的收款额与成交笔数，不含退款；结算额待定的笔不计入金额合计、计入笔数。哪个月是本月由服务端认定，实际月份在响应的 `month` 里。
 
         `points` 每天一项、按日期升序、没有交易的日子金额与笔数为 0：`current` 从当月 1 日到今天，`previous` 是上月整月。
       parameters:
@@ -1183,9 +1183,12 @@ components:
         source:
           $ref: '#/components/schemas/PaymentSource'
         amount:
-          description: 订单金额。已成交的订单是结算币种的成交金额；没成交的（`FAILED` / `REJECTED`）是标价金额。
+          description: '订单金额。已成交且结算额已到的订单是结算币种的成交金额；已成交而结算额待定的订单是标价金额，并带 `settleAmountPending: true`；没成交的（`FAILED` / `REJECTED`）是标价金额。'
           allOf:
             - $ref: '#/components/schemas/Money'
+        settleAmountPending:
+          type: boolean
+          description: 结算额待定：成交金额尚未从通道到达，`amount` 暂为标价金额；到达后不再返回本键。只在待定时返回。
         status:
           $ref: '#/components/schemas/PaymentStatus'
         createdAt:
@@ -1195,7 +1198,7 @@ components:
           description: 备注：商户填的订单备注与收款页向付款人采集的内容，已拼成一段展示文本，格式不保证稳定。没有时不返回本键。
         refundable:
           type: boolean
-          description: 能否发起退款，服务端的判定结果。
+          description: '能否发起退款，服务端的判定结果。结算额待定（`settleAmountPending: true`）的订单为 false，成交折算金额到达后按剩余可退额恢复。'
         remainingRefundable:
           description: 还可以退的金额，**标价币种**（退款按标价币种发起）：成交额减已退、减在途的退款。`refundable` 为真时必返，否则不返回本键。
           allOf:
