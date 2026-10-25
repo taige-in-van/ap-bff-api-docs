@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-24T23:44:46Z",
-  "implCommit": "27cc0aaa",
+  "generatedAt": "2026-10-25T02:25:42Z",
+  "implCommit": "a920874f",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/deleteLogo": "eb29dde061658cb5",
@@ -43,7 +43,7 @@
     "merchant/notifications/updateNotificationSettings": "003f1b195ae33090",
     "merchant/orders/getStatisticsSummary": "69765b63109942bb",
     "merchant/orders/getStatisticsTrend": "295512c7e00a5cd3",
-    "merchant/orders/listRecentPayments": "71705aeec156322d",
+    "merchant/orders/listRecentPayments": "47ca8efc042aa484",
     "merchant/system/getNotice": "1d07c5fd823e1fe3",
     "merchant/system/getNoticeSummary": "79e57392dd46bdd6",
     "merchant/system/getSettlementConfig": "be0180edc9237cd5",
@@ -66,5 +66,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261024-slice-e-r4"
+  "prdStage": "stage/261024-slice-e-r5b"
 }
