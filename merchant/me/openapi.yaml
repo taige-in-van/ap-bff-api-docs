@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 个人账号 — 前端契约面
-  version: 2.1.1
+  version: 2.2.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -83,7 +83,7 @@ paths:
       description: |
         邮箱账号发起改登录邮箱，返回 `challengeId` 串起后续步骤。身份校验方式：已启 MFA 用验证器码；未启用旧邮箱的码，本步即发出。
 
-        My Profile 和 Business Profile（Owner 本人改 Primary Email）都调本组接口。同一个人的登录邮箱同时只有一笔改动在途，含 Owner 在成员管理里给员工发起的：新发起顶掉上一笔，上一笔再提交返回 `206006`。用户名账号不能自助改，返回 `409`·`968006`。
+        My Profile 和 Business Profile（Owner 本人改 Primary Email）都调本组接口。同一个人的登录邮箱同时只有一笔改动在途，含 Owner 在成员管理里给员工发起的：新发起顶掉上一笔，上一笔再提交返回 `206006`。用户名账号不能自助改，返回 `409`·`968006`。需要向旧邮箱发码而冷却未到时返回 `429`·`208013`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -99,6 +99,7 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
+        - 208013
         - 968006
   /me/email/changes/{challengeId}/code:
     post:
@@ -152,9 +153,8 @@ paths:
 
         错误码：
 
-        - `206011` 验证器码错（不计次）。
-        - `204010` 旧邮箱的码错、还有次数；剩余次数见 `context.attemptsRemaining`。
-        - `206007` 旧邮箱的码错到上限，这笔改邮箱作废。
+        - `204010` 码错（验证器码或旧邮箱的码）、还有次数；剩余次数见 `context.attemptsRemaining`。
+        - `206007` 码错到上限，这笔改邮箱作废。
         - `206006` 这笔改邮箱已过期、已完成或已被顶掉。
         - `206005` 不是发起者本人。
       parameters:
@@ -183,7 +183,6 @@ paths:
         - 206005
         - 206006
         - 206007
-        - 206011
   /me/email/changes/{challengeId}/address:
     post:
       tags:
@@ -192,12 +191,12 @@ paths:
       x-required-privilege: session
       summary: 改登录邮箱 — 第 2 步提交新邮箱（发新邮箱的码）
       description: |-
-        提交新邮箱，校验格式、与当前不同、未被别人使用，通过后向新邮箱发码。新邮箱在确认前不占用。
+        提交新邮箱，校验格式、与当前不同、未被别人使用，通过后向新邮箱发码。新邮箱在确认前不占用。每笔改邮箱只受理一次新邮箱，提交成功后要换邮箱须重新发起。
 
         错误码：
 
         - `968001` 新邮箱已被别人使用。
-        - `206006` 这笔改邮箱已过期、已完成或已被顶掉。
+        - `206006` 这笔改邮箱已过期、已完成、已被顶掉，或已提交过新邮箱。
         - `206005` 不是发起者本人。
       parameters:
         - name: challengeId
@@ -252,7 +251,7 @@ paths:
 
         - `204010` 码错、还有次数；剩余次数见 `context.attemptsRemaining`。
         - `206007` 码错到上限，这笔改邮箱作废。
-        - `968001` 确认前新邮箱已被别人抢先使用。
+        - `968001` 确认前新邮箱已被别人抢先使用，这笔改邮箱作废，须重新发起。
         - `206006` 这笔改邮箱已过期、已完成或已被顶掉。
         - `206005` 不是发起者本人。
       parameters:
