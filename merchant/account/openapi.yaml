@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.4.1
+  version: 2.4.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -357,7 +357,7 @@ paths:
 
         审核结果异步更新（不在本 BFF）。
 
-        幂等：必带 `Idempotency-Key`。同键 + 同请求体重发返回首次结果（不重复建、也不因码已用掉而失败）；请求体有任何变化都要换新键，包括输错码后重输（码在请求体里），沿用旧键改请求体 → `409`·908003。
+        幂等：必带 `Idempotency-Key`。比对不看验证码——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不重复建变更、也不因码已用掉而失败。改了变更内容 → 换新键，沿用旧键改内容 → `409`·908003。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
