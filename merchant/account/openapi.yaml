@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.4.3
+  version: 2.5.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -357,7 +357,7 @@ paths:
 
         审核结果异步更新（不在本 BFF）。
 
-        幂等：必带 `Idempotency-Key`。比对不看验证码——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不重复建变更、也不因码已用掉而失败。改了变更内容 → 换新键，沿用旧键改内容 → `409`·908003。
+        幂等：必带 `Idempotency-Key`。比对不看验证码——验证码输错后重输、网络重试都用原键；同键同内容在验证码核验成功后的回放窗内重发返回首次结果，不重复建变更、也不因码已用掉而失败；超出回放窗后按码已用 → `410`·206006，须重新发码再提交。改了变更内容 → 换新键，沿用旧键改内容 → `409`·908003。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -415,8 +415,6 @@ paths:
         当前商户的受理模式与其支付方式、卡终端集成、电商集成的状态。
 
         支付方式只给目录码，展示名与未开通的候选按当前商户币种取 `listPaymentMethodOptions`。凭据只给掩码摘要，明文不返回。
-
-        当前商户未激活 → `409`·`208003`。
       responses:
         '200':
           description: OK
@@ -482,8 +480,7 @@ paths:
                           fixedFee: '10'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
-      x-error-codes:
-        - 208003
+      x-error-codes: []
   /account/service/modes/{mode}:
     put:
       tags:
@@ -499,12 +496,13 @@ paths:
         | 已开通（`ACTIVE`） | 开，即时生效 | 关，即时生效 |
         | 未开通（读面里没有） | 进开通申请，待审核 | 不动 |
         | 审核中（`UNDER_REVIEW`） | 不受本次提交影响 | 不受本次提交影响 |
+        | 开通中（`ACTIVATING`） | 不受本次提交影响 | 不受本次提交影响 |
 
         - **模式未开通**：整个请求建成一张开通申请，`paymentMethods` 至少一个，并带材料——`in_store` 带 `storeInsideFileId` + `storeOutsideFileId`（提交时即写入商户资料的门店内照、外照，替换已有的，不等审核通过）；`online` 带 `typeOfOnlineService`，为 `WEBSITE` 时带 `websiteUrl`。
         - **模式已开通**：`paymentMethods` 可以为空，即全部关掉，模式仍是 `ACTIVE`。不带门店照（带了 → 400）。线上模式的 `typeOfOnlineService` / `websiteUrl` 不带就是不改；带了即时生效，同时进复审，复审期间照常收款；复审中再改，沿用同一次复审。
         - 所选方式须属于该模式、在当前商户币种的候选内（`listPaymentMethodOptions`），否则 400。
         - `storeInsideFileId` / `storeOutsideFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·208040（`details` 逐项指到出问题的那个字段）。
-        - 模式正在开通审核中，或该模式已有申请在审又勾了新的未开通方式 → `409`·`208003`。
+        - 模式正在开通审核中或开通中，或该模式已有开通申请在审又勾了新的未开通方式 → `409`·`208003`。
 
         同样的请求体重发结果不变，不挂 Idempotency-Key。
       parameters:
@@ -886,8 +884,9 @@ components:
       enum:
         - NOT_CONNECTED
         - UNDER_REVIEW
+        - ACTIVATING
         - ACTIVE
-      description: Service 页的开通状态（受理模式、支付方式、集成共用）：`NOT_CONNECTED` 未开通（申请被拒后也回到这里，可以重新申请）/ `UNDER_REVIEW` 审核中 / `ACTIVE` 已开通。
+      description: Service 页的开通状态（受理模式、支付方式、集成共用）：`NOT_CONNECTED` 未开通（申请被拒、平台全部停用都回到这里，可以重新申请）/ `UNDER_REVIEW` 审核中 / `ACTIVATING` 开通中（申请已通过、平台还在开通，不能再申请，也不能启用其下的方式）/ `ACTIVE` 已开通。终端与电商集成不会出现 `ACTIVATING`。
     EcommerceProvider:
       type: string
       enum:
@@ -1167,7 +1166,7 @@ components:
     ServicePaymentMethod:
       type: object
       additionalProperties: false
-      description: 某个支付方式在该受理模式下的状态。只列已开通与审核中的方式，其余候选取 `listPaymentMethodOptions`、可以申请。`ACTIVE` 时带 `enabled` 与 `rate`，`UNDER_REVIEW` 时两者都不带。
+      description: 某个支付方式在该受理模式下的状态。只列已开通、开通中与审核中的方式，其余候选取 `listPaymentMethodOptions`、可以申请。`ACTIVE` 时带 `enabled` 与 `rate`，`ACTIVATING` 与 `UNDER_REVIEW` 时两者都不带。
       required:
         - paymentMethod
         - status
@@ -1177,7 +1176,7 @@ components:
         status:
           allOf:
             - $ref: '#/components/schemas/ServiceStatus'
-          description: '`ACTIVE` 或 `UNDER_REVIEW`。'
+          description: '`ACTIVE`、`ACTIVATING` 或 `UNDER_REVIEW`。'
         enabled:
           type: boolean
           description: 商户自己的开关，`ACTIVE` 时返回；关着的方式仍是 `ACTIVE`，随时可以再打开。
@@ -1189,7 +1188,7 @@ components:
       type: object
       additionalProperties: false
       description: |
-        一个受理模式的状态与支付方式。模式有已开通的方式即 `ACTIVE`；没有、但有开通申请在审即 `UNDER_REVIEW`；否则 `NOT_CONNECTED`。
+        一个受理模式的状态与支付方式。模式有已开通的方式即 `ACTIVE`；没有、但有开通申请在审即 `UNDER_REVIEW`；否则最近一次开通申请已通过、方式还没开通即 `ACTIVATING`；否则 `NOT_CONNECTED`。
 
         - 商户把方式全关了（`enabled` 全为 `false`）仍是 `ACTIVE`，可以再打开。
         - 平台把该模式整个关闭（如复审不通过）回到 `NOT_CONNECTED`，可以重新申请。
@@ -1204,19 +1203,19 @@ components:
           $ref: '#/components/schemas/ServiceStatus'
         paymentMethods:
           type: array
-          description: '`NOT_CONNECTED` 时为空；开通审核中时是申请里的方式（都是 `UNDER_REVIEW`）。不含信用卡，卡在 `terminals` 里。'
+          description: '`NOT_CONNECTED` 时为空；开通审核中时是申请里的方式（都是 `UNDER_REVIEW`）；开通中时是已通过申请里的方式（都是 `ACTIVATING`）。不含信用卡，卡在 `terminals` 里。'
           items:
             $ref: '#/components/schemas/ServicePaymentMethod'
         typeOfOnlineService:
           allOf:
             - $ref: '#/components/schemas/OnlineServiceType'
-          description: 线上模式开通审核中或已开通时返回；线下与未开通不返回本键。
+          description: 线上模式开通审核中、开通中或已开通时返回；线下与未开通不返回本键。
         websiteUrl:
           $ref: '#/components/schemas/WebsiteUrl'
           description: '`typeOfOnlineService` 为 `WEBSITE` 时返回，是当前生效的网址；其余不返回本键。'
         websiteUrlUnderReview:
           type: boolean
-          description: 改过的服务类型或网址还在复审中时返回 `true`（复审期间照常收款）；不在复审中不返回本键。
+          description: 改过的服务类型或网址还在复审中时返回 `true`（复审期间照常收款）；不在复审中不返回本键。复审与开通申请互不影响：开通申请在审期间改网址，另起复审。
     TerminalView:
       type: object
       additionalProperties: false

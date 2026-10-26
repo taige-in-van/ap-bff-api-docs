@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.2.1
+  version: 2.3.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -203,7 +203,7 @@ paths:
 
         - 入驻申请：`steps`（入驻五步的资料，文档位只给文件引用、不给访问地址）；代客建档的另带议价条款 `steps.terms` 与 `signatureRequests`（每次发起确认的记录）。
         - 结算信息变更：`settlementChange`（新旧对比，账号只给末 4 位掩码）。
-        - 受理模式开通：`acceptanceMode` 与 `paymentMethods`。
+        - 受理模式开通：`acceptanceMode` 与 `paymentMethods`；线上模式另带 `typeOfOnlineService` 与 `websiteUrl`（商户资料当前值）。改线上服务类型或网址触发的复审也是这一类，`paymentMethods` 为空。
         - 插件入口开通：`entryPoint` 与 `storeUrl`；改店铺网址触发的复审也是这一类。
 
         `blocklistHits` 是本次读取时与禁入名单比对的命中项（仅入驻申请比对，无命中为空数组）；`history` 按时间列出每次提交、决定与代客建档的操作。查看不进操作审计。
@@ -376,7 +376,7 @@ paths:
       description: |
         对审核中的申请下决定：
 
-        - `APPROVED`：通过。入驻申请通过即商户激活，同一次完成；结算信息变更通过即新账户生效、新周期随后生效；开通申请通过后，入口能否使用由通道进件与产品配置后续置位决定。入驻申请通过前与禁入名单比对，命中即拒绝。
+        - `APPROVED`：通过。入驻申请通过即商户激活，同一次完成；结算信息变更通过即新账户生效、新周期随后生效；开通申请通过后，入口能否使用由通道进件与产品配置后续置位决定；线上服务类型或网址复审（无支付方式）通过后无变化、不建签约。入驻申请通过前与禁入名单比对，命中即拒绝。
         - `REJECTED`：拒绝，`remark` 必填，作为拒绝说明。结算信息变更被拒，旧值保留。
         - `MORE_INFO_REQUIRED`：要求补料，只用于入驻申请；`missingFields` 至少一项，不带原因、不给商户发邮件。
 
@@ -934,12 +934,19 @@ components:
               description: 结算信息的新旧对比；仅结算信息变更返回。
             acceptanceMode:
               $ref: '#/components/schemas/AcceptanceMode'
-              description: 申请开通的受理模式；仅受理模式开通返回。
+              description: 申请涉及的受理模式；仅受理模式开通（含改线上服务类型或网址触发的复审）返回。
             paymentMethods:
               type: array
-              description: 申请开通的支付方式；仅受理模式开通返回。
+              description: 申请开通的支付方式；仅受理模式开通返回，改线上服务类型或网址触发的复审为空数组。
               items:
                 $ref: '#/components/schemas/ApplicationPaymentMethod'
+            typeOfOnlineService:
+              allOf:
+                - $ref: '#/components/schemas/OnlineServiceType'
+              description: 线上服务类型，取商户资料当前值；仅线上模式的受理模式开通（含复审）返回。
+            websiteUrl:
+              $ref: '#/components/schemas/WebsiteUrl'
+              description: 商户当前网址，取商户资料当前值，复审审的就是这个值；仅线上模式且 `typeOfOnlineService` 为 `WEBSITE` 时返回。
             entryPoint:
               allOf:
                 - $ref: '#/components/schemas/EntryPoint'

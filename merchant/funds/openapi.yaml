@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 资金 — 前端契约面
-  version: 2.1.0
+  version: 2.1.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -125,7 +125,7 @@ paths:
 
         最低金额只是保存设置。准备金低于最低金额时，平台每天从待结算金额（`toSettle`）补一次，不够就补到有多少算多少。
 
-        幂等：带 `Idempotency-Key`。比对只看 `topUpAmount` 与 `minimumAmount`，不看 `otp`——验证码输错后重输、网络重试都用原键；同键同内容重发返回首次结果，不会划两次。改了金额或设置 → 换新键，沿用旧键 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。
+        幂等：带 `Idempotency-Key`。比对只看 `topUpAmount` 与 `minimumAmount`，不看 `otp`——验证码输错后重输、网络重试都用原键；同键同内容在验证码核验成功后的回放窗内重发返回首次结果，不会划两次；超出回放窗后按码已用 → `410`·206006，须重新发码再提交。改了金额或设置 → 换新键，沿用旧键 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
