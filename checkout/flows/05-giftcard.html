@@ -66,15 +66,15 @@ stateDiagram-v2
 
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
-| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回页面内容（面值档、买家与收件人采集项、条款） |
-| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式；带上所选面值档的实付价时每项返回总应付 |
-| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：首次发起时带 `giftcard` 块（面值档、自购或送礼、买家与收件人填写内容），连订单一起建 |
-| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态、所买面值、发放状态与凭证 |
-| 5 | `requestGiftcardEmailOtp` | `POST /giftcard/email/otp-challenges` | 向一个邮箱发验证码，返回 `challengeId` |
-| 6 | `verifyGiftcardEmailOtp` | `POST /giftcard/email/otp-challenges/{challengeId}/verification` | 提交验证码，通过后这个邮箱记为本付款人已验证 |
-| 7 | `listGiftcardOrders` | `GET /giftcard/orders` | 我的订单列表：本付款人在这条礼卡链接下已付款的订单，可按已完成、处理中、已退款筛 |
-| 8 | `getGiftcardOrder` | `GET /giftcard/orders/{orderId}` | 我的订单详情：一笔订单的所买面值、发放状态与凭证 |
-| 9 | `createGiftcardAlipayPass` | `POST /giftcard/orders/{orderId}/alipay-pass` | 存入支付宝卡包：返回一个跳转地址，页面整页跳过去，由支付宝完成存入；只对 `alipayPassAvailable` 为 `true` 的订单 |
+| 1 | [`openQrcodeCheckout`](../checkout/index.html#tag/sessions/operation/openQrcodeCheckout) | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回页面内容（面值档、买家与收件人采集项、条款） |
+| 2 | [`listCheckoutPaymentMethods`](../checkout/index.html#tag/order/operation/listCheckoutPaymentMethods) | `GET /order/payment-methods` | 可用支付方式；带上所选面值档的实付价时每项返回总应付 |
+| 3 | [`createCheckoutPayment`](../checkout/index.html#tag/order/operation/createCheckoutPayment) | `POST /order/payments` | 发起支付：首次发起时带 `giftcard` 块（面值档、自购或送礼、买家与收件人填写内容），连订单一起建 |
+| 4 | [`getCheckoutOrder`](../checkout/index.html#tag/order/operation/getCheckoutOrder) | `GET /order` | 本会话订单的当前状态、所买面值、发放状态与凭证 |
+| 5 | [`requestGiftcardEmailOtp`](../checkout/index.html#tag/giftcard/operation/requestGiftcardEmailOtp) | `POST /giftcard/email/otp-challenges` | 向一个邮箱发验证码，返回 `challengeId` |
+| 6 | [`verifyGiftcardEmailOtp`](../checkout/index.html#tag/giftcard/operation/verifyGiftcardEmailOtp) | `POST /giftcard/email/otp-challenges/{challengeId}/verification` | 提交验证码，通过后这个邮箱记为本付款人已验证 |
+| 7 | [`listGiftcardOrders`](../checkout/index.html#tag/giftcard/operation/listGiftcardOrders) | `GET /giftcard/orders` | 我的订单列表：本付款人在这条礼卡链接下已付款的订单，可按已完成、处理中、已退款筛 |
+| 8 | [`getGiftcardOrder`](../checkout/index.html#tag/giftcard/operation/getGiftcardOrder) | `GET /giftcard/orders/{orderId}` | 我的订单详情：一笔订单的所买面值、发放状态与凭证 |
+| 9 | [`createGiftcardAlipayPass`](../checkout/index.html#tag/giftcard/operation/createGiftcardAlipayPass) | `POST /giftcard/orders/{orderId}/alipay-pass` | 存入支付宝卡包：返回一个跳转地址，页面整页跳过去，由支付宝完成存入；只对 `alipayPassAvailable` 为 `true` 的订单 |
 
 5 至 9 只在礼卡会话里可用。`state` 为 `INACTIVE` / `EXPIRED` 的礼卡入口照样签发会话；还没有订单的这类会话只能调这五个，取方式列表返回空列表，不能发起支付。已有订单的会话不受这条限制：照常查订单、走结果页，要发起新的支付时被 `108300` / `108303` 拒。活动已结束时 9 照常可用，本会话的订单与本付款人在这条链接下的已付款订单都能存入。链接已删除的，7、8 一律 `404`，即使会话因已有订单被认回；9 只能用于本会话的这笔订单，其余 `404`；5、6 对已有订单的会话仍可用，但只能验这笔订单的买家邮箱（发码带了别的邮箱返回 `400`），让已付款的订单仍能完成验证、继续发放。
 

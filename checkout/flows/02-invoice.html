@@ -26,10 +26,10 @@
 
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
-| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回账单内容（账单号、金额、说明、截止时刻、备注项） |
-| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式，每项带总应付 |
-| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：首次发起时带付款人备注，连订单一起建；账单已付清、已过截止时刻或已删除时拒绝 |
-| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态，账单会话另带账单当前状态（结果页、收据） |
+| 1 | [`openQrcodeCheckout`](../checkout/index.html#tag/sessions/operation/openQrcodeCheckout) | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回账单内容（账单号、金额、说明、截止时刻、备注项） |
+| 2 | [`listCheckoutPaymentMethods`](../checkout/index.html#tag/order/operation/listCheckoutPaymentMethods) | `GET /order/payment-methods` | 可用支付方式，每项带总应付 |
+| 3 | [`createCheckoutPayment`](../checkout/index.html#tag/order/operation/createCheckoutPayment) | `POST /order/payments` | 发起支付：首次发起时带付款人备注，连订单一起建；账单已付清、已过截止时刻或已删除时拒绝 |
+| 4 | [`getCheckoutOrder`](../checkout/index.html#tag/order/operation/getCheckoutOrder) | `GET /order` | 本会话订单的当前状态，账单会话另带账单当前状态（结果页、收据） |
 
 ---
 

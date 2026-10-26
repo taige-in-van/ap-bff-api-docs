@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 团队成员 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -395,7 +395,7 @@ paths:
       operationId: deleteMemberWechatBinding
       x-required-privilege: account:team:manage
       summary: 给成员解绑微信（不影响其当前会话）
-      description: 只停用该成员的商户后台 WeChat 登录绑定；不影响其平台级 WeChat 账号、不影响其他登录方式。
+      description: 解除该成员的微信绑定（成员账号只有这一份微信绑定，解绑即全局解除），此后不能再用该微信扫码登录商户后台；不影响其他登录方式，不影响其当前会话。
       parameters:
         - name: operatorId
           in: path
@@ -419,6 +419,8 @@ paths:
       summary: 绑微信 — 结果轮询（对称 pollWechatLogin）
       description: |
         轮询这次绑定的结果，恒返回 `200` + 状态。未扫、未确认、扫码后被拒（如该微信已绑别的账号）、在微信里取消、确认后没能写入（成员已被删除或停用、同一微信被抢先绑定），都显示 `WAITING` 直到二维码过期；拒绝原因只在扫码本人的微信里提示。页面处理见 flows。
+
+        本接口只核 `qrTicket` 归属当前商户与该成员，不重核成员是否仍在册：文件开头「路径里的 `operatorId` 不存在或不属于当前商户回 `403`」的规则对本接口不适用，成员在轮询期间被删除或停用、因而确认后没能写入的，按上文显示 `WAITING` 直到过期；已显示 `BOUND` 的不因成员随后被停用而改变。
       parameters:
         - name: operatorId
           in: path
@@ -576,7 +578,7 @@ components:
         wechat:
           allOf:
             - $ref: '#/components/schemas/WechatBindingSummary'
-          description: 该成员的商户后台微信登录绑定；未绑定不返回本键。不代表其平台级微信账号是否存在。昵称只用于 Owner 辨认该成员绑的是哪个微信。
+          description: 该成员的微信绑定；未绑定不返回本键。昵称只用于 Owner 辨认该成员绑的是哪个微信。
         lastLoginAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'

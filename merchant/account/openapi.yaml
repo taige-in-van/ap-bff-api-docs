@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.4.2
+  version: 2.4.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -347,7 +347,7 @@ paths:
       x-required-privilege: account:settlement:edit
       summary: 结算变更第 2 步：带码提交变更（进入审核，旧值继续生效）
       description: |
-        一次完成验码和提交：码对了就创建变更请求并进入审核，结算信息仍按旧值生效，审核通过才换成新值；同时给 Owner 发「变更审核中」通知。审核中时读面 `settlement.pendingReview` 为 true。
+        一次完成验码和提交：码对了就创建变更请求并进入审核，结算信息仍按旧值生效，审核通过才换成新值；同时给商户通知接收方发「结算信息审核中」邮件。审核中时读面 `settlement.pendingReview` 为 true。
 
         - `changes` 含银行组（`bankName` + `bankAccount`）时，`voidChequeFileId` 必填（缺 → 400）；只改 `storeId` / `settlementCycle` 时不带。
         - `voidChequeFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·208040（`details` 指到 `voidChequeFileId`）。

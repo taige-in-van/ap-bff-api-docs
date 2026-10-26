@@ -25,10 +25,10 @@
 
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
-| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回收款页要显示的内容（商户名、Logo、币种、小费档位、采集项、附加说明） |
-| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式；带上当前金额与小费时每项返回总应付 |
-| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：店铺码首次发起时随请求带 `storeQr` 块（金额、小费与采集内容），连订单一起建 |
-| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态（结果页、收据） |
+| 1 | [`openQrcodeCheckout`](../checkout/index.html#tag/sessions/operation/openQrcodeCheckout) | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回收款页要显示的内容（商户名、Logo、币种、小费档位、采集项、附加说明） |
+| 2 | [`listCheckoutPaymentMethods`](../checkout/index.html#tag/order/operation/listCheckoutPaymentMethods) | `GET /order/payment-methods` | 可用支付方式；带上当前金额与小费时每项返回总应付 |
+| 3 | [`createCheckoutPayment`](../checkout/index.html#tag/order/operation/createCheckoutPayment) | `POST /order/payments` | 发起支付：店铺码首次发起时随请求带 `storeQr` 块（金额、小费与采集内容），连订单一起建 |
+| 4 | [`getCheckoutOrder`](../checkout/index.html#tag/order/operation/getCheckoutOrder) | `GET /order` | 本会话订单的当前状态（结果页、收据） |
 
 ---
 

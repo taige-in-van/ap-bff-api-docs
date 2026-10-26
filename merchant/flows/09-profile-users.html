@@ -44,7 +44,7 @@
 | 18 | [`resendInvitation`](../team/index.html#tag/members/operation/resendInvitation) | `POST /team/members/{operatorId}/invitation` | 给尚未设密的员工重发邀请 |
 | 19 | [`updateTeamMember`](../team/index.html#tag/members/operation/updateTeamMember) | `PUT /team/members/{operatorId}` | 编辑员工(一次提交同步生效；改已激活员工邮箱走确认链接) |
 | 20 | [`deleteTeamMember`](../team/index.html#tag/members/operation/deleteTeamMember) | `DELETE /team/members/{operatorId}` | 删除员工(软删，可用同登录名再新建) |
-| 21 | [`deleteMemberWechatBinding`](../team/index.html#tag/members/operation/deleteMemberWechatBinding) | `DELETE /team/members/{operatorId}/wechat` | 代成员解绑 WeChat(仅停用该成员的商户后台 WeChat 登录) |
+| 21 | [`deleteMemberWechatBinding`](../team/index.html#tag/members/operation/deleteMemberWechatBinding) | `DELETE /team/members/{operatorId}/wechat` | 代成员解绑 WeChat(解除该成员账号的微信绑定，全局生效) |
 | 22 | [`initiateMemberWechatBinding`](../team/index.html#tag/members/operation/initiateMemberWechatBinding) | `POST /team/members/{operatorId}/wechat` | 代成员绑 WeChat 发起(返回二维码) |
 | 23 | [`pollMemberWechatBinding`](../team/index.html#tag/members/operation/pollMemberWechatBinding) | `GET /team/members/{operatorId}/wechat/{qrTicket}` | 绑定结果轮询(异设备回告发起端) |
 | 24 | [`updateMyProfile`](../me/index.html#tag/me/operation/updateMyProfile) | `PUT /me` | 改自己的昵称、界面语言 |
@@ -272,7 +272,7 @@ sequenceDiagram
 
 - 成员扫码后没绑成的（被拦下、在微信里取消、确认时成员已被删除或停用、同一微信被别人抢先绑定），弹窗一直显示等待直到过期，原因只在成员自己的微信里说明：二维码可能被转发，看弹窗的人未必是被绑定的本人。
 - 弹窗结束时重调 #14：成员确认得晚、结果没赶上轮询的，绑定照样成立，刷新后能看到；成员被删除或停用的，列表里也看得到。
-- 绑定成功即该成员能在商户后台扫码登录，列表里该成员带 `wechat`。解绑在 Users 列表上（#21），只停用他在商户后台的微信登录，不影响他在别处的微信绑定。
+- 绑定成功即该成员能在商户后台扫码登录，列表里该成员带 `wechat`。解绑在 Users 列表上（#21），解除的是该成员账号的微信绑定（账号只有这一份，全局生效），此后他不能再用该微信扫码登录。
 - 与扫码登录同一套形状（`WechatQrChallenge` + `WechatPollStatus`），前端可共用一个「展示二维码 + 轮询」组件，只按状态分支，不必为票据本身有问题另开一路。
 
 ---

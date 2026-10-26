@@ -27,10 +27,10 @@
 
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
-| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回页面内容（商品项或票档、买家采集项、条款） |
-| 2 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 可用支付方式；带上当前选购的小计时每项返回总应付 |
-| 3 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：首次发起时带 `product` 或 `ticket` 块（选购项与买家填写内容），连订单一起建并占用库存 |
-| 4 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态、选购明细与凭证 |
+| 1 | [`openQrcodeCheckout`](../checkout/index.html#tag/sessions/operation/openQrcodeCheckout) | `POST /sessions/qrcode/{qrcodeId}` | 入口：建立或认回会话，返回页面内容（商品项或票档、买家采集项、条款） |
+| 2 | [`listCheckoutPaymentMethods`](../checkout/index.html#tag/order/operation/listCheckoutPaymentMethods) | `GET /order/payment-methods` | 可用支付方式；带上当前选购的小计时每项返回总应付 |
+| 3 | [`createCheckoutPayment`](../checkout/index.html#tag/order/operation/createCheckoutPayment) | `POST /order/payments` | 发起支付：首次发起时带 `product` 或 `ticket` 块（选购项与买家填写内容），连订单一起建并占用库存 |
+| 4 | [`getCheckoutOrder`](../checkout/index.html#tag/order/operation/getCheckoutOrder) | `GET /order` | 本会话订单的当前状态、选购明细与凭证 |
 
 ---
 

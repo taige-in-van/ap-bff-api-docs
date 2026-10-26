@@ -100,12 +100,12 @@ stateDiagram-v2
 
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
-| 1 | `openQrcodeCheckout` | `POST /sessions/qrcode/{qrcodeId}` | 静态码入口（店铺码、账单、商品 / 票务 / 礼卡）：换取并登记付款人标识、建立或认回会话、返回页面所需内容 |
-| 2 | `openOrderCheckout` | `POST /sessions/order/{linkToken}` | 已有订单入口（动态码、开放 API 托管页、电商插件订单）：同上 |
-| 3 | `listCheckoutPaymentMethods` | `GET /order/payment-methods` | 当前可用的支付方式，每项带总应付（首次发起前由查询参数带入：店铺码带 `amount`、`tip`，商品 / 票务带所选各项小计 `amount`，礼卡带所选面值档的 `price` 作为 `amount`）；要填卡的方式另带卡表单参数与已存卡 |
-| 4 | `createCheckoutPayment` | `POST /order/payments` | 发起支付：本会话还没有订单就连订单一起建，请求带本产品那一块（店铺码 `storeQr`：金额、小费与采集内容；商品 / 票务 `product` / `ticket`：选购项与采集内容；账单 `invoice`：备注；礼卡 `giftcard`：面值档、自购或送礼与填写内容）；卡类方式带 `card` 块（卡凭据或已存卡）；返回订单当前状态与拉起动作 |
-| 5 | `getCheckoutOrder` | `GET /order` | 本会话订单的当前状态（轮询、刷新与回来后重取拉起动作、成功页与收据数据） |
-| 6 | `deleteCheckoutSavedCard` | `DELETE /order/cards/{savedCardId}` | 删除付款人自己的一张已存卡 |
+| 1 | [`openQrcodeCheckout`](../checkout/index.html#tag/sessions/operation/openQrcodeCheckout) | `POST /sessions/qrcode/{qrcodeId}` | 静态码入口（店铺码、账单、商品 / 票务 / 礼卡）：换取并登记付款人标识、建立或认回会话、返回页面所需内容 |
+| 2 | [`openOrderCheckout`](../checkout/index.html#tag/sessions/operation/openOrderCheckout) | `POST /sessions/order/{linkToken}` | 已有订单入口（动态码、开放 API 托管页、电商插件订单）：同上 |
+| 3 | [`listCheckoutPaymentMethods`](../checkout/index.html#tag/order/operation/listCheckoutPaymentMethods) | `GET /order/payment-methods` | 当前可用的支付方式，每项带总应付（首次发起前由查询参数带入：店铺码带 `amount`、`tip`，商品 / 票务带所选各项小计 `amount`，礼卡带所选面值档的 `price` 作为 `amount`）；要填卡的方式另带卡表单参数与已存卡 |
+| 4 | [`createCheckoutPayment`](../checkout/index.html#tag/order/operation/createCheckoutPayment) | `POST /order/payments` | 发起支付：本会话还没有订单就连订单一起建，请求带本产品那一块（店铺码 `storeQr`：金额、小费与采集内容；商品 / 票务 `product` / `ticket`：选购项与采集内容；账单 `invoice`：备注；礼卡 `giftcard`：面值档、自购或送礼与填写内容）；卡类方式带 `card` 块（卡凭据或已存卡）；返回订单当前状态与拉起动作 |
+| 5 | [`getCheckoutOrder`](../checkout/index.html#tag/order/operation/getCheckoutOrder) | `GET /order` | 本会话订单的当前状态（轮询、刷新与回来后重取拉起动作、成功页与收据数据） |
+| 6 | [`deleteCheckoutSavedCard`](../checkout/index.html#tag/order/operation/deleteCheckoutSavedCard) | `DELETE /order/cards/{savedCardId}` | 删除付款人自己的一张已存卡 |
 
 ---
 
