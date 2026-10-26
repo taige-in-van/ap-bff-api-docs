@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-25T05:17:19Z",
-  "implCommit": "99ed938c",
+  "generatedAt": "2026-10-26T04:27:00Z",
+  "implCommit": "fc5b27d9",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/confirmRefundPinReset": "41bbecc55dde35e6",
@@ -15,6 +15,7 @@
     "merchant/account/uploadLogoFile": "52b05eb9744728b2",
     "merchant/auth/acceptInvitation": "734ef64d48178a30",
     "merchant/auth/completeMfaChallenge": "f4b905d0b1e574c0",
+    "merchant/auth/confirmMemberLoginEmail": "d648ad3883fc5005",
     "merchant/auth/confirmPasswordReset": "e1ca2dbfb0c443ed",
     "merchant/auth/getCurrentSession": "99d70bb7af1588b2",
     "merchant/auth/initiateWechatLogin": "a6bc1053ca8d1979",
@@ -28,11 +29,16 @@
     "merchant/auth/verifyRegistrationEmail": "be5e45f66c8e7eaa",
     "merchant/funds/getBalance": "fe566baf3ce0b834",
     "merchant/me/changeMyPassword": "78750fe7616d6a49",
+    "merchant/me/confirmLoginEmailChange": "607fa428f0c14587",
     "merchant/me/confirmMfa": "739c392e0f403ed7",
     "merchant/me/disableMfa": "1b4294c6ef97b0c6",
     "merchant/me/enrollMfa": "805d6dc6c7639759",
     "merchant/me/getMySecurity": "d2a3b879f23fbc5f",
+    "merchant/me/requestLoginEmailChange": "d1f1dd72a5b8f5a7",
+    "merchant/me/resendLoginEmailChangeCode": "66307209365e4f65",
+    "merchant/me/submitNewLoginEmail": "44b51837b5000fd4",
     "merchant/me/updateMyProfile": "5b40d7033505d63b",
+    "merchant/me/verifyLoginEmailChangeIdentity": "2de85307f1003efc",
     "merchant/merchants/createMerchant": "8b444f94da70d94b",
     "merchant/merchants/deleteMerchant": "5a00c040b9fcf7ec",
     "merchant/merchants/getOnboardingApplication": "1a0beb3670027835",
@@ -70,5 +76,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261024-slice-e-r5b"
+  "prdStage": "stage/261025-slice-e-r6"
 }
