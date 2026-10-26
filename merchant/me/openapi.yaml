@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 个人账号 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -83,7 +83,7 @@ paths:
       description: |
         邮箱账号发起改登录邮箱，返回 `challengeId` 串起后续步骤。身份校验方式：已启 MFA 用验证器码；未启用旧邮箱的码，本步即发出。
 
-        My Profile 和 Business Profile（Owner 本人改 Primary Email）都调本组接口。同一个人的登录邮箱同时只有一笔改动在途，含 Owner 在成员管理里给员工发起的：新发起顶掉上一笔，上一笔再提交返回 `206006`。用户名账号不能自助改，返回 `409`·`968006`。需要向旧邮箱发码而冷却未到时返回 `429`·`208013`。
+        My Profile 和 Business Profile（Owner 本人改 Primary Email）都调本组接口。同一个人的登录邮箱同时只有一笔改动在途，含 Owner 在成员管理里给员工发起的：新发起顶掉上一笔，上一笔再提交返回 `206006`。用户名账号不能自助改，返回 `409`·`968006`。账号级冷却未到时返回 `429`·`208013`（不论身份因子，TOTP 因子不发码也判）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:

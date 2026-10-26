@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户运营管理 — 前端契约面
-  version: 2.1.4
+  version: 2.2.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -840,7 +840,7 @@ paths:
       x-required-privilege: mops:owner-email:edit
       summary: 代改 Owner 登录邮箱
       description: |
-        用于 Owner 找回账号：运营线下核验身份后，替 Owner 发起改登录邮箱。不直接生效：向新邮箱发确认链接，Owner 确认后才切换，确认前仍用旧邮箱登录、新邮箱不占用；再提交会顶掉上一笔未确认的。成员列表上 Owner 行的 `pendingLoginEmail` 显示待确认的新邮箱。前后邮箱记入操作审计。
+        用于 Owner 找回账号：运营线下核验身份后，替 Owner 发起改登录邮箱。不直接生效：向新邮箱发确认链接，Owner 确认后才切换，确认前仍用旧邮箱登录、新邮箱不占用；再提交会顶掉上一笔未确认的；该 Owner 账号级冷却内 → `966006`（`context.cooldownSeconds`）、不发链接、在途一笔不顶掉。成员列表上 Owner 行的 `pendingLoginEmail` 显示待确认的新邮箱。前后邮箱记入操作审计。
 
         **全量覆盖**：请求体就是目标本身。置值写，不挂幂等键。
 
@@ -848,6 +848,7 @@ paths:
 
         - `968001` 新邮箱已被占用。
         - `308313` Owner 同时是后台用户，到后台账号管理处理。
+        - `966006` 冷却未过，按 `context.cooldownSeconds` 倒计时。
         - Owner 名下有不在你可见范围内的商户时按不存在处理（`404`）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -875,6 +876,7 @@ paths:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 308313
+        - 966006
         - 968001
   /merchants/{merchantId}/files:
     parameters:
