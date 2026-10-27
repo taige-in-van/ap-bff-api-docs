@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-27T01:52:25Z",
-  "implCommit": "cd75a5c0",
+  "generatedAt": "2026-10-27T05:59:10Z",
+  "implCommit": "bb8a39eb",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/confirmRefundPinReset": "41bbecc55dde35e6",
@@ -67,6 +67,7 @@
     "merchant/orders/listRecentPayments": "47ca8efc042aa484",
     "merchant/products/getCheckoutSettings": "b6c4d042c7bb3af3",
     "merchant/products/updateCheckoutSettings": "5b3618f0721587fa",
+    "merchant/system/getDeveloperSettings": "a54fc0e1fba0904a",
     "merchant/system/getNotice": "1d07c5fd823e1fe3",
     "merchant/system/getNoticeSummary": "79e57392dd46bdd6",
     "merchant/system/getSettlementConfig": "be0180edc9237cd5",
@@ -77,6 +78,8 @@
     "merchant/system/listPaymentMethodOptions": "c482d777639a3193",
     "merchant/system/markAllNoticesRead": "d1083931e2b554ab",
     "merchant/system/markNoticeRead": "63ff2a1e072421d1",
+    "merchant/system/replaceSigningKey": "cae6cfefcb4d1042",
+    "merchant/system/revealGatewayCredential": "51560611fe068a44",
     "merchant/team/createTeamMember": "29f68656a8acf1d9",
     "merchant/team/deleteMemberWechatBinding": "e4bae0b2a0eda3d6",
     "merchant/team/deleteTeamMember": "b22d06dac0e12975",
@@ -92,5 +95,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261026-slice-f-gaps-b2"
+  "prdStage": "stage/261026-slice-f-gaps-b3"
 }
