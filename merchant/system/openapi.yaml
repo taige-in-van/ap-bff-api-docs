@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -499,7 +499,7 @@ paths:
       description: |
         登记当前商户的 RSA 公钥，平台用它验商户请求的签名。还没登记时是首次登记，已登记时是替换。
 
-        - 公钥为空、不是 PEM 或不是 RSA 公钥 → `400`·`204011`，不产生任何变更。
+        - 公钥为空、不是 PEM、不是 RSA 公钥，或密钥长度不在 2048–4096 位 → `400`·`204011`，不产生任何变更。
         - 替换后新公钥立即可用，被换下的那把在宽限期内仍然有效（默认 24 小时，由平台设定）。宽限期内再次替换，最早的那把立即失效。
         - 提交的公钥与当前这把相同：什么都不变，照常返回当前这把。
       parameters:
@@ -1122,7 +1122,7 @@ components:
       properties:
         publicKeyPem:
           type: string
-          description: 商户的 RSA 公钥，PEM 格式（X.509 SubjectPublicKeyInfo，`-----BEGIN PUBLIC KEY-----` 头尾齐全）。
+          description: 商户的 RSA 公钥，PEM 格式（X.509 SubjectPublicKeyInfo，`-----BEGIN PUBLIC KEY-----` 头尾齐全），密钥长度 2048–4096 位。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。
