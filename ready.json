@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-27T18:56:20Z",
-  "implCommit": "2c4e4f08",
+  "generatedAt": "2026-10-27T21:16:46Z",
+  "implCommit": "62b6c657",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/confirmRefundPinReset": "41bbecc55dde35e6",
@@ -36,6 +36,16 @@
     "merchant/auth/resendVerificationEmail": "ca4f8ca069373fa9",
     "merchant/auth/switchCurrentMerchant": "12990fecc43fba06",
     "merchant/auth/verifyRegistrationEmail": "be5e45f66c8e7eaa",
+    "merchant/devices/createDevice": "ee8ad45ff1d1334e",
+    "merchant/devices/deleteDevice": "065492fc89fb9dc8",
+    "merchant/devices/exportDeviceLogs": "61826c3d6ea6ae31",
+    "merchant/devices/getDevice": "21b06ddd870b5a0c",
+    "merchant/devices/getDeviceCounts": "fcdbc7a3c668ab4b",
+    "merchant/devices/getDeviceLogCounts": "ff00f4fd9be7b95f",
+    "merchant/devices/listDeviceLogs": "ecd9758cf4eb49ee",
+    "merchant/devices/listDeviceStores": "813c35143462d20f",
+    "merchant/devices/listDevices": "8163896d481010c5",
+    "merchant/devices/updateDevice": "1fc4c15c37d1af31",
     "merchant/funds/getBalance": "fe566baf3ce0b834",
     "merchant/me/changeMyPassword": "78750fe7616d6a49",
     "merchant/me/confirmLoginEmailChange": "607fa428f0c14587",
@@ -95,5 +105,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "1d47de2ca884e027"
   },
-  "prdStage": "stage/261027-dev-host-split"
+  "prdStage": "stage/261027-slice-g-devices"
 }
