@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.2.1
+  version: 2.2.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -169,7 +169,7 @@ paths:
                 $ref: '#/components/schemas/WechatQrChallenge'
               example:
                 qrTicket: wxq_3f8a1c0d92b47e5f1a
-                qrContent: https://checkout.example.com/identity/wechat/v1/wechat/challenges/8f3Kd0pQzR2vLxA7nB1cYw
+                qrContent: https://wechat.example.com/identity/wechat/v1/wechat/challenges/8f3Kd0pQzR2vLxA7nB1cYw
                 expiresAt: '2026-10-16T14:10:00Z'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
@@ -699,7 +699,7 @@ paths:
                 $ref: '#/components/schemas/WechatQrChallenge'
               example:
                 qrTicket: wxb_6c1e0a9d72f4
-                qrContent: https://checkout.example.com/identity/wechat/v1/wechat/challenges/Zq8Lw3nR0pXa1cVb7yTe
+                qrContent: https://wechat.example.com/identity/wechat/v1/wechat/challenges/Zq8Lw3nR0pXa1cVb7yTe
                 expiresAt: '2026-10-16T14:10:00Z'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
@@ -1137,7 +1137,7 @@ components:
             attemptsRemaining:
               type: integer
               minimum: 0
-              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+              description: OTP / 挑战验证码输错但还能重输时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
             cooldownSeconds:
               type: integer
               minimum: 0

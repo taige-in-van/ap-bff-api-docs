@@ -1323,7 +1323,7 @@ components:
             attemptsRemaining:
               type: integer
               minimum: 0
-              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+              description: OTP / 挑战验证码输错但还能重输时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
             cooldownSeconds:
               type: integer
               minimum: 0

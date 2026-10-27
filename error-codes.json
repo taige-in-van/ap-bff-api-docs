@@ -6,7 +6,7 @@
       "requiredContextFields": [
         "attemptsRemaining"
       ],
-      "retryable": true
+      "retryable": false
     },
     "106300": {
       "httpStatus": 410,
@@ -133,7 +133,7 @@
       "requiredContextFields": [
         "attemptsRemaining"
       ],
-      "retryable": true
+      "retryable": false
     },
     "204011": {
       "httpStatus": 400,
@@ -374,7 +374,7 @@
       "requiredContextFields": [
         "attemptsRemaining"
       ],
-      "retryable": true
+      "retryable": false
     },
     "304002": {
       "httpStatus": 400,
@@ -748,7 +748,7 @@
     "905001": {
       "httpStatus": 500,
       "name": "INTERNAL_ERROR",
-      "retryable": false
+      "retryable": true
     },
     "905002": {
       "httpStatus": 503,

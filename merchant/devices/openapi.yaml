@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 设备 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -116,6 +116,7 @@ paths:
                         appVersion: 3.8.0
                         status: ONLINE
                         lastActiveAt: '2026-08-17T09:52:00Z'
+                        activatedAt: '2026-06-02T11:35:00Z'
                         createdAt: '2026-06-02T11:20:00Z'
                       - deviceId: dev_1000024_0003
                         model: 收银 App（softPOS）
@@ -125,6 +126,7 @@ paths:
                         appVersion: 2.1.4
                         status: OFFLINE
                         lastActiveAt: '2026-08-16T20:11:00Z'
+                        activatedAt: '2026-07-01T08:00:00Z'
                         createdAt: '2026-07-01T08:00:00Z'
                       - deviceId: dev_1000024_0004
                         model: PAX A920
@@ -308,6 +310,7 @@ paths:
                 appVersion: 3.8.0
                 status: ONLINE
                 lastActiveAt: '2026-08-17T09:52:00Z'
+                activatedAt: '2026-06-02T11:35:00Z'
                 createdAt: '2026-06-02T11:20:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
@@ -392,7 +395,7 @@ paths:
         - name: keyword
           in: query
           required: false
-          description: 事件、备注、操作人模糊匹配。
+          description: 备注、操作人模糊匹配。
           schema:
             type: string
             maxLength: 128
@@ -408,17 +411,18 @@ paths:
                 data:
                   - type: transaction
                     severity: info
-                    event: Payment captured
-                    notes: Order P100240021 · CA$48.50 · WeChat Pay
+                    event: payment_succeeded
+                    paymentMethodFamily: wechat
+                    notes: P100240021 · 48.50 CAD
                     actor: Cashier 01
                     timestamp: '2026-08-17T09:52:00Z'
                   - type: connection
-                    severity: warning
-                    event: Device offline
+                    severity: info
+                    event: device_online
                     timestamp: '2026-08-17T08:30:00Z'
                   - type: auth
                     severity: info
-                    event: Operator signed in
+                    event: operator_signed_in
                     actor: Cashier 01
                     timestamp: '2026-08-17T08:29:00Z'
         default:
@@ -475,7 +479,7 @@ paths:
       x-required-privilege: products:device:view
       summary: 导出设备日志（xlsx）
       description: |
-        按当前类型与关键词命中的全部日志导出 Excel，不只是当前页；同步返回文件流。表头语言按 `Accept-Language`，实际用的语言经 `Content-Language` 回。设备已解绑 `404`。
+        按当前类型与关键词命中的全部日志导出 Excel，不只是当前页；同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回；时刻列按商户时区写出，表头标明时区。设备已解绑 `404`。
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
           description: |
@@ -580,6 +584,11 @@ components:
           description: 最近活跃时间；从未活跃的不返回本键。
           allOf:
             - $ref: '#/components/schemas/Timestamp'
+        activatedAt:
+          readOnly: true
+          description: 首次激活时刻；尚未激活或首次激活时刻未知（如迁入设备）时不返回本键。列表不展示，只作排序键。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
         createdAt:
           $ref: '#/components/schemas/Timestamp'
     DeviceListPage:
@@ -597,11 +606,31 @@ components:
             $ref: '#/components/schemas/Device'
     DeviceLogType:
       type: string
-      description: 日志类型：`transaction` 收款与退款、`connection` 上线与离线、`auth` 操作员登录登出与激活。
+      description: 日志类型：`transaction` 收款与退款、`connection` 设备上线与操作员登出或被迫下线、`auth` 操作员登录与激活。
       enum:
         - transaction
         - connection
         - auth
+    DeviceLogEvent:
+      type: string
+      description: |
+        日志事件，每个事件属于一个日志类型：
+
+        - `payment_succeeded` 收款成功（`transaction`）
+        - `payment_failed` 收款失败（`transaction`）
+        - `refund_succeeded` 退款成功（`transaction`）
+        - `refund_failed` 退款失败（`transaction`）
+        - `device_online` 设备上线：离线后重新有人在设备上使用（`connection`）
+        - `operator_signed_out` 操作员登出，或因账号改密、停用、移出商户被迫下线（`connection`）
+        - `operator_signed_in` 操作员在设备上登录，含首次登录激活（`auth`）
+      enum:
+        - payment_succeeded
+        - payment_failed
+        - refund_succeeded
+        - refund_failed
+        - device_online
+        - operator_signed_out
+        - operator_signed_in
     DeviceLogItem:
       type: object
       required:
@@ -620,12 +649,15 @@ components:
             - error
           description: 级别，与 `type` 正交；类型徽标按它着色。
         event:
-          type: string
-          readOnly: true
+          $ref: '#/components/schemas/DeviceLogEvent'
+        paymentMethodFamily:
+          description: 支付方式（品牌）；只有 `transaction` 类日志有，其余不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethodFamily'
         notes:
           type: string
           readOnly: true
-          description: 事件说明；没有时不返回本键。
+          description: 事件说明：单号、金额与币种码等事实，不随语言变化；没有时不返回本键。
         actor:
           type: string
           readOnly: true
@@ -761,7 +793,7 @@ components:
             attemptsRemaining:
               type: integer
               minimum: 0
-              description: OTP / 挑战错误但可重试时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+              description: OTP / 挑战验证码输错但还能重输时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
             cooldownSeconds:
               type: integer
               minimum: 0
@@ -863,7 +895,8 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-          description: 设备的厂商序列号；同一商户名下的在册设备不得重复，设备首次登录时据它认领这条记录。
+          pattern: .*\S.*
+          description: 设备的厂商序列号，至少含一个非空白字符；同一商户名下的在册设备不得重复（比较不区分大小写、忽略空白），设备首次登录时据它认领这条记录。
         storeName:
           type: string
           minLength: 1
@@ -926,6 +959,14 @@ components:
         enabled:
           type: boolean
           description: 目标态：`true` 启用、`false` 停用；缺省不代表保持原样。
+    PaymentMethodFamily:
+      type: string
+      description: 支付方式族（品牌）。
+      enum:
+        - wechat
+        - alipay
+        - unionpay
+        - credit_card
   parameters:
     PageNum:
       name: pageNum

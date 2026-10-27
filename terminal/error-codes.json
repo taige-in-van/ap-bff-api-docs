@@ -9,7 +9,7 @@
       "requiredContextFields": [
         "orderId"
       ],
-      "retryable": true
+      "retryable": false
     },
     "108005": {
       "name": "SETTLEMENT_HOLD_STATE_CONFLICT",
@@ -96,7 +96,7 @@
       "requiredContextFields": [
         "attemptsRemaining"
       ],
-      "retryable": true
+      "retryable": false
     },
     "204020": {
       "name": "LOGIN_CAPTCHA_INVALID",
@@ -192,7 +192,7 @@
     },
     "905001": {
       "name": "INTERNAL_ERROR",
-      "retryable": false
+      "retryable": true
     },
     "905002": {
       "name": "SERVICE_UNAVAILABLE",
