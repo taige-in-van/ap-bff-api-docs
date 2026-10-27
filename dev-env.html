@@ -55,7 +55,7 @@ export default defineConfig({
 <h2>自助注册（dev）</h2>
 <ul>
 <li>注册只联调到「激活后能登录」为止：新注册的账号登录后进入驻向导会失败（入驻接口尚未部署）。</li>
-<li>邮件不真发，统一进 Mailpit：<a href="https://mer26-dev.hqwu.io/mailpit/">https://mer26-dev.hqwu.io/mailpit/</a>。</li>
+<li>邮件不真发，统一进 Mailpit：<a href="https://mailpit26-dev.hqwu.io/">https://mailpit26-dev.hqwu.io/</a>（原 <code>https://mer26-dev.hqwu.io/mailpit/</code> 已下线）。</li>
 <li>激活链接打开的是 <code>http://localhost:5173/verify-email#token=…</code>（本机 Vite 默认端口）。你的 Vite 端口不是 5173 时告诉后端改。</li>
 </ul>
 
@@ -63,7 +63,7 @@ export default defineConfig({
 <ul>
 <li><strong>轮询要串行</strong>：上一次 <code>pollWechatLogin</code> 的响应回来后再发下一次，不要用定时器并发发；重叠的轮询可能让刚建立的登录失效。（flows 扫码登录一节有同样说明。）</li>
 <li>轮询 <code>status</code>：<code>WAITING</code> 显示二维码；<code>SCANNED</code> 换成「扫码成功，请在手机上确认」，扫码人被拒时也停在这里直到过期；<code>EXPIRED</code>（过期或手机上取消）自动重新调 <code>initiateWechatLogin</code> 换新码；<code>ESTABLISHED</code> 响应已带会话 cookie。</li>
-<li>手机微信里打开的「微信确认页」：dev 暂时挂后端的占位页 <code>https://mer26-dev.hqwu.io/wechat-confirm/</code>，只为让流程能走通。前端的微信确认页（对接 <code>wechat</code> 面四个接口）做好后，和后端约部署位置（须与 <code>/identity/wechat/v1</code> 同源），再替换占位页。</li>
+<li>手机微信里打开的「微信确认页」在独立主机 <code>https://wx26-dev.hqwu.io/</code> 的根路径，与 <code>wechat</code> 面 <code>/identity/wechat/v1</code> 同源；原 <code>https://mer26-dev.hqwu.io/wechat-confirm/</code> 占位页已下线。文件（图片、PDF 等）的下载地址在 <code>https://file26-dev.hqwu.io/</code> 下，由接口返回，前端不用另配。</li>
 <li>微信号要先绑定到测试账号才能扫码登录，而绑定接口尚未部署：先用要用的微信扫一次（手机会提示未绑定），把要绑的测试账号告诉后端，后端补上绑定后再扫即可。</li>
 </ul>
 
