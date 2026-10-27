@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.5.0
+  version: 2.6.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -665,7 +665,7 @@ paths:
       x-required-privilege: account:service:edit
       summary: 接入或管理 Shopify / Allvalue
       description: |
-        提交网址与该集成要开的支付方式。全量覆盖：两项每次都要带，`paymentMethods` 是要开着的完整集合，没列的会被关掉。服务端按集成现状处理：
+        提交网址与该集成要开的支付方式。全量覆盖：两项每次都要带，`paymentMethods` 是要开着的完整集合，读面候选里有、这里没列的会被关掉；卡不在候选内，用不用卡跟着卡收单机构连接走，不受本次提交影响。服务端按集成现状处理：
 
         - `NOT_CONNECTED`：建接入申请，进入审核（`UNDER_REVIEW`）。
         - `ACTIVE`：支付方式开关即时生效；网址变了即时生效，同时进复审，复审期间照常收款；复审中再改，沿用同一次复审。
@@ -1166,7 +1166,7 @@ components:
     ServicePaymentMethod:
       type: object
       additionalProperties: false
-      description: 某个支付方式在该受理模式下的状态。只列已开通、开通中与审核中的方式，其余候选取 `listPaymentMethodOptions`、可以申请。`ACTIVE` 时带 `enabled` 与 `rate`，`ACTIVATING` 与 `UNDER_REVIEW` 时两者都不带。
+      description: 某个支付方式在该受理模式下的状态。只列已开通、开通中与审核中的方式，其余候选取 `listPaymentMethodOptions`、可以申请。`ACTIVE` 时带 `enabled`，有生效费率时还带 `rate`；`ACTIVATING` 与 `UNDER_REVIEW` 时两者都不带。
       required:
         - paymentMethod
         - status
@@ -1183,7 +1183,7 @@ components:
         rate:
           allOf:
             - $ref: '#/components/schemas/FeeRate'
-          description: 当前适用的费率，`ACTIVE` 时返回。
+          description: 当前适用的费率，`ACTIVE` 且有生效费率时返回。
     AcceptanceModeView:
       type: object
       additionalProperties: false
@@ -1243,7 +1243,6 @@ components:
       required:
         - paymentMethod
         - enabled
-        - rate
       properties:
         paymentMethod:
           $ref: '#/components/schemas/PaymentMethod'
@@ -1253,7 +1252,7 @@ components:
         rate:
           allOf:
             - $ref: '#/components/schemas/FeeRate'
-          description: 该方式在这个集成下适用的费率（有集成专用费率时取专用的）。
+          description: 该方式在这个集成下适用的费率（有集成专用费率时取专用的）。没有生效费率时不返回本键。
     EcommerceIntegrationView:
       type: object
       additionalProperties: false
@@ -1277,7 +1276,7 @@ components:
           description: 改过的网址还在复审中时返回 `true`（复审期间照常收款）；不在复审中不返回本键。
         paymentMethods:
           type: array
-          description: 候选是商户已开通的线上支付方式（不含卡）。商户还没有已开通的线上方式时为空，不能接入。
+          description: 候选是商户已开通的线上支付方式，不含卡（卡跟着卡收单机构连接走）。后来新开通的线上方式自动进候选，开关为开（之前在这个集成里关过的沿用关）。商户还没有已开通的线上方式时为空，不能接入。
           items:
             $ref: '#/components/schemas/IntegrationPaymentMethod'
     ServicePage:
