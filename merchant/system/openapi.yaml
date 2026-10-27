@@ -1122,7 +1122,6 @@ components:
       properties:
         publicKeyPem:
           type: string
-          minLength: 1
           description: 商户的 RSA 公钥，PEM 格式（X.509 SubjectPublicKeyInfo，`-----BEGIN PUBLIC KEY-----` 头尾齐全）。
   responses:
     MerchantBffDefaultError:
