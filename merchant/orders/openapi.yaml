@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.2.2
+  version: 2.2.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -1194,7 +1194,7 @@ components:
           description: 备注：商户填的订单备注与收款页向付款人采集的内容，已拼成一段展示文本，格式不保证稳定。没有时不返回本键。
         refundable:
           type: boolean
-          description: '能否发起退款，服务端的判定结果。结算额待定（`settleAmountPending: true`）的订单为 false，成交折算金额到达后按剩余可退额恢复。'
+          description: '能否发起退款，服务端的判定结果。结算额待定（`settleAmountPending: true`）的订单为 false，成交折算金额到达后按剩余可退额恢复。关联的商品、票或礼卡已核销或已作废的订单也为 false。'
         remainingRefundable:
           description: 还可以退的金额，**标价币种**（退款按标价币种发起）：成交额减已退、减在途的退款。`refundable` 为真时必返，否则不返回本键。
           allOf:

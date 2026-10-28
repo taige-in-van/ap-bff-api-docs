@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.0.0
+  version: 2.2.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -500,7 +500,7 @@ paths:
       description: |
         当前商户全部账单（已删除的不在内）的汇总，不随列表的搜索与筛选变。
 
-        每格的金额按标价币种分开合计、不换算：账单出现过几种标价币种，`amounts` 就有几项。已付金额是付款时的标价金额。应收 = 未付 + 逾期，不另给。
+        每格的金额按标价币种分开合计、不换算：账单出现过几种标价币种，`amounts` 就有几项。已付金额是每张已付账单成交订单的付款人应付总额（含客户服务费）扣去已退金额，退款中的不扣。应收 = 未付 + 逾期，不另给。
       responses:
         '200':
           description: 页顶汇总
@@ -877,7 +877,7 @@ paths:
                 currency: CAD
                 enabled: true
                 createdAt: '2026-07-10T10:00:00Z'
-                paymentUrl: https://checkout.example.com/pl/pl_1000024_3001
+                paymentUrl: https://checkout.example.com/q/Pm4Xr8Lw2c
                 checkoutOptions:
                   - wechat
                   - alipay
@@ -1150,6 +1150,8 @@ paths:
       summary: 该链接的销售单列表
       description: |
         一张销售单 = 付款人在这条链接上的一次选购。`status` 是销售单状态，`redemptionStatus` 是核销状态，两条轴各自筛。礼卡链接的行多返回礼卡专属字段。
+
+        链接已删除时照常返回其下销售单；链接不存在或不属当前商户仍 `404`。
       parameters:
         - name: linkId
           in: path
@@ -1267,6 +1269,8 @@ paths:
         一次返回 `status`、`redemptionStatus`、`riskLevel` 三个维度的项与计数，每项的 `value` 原样回传给 `listProductLinkOrders` 的同名参数。筛选参数与列表传同一组（含这三个维度自己的）；算某一维度时忽略该维度自己的筛选、其余筛选照算，所以每个维度的数字都和「换成选该项后」的列表 `total` 对得上。
 
         `redemptionStatus` 只在有平台核销的链接返回（商品、票务、礼卡兑换券模式）；`riskLevel` 只在礼卡链接返回。
+
+        链接已删除时照常按其下销售单计数；链接不存在或不属当前商户仍 `404`。
       parameters:
         - name: linkId
           in: path
@@ -1364,6 +1368,8 @@ paths:
       summary: 销售单详情
       description: |
         列表行的全部字段，加付款人填写值、订单行、凭证（含 PIN 明文，只在这里返回）、礼卡段与动作日志。支付侧的通道交易号、收据用 `orderId` 到订单与退款契约的 `getPayment`（支付订单详情）看。
+
+        链接已删除时照常返回该销售单；链接不存在或不属当前商户仍 `404`。
       parameters:
         - name: linkId
           in: path
@@ -1395,8 +1401,9 @@ paths:
                 redemptionStatus: NOT_REDEEMED
                 paidAt: '2026-07-10T11:02:30Z'
                 createdAt: '2026-07-10T11:02:00Z'
-                paymentMethod: wechat
+                paymentMethodFamily: wechat
                 payerLanguage: en
+                refundable: true
                 buyerInputs:
                   - key: sys:name
                     label: Name
@@ -1445,7 +1452,6 @@ paths:
                   issuanceStatus: ISSUED
                   riskHits: []
                   actions:
-                    canRefund: true
                     canVoid: false
                     canResendEmail: true
                     riskDispositions: []
@@ -1807,7 +1813,7 @@ components:
           type: string
           minLength: 1
           maxLength: 40
-          description: '展示标题。`system: true` 时由系统给出、商户改不了；商户自撰项即其标题（上限见 `InfoFieldKey`）。'
+          description: '展示标题。`system: true` 时由系统按界面语言给出、商户改不了；商户自撰项即商户所填标题（上限见 `InfoFieldKey`）。'
         system:
           type: boolean
           description: '`true` = 系统给出的项（文案不可改，后台据其 `key` 取值）；`false` = 商户自撰项。'
@@ -1995,7 +2001,7 @@ components:
             $ref: '#/components/schemas/InvoiceListItem'
     RiskLevel:
       type: string
-      description: 礼卡订单风险等级。
+      description: 礼卡订单风险等级。未评估风险的订单（还没付款，或活动没开风控审核）按 `normal` 返回、筛选与计数。
       enum:
         - normal
         - medium
@@ -2396,7 +2402,7 @@ components:
         terms:
           $ref: '#/components/schemas/LocalizedText'
     PoliciesAndSupportRead:
-      description: '`PoliciesAndSupport` 的读侧形态：本身无可清空字段，仅把五项三语文本换成读侧变体。'
+      description: '`PoliciesAndSupport` 的读侧形态：本身无可清空字段，仅把五项三语文本换成读侧变体；三语都没有内容的项不返回。'
       allOf:
         - $ref: '#/components/schemas/PoliciesAndSupport'
         - properties:
@@ -2640,7 +2646,6 @@ components:
         - checkoutOptions
         - buyerInputs
         - inputLimit
-        - policies
       properties:
         linkId:
           $ref: '#/components/schemas/LinkId'
@@ -2681,7 +2686,9 @@ components:
           $ref: '#/components/schemas/WebUrl'
           description: Banner 的长效公开地址；没有不返回本键。
         policies:
-          $ref: '#/components/schemas/PoliciesAndSupportRead'
+          allOf:
+            - $ref: '#/components/schemas/PoliciesAndSupportRead'
+          description: 收款页政策条款；一项都没有时不返回本键。
         giftcard:
           allOf:
             - $ref: '#/components/schemas/GiftcardContentCompleteRead'
@@ -2803,6 +2810,7 @@ components:
           type: string
         label:
           type: string
+          description: 付款人下单时语言下的采集项标题。
         value:
           type: string
     ProductLinkOrderLine:
@@ -2987,13 +2995,10 @@ components:
           additionalProperties: false
           description: 当前可做的动作，服务端的判定结果。
           required:
-            - canRefund
             - canVoid
             - canResendEmail
             - riskDispositions
           properties:
-            canRefund:
-              type: boolean
             canVoid:
               type: boolean
             canResendEmail:
@@ -3008,20 +3013,25 @@ components:
         - $ref: '#/components/schemas/ProductLinkOrderRow'
         - type: object
           required:
+            - refundable
             - buyerInputs
             - lines
             - vouchers
             - log
           properties:
-            paymentMethod:
-              type: string
-              description: 支付方式码；已付才有。
+            paymentMethodFamily:
+              description: 支付方式（品牌）；已付才有。
+              allOf:
+                - $ref: '#/components/schemas/PaymentMethodFamily'
             customerId:
               type: string
               description: 付款人在平台的标识（Customer ID）；付款人还没识别出来时不返回本键。
             payerLanguage:
               type: string
               description: 付款人下单页语言；凭证与收据邮件按它发，礼卡送礼给收件人也用它。
+            refundable:
+              type: boolean
+              description: 能否发起退款，服务端的判定结果，与支付订单的 `refundable` 同一判定：已核销、已作废或结算额待定的订单为 false。
             buyerInputs:
               type: array
               items:
@@ -3247,7 +3257,7 @@ components:
     CheckoutOption:
       type: string
       minLength: 1
-      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
+      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式；支付宝线下、线上分 `alipay`、`alipay_online` 两项）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
       examples:
         - wechat
     WebUrl:
@@ -3478,6 +3488,14 @@ components:
       minLength: 1
       maxLength: 32
       description: 销售订单号。
+    PaymentMethodFamily:
+      type: string
+      description: 支付方式族（品牌）。
+      enum:
+        - wechat
+        - alipay
+        - unionpay
+        - credit_card
     RiskDisposition:
       type: string
       enum:

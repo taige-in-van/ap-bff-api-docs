@@ -3118,7 +3118,7 @@ components:
     CheckoutOption:
       type: string
       minLength: 1
-      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
+      description: 收银台上的支付方式选项：同一品牌、同一付款流程的支付方式归为一项（如 `wechat` 含线下、线上两个支付方式；支付宝线下、线上分 `alipay`、`alipay_online` 两项）。取值由后端目录决定，前端从所在面给出的候选集取来原样回传。
       examples:
         - wechat
     StoreQrType:
