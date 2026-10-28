@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 微信侧公开面 · 微信确认页
-  version: 2.1.1
+  version: 2.1.2
   contact:
     name: 微信确认页契约
   description: |
@@ -13,7 +13,7 @@ info:
     - 扫码落地一律走静默网页授权，只识别是哪个微信、不取昵称头像；用户确认成功后，需要时响应另带 `profileAuthorizationUrl`，页面立即跳转请用户授权微信资料，用来补昵称与头像；授权后回到微信确认页，fragment 再带一个新的 `confirmationToken`。结果在确认时已经落定，授权资料与否都不改变结果。
     - 每一步用的材料各自独立：二维码里的 `scanToken`、两次网页授权各自的 `state`、微信确认页的 `confirmationToken`，都不是发起方查询结果用的标识；本面的路径与请求都不出现那个标识。
     - 微信确认页从页面地址的 fragment 取 `confirmationToken`，此后放在请求头 `X-Confirmation-Token` 里调用两个接口；fragment 里带的是 `failure` 时直接渲染失败态，不调接口。
-    - 接口只返回码，页面文案由微信确认页按 `locale` 本地化。
+    - 接口只返回码，页面文案由微信确认页按最终选定的语言本地化，选语言的顺序见 `ConfirmationContext.locale`。
     - 外部账号身份一律由平台服务端解析，不接受页面传入。
 servers:
   - url: /identity/wechat/v1
@@ -285,7 +285,7 @@ components:
           description: 有值时返回：已确认成功、微信资料授权已发起但回跳还没到。每次读取都换发新地址、之前的地址随即失效，有效期不随读取延长；页面可据此再次发起资料授权。
         locale:
           type: string
-          description: 发起时固化的语言（BCP 47，如 `zh-CN`、`en-CA`、`fr-CA`）；有值时返回，页面按它选语言，无则按微信客户端语言。
+          description: 发起时固化的语言（BCP 47，如 `zh-CN`、`en-CA`、`fr-CA`）；有值时返回。页面选语言的顺序：用户在本设备上手动选过的语言 > 本字段 > 微信客户端语言。
         client:
           type: object
           additionalProperties: false

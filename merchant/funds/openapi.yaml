@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 资金 — 前端契约面
-  version: 2.1.1
+  version: 2.1.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -428,7 +428,7 @@ paths:
       x-required-privilege: orders:settlement:view
       summary: 导出一张结算单（xlsx）
       description: |
-        一张结算单的 Excel：一个工作表是概要（商户名、币种、结算单号、结算日、交易期间、收款、退款、净销售额、手续费、出款额），另一个是全部逐笔明细；同步返回文件流。明细行数超过单个工作表容量时分成多个工作表。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        一张结算单的 Excel：一个工作表是概要（商户名、币种、结算单号、结算日、交易期间、收款、退款、净销售额、手续费、出款额、状态、出款账户；还没出过款的结算单不填出款账户），另一个是全部逐笔明细；同步返回文件流。明细行数超过单个工作表容量时分成多个工作表。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
 
         结算单不存在或不属于当前商户 `404`。
       parameters:
@@ -907,7 +907,7 @@ components:
           $ref: '#/components/schemas/Timestamp'
         note:
           type: string
-          description: 备注：收款与退款行是订单或退款的备注，调账行是调账原因。没有时不返回本键。
+          description: 备注：`PAYMENT` 行是订单的备注；`REFUND` / `REFUND_REVERSAL` / `RESERVE_DRAWDOWN` 行是所属退款（`refundId`）的备注；调账行是调账原因。没有时不返回本键。
     SettlementDetailList:
       type: object
       required:

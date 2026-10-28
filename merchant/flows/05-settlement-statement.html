@@ -42,7 +42,7 @@
 
 ## 页面：Settlements
 
-侧边栏 Order › Settlement。页头三张卡：Last Settled（最近一次已结算的金额、结算日、交易期间）、Account Balance、Refund Reserved。工具栏：搜索（结算单号）、Filters 面板（日期）、排序（日期、金额）、导出。表格列：结算单号、商户与结算账户、Net Sales、Service Fee、Settlement Amount、状态、日期、操作（View、Download）。日期默认近 7 天。
+侧边栏 Order › Settlement。页头三张卡：Last Settled（最近一次已结算的金额、结算日、交易期间）、Account Balance、Refund Reserved。工具栏：搜索（结算单号）、Filters 面板（日期）、排序（日期、金额）、导出。表格列：结算单号、商户与结算账户、Net Sales、Service Fee、Settlement Amount、状态、日期、操作（View、Download）。不选日期时不按日期筛，按结算日倒序返回全部。
 
 ```mermaid
 sequenceDiagram
@@ -101,7 +101,7 @@ sequenceDiagram
 
 ## 页面：Settlements · Settlement Details 弹窗
 
-从列表行的 View 打开。上面是这张结算单的概要（结算日、交易期间、Settlement Amount、Service Fee、商户、结算单号），下面是逐笔明细表：类型、订单号与支付方式、Amount、Service Fee、Settlement Amount、时间、备注。右上角可下载。
+从列表行的 View 打开。上面是这张结算单的概要（结算日、交易期间、Settlement Amount、Service Fee、商户、结算单号、状态、出款账户，出款账户没返回就不显示），下面是逐笔明细表：类型、订单号与支付方式、Amount、Service Fee、Settlement Amount、时间、备注。右上角可下载。
 
 ```mermaid
 sequenceDiagram
@@ -246,7 +246,7 @@ sequenceDiagram
 
 ## 页面：Statement
 
-侧边栏 Account › Statement。一个月一张月对账单。工具栏：搜索（月份、对账单号）、年份快捷筛选、排序（月份、金额、手续费）。表格列：月份、销售净额、笔数、手续费、操作（查看、下载 PDF）。点查看打开详情弹窗：对账单号、出具日期、币种、手续费明细行、额外收费与税、合计、Download PDF。
+侧边栏 Account › Statement。一个月一张月对账单。工具栏：搜索（月份、对账单号）、年份快捷筛选、排序（月份、销售净额、手续费）。表格列：月份、销售净额、笔数、手续费、操作（查看、下载 PDF）。点查看打开详情弹窗：对账单号、出具日期、币种、手续费明细行、额外收费与税、合计、Download PDF。
 
 ```mermaid
 sequenceDiagram
