@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-28T02:41:40Z",
-  "implCommit": "8bb826e7",
+  "generatedAt": "2026-10-28T03:09:56Z",
+  "implCommit": "86440247",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/confirmRefundPinReset": "41bbecc55dde35e6",
@@ -116,5 +116,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdStage": "stage/261027-slice-h-payments"
+  "prdStage": "stage/261027-wechat-recipient-nickname"
 }
