@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.1.1
+  version: 2.2.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -39,11 +39,11 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 支付订单列表
       description: |
-        当前商户的支付订单，分页。日期范围必填，服务端不设默认。已成交的行金额是结算币种的成交金额（结算额待定的暂为标价金额，并带 `settleAmountPending: true`），没成交的是标价金额。
+        当前商户的支付订单，分页。日期范围必填，服务端不设默认。已成交的行金额是结算币种的成交金额（结算额待定的暂为付款人应付总额（标价币种），并带 `settleAmountPending: true`），没成交的是付款人应付总额（标价币种）。
 
         列表含 `FAILED` 与 `REJECTED` 两种没收到钱的行；汇总卡不算它们，见 `getPaymentSummary`。状态 chip 的各项与计数另取 `getPaymentCounts`。
 
-        登录成员不是 Owner、也不持 Admin 或店长角色，且运营给商户设了可查天数 N 时，起始日早于「当前营业日往前 N 天」的按这一天起算；没设时不限。
+        登录成员不是 Owner、也不持 Admin 或店长角色，且运营给商户设了可查天数 N 时，起始日早于「商户时区的今天往前 N 天」的按这一天起算；没设时不限。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -274,7 +274,7 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 导出支付订单（xlsx）
       description: |
-        按当前筛选、搜索与排序命中的全部订单导出 Excel，不只是当前页；同步返回文件流，不设行数上限。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        按当前筛选、搜索与排序命中的全部订单导出 Excel，不只是当前页；同步返回文件流，不设行数上限。列是列表行的字段。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -310,7 +310,7 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 支付订单详情
       description: |
-        单张订单：列表行的字段，加已退金额、产品形态与关联单据号、客户与付款账户、关联退款、回调信息、换汇信息。不存在或不属于当前商户 `404`。
+        单张订单：列表行的字段，加已退金额、产品形态与关联单据号、客户与付款账户、关联退款、回调信息、换汇信息。不存在、不属于当前商户，或是未成交即关闭、过期的订单 → `404`。
 
         关联退款里 `type = system_auto` 的是平台自动退回的多付款项（重复支付、关单后才到的成功支付），没动商户的账，不计入 `refundedAmount`。
 
@@ -345,7 +345,7 @@ paths:
                     remainingRefundable:
                       amount: '15000'
                       currency: CNY
-                    pricedAmount:
+                    customerPaymentAmount:
                       amount: '20000'
                       currency: CNY
                     refundedAmount:
@@ -357,8 +357,6 @@ paths:
                     confirmedAt: '2026-07-19T02:40:05Z'
                     product: invoice
                     invoiceNo: 10024
-                    customerName: Jane Doe
-                    customerEmail: jane@example.com
                     payerAccountMasked: •••• 6789
                     merchantOrderNo: SHOP-INV-8842
                     channelTxnNo: '2026071922001412345678901234'
@@ -392,7 +390,7 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 支付收据（PDF）
       description: |
-        已收款订单（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）的收据 PDF。内容：商户简称与地址、订单号、商户订单号、支付方式、时间（付款成功时刻）、金额明细（订单金额、小费、顾客承担手续费、Total 即顾客实付总额）；不含退款行、净额与状态。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        已收款订单（`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`）的收据 PDF。内容：抬头（订单所属商户的简称与地址）、时间（付款成功时刻）、下单设备（没有设备时为订单来源）、支付方式、订单号、备注（订单的商品描述）、付款人付款时填写的附加信息（有时才有）、币种、金额明细（订单金额即商户订单标价金额、小费〔有时才有〕、客户服务费〔付款人承担的手续费，大于 0 时才有〕、Total 即付款人应付总额）、订单号二维码；不含商户订单号、退款行、净额与状态。时间按商户时区，按收据文字的语言格式化并标明时区。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
 
         其余状态没有收据 → `404`。
       parameters:
@@ -526,7 +524,7 @@ paths:
       x-required-privilege: orders:refund:view
       summary: 退款列表
       description: |
-        当前商户的退款，分页。日期范围必填，按退款的创建日，服务端不设默认。
+        订单属于当前商户的退款，分页，包括其他商户代为发起的；当前商户代其他商户发起的退款不在这里，切换到订单所属商户查看。日期范围必填，按退款的创建日，服务端不设默认。
 
         只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件发起的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
 
@@ -570,7 +568,7 @@ paths:
                         settleAmount:
                           amount: '959'
                           currency: CAD
-                        orderAmount:
+                        customerPaymentAmount:
                           amount: '20000'
                           currency: CNY
                         status: SUCCESS
@@ -583,7 +581,7 @@ paths:
                         amount:
                           amount: '10500'
                           currency: CAD
-                        orderAmount:
+                        customerPaymentAmount:
                           amount: '10500'
                           currency: CAD
                         status: REVIEWING
@@ -681,9 +679,9 @@ paths:
       x-required-privilege: orders:refund:view
       summary: 退款详情
       description: |
-        单笔退款：列表行的字段，加类型、完成时间、发起入口与操作员、客户、商户退款单号、通道退款号，失败时加失败原因。不存在或不属于当前商户 `404`。
+        单笔退款：列表行的字段，加类型、完成时间、发起入口与操作员、客户、商户退款单号、通道退款号，失败时加失败原因。不存在或订单不属于当前商户 `404`。
 
-        能取到当前商户的任何一笔退款，包括不进列表的 `type = system_auto`。
+        能取到订单属于当前商户的任何一笔退款，包括其他商户代为发起的和不进列表的 `type = system_auto`。
       parameters:
         - name: refundId
           in: path
@@ -711,7 +709,7 @@ paths:
                     settleAmount:
                       amount: '959'
                       currency: CAD
-                    orderAmount:
+                    customerPaymentAmount:
                       amount: '20000'
                       currency: CNY
                     status: SUCCESS
@@ -722,8 +720,6 @@ paths:
                     entryPoint: merchant_portal
                     operatorId: op_7a1c9
                     operatorName: Alice Wong
-                    customerName: Jane Doe
-                    customerEmail: jane@example.com
                     channelRefundNo: '2026071922001412345678905678'
                 failed:
                   summary: 开放 API 发起，被通道拒绝
@@ -735,7 +731,7 @@ paths:
                     amount:
                       amount: '3000'
                       currency: CAD
-                    orderAmount:
+                    customerPaymentAmount:
                       amount: '3000'
                       currency: CAD
                     status: FAILED
@@ -759,7 +755,7 @@ paths:
       x-required-privilege: orders:refund:view
       summary: 退款收据（PDF）
       description: |
-        已受理的商户退款（`status` 为 `CHANNEL_PROCESSING` 或 `SUCCESS`，且 `type = merchant`）的收据 PDF。内容：商户简称与地址、单号（商户退款号，没有时为平台退款号）、原订单号、时间（退款发起时间）、退款金额；不含完成时间与状态。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        订单属于当前商户、已受理的商户退款（`status` 为 `CHANNEL_PROCESSING` 或 `SUCCESS`，且 `type = merchant`）的收据 PDF，包括其他商户代为发起的。内容：抬头（原订单所属商户的简称与地址）、时间（退款发起时间）、原订单的下单设备（没有设备时为订单来源）、支付方式、备注（原订单的商品描述）、单号（商户退款号，没有时为平台退款号）、币种、退款金额（金额与 Total 都是退款金额）；不含原订单号、完成时间与状态。时间按商户时区，按收据文字的语言格式化并标明时区。文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
 
         其余状态与平台自动退款没有收据 → `404`。
       parameters:
@@ -789,7 +785,7 @@ paths:
       x-required-privilege: orders:refund:create
       summary: 撤销审核中的退款
       description: |
-        撤销还在审核中（`status = REVIEWING`）的退款：退款单转 `CANCELLED`，不退款，这一笔占用的可退额度放回。
+        撤销还在审核中（`status = REVIEWING`）的退款：退款单转 `CANCELLED`，不退款，这一笔占用的可退额度放回。订单属于当前商户的退款都能撤，包括其他商户代为发起的；不存在或订单不属于当前商户 → `404`。
 
         其余状态不能撤 → `409`·208009；已经是 `CANCELLED` 的再撤一次也返回 `204`。
 
@@ -1083,7 +1079,7 @@ components:
       description: |
         支付订单的商户可见状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。
 
-        前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。收款过程中的中间状态不进列表。
+        前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。收款过程中的中间状态不进列表；未成交即关闭或过期的订单同样不进列表，查详情返回 `404`。
 
         计入汇总的是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING` 四种。
       enum:
@@ -1183,12 +1179,12 @@ components:
         source:
           $ref: '#/components/schemas/PaymentSource'
         amount:
-          description: '订单金额。已成交且结算额已到的订单是结算币种的成交金额；已成交而结算额待定的订单是标价金额，并带 `settleAmountPending: true`；没成交的（`FAILED` / `REJECTED`）是标价金额。'
+          description: '订单金额。已成交且结算额已到的订单是结算币种的成交金额；已成交而结算额待定的订单是付款人应付总额（标价币种），并带 `settleAmountPending: true`；没成交的（`FAILED` / `REJECTED`）是付款人应付总额（标价币种）。'
           allOf:
             - $ref: '#/components/schemas/Money'
         settleAmountPending:
           type: boolean
-          description: 结算额待定：成交金额尚未从通道到达，`amount` 暂为标价金额；到达后不再返回本键。只在待定时返回。
+          description: 结算额待定：成交金额尚未从通道到达，`amount` 暂为付款人应付总额（标价币种）；到达后不再返回本键。只在待定时返回。
         status:
           $ref: '#/components/schemas/PaymentStatus'
         createdAt:
@@ -1286,12 +1282,12 @@ components:
         - $ref: '#/components/schemas/Payment'
         - type: object
           required:
-            - pricedAmount
+            - customerPaymentAmount
             - product
             - refunds
           properties:
-            pricedAmount:
-              description: 标价币种的订单金额（付款人应付总额，含小费）。标价币种就是结算币种时与 `amount` 相同。
+            customerPaymentAmount:
+              description: 付款人应付总额，标价币种：商户订单标价金额加小费加客户服务费。标价币种就是结算币种时与 `amount` 相同。
               allOf:
                 - $ref: '#/components/schemas/Money'
             tipAmount:
@@ -1323,10 +1319,10 @@ components:
               description: 销售单 ID，与 `linkId` 同有同无。
             customerName:
               type: string
-              description: 客户姓名，取自关联的账单或销售单；没有时不返回本键。
+              description: 客户姓名，取自关联的销售单；没有时不返回本键。
             customerEmail:
               type: string
-              description: 客户邮箱，来源同上。
+              description: 客户邮箱，取自关联的销售单；没有时不返回本键。
             payerAccountMasked:
               type: string
               description: 付款账户（脱敏）；通道没给时不返回本键。
@@ -1361,7 +1357,7 @@ components:
         - paymentMethodFamily
         - source
         - amount
-        - orderAmount
+        - customerPaymentAmount
         - status
         - createdAt
       properties:
@@ -1387,8 +1383,8 @@ components:
           description: 退款金额折合的结算币种金额。通道受理后才有；审核中、被拒、已撤销和没送到通道就失败的不返回本键。
           allOf:
             - $ref: '#/components/schemas/Money'
-        orderAmount:
-          description: 原订单的标价金额（同订单详情的 `pricedAmount`）。`amount` 小于它即部分退款。
+        customerPaymentAmount:
+          description: 原订单的付款人应付总额，标价币种（同订单详情的 `customerPaymentAmount`）。`amount` 小于它即部分退款。
           allOf:
             - $ref: '#/components/schemas/Money'
         status:
@@ -1450,10 +1446,10 @@ components:
               description: 该成员的姓名，与 `operatorId` 同有同无。
             customerName:
               type: string
-              description: 客户姓名，取自原订单关联的账单或销售单；没有时不返回本键。
+              description: 客户姓名，取自原订单关联的销售单；没有时不返回本键。
             customerEmail:
               type: string
-              description: 客户邮箱，来源同上。
+              description: 客户邮箱，取自原订单关联的销售单；没有时不返回本键。
             merchantRefundNo:
               $ref: '#/components/schemas/MerchantRefundNo'
               description: 商户自己的退款单号；发起时没传就不返回本键。

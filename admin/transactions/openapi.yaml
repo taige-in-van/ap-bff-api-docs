@@ -1,14 +1,14 @@
 openapi: 3.1.0
 info:
   title: 管理后台 交易与退款 — 前端契约面
-  version: 2.0.0
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
     管理后台 React SPA 消费的交易与退款契约：跨商户的交易查询、即时合计、订单详情与导出（商户详情的订单页签用同一组接口、固定商户），跨商户的退款单查询、详情与导出，退款待审队列与审核决定，按商户只读查看代扣协议。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
-    **金额口径**：金额是对应币种最小单位的整数串，带币种。交易列表行上的金额与商户后台交易列表同口径：已成交的订单是结算币种的成交金额（结算额待定的暂为标价金额并带标记），没成交的是标价金额；退款金额是原订单的标价币种。
+    **金额口径**：金额是对应币种最小单位的整数串，带币种。交易列表行上的金额与商户后台交易列表同口径：已成交的订单是结算币种的成交金额（结算额待定的暂为付款人应付总额（标价币种）并带标记），没成交的是付款人应付总额（标价币种）；退款金额是原订单的标价币种。
 
     **幂等 / CSRF 口径**：
 
@@ -48,7 +48,7 @@ paths:
       description: |
         本人数据范围内商户的支付订单，分页。日期范围按订单创建日期，两端必填。商户详情的订单页签用本接口并固定 `merchantId`。
 
-        列表含 `FAILED` 与 `REJECTED` 两种没收到钱的行；收款过程中的中间状态不进列表。即时合计另取 `getPaymentSummary`。
+        列表含 `FAILED` / `REJECTED` / `CLOSED` / `EXPIRED` 这些没收到钱的行；收款过程中的中间状态不进列表。即时合计另取 `getPaymentSummary`。
 
         不传 `sortField` 时按创建时间从新到旧。
       parameters:
@@ -139,7 +139,7 @@ paths:
       description: |
         与 `listPayments` 用同一组筛选参数、基于同一批订单的合计；不要求指定商户。按结算币种分组，每个币种一组，金额都是该结算币种（每笔按实际结算金额相加）；只涉及一个结算币种时（如商户详情的订单页签）就只有一组。没有计入的订单时 `items` 为空数组。
 
-        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED`，所以笔数合计可能小于列表行数。`grossSales` 就是这四种状态、结算额已到的行金额之和；结算额待定的笔不计入金额合计、计入笔数。
+        只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED` / `CLOSED` / `EXPIRED`，所以笔数合计可能小于列表行数。`grossSales` 就是这四种状态、结算额已到的行金额之和；结算额待定的笔不计入金额合计、计入笔数。
 
         `refundAmount` 是这批订单至今已退的金额（随订单计入，不按退款发生日），`netSales` = `grossSales` − `refundAmount`。
       parameters:
@@ -971,7 +971,7 @@ components:
     PaymentStatus:
       type: string
       description: |
-        支付订单的商户可见状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起。
+        支付订单的状态：`PAID` 已收款 · `PARTIALLY_REFUNDED` 部分退款 · `REFUNDED` 全额退款 · `FAILED` 付款失败 · `REJECTED` 平台未受理 · `PREAUTH_HOLDING` 预授权挂起 · `CLOSED` 已关闭（主动关闭或系统关闭，未成交） · `EXPIRED` 已过期（超时未支付）。
 
         前三种都是已收款，按已退金额区分；退款受理后又失败的会回退，所以订单可能从 `PARTIALLY_REFUNDED` 回到 `PAID`。`REJECTED` 是建单时被平台拒掉、支付从未发生，与 `FAILED`（付了但失败）不同。收款过程中的中间状态不进列表。
 
@@ -983,6 +983,8 @@ components:
         - FAILED
         - REJECTED
         - PREAUTH_HOLDING
+        - CLOSED
+        - EXPIRED
     PaymentSource:
       type: string
       description: |
@@ -1236,12 +1238,12 @@ components:
           $ref: '#/components/schemas/PartnerId'
           description: 商户所属机构；不属任何机构不返回本键。
         amount:
-          description: '订单金额。已成交且结算额已到的订单是结算币种的成交金额；已成交而结算额待定的订单是标价金额，并带 `settleAmountPending: true`；没成交的（`FAILED` / `REJECTED`）是标价金额。'
+          description: '订单金额。已成交且结算额已到的订单是结算币种的成交金额；已成交而结算额待定的订单是付款人应付总额（标价币种），并带 `settleAmountPending: true`；没成交的（`FAILED` / `REJECTED` / `CLOSED` / `EXPIRED`）是付款人应付总额（标价币种）。'
           allOf:
             - $ref: '#/components/schemas/Money'
         settleAmountPending:
           type: boolean
-          description: 结算额待定：成交金额尚未从通道到达，`amount` 暂为标价金额；到达后不再返回本键。只在待定时返回。
+          description: 结算额待定：成交金额尚未从通道到达，`amount` 暂为付款人应付总额（标价币种）；到达后不再返回本键。只在待定时返回。
         refundedAmount:
           description: 已退金额，标价币种（通道已受理的退款累计；受理后又失败的会退回）。没退过时不返回本键。
           allOf:
@@ -1341,7 +1343,7 @@ components:
             - callbackDeliveries
           properties:
             orderAmount:
-              description: 标价金额，标价币种。
+              description: 商户订单标价金额，标价币种。
               allOf:
                 - $ref: '#/components/schemas/Money'
             tipAmount:
@@ -1349,7 +1351,7 @@ components:
               allOf:
                 - $ref: '#/components/schemas/Money'
             totalAmount:
-              description: 订单总额 = 标价金额 + 小费，标价币种。
+              description: 订单总额 = 商户订单标价金额 + 小费，标价币种。
               allOf:
                 - $ref: '#/components/schemas/Money'
             customerServiceFee:
