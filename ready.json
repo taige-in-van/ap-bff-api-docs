@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-28T03:09:56Z",
-  "implCommit": "86440247",
+  "generatedAt": "2026-10-28T18:40:17Z",
+  "implCommit": "ea13bf63",
   "ops": {
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
     "merchant/account/confirmRefundPinReset": "41bbecc55dde35e6",
@@ -46,7 +46,14 @@
     "merchant/devices/listDeviceStores": "813c35143462d20f",
     "merchant/devices/listDevices": "8163896d481010c5",
     "merchant/devices/updateDevice": "1fc4c15c37d1af31",
+    "merchant/funds/exportSettlementDetails": "0f475eefe1da32bf",
+    "merchant/funds/exportSettlements": "3af9098f97652e3b",
     "merchant/funds/getBalance": "fe566baf3ce0b834",
+    "merchant/funds/getStatement": "60bbcdb3e9eb4af5",
+    "merchant/funds/getStatementPdf": "29cbc0d3aa35b24e",
+    "merchant/funds/listSettlementDetails": "0e075487552ebbe2",
+    "merchant/funds/listSettlements": "ea8b0e083965224f",
+    "merchant/funds/listStatements": "e68a3e242d5e3051",
     "merchant/me/changeMyPassword": "78750fe7616d6a49",
     "merchant/me/confirmLoginEmailChange": "607fa428f0c14587",
     "merchant/me/confirmMfa": "739c392e0f403ed7",
@@ -116,5 +123,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdStage": "stage/261027-wechat-recipient-nickname"
+  "prdStage": "stage/261028-slice-i-settlements"
 }
