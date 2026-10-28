@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 通知设置 — 前端契约面
-  version: 2.0.2
+  version: 2.0.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -315,7 +315,7 @@ components:
         nickname:
           type: string
           minLength: 1
-          description: 绑定时的微信昵称。
+          description: 微信昵称；用户授权微信资料后会更新。
         boundAt:
           $ref: '#/components/schemas/Timestamp'
     DiagnosticDetail:

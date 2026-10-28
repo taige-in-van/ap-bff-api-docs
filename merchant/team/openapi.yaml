@@ -871,7 +871,7 @@ components:
         nickname:
           type: string
           minLength: 1
-          description: 绑定微信的昵称展示快照（绑定时写入；拿不到昵称时为通用展示名，故恒非空）。
+          description: 绑定微信的昵称展示快照（拿不到昵称时为通用展示名，故恒非空；微信用户授权微信资料后会更新）。
     Timestamp:
       type: string
       format: date-time

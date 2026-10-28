@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 微信侧公开面 · 微信确认页
-  version: 2.0.2
+  version: 2.1.0
   contact:
     name: 微信确认页契约
   description: |
@@ -10,7 +10,8 @@ info:
     另外两个接口由二维码与微信网页授权之间的跳转驱动，页面不调用，列出供理解流程：扫码落地并跳微信网页授权（`enterWechatChallenge`）、网页授权回调并跳转微信确认页（`completeWechatOAuth`）。
 
     - 扫码登录、微信绑定、外部账号身份确认三种用途与所有后台共用本面，用途在发起时固化、由确认上下文的 `purpose` 给出。
-    - 每一步用的材料各自独立：二维码里的 `scanToken`、网页授权的 `state`、微信确认页的 `confirmationToken`，都不是发起方查询结果用的标识；本面的路径与请求都不出现那个标识。
+    - 扫码落地一律走静默网页授权，只识别是哪个微信、不取昵称头像；用户确认成功后，需要时响应另带 `profileAuthorizationUrl`，页面立即跳转请用户授权微信资料，用来补昵称与头像；授权后回到微信确认页，fragment 再带一个新的 `confirmationToken`。结果在确认时已经落定，授权资料与否都不改变结果。
+    - 每一步用的材料各自独立：二维码里的 `scanToken`、两次网页授权各自的 `state`、微信确认页的 `confirmationToken`，都不是发起方查询结果用的标识；本面的路径与请求都不出现那个标识。
     - 微信确认页从页面地址的 fragment 取 `confirmationToken`，此后放在请求头 `X-Confirmation-Token` 里调用两个接口；fragment 里带的是 `failure` 时直接渲染失败态，不调接口。
     - 接口只返回码，页面文案由微信确认页按 `locale` 本地化。
     - 外部账号身份一律由平台服务端解析，不接受页面传入。
@@ -30,7 +31,7 @@ paths:
       operationId: enterWechatChallenge
       summary: 扫码落地并跳微信网页授权
       description: |
-        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信网页授权。挑战被认领（网页授权回调带回 `code`）之前，或认领后因系统失败释放（`completeWechatOAuth` 回 `#failure=UNAVAILABLE`）之后，同一 `scanToken` 可以重复落地：每次落地换发新的 `state`，之前发出的 `state` 随即失效。
+        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信静默网页授权（`snsapi_base`：只识别是哪个微信，不弹授权框、不取昵称头像）。挑战被认领（网页授权回调带回 `code`）之前，或认领后因系统失败释放（`completeWechatOAuth` 回 `#failure=UNAVAILABLE`）之后，同一 `scanToken` 可以重复落地：每次落地换发新的 `state`，之前发出的 `state` 随即失效。
 
         发给微信的 `redirect_uri` 为登记域名上的回调中转静态页，其 `redirect` 参数指向本面的授权回调（`completeWechatOAuth`）；`state` 为本面生成的一次性字母数字串。
 
@@ -57,17 +58,21 @@ paths:
       operationId: completeWechatOAuth
       summary: 微信网页授权回调
       description: |
-        校验一次性 `state`，服务端以 `code` 换取外部账号身份并记到原挑战上，再按挑战用途做预检，然后 `302` 到微信确认页。本步不出页面、不呈现预检结果。扫码登录的预检在访问资格之后核该用户的登录 IP 白名单（来源 IP 取发起扫码那次请求的），不在白名单记为预检未过（`failReason = IP_NOT_ALLOWED`）；本服务自身判定都通过后调用发起 client 的登录准入回调，判不准入记为预检未过（`failReason = LOGIN_NOT_ELIGIBLE`）。
+        本接口承接两次网页授权的回跳：扫码落地那次，与确认成功后资料授权那次（`profileAuthorizationUrl`）。两次各有自己的一次性 `state`，本接口凭 `state` 区分。
+
+        **扫码落地那次**：校验 `state`，认领挑战并作废该 `state`，服务端以 `code` 换取外部账号身份并记到原挑战上（静默授权拿不到昵称头像），再按挑战用途做预检，然后 `302` 到微信确认页。本步不出页面、不呈现预检结果。扫码登录的预检在访问资格之后核该用户的登录 IP 白名单（来源 IP 取发起扫码那次请求的），不在白名单记为预检未过（`failReason = IP_NOT_ALLOWED`）；本服务自身判定都通过后调用发起 client 的登录准入回调，判不准入记为预检未过（`failReason = LOGIN_NOT_ELIGIBLE`）。
 
         跳转微信确认页时 fragment 有两种形态：
 
         - `#confirmationToken=…`：成功换得身份；预检未过时，微信确认页经 `getWechatConfirmation` 拿到 `state = FAILED` 与原因码。
-        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 缺失、格式不符或对不上；`#failure=DENIED`：回跳没有 `code`（用户在微信里拒绝了授权），本次 `state` 作废，挑战不推进、不被认领，同一二维码可重新扫码；`#failure=UNAVAILABLE`：以 `code` 换外部账号身份失败（微信返回错误或不可达），或扫码登录预检时登录准入回调超时或出错，或预检出现其他系统异常，不出确认入口、不签发、不写登录流水，页面提示稍后再试；同时释放认领（清掉本次 `state` 与扫码时刻），挑战回到未扫，同一张二维码可以直接重扫。不向浏览器返回错误体。
+        - `#failure=EXPIRED`：挑战已过期或材料已用；`#failure=INVALID`：`state` 缺失、格式不符或对不上；`#failure=DENIED`：扫码落地那次回跳没有 `code`（用户在微信里拒绝了授权），本次 `state` 作废，挑战不推进、不被认领，同一二维码可重新扫码；`#failure=UNAVAILABLE`：以 `code` 换外部账号身份失败（微信返回错误或不可达），或扫码登录预检时登录准入回调超时或出错，或预检出现其他系统异常，不出确认入口、不签发、不写登录流水，页面提示稍后再试；同时释放认领（清掉本次 `state` 与扫码时刻），挑战回到未扫，同一张二维码可以直接重扫。不向浏览器返回错误体。
+
+        **资料授权那次**：`state` 一到即作废，不论结果。以 `code` 换得的微信与扫码落地时是同一个、不是快照页的虚拟账号、换取与拉取资料都成功时，用取得的昵称与头像更新该微信的展示资料（微信给空昵称时用通用展示名）；其余情况（换得的微信不一致、快照页虚拟账号、换取或拉取失败、回跳没带 `code`、`state` 已过期）都不更新、不报错，保留原有展示。这一次换得的身份只用来取资料，不进入任何结果。无论是否取得资料，都换发新的 `confirmationToken`、之前的随即失效，`302` 到微信确认页 `#confirmationToken=…`，页面读上下文渲染已落定的结果态。`state` 已用过或对不上时同上面的 `#failure=EXPIRED` / `#failure=INVALID`。用户在资料授权框点取消时微信不回跳，页面停在原处，可用同一地址再次发起。
       parameters:
         - name: state
           in: query
           required: false
-          description: '`enterWechatChallenge` 生成的一次性 state，只含字母数字、不超过 128 字节；缺失或不符都算 `state` 无效。'
+          description: 本面生成的一次性 state（扫码落地时由 `enterWechatChallenge` 生成，或随 `profileAuthorizationUrl` 下发），只含字母数字、不超过 128 字节；缺失或不符都算 `state` 无效。
           schema:
             type: string
         - name: code
@@ -80,7 +85,7 @@ paths:
       responses:
         '302':
           description: |
-            跳转微信确认页，fragment 为 `#confirmationToken=…`，失败时为 `#failure=EXPIRED`、`#failure=INVALID`、`#failure=DENIED` 或 `#failure=UNAVAILABLE`。
+            跳转微信确认页，fragment 为 `#confirmationToken=…`，失败时为 `#failure=EXPIRED`、`#failure=INVALID`、`#failure=DENIED` 或 `#failure=UNAVAILABLE`；资料授权那次只会是 `#confirmationToken=…`、`#failure=EXPIRED` 或 `#failure=INVALID`。
         default:
           $ref: '#/components/responses/DefaultError'
   /wechat/confirmations/current:
@@ -92,9 +97,11 @@ paths:
       description: |
         微信确认页凭请求头里的 `confirmationToken` 取本次挑战的确认上下文，据 `state` 决定渲染什么：`PENDING_DECISION` 才出确认与取消按钮；`FAILED` 按 `failReason` 展示原因、不出确认按钮；`CONFIRMED`、`CANCELLED`、`EXPIRED` 直接展示结果态。
 
-        同一 `confirmationToken` 可多次读取：刷新或重放页面时，挑战已有决定或已过期就返回对应 `state`。本 op 只读确认上下文，拿不到发起方查询的结果。
+        同一 `confirmationToken` 可多次读取：刷新或重放页面时，挑战已有决定（确认、确认后落败或取消）就一直返回该结果态，过了 `expiresAt` 也不改成 `EXPIRED`；只有还没决定的挑战（待决定，含预检未过）过了 `expiresAt` 才返回 `EXPIRED`。本 op 只读确认上下文，拿不到发起方查询的结果。
 
-        **什么时候拒绝**：材料对不上 → `966002`。材料对得上但挑战已过期 → `200` 且 `state = EXPIRED`，不拒绝。
+        确认成功后资料授权已发起、回跳还没到时（如用户在授权框点了取消后刷新页面），另返回 `profileAuthorizationUrl`：每次读取都换一个新地址、之前的地址随即失效，有效期不随读取延长；页面可据此再次发起资料授权，或直接关闭。
+
+        **什么时候拒绝**：材料对不上 → `966002`。材料对得上就不拒绝：还没决定且已过 `expiresAt` → `200` 且 `state = EXPIRED`；已有决定 → `200` 且返回该结果态。
       security:
         - confirmationToken: []
       x-error-codes:
@@ -130,9 +137,11 @@ paths:
       description: |
         微信确认页凭请求头里的 `confirmationToken` 提交用户的确认或取消，返回 `200` 与结果 `result`，页面据此渲染结果态。确认时按挑战用途推进：登录 → 裁访问资格与本后台的微信登录开关；微信绑定 → 原子裁外部账号占用与目标账号有效性并写入该用户的微信绑定；外部账号身份确认 → 直接成立。决定只推进一次。
 
+        确认成功（`result = CONFIRMED`）且需要补取该微信的资料时（此微信从未请求过资料授权，或距上次请求已超过刷新间隔），响应另带 `profileAuthorizationUrl`：页面拿到后立即整页跳转，请用户授权微信资料；授权后回到微信确认页，fragment 带新的 `confirmationToken`。发出这个地址即算请求过一次，不论用户是否同意。不需要补取时、以及 `FAILED` / `CANCELLED` / `EXPIRED` 不带。
+
         确认后裁决落败（登录时访问资格已失效或本后台已关闭微信登录；绑定时目标账号已失效或微信已被其他用户占用）→ `200` 且 `result = FAILED`、带 `failReason`，只给扫码本人看。
 
-        **什么时候拒绝**：只有材料对不上才拒绝 → `966002`。材料对得上但挑战不在 `PENDING_DECISION` 时不拒绝、也不推进，按现状回 `200`：已过期 → `result = EXPIRED`；预检未过 → `result = FAILED` + 预检时的 `failReason`；已有决定 → 回放首次结果。
+        **什么时候拒绝**：只有材料对不上才拒绝 → `966002`。材料对得上但挑战不在 `PENDING_DECISION` 时不拒绝、也不推进，按现状回 `200`：已有决定 → 回放首次结果，过了 `expiresAt` 也一样；还没决定且已过 `expiresAt`（含预检未过）→ `result = EXPIRED`；预检未过、尚未过期 → `result = FAILED` + 预检时的 `failReason`。
       security:
         - confirmationToken: []
       x-error-codes:
@@ -178,9 +187,12 @@ paths:
                       - `CONFIRMED`：已确认。扫码登录 = 用户已确认，会话由发起登录的那一侧签发；微信绑定 = 绑定已写入；外部账号身份确认 = 确认已成立。
                       - `FAILED`：确认后裁决落败，原因见 `failReason`。
                       - `CANCELLED`：用户已取消。
-                      - `EXPIRED`：提交决定时挑战已过期。
+                      - `EXPIRED`：提交决定时挑战还没决定且已过期。
                   failReason:
                     $ref: '#/components/schemas/WechatFailReason'
+                  profileAuthorizationUrl:
+                    $ref: '#/components/schemas/WechatProfileAuthorizationUrl'
+                    description: 仅 `result = CONFIRMED` 且需要补取微信资料时返回：微信资料授权地址，页面拿到后立即整页跳转。用户在授权框点取消时微信不回跳，可用同一地址再次发起。
               example:
                 result: CONFIRMED
         default:
@@ -191,8 +203,13 @@ components:
       type: apiKey
       in: header
       name: X-Confirmation-Token
-      description: 微信确认页从页面地址 fragment 取到的确认材料；短时、高熵；可多次读取上下文，决定只推进一次。
+      description: 微信确认页从页面地址 fragment 取到的确认材料；短时、高熵；可多次读取上下文，决定只推进一次；资料授权回跳时换发新值、旧值随即失效。
   schemas:
+    WechatProfileAuthorizationUrl:
+      type: string
+      maxLength: 2048
+      pattern: ^https://\S+$
+      description: 微信资料授权地址，带本次资料授权的一次性 `state`；授权后经网页授权回调回到微信确认页。
     WechatFailReason:
       type: string
       enum:
@@ -249,11 +266,11 @@ components:
         expiresAt:
           type: string
           format: date-time
-          description: 本次挑战的失效时刻；到时页面自动转为已过期。
+          description: 本次挑战决定的截止时刻；还没决定时到时页面自动转为已过期，已有决定的不受影响。
         wechat:
           type: object
           additionalProperties: false
-          description: 扫码的微信，用于「你正在用微信 X 确认」；有值时返回（扫码登录时此微信未绑定账号就没有资料可返回）。扫码登录取已绑定微信的资料快照（扫码登录的网页授权只识别身份、不取资料），微信绑定与外部账号身份确认取本次网页授权返回的资料。
+          description: 扫码的微信，用于「你正在用微信 X 确认」；有值时返回。取本次资料授权取得的资料，没有就取此微信已有的资料快照（扫码落地只识别身份、不取资料）。确认前的微信绑定与外部账号身份确认通常没有，页面以账号或用途信息为主。
           required:
             - nickname
           properties:
@@ -263,6 +280,9 @@ components:
             avatarUrl:
               $ref: '#/components/schemas/AvatarUrl'
               description: 微信头像地址，有值时返回。
+        profileAuthorizationUrl:
+          $ref: '#/components/schemas/WechatProfileAuthorizationUrl'
+          description: 有值时返回：已确认成功、微信资料授权已发起但回跳还没到。每次读取都换发新地址、之前的地址随即失效，有效期不随读取延长；页面可据此再次发起资料授权。
         locale:
           type: string
           description: 发起时固化的语言（BCP 47，如 `zh-CN`、`en-CA`、`fr-CA`）；有值时返回，页面按它选语言，无则按微信客户端语言。
