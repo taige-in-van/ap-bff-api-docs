@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.0.3
+  version: 2.0.4
   contact:
     name: 收银台
   description: |
@@ -789,7 +789,7 @@ paths:
       operationId: listCheckoutPaymentMethods
       summary: 列出该会话当前可用的支付方式与各自的总应付
       description: |
-        当前可用的支付方式，按本次请求的受理环境与这个收款入口允许的方式给出；列表是此刻的结果，发起支付时会再校验。商户下单时指定了支付方式的订单，列表只含那一项（它在当前环境不可用时为空）。
+        当前可用的支付方式，按本会话的受理环境（即入口接口返回的 `acceptanceEnv`）与这个收款入口允许的方式给出；列表是此刻的结果，发起支付时会再校验。商户下单时指定了支付方式的订单，列表只含那一项（它在当前环境不可用时为空）。
 
         每项带选这一方式时的总应付，发起支付时会重算；此刻算不出总应付的方式不出现在列表里。没有可用方式时返回 `{ items: [] }`，不是错误；礼卡会话还没有订单而 `state` 不是 `PAYABLE` 时同样返回空列表。
 
@@ -1470,7 +1470,7 @@ components:
             - alipay_internal
             - mobile_h5
             - pc
-          description: 服务端按本次请求判定的受理环境：`wechat_internal` 微信内 · `alipay_internal` 支付宝内 · `mobile_h5` 手机普通浏览器 · `pc` 电脑浏览器。遇到未列出的值按 `mobile_h5` 处理。
+          description: 本会话的受理环境：`wechat_internal` 微信内 · `alipay_internal` 支付宝内 · `mobile_h5` 手机普通浏览器 · `pc` 电脑浏览器。新建会话按本次请求判定；凭会话令牌或 `resumeCode` 认回时返回该会话建立时判定的值（原会话已过期、按订单重建的，按本次请求判定）。遇到未列出的值按 `mobile_h5` 处理。
         grant:
           allOf:
             - $ref: '#/components/schemas/CheckoutSessionGrant'
