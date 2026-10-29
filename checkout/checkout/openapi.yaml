@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.0.4
+  version: 2.1.0
   contact:
     name: 收银台
   description: |
@@ -9,12 +9,12 @@ info:
 
     ## 会话
 
-    - 先调入口接口（`openQrcodeCheckout` 或 `openOrderCheckout`）拿到会话令牌，之后每个请求都在 `X-Checkout-Session` 头里带上它。
+    - 先调入口接口（`openQrcodeCheckout` 或 `openOrderCheckout`）拿到会话令牌，之后除 `getCheckoutLaunch` 外的每个请求都在 `X-Checkout-Session` 头里带上它。
     - 入口接口建立或认回会话：
       - 带着本入口的有效会话令牌：认回同一会话（`state` 不是 `PAYABLE` 也认回），返回 `200`、不带 `grant`；
       - 带着有效的 `resumeCode`：认回付款前的那个会话（`state` 不是 `PAYABLE` 也认回），返回 `200` 与 `grant`（为这个会话另给一枚令牌，原来的令牌仍可用）；同时带了会话令牌时以 `resumeCode` 为准；`resumeCode` 无效、已用过或已过期时按没带处理；
       - 否则签发新会话，返回 `201` 与 `grant`；`state` 不是 `PAYABLE`，或需要付款人标识而没拿到（此时带 `reauthorizeUrl`）时不签发，返回 `200`、不带 `grant`。礼卡例外：入口 `state` 为 `INACTIVE`、`EXPIRED` 时照样签发，这样的会话只能用礼卡组接口（见 `openQrcodeCheckout`）。
-    - 除入口接口外，一个请求作用于哪个商户、哪个入口、哪笔订单都由会话决定；请求体里不用带这些标识，带了也不采信。令牌无效或已过期时返回 `404`，要访问的对象不是本会话能访问的时同样返回 `404`：订单类接口只能访问本会话的订单；礼卡的「我的订单」与存入支付宝卡包按本会话付款人认订单，规则在各接口说明里。
+    - 除入口接口与 `getCheckoutLaunch` 外，一个请求作用于哪个商户、哪个入口、哪笔订单都由会话决定（`getCheckoutLaunch` 作用于哪次支付由 `launchRef` 决定）；请求体里不用带这些标识，带了也不采信。令牌无效或已过期时返回 `404`，要访问的对象不是本会话能访问的时同样返回 `404`：订单类接口只能访问本会话的订单；礼卡的「我的订单」与存入支付宝卡包按本会话付款人认订单，规则在各接口说明里。
 
     ## 调用顺序
 
@@ -24,6 +24,8 @@ info:
     4. 商品、票务付款成功后的凭证，礼卡的发放状态与凭证，都在 `getCheckoutOrder` 返回的 `sales` 里。
 
     付款人可用 `deleteCheckoutSavedCard` 删除自己的一张已存卡。
+
+    在微信里发起支付、拉起动作为 `open_in_browser` 时，付款人要到手机浏览器里继续；浏览器那一侧没有会话，凭拉起动作给的 `launchRef` 调 `getCheckoutLaunch` 取唤起地址，这个接口不带会话令牌。
 
     礼卡另有三组接口：买家邮箱验证（`requestGiftcardEmailOtp`、`verifyGiftcardEmailOtp`）、「我的订单」（`listGiftcardOrders`、`getGiftcardOrder`）与存入支付宝卡包（`createGiftcardAlipayPass`）。
 
@@ -48,6 +50,9 @@ tags:
   - name: order
     x-displayName: 本会话订单
     description: 本会话这笔订单：可用支付方式与各自的总应付、发起支付、查状态，以及付款时可选的已存卡。
+  - name: launches
+    x-displayName: 在浏览器打开
+    description: 在微信里选了要到浏览器付款的方式后，浏览器那一侧凭编号取唤起地址。
   - name: giftcard
     x-displayName: 礼卡
     description: 礼卡专用：买家邮箱验证、「我的订单」与存入支付宝卡包。
@@ -1134,6 +1139,41 @@ paths:
       responses:
         '204':
           description: 已删除，或本来就没有这张卡
+        default:
+          $ref: '#/components/responses/DefaultError'
+  /launches/{launchRef}:
+    get:
+      tags:
+        - launches
+      operationId: getCheckoutLaunch
+      summary: 凭编号取在浏览器打开时的唤起地址
+      description: |
+        在微信里发起支付、拉起动作为 `open_in_browser` 时，付款人在手机浏览器里打开同一页面地址后调用：凭拉起动作给的 `launchRef` 取这次支付的唤起地址与备用地址。不需要会话令牌，可反复调用。
+
+        编号认不出，或这次支付已不在等付款人完成（已付成、未成功、订单已到期或已关闭）→ `404`。
+      security: []
+      x-error-codes: []
+      parameters:
+        - name: launchRef
+          in: path
+          required: true
+          description: 拉起动作给的 `launchRef`，取自页面地址 `#` 之后，原样传入（不透明值，不要解析或改写）。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+      responses:
+        '200':
+          description: 这次支付的唤起地址
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutLaunch'
+              examples:
+                alipay:
+                  summary: 支付宝
+                  value:
+                    launchUrl: https://qr.alipay.com/bax08812ok1kdmcgh2xs0027
         default:
           $ref: '#/components/responses/DefaultError'
   /giftcard/email/otp-challenges:
@@ -2597,7 +2637,7 @@ components:
             - `jsapi` 在微信 / 支付宝内调起支付窗，带 `sdkParams`；
             - `qr` 显示二维码让付款人用手机扫，带 `qrContent`；
             - `app_launch` 唤起钱包 App，带 `launchUrl`，可能带 `fallbackUrl`；
-            - `open_in_browser` 当前环境唤不起所选钱包、需在手机浏览器里打开，带 `launchUrl`，可能带 `fallbackUrl`；
+            - `open_in_browser` 当前环境唤不起所选钱包、需在手机浏览器里打开，带 `launchRef`，唤起地址在浏览器那一侧凭它调 `getCheckoutLaunch` 取；
             - `redirect` 整页离开收银台，带 `redirectUrl` 与 `redirectMethod`：`GET` 时直接跳到 `redirectUrl`，`POST` 时把 `redirectForm` 作为表单整页提交到 `redirectUrl`；
             - `hidden_form` 付款人留在本页，在一个看不见的框里把 `redirectForm` 作为表单以 POST 提交到 `redirectUrl`，带这两个字段；提交本身不给页面结果，结果以 `getCheckoutOrder` 为准。
 
@@ -2613,10 +2653,15 @@ components:
         launchUrl:
           type: string
           minLength: 1
-          description: 唤起钱包的地址。仅 `kind` 为 `app_launch` 或 `open_in_browser` 时返回。
+          description: 唤起钱包的地址。仅 `kind` 为 `app_launch` 时返回。
         fallbackUrl:
           $ref: '#/components/schemas/WebUrl'
-          description: 唤不起钱包时的备用地址。仅 `kind` 为 `app_launch` 或 `open_in_browser` 时可能返回。
+          description: 唤不起钱包时的备用地址。仅 `kind` 为 `app_launch` 时可能返回。
+        launchRef:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 到手机浏览器里继续付款时用的编号，不透明值，不要解析或改写。仅 `kind` 为 `open_in_browser` 时返回。页面把它写进地址 `#` 之后，浏览器那一侧凭它调 `getCheckoutLaunch` 取唤起地址。
         redirectUrl:
           $ref: '#/components/schemas/WebUrl'
           description: 跳转或表单提交的目标地址，原样使用；跳转本身不决定结果。仅 `kind` 为 `redirect` 或 `hidden_form` 时返回。
@@ -2631,6 +2676,19 @@ components:
           additionalProperties:
             type: string
           description: 要作为表单提交的键值，键与值原样使用，不要改写或增减。仅 `kind` 为 `hidden_form`，或 `kind` 为 `redirect` 且 `redirectMethod` 为 `POST` 时返回。
+    CheckoutLaunch:
+      type: object
+      description: 在浏览器打开时这次支付的唤起地址。
+      required:
+        - launchUrl
+      properties:
+        launchUrl:
+          type: string
+          minLength: 1
+          description: 唤起钱包的地址，页面直接跳过去。
+        fallbackUrl:
+          $ref: '#/components/schemas/WebUrl'
+          description: 唤不起钱包时的备用地址，有才返回。
     CheckoutSessionGrant:
       type: object
       description: |

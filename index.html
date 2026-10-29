@@ -7,7 +7,7 @@
 <h1>BFF API 契约</h1>
 <p>前端、收银台、终端（POS / 商户 App）与微信确认页消费的 REST 契约,按 consumer / module 分目录。</p>
 <p class="warn">⚠️ <strong>design / review 阶段</strong>契约 —— 实现前可能调整;可据此并行开发,勿当冻结契约。</p>
-<p><small>契约版本:<code>stage/261028-core-store-qr-b4</code><span id="ready-stage" hidden> · 联调环境按 <code id="ready-stage-name"></code> 部署</span></small></p>
+<p><small>契约版本:<code>stage/261029-checkout-launch-ref</code><span id="ready-stage" hidden> · 联调环境按 <code id="ready-stage-name"></code> 部署</span></small></p>
 <p id="stage-diff" class="warn" hidden>⚠️ 本页契约与联调环境部署所依据的版本不同:接口以各调用时序页的就绪标识为准(⚠️ 表示该接口契约在实现之后有改动)。</p>
 <p id="ready-legend" hidden>🧪 调用时序页的接口表带<strong>联调就绪标识</strong>:✅ 已部署到联调环境、可对接调试;⚠️ 契约在实现之后有改动、待后端重验;无标识 = 尚未部署。下方调用时序列表里页面名后的 ✅ = 该页接口全部 ✅。</p>
 <p id="dev-env-link" class="conv" hidden>🔌 <a href="dev-env.html"><strong>联调指南（dev-env.html）</strong></a> —— 联调环境地址、本地代理、CSRF、测试账号与数据重置说明，后端随环境变化更新。</p>
@@ -20,7 +20,7 @@ fetch('ready.json',{cache:'no-store'}).then(function(r){return r.ok?r.json():nul
     var s=document.createElement('span');s.textContent=' ✅';s.title='本页接口全部已部署到联调环境、可对接调试';li.querySelector('a').after(s);
   });
   if(!rd.prdStage)return; document.getElementById('ready-stage-name').textContent=rd.prdStage; document.getElementById('ready-stage').hidden=false;
-  if(rd.prdStage!=='stage/261028-core-store-qr-b4'||!true)document.getElementById('stage-diff').hidden=false;
+  if(rd.prdStage!=='stage/261029-checkout-launch-ref'||!true)document.getElementById('stage-diff').hidden=false;
 }).catch(function(){});
 fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getElementById('dev-env-link').hidden=false;}).catch(function(){});
 </script>
@@ -80,17 +80,17 @@ fetch('dev-env.html',{cache:'no-store'}).then(function(r){if(r.ok)document.getEl
 <h2>收银台 (Checkout)</h2>
 <h3>调用时序（按页面，先读）</h3>
 <ul>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/00-shared.html">收银台共用环节</a></li>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/01-store-qr.html">店铺码</a></li>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/02-invoice.html">账单支付</a></li>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openOrderCheckout":"8d8ea258631bec6a"}'><a href="checkout/flows/03-order-checkout.html">订单付款页</a></li>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/04-products-tickets.html">商品与票务</a></li>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711","checkout/checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}'><a href="checkout/flows/05-giftcard.html">礼卡</a></li>
-    <li data-ops='{"checkout/checkout/createCheckoutPayment":"9a0bcf8a3a702430","checkout/checkout/getCheckoutOrder":"151ca2754326087b","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openOrderCheckout":"8d8ea258631bec6a"}'><a href="checkout/flows/06-plugins.html">电商插件订单</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/checkout/getCheckoutLaunch":"454f00719116c312","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/00-shared.html">收银台共用环节</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/01-store-qr.html">店铺码</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/02-invoice.html">账单支付</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openOrderCheckout":"8d8ea258631bec6a"}'><a href="checkout/flows/03-order-checkout.html">订单付款页</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711"}'><a href="checkout/flows/04-products-tickets.html">商品与票务</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/checkout/openQrcodeCheckout":"2d12c19c19271711","checkout/checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}'><a href="checkout/flows/05-giftcard.html">礼卡</a></li>
+    <li data-ops='{"checkout/checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/checkout/getCheckoutOrder":"4ab1df466903e462","checkout/checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/checkout/openOrderCheckout":"8d8ea258631bec6a"}'><a href="checkout/flows/06-plugins.html">电商插件订单</a></li>
 </ul>
 <h3>接口（按资源）</h3>
 <ul>
-    <li><a href="checkout/checkout/index.html">收银台</a> 🆕 <small>(v2.0.3 → v2.0.4)</small> — <a href="checkout/checkout/openapi.yaml">openapi.yaml</a></li>
+    <li><a href="checkout/checkout/index.html">收银台</a> 🆕 <small>(v2.0.4 → v2.1.0)</small> — <a href="checkout/checkout/openapi.yaml">openapi.yaml</a></li>
 </ul>
 <h2>终端 (POS / 商户 App)</h2>
 <p>🔢 <a href="terminal/error-codes.json"><strong>terminal/error-codes.json</strong></a> —— 终端两份契约用到的错误码（<code>name</code> / 能否重试 / 必带 <code>context</code> 字段）。HTTP 状态按各契约顶部「状态码」一节的三档，不在表里。</p>
