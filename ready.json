@@ -1,10 +1,11 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-29T05:49:15Z",
-  "implCommit": "22f31ce9",
+  "generatedAt": "2026-10-29T17:35:42Z",
+  "implCommit": "741ec74b",
   "ops": {
-    "checkout/checkout/createCheckoutPayment": "9a0bcf8a3a702430",
-    "checkout/checkout/getCheckoutOrder": "151ca2754326087b",
+    "checkout/checkout/createCheckoutPayment": "d4b2d491b4792775",
+    "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
+    "checkout/checkout/getCheckoutOrder": "4ab1df466903e462",
     "checkout/checkout/listCheckoutPaymentMethods": "2f699ea7d0334b0a",
     "checkout/checkout/openQrcodeCheckout": "2d12c19c19271711",
     "merchant/account/changeRefundPin": "4fdf4715182605d5",
@@ -137,5 +138,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdStage": "stage/261028-core-store-qr-b4"
+  "prdStage": "stage/261029-checkout-launch-ref"
 }
