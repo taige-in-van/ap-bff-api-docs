@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.2.3
+  version: 2.2.4
   contact:
     name: 商户后台 BFF
   description: |
@@ -12,7 +12,7 @@ info:
 
     **幂等 / CSRF 口径**：
 
-    - 三个命令（发起退款、撤销退款、预授权完成）必带 `Idempotency-Key`，缺了 → `400`。同键同请求体重发返回首次结果，网络重试用同一个键；改了请求体要换新键，沿用旧键 → `409`·`908003`。
+    - 三个命令（发起退款、撤销退款、预授权完成）必带 `Idempotency-Key`，缺了 → `400`。同键同请求体重发：撤销退款与预授权完成返回首次结果，发起退款返回这笔退款此刻的状态；网络重试用同一个键；改了请求体要换新键，沿用旧键 → `409`·`908003`。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
     - 当前商户以会话为准、不看请求体；当前商户不可访问时返回 `409`·`208022`。
 servers:
@@ -437,7 +437,7 @@ paths:
         - `SUCCESS`：通道当场退成；
         - `FAILED`：没有退成，`failureReason` 为 `INSUFFICIENT_FUNDS`（账户资金不足，没有送到通道）或 `CHANNEL_REJECTED`（通道当场拒绝）。占用的可退额度已放回，可以重新发起。
 
-        幂等：带 `Idempotency-Key`。同键同请求体重发返回首次结果，不会建两笔；同键改了请求体 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。PIN 不参与幂等比对。
+        幂等：带 `Idempotency-Key`。同键同请求体重发，返回这笔退款此刻的状态，不会建两笔；同键改了请求体 → `409`·908003；同键的上一次提交还没建单 → `409`·908002。PIN 不参与幂等比对。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -1496,9 +1496,9 @@ components:
         status:
           allOf:
             - $ref: '#/components/schemas/RefundStatus'
-          description: 首次受理是 `REVIEWING`、`CHANNEL_PROCESSING`、`SUCCESS` 或 `FAILED`。同键重发返回的是首次受理时记下的结果，不是当前的实时状态。
+          description: 首次受理是 `REVIEWING`、`CHANNEL_PROCESSING`、`SUCCESS` 或 `FAILED` 之一。同键重发返回这笔退款此刻的状态，可以是任一退款状态。
         failureReason:
-          description: '`status = FAILED` 时必返，此处只会是 `INSUFFICIENT_FUNDS` 或 `CHANNEL_REJECTED`；其余状态不返回本键。'
+          description: '`status = FAILED` 时必返。首次受理时只会是 `INSUFFICIENT_FUNDS` 或 `CHANNEL_REJECTED`，同键重发时可能是任一失败原因；其余状态不返回本键。'
           allOf:
             - $ref: '#/components/schemas/RefundFailureReason'
     StatisticsSummary:

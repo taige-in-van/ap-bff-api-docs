@@ -218,7 +218,7 @@ sequenceDiagram
 
 ## 页面：环境引导
 
-付款人在手机普通浏览器里打开（用相机扫码最常见），本入口在这个环境下没有可用方式：提示「请用微信或支付宝扫码」。环境用入口接口返回的 `acceptanceEnv`，前端不再按 UA 自判。微信里选了支付宝的引导是另一页，见「页面：在浏览器打开引导」。
+付款人在手机普通浏览器里打开（用相机扫码最常见），本入口在这个环境下没有可用方式：提示「请用微信或支付宝扫码」。环境用入口接口返回的 `acceptanceEnv`，前端不再按 UA 自判。微信里选了支付宝的引导是另一页，那一页按页面此刻是否在微信里分两侧、不看 `acceptanceEnv`，见「页面：在浏览器打开引导」。
 
 ```mermaid
 sequenceDiagram
@@ -357,9 +357,13 @@ sequenceDiagram
 - **改金额或换一笔订单**：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理；原订单留到过期。
 - **同一方式的重复点击**：这笔订单上还有同一方式的尝试在等付款人时，返回那次尝试的拉起动作，不另起（网络重试、钱包里取消后再点「付款」都落在这里）。要填卡的方式还要是同一张卡，换了卡就是新的一次。
 - **返回**：订单当前状态 `status` 与拉起动作 `nextAction`，形状与 `getCheckoutOrder` 相同。这笔付款被拒时返回 `status = REJECTED`、不带 `nextAction`。
-- **拉起动作按 `nextAction.kind`**：`jsapi` 用 `sdkParams` 在页内调起支付窗；`qr` 在结果页显示 `qrContent` 的二维码；`app_launch` 跳 `launchUrl` 唤起钱包，唤不起时给 `fallbackUrl`；`open_in_browser` 进「在浏览器打开引导」；`redirect` 整页跳转、`hidden_form` 在看不见的框里提交表单，见「流程：整页跳转与回跳」。
+- **拉起动作按 `nextAction.kind`**：`jsapi` 用 `sdkParams` 在页内调起支付窗；`qr` 在结果页显示 `qrContent` 的二维码；`app_launch` 跳 `launchUrl` 唤起钱包，唤不起时给 `fallbackUrl`；`open_in_browser` 按页面此刻是否在微信里分两侧（在微信里显示引导，不在微信里凭 `launchRef` 取唤起地址跳），见「页面：在浏览器打开引导」；`redirect` 整页跳转、`hidden_form` 在看不见的框里提交表单，见「流程：整页跳转与回跳」。
 - **电脑上动态码选微信**：返回的 `qr` 码内容是这笔订单的入口地址，付款人用手机微信扫开后在微信里付；这次没有发起支付，订单状态不因此改变，`getCheckoutOrder` 也不返回这个码。页面显示该码并轮询 `getCheckoutOrder`，订单到终态按「页面：支付结果」处理；刷新后按入口返回的 `paymentStarted` 处理：本会话此前没发起过支付的，回付款页，重选微信再出码；发起过的，进结果页，按那次支付显示。手机扫开后按「页面：支付方式选择」的订单入口默认选中规则选中微信。
-- **`redirect` 什么时候自动跳**：`redirect` 是在本页这次操作里拿到的（发起支付的返回，或提交隐藏表单后轮询到的）就直接跳；是页面加载后认回会话时拿到的（刷新、付完或取消后回来）不自动跳，在结果页给「继续付款」与「换一种方式」。其余 kind 不受这条限制：页面加载后拿到 `qr` 照常重新显示二维码；拿到 `hidden_form` 不再提交，只轮询等下一步。
+- **拉起动作什么时候执行**：拉起动作只在付款人本次操作拿到时执行一次。本次操作拿到 = 发起支付的返回，或提交隐藏表单后轮询到的 `redirect`。以下情形不自动执行：页面加载后认回会话时拿到的（刷新、付完或取消后回来）；执行过之后轮询又返回的同一个动作（比如唤起钱包后原来那一页在结果页轮询，订单还带着同一个 `app_launch`）。这些情形按 kind 处理：
+  - `qr`：照常显示二维码。
+  - `hidden_form`：不再提交，只轮询等下一步。
+  - `jsapi`、`app_launch`、`redirect`：结果页「付款处理中」，给「继续付款」与「换一种方式」。「继续付款」照这个动作再执行一次：`jsapi` 再调起支付窗，`app_launch` 再跳 `launchUrl`（唤不起时照旧给 `fallbackUrl`），`redirect` 再跳一次。
+  - `open_in_browser`：见「页面：在浏览器打开引导」。
 
 ```mermaid
 sequenceDiagram
@@ -380,8 +384,12 @@ sequenceDiagram
         S->>P: 进支付结果页显示二维码，等手机扫
     else kind = app_launch
         S->>W: 跳 launchUrl 唤起钱包 App，之后进支付结果页
-    else kind = open_in_browser
+    else kind = open_in_browser，页面在微信里
         S->>P: 在浏览器打开引导页
+    else kind = open_in_browser，页面不在微信里
+        S->>C: #35;7 [getCheckoutLaunch]<br/>GET /launches/{launchRef}
+        C-->>S: { launchUrl, fallbackUrl? }
+        S->>W: 跳 launchUrl 唤起钱包 App，之后进支付结果页
     else kind = redirect 或 hidden_form
         S->>P: 按「流程：整页跳转与回跳」处理
     else 没有 nextAction，status = UNPAID（卡被拒或没完成）
@@ -409,7 +417,13 @@ sequenceDiagram
 
 ## 页面：在浏览器打开引导
 
-微信里不能唤起支付宝。发起支付返回 `kind = open_in_browser` 时，页面把 `launchRef` 写进地址 `#` 之后，提示付款人点右上角「在浏览器打开」。浏览器打开的是同一个地址，页面先看 `#` 之后有没有 `launchRef`，有就凭它调 `getCheckoutLaunch` 取唤起地址、跳 `launchUrl` 唤起支付宝，不调入口接口。页面只跳这个接口返回的地址，`#` 之后的其他内容不作跳转目标。付完后支付宝把付款人带回浏览器时，按「流程：整页跳转与回跳」的回跳规则回到原入口并认回会话，浏览器这一边也能直接看到结果；微信里的页面同时按「页面：支付结果」轮询，付款人回到微信也能看到。
+微信里不能唤起支付宝。拿到 `kind = open_in_browser` 时，页面按此刻是否在微信里分两侧处理：前端看 User-Agent，含 `MicroMessenger` 即在微信里。这里不按入口返回的 `acceptanceEnv` 判：会话的受理环境是会话建立时定的，浏览器那一侧付完回来凭 `resume` 认回的仍是微信里建的那个会话，入口返回的仍是 `wechat_internal`。
+
+- **在微信里**：页面把 `launchRef` 写进地址 `#` 之后，提示付款人点右上角「在浏览器打开」。本次操作拿到的、页面加载后拿到的都这样显示；引导不是拉起，不受「流程：发起支付」里「拉起动作什么时候执行」的限制。
+- **不在微信里**（浏览器那一侧）：本次操作拿到的（如浏览器那一侧没付成、重试支付宝），凭 `launchRef` 调 `getCheckoutLaunch` 取唤起地址、直接跳 `launchUrl`，不显示引导。页面加载后拿到的、或跳过之后轮询又返回同一个的，结果页「付款处理中」，给「继续付款」（凭 `launchRef` 调 `getCheckoutLaunch` 再跳）与「换一种方式」。「继续付款」时 `getCheckoutLaunch` 返回 `404`（这次支付已不在等付款人完成）：重查一次订单，按「页面：支付结果」显示。
+- **地址 `#` 之后带 `launchRef` 的打开**：不在微信里，是浏览器那一侧首次打开，凭它调 `getCheckoutLaunch` 取唤起地址、跳 `launchUrl` 唤起支付宝，不调入口接口；在微信里，是原来那一页刷新或重开，不看 `launchRef`，照常调入口接口，按「流程：刷新与会话重建」处理；认回会话后按「页面：支付结果」显示，订单还带 `open_in_browser` 时按「在微信里」显示引导。
+
+页面只跳这个接口返回的地址，`#` 之后的其他内容不作跳转目标。付完后支付宝把付款人带回浏览器时，按「流程：整页跳转与回跳」的回跳规则回到原入口并认回会话，浏览器这一边也能直接看到结果；微信里的页面同时按「页面：支付结果」轮询，付款人回到微信也能看到。
 
 ```mermaid
 sequenceDiagram
@@ -427,7 +441,10 @@ sequenceDiagram
     C-->>B: { launchUrl, fallbackUrl? }
     B->>A: 跳 launchUrl，唤起支付宝
     A-->>P: 在支付宝里付款
-    A-->>B: 付完回到浏览器，认回会话进结果页
+    A-->>B: 付完或取消回到浏览器，认回会话进结果页
+    opt 订单还在等付款人完成，带同一个 open_in_browser
+        B->>P: 「付款处理中」，给「继续付款」与「换一种方式」
+    end
     loop 微信里的页面一直在查
         S->>C: #35;5 [getCheckoutOrder]<br/>GET /order
         C-->>S: { status }
@@ -440,7 +457,10 @@ sequenceDiagram
 |---|---|
 | 付款人不去浏览器、改选微信 | 引导页给「换一种方式」，回付款页（同一笔订单上发起新尝试） |
 | 浏览器里唤不起支付宝 | 浏览器页给 `fallbackUrl` 的按钮 |
-| 浏览器里 `getCheckoutLaunch` 返回 `404`（编号认不出，或这次支付已不在等付款人完成） | 浏览器页提示「链接已失效，请回到微信查看或重新付款」，不调入口接口 |
+| 浏览器首次打开时 `getCheckoutLaunch` 返回 `404`（编号认不出，或这次支付已不在等付款人完成） | 浏览器页提示「链接已失效，请回到微信查看或重新付款」，不调入口接口 |
+| 浏览器那一侧付完或取消回来，订单还在等付款人完成 | 结果页「付款处理中」，给「继续付款」与「换一种方式」 |
+| 浏览器那一侧「继续付款」时 `getCheckoutLaunch` 返回 `404` | 重查一次订单，按「页面：支付结果」显示 |
+| 微信里刷新或重开引导页（地址带 `launchRef`） | 不看 `launchRef`，照常调入口接口，按「流程：刷新与会话重建」处理；认回会话后按「页面：支付结果」显示，订单还带 `open_in_browser` 时回到引导页 |
 | 回到微信时还没轮询到结果 | 继续轮询；「我已完成付款」按钮立即查一次 |
 
 ## 流程：整页跳转与回跳
@@ -492,7 +512,7 @@ sequenceDiagram
 |---|---|---|
 | 设备信息收集后订单已有结论 | `SUCCEEDED` 或 `UNPAID` | 不进第 2 步，按「页面：支付结果」显示 |
 | 回来时还没出结果 | `PENDING`，不带 `nextAction` | 结果页「付款处理中」，继续轮询 |
-| 在第三方网关上取消后回来，那边还没关单 | `PENDING`，带同一个 `redirect` | 结果页给「继续付款」（照它再跳一次）和「换一种方式」（回付款页，同一笔订单上发起新的一次） |
+| 在第三方网关、钱包 App 或浏览器那一侧取消后回来，那边还没关单 | `PENDING`，带同一个 `redirect` / `app_launch` / `open_in_browser` | 按「流程：发起支付」的「拉起动作什么时候执行」：结果页给「继续付款」（照这个动作再执行一次）和「换一种方式」（回付款页，同一笔订单上发起新的一次）；`open_in_browser` 在微信里显示引导 |
 | 卡被拒、持卡人验证未通过 | `UNPAID`，`lastAttemptFailure = DECLINED` | 可换卡或换方式 |
 | 持卡人验证超时或放弃、付款没有完成 | `UNPAID`，`lastAttemptFailure = INCOMPLETE` | 可重试或换方式 |
 | 付款人去了那边没回来 | — | 收银台感知不到；订单按自身结局收敛，付款人回到原来的标签页或刷新时按「流程：刷新与会话重建」看到结果 |
@@ -501,7 +521,7 @@ sequenceDiagram
 
 ## 页面：支付结果
 
-拉起之后进结果页，轮询 `getCheckoutOrder`，查的是本会话的那笔订单。轮询间隔由前端定；订单到期会收敛成 `EXPIRED`，轮询随之结束，不另设上限。到 `SUCCEEDED` 后一般不再轮询；只有入口返回过 `order.cancelUrl`、而订单视图还没有 `returnUrl` 的订单继续轮询等它，这一段有上限（多久由前端定），到上限还没有就停在成功页。等待态可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。账单会话的 `getCheckoutOrder` 另带账单当前状态：本会话订单还是 `PENDING` 时照共用的等待处理继续轮询、不看账单状态，订单是 `SUCCEEDED` 时显示成功与收据、同样不看账单状态，其余情况再按 [02-invoice.flows.md](02-invoice.html#页面：支付结果%20·%20收据) 的判定表；账单会话先按 02 的规则判，下表账单一列给的是订单各状态下的共用处理。刷新或从外部回到同一标签页时，入口接口返回 `paymentStarted` 为 true，直接进本页；`status` 为 `PENDING` 且带 `nextAction` 时（如 PC 上的二维码）照它重新显示。
+拉起之后进结果页，轮询 `getCheckoutOrder`，查的是本会话的那笔订单。轮询间隔由前端定；订单到期会收敛成 `EXPIRED`，轮询随之结束，不另设上限。到 `SUCCEEDED` 后一般不再轮询；只有入口返回过 `order.cancelUrl`、而订单视图还没有 `returnUrl` 的订单继续轮询等它，这一段有上限（多久由前端定），到上限还没有就停在成功页。等待态可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。账单会话的 `getCheckoutOrder` 另带账单当前状态：本会话订单还是 `PENDING` 时照共用的等待处理继续轮询、不看账单状态，订单是 `SUCCEEDED` 时显示成功与收据、同样不看账单状态，其余情况再按 [02-invoice.flows.md](02-invoice.html#页面：支付结果%20·%20收据) 的判定表；账单会话先按 02 的规则判，下表账单一列给的是订单各状态下的共用处理。刷新或从外部回到同一标签页时，入口接口返回 `paymentStarted` 为 true，直接进本页；`status` 为 `PENDING` 且带 `nextAction` 时按「流程：发起支付」的「拉起动作什么时候执行」处理：二维码（如 PC 上的）照常显示，其余见那条。
 
 ```mermaid
 sequenceDiagram
@@ -540,7 +560,7 @@ sequenceDiagram
 
 | status | 店铺码 / 商品 / 票务 / 礼卡 | 账单 | 动态码 / 开放 API 托管页 / 电商插件订单 |
 |---|---|---|---|
-| `PENDING` | 「付款处理中」；有 `nextAction.kind = qr` 时显示二维码；页面加载后拿到 `hidden_form` 时不提交表单，显示处理中并轮询；页面加载后拿到 `redirect` 时给「继续付款」（照它再跳一次）与「换一种方式」 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
+| `PENDING` | 「付款处理中」；有 `nextAction.kind = qr` 时显示二维码；页面加载后拿到 `hidden_form` 时不提交表单，显示处理中并轮询；页面加载后或轮询又拿到 `jsapi` / `app_launch` / `redirect`、或不在微信里拿到 `open_in_browser` 时给「继续付款」（照这个动作再执行一次）与「换一种方式」；在微信里拿到 `open_in_browser` 时显示在浏览器打开引导 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
 | `SUCCEEDED` | 成功页 + 下载收据（商品 / 票务另有选购明细与凭证段，见 [04 页面：支付结果 · 凭证](04-products-tickets.html#页面：支付结果%20·%20凭证)；礼卡另有发放段、邮箱验证与凭证，见 [05 页面：支付结果 · 邮箱验证与凭证](05-giftcard.html#页面：支付结果%20·%20邮箱验证与凭证)） | 「账单已付款」+ 下载收据 | 订单视图带 `returnUrl` 就自动跳回商户（「正在返回商户」+ 按钮）；还没带、而入口带过 `order.cancelUrl` 时显示「付款成功，正在返回商户」并继续轮询，到上限还没有就停在成功页、不给按钮；入口没带 `order.cancelUrl` 的订单没有回跳，成功即停在成功页 |
 | `UNPAID`（带 `lastAttemptFailure`） | `DECLINED`「付款被拒，请换一种方式」/ `INCOMPLETE`「付款未完成」；重试、换方式；店铺码另有「改金额」，商品 / 票务 / 礼卡另有「重新选购」 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
 | `EXPIRED` | 「这次付款已超时」+「重新付款」（页面丢掉本标签页的会话令牌、重新打开入口地址） | 「这次付款已超时」+「重新付款」（同左） | 「订单已失效，请向商户重新获取」；入口带 `order.cancelUrl` 时给「返回商户」 |
