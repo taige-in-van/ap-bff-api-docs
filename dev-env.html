@@ -7,12 +7,14 @@
 <p><a href="index.html">← 全部契约</a></p>
 
 <h1>联调环境</h1>
-<blockquote>本页由后端在联调环境变化时更新。哪些接口已可调，看各 flows 页接口表的标识：✅ 已部署、可调；⚠️ 已部署，但契约在实现之后有改动；无标识 = 尚未部署。</blockquote>
+<blockquote>本页由后端在联调环境变化时更新。哪些接口已可调，看各 flows 页接口表的标识：✅ 已部署、可调；⚠️ 已部署，但契约在实现之后有改动；无标识 = 尚未部署。<br>
+这些标识按 <strong>dev</strong> 的部署情况生成；前端联调用的 <strong>test</strong> 由后端择时发布，可能比 dev 稍晚。某个接口在 test 上是否已可调，以飞书群「test 联调环境已更新」通知为准。</blockquote>
 
 <h2>环境列表</h2>
 <table>
-<tr><th>环境</th><th>商户后台 BFF</th></tr>
-<tr><td>dev</td><td><code>https://mer26-dev.hqwu.io/api/merchant/v1</code></td></tr>
+<tr><th>环境</th><th>用途</th><th>商户后台 BFF</th><th>其他主机</th></tr>
+<tr><td><strong>test</strong></td><td>前端联调用这个</td><td><code>https://mer26-test.hqwu.io/api/merchant/v1</code></td><td>邮件 <code>mailpit26-test</code>、微信确认页 <code>wx26-test</code>、文件 <code>file26-test</code>（均为 <code>.hqwu.io</code>）</td></tr>
+<tr><td>dev</td><td>后端先行验证，随合并频繁更新，可能不稳定</td><td><code>https://mer26-dev.hqwu.io/api/merchant/v1</code></td><td>同上，把 <code>-test</code> 换成 <code>-dev</code></td></tr>
 </table>
 
 <h2>本机前端怎么连（必须走 Vite proxy）</h2>
@@ -22,7 +24,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/merchant/v1': {
-        target: 'https://mer26-dev.hqwu.io',
+        target: 'https://mer26-test.hqwu.io',
         changeOrigin: true,
       },
     },
@@ -42,8 +44,8 @@ export default defineConfig({
 </ul>
 <p>细则见 <a href="conventions.html">API 基础约定</a>「鉴权与 CSRF」。</p>
 
-<h2>测试账号（dev）</h2>
-<p>口令都是 <code>FeTest@2026</code>，都未开 MFA（MFA 开通接口尚未部署，需要带 MFA 的账号时找后端）。</p>
+<h2>测试账号（test、dev 相同）</h2>
+<p>口令都是 <code>FeTest@2026</code>，都未开 MFA（MFA 开通接口尚未部署，需要带 MFA 的账号时找后端）。两个环境的数据彼此独立，账号相同但各自一份。</p>
 <table>
 <tr><th>登录名</th><th>角色</th><th>可见商户</th></tr>
 <tr><td><code>fe-owner@example.com</code></td><td>Owner</td><td>FE 联调主商户、FE 联调分店</td></tr>
@@ -52,24 +54,25 @@ export default defineConfig({
 </table>
 <p>另有 <code>p26-smoke@example.com</code> 只供后端部署冒烟使用，请不要用它。</p>
 
-<h2>自助注册（dev）</h2>
+<h2>自助注册</h2>
 <ul>
 <li>注册只联调到「激活后能登录」为止：新注册的账号登录后进入驻向导会失败（入驻接口尚未部署）。</li>
-<li>邮件不真发，统一进 Mailpit：<a href="https://mailpit26-dev.hqwu.io/">https://mailpit26-dev.hqwu.io/</a>（原 <code>https://mer26-dev.hqwu.io/mailpit/</code> 已下线）。</li>
+<li>邮件不真发，统一进 Mailpit：test 是 <a href="https://mailpit26-test.hqwu.io/">https://mailpit26-test.hqwu.io/</a>（dev 是 <code>https://mailpit26-dev.hqwu.io/</code>）。</li>
 <li>激活链接打开的是 <code>http://localhost:5173/verify-email#token=…</code>（本机 Vite 默认端口）。你的 Vite 端口不是 5173 时告诉后端改。</li>
 </ul>
 
-<h2>扫码登录（dev）</h2>
+<h2>扫码登录</h2>
 <ul>
 <li><strong>轮询要串行</strong>：上一次 <code>pollWechatLogin</code> 的响应回来后再发下一次，不要用定时器并发发；重叠的轮询可能让刚建立的登录失效。（flows 扫码登录一节有同样说明。）</li>
 <li>轮询 <code>status</code>：<code>WAITING</code> 显示二维码；<code>SCANNED</code> 换成「扫码成功，请在手机上确认」，扫码人被拒时也停在这里直到过期；<code>EXPIRED</code>（过期或手机上取消）自动重新调 <code>initiateWechatLogin</code> 换新码；<code>ESTABLISHED</code> 响应已带会话 cookie。</li>
-<li>手机微信里打开的「微信确认页」在独立主机 <code>https://wx26-dev.hqwu.io/</code> 的根路径，与 <code>wechat</code> 面 <code>/identity/wechat/v1</code> 同源；原 <code>https://mer26-dev.hqwu.io/wechat-confirm/</code> 占位页已下线。文件（图片、PDF 等）的下载地址在 <code>https://file26-dev.hqwu.io/</code> 下，由接口返回，前端不用另配。</li>
-<li>微信号要先绑定到测试账号才能扫码登录，而绑定接口尚未部署：先用要用的微信扫一次（手机会提示未绑定），把要绑的测试账号告诉后端，后端补上绑定后再扫即可。</li>
+<li>手机微信里打开的「微信确认页」在独立主机的根路径（test 是 <code>https://wx26-test.hqwu.io/</code>，dev 是 <code>https://wx26-dev.hqwu.io/</code>），与 <code>wechat</code> 面 <code>/identity/wechat/v1</code> 同源。文件（图片、PDF 等）的下载地址在 <code>https://file26-test.hqwu.io/</code>（dev 为 <code>file26-dev</code>）下，由接口返回，前端不用另配。</li>
+<li>微信号要先绑定到测试账号才能扫码登录，而绑定接口尚未部署：先用要用的微信扫一次（手机会提示未绑定），把要绑的测试账号和环境（test / dev）告诉后端，后端补上绑定后再扫即可。两个环境的绑定各自独立。</li>
 </ul>
 
 <h2>须知</h2>
 <ul>
-<li>数据可能被重置：后端数据模型变更时会清库重建，你造的数据会丢，上面的账号会自动恢复。</li>
-<li>环境暂时跑在后端开发机上，偶尔不可达时请直接联系后端。</li>
+<li>数据会保留：后端部署不再清库，数据模型变化走增量迁移，部署前自动备份数据库。确需清库的个别情况会提前告知。</li>
+<li>test 的发布：后端择时发布，每次在飞书群发「test 联调环境已更新」，附本次更新内容。dev 部署不发通知。</li>
+<li>test 跑在云主机上；dev 跑在后端开发机上，偶尔不可达时请直接联系后端。</li>
 </ul>
 </body></html>
