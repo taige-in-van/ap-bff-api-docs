@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"2d12c19c19271711","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"463628fbb2c75622","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 商品与票务 —— 调用时序
@@ -44,8 +44,8 @@
 - **点付款时提交**：首次发起支付时，商品页带 `product { items, collectedFields? }`，票务页带 `ticket { items, collectedFields? }`；`items` 每项是 `itemId` 与 `quantity`。
 - **买家信息**：按 `payerInputs` 渲染，点付款时随块里的 `collectedFields` 提交，规则同店铺码。
 - **条款**：`policies` 是商户写的说明与条款，按页面语言给内容，只展示。
-- **一次进入只下一单**：首次发起支付（会话还没有订单）时，同一次请求里按当时的售价算金额、占用库存、建订单。之后选购和买家信息就定在订单上，重试与换方式只带 `checkoutOption` 与 `expectedPayable`，再带 `product` / `ticket` 块不采信。要改选购，页面丢掉本标签页的会话令牌、重新打开入口地址，原订单留到过期（占用随之释放）。
-- **请求被拒不留痕**：发起支付被拒（`400` / `409`）时不建任何订单、不占库存，付款人留在付款页，重选后再点「付款」。
+- **一次进入只下一单**：首次发起支付（会话还没有订单）时，同一次请求里按当时的售价算金额、占用库存、建订单。之后选购和买家信息就定在订单上，已有订单后再发起只带 `checkoutOption` 与 `expectedPayable`，再带 `product` / `ticket` 块不采信。要改选购或换方式，点「重新付款」：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，下一次付款开一笔新订单、重新占用库存；原订单不取消、留到过期，它的占用到那时才释放。
+- **请求被拒不占资源**：发起支付被拒（`400` / `409`）时本会话还没有订单、不占库存，付款人留在付款页，重选后再点「付款」。
 - **余量会变**：页面上的余量和可售状态是进入那一刻的。要刷新就重调入口接口。发起支付被拒为售罄或不在销售期时，重调入口接口拿最新内容。
 
 ```mermaid
@@ -107,9 +107,11 @@ sequenceDiagram
 | 所选某项不在销售期 | `409`·`108303` | 提示后重调入口接口 |
 | 停留期间链接被下架或删除 | `409`·`108300` | 提示「链接已下架」 |
 | 停留期间商户改了售价，页面显示的总应付与后端算的不一致 | `409`·`108103`，`context.payable` | 重调入口接口刷新售价，再重取方式列表 |
-| 有订单后回到付款页（卡被拒、支付窗点了取消、换方式） | — | 选购明细按 `getCheckoutOrder` 的 `sales.lines` 显示、不能再改；取方式列表不带 `amount`；重试与换方式只带 `checkoutOption` 与 `expectedPayable`；页面给「重新选购」（改选购 = 丢令牌、重新打开入口地址，原订单留到过期） |
-| 有订单后重试或换方式时链接已下架（停用、删除，或商户当前不能用这一产品收款） | `409`·`108300` | 提示「链接已下架」，不给重试 |
-| 这笔订单到期 | `getCheckoutOrder` 的 `status` 为 `EXPIRED` | 「这次付款已超时」+「重新付款」（同上动作：丢令牌、重新打开入口地址）；占用的库存已释放 |
+| 合计超过单笔上限 | `409`·`108111`，`context.orderAmountCeiling` 带上限 | 留在付款页，在合计处提示「合计超过单笔上限 {金额}」，减少选购再点 |
+| 卡被拒或没付完，留在卡表单再付 | — | 选购已定在订单上、不能再改；再发起只带 `checkoutOption`、`expectedPayable` 与 `card` 块 |
+| 付款人丢开一笔还没付成的订单（含 `UNPAID` 后点「重新付款」）重新选购 | 新的首次发起可能 `409`·`108304` | 那笔订单在过期前仍占着库存；售罄提示要能涵盖这种情形（如「你有未完成的订单，稍后再试」），不要断言「已售罄」 |
+| 已有订单后再发起时链接已下架（停用、删除，或商户当前不能用这一产品收款） | `409`·`108300` | 提示「链接已下架」，不给重试 |
+| 这笔订单到期 | `getCheckoutOrder` 的 `status` 为 `EXPIRED` | 「这次付款已超时」+「重新付款」（丢令牌、重新打开入口地址，开新订单）；占用的库存已释放 |
 | 这笔订单关闭 | `getCheckoutOrder` 的 `status` 为 `CLOSED` | 「这笔付款已关闭」+「重新付款」（同上动作）；占用的库存已释放 |
 
 **相对 demo 的改动**
@@ -130,8 +132,8 @@ sequenceDiagram
 结果页按这个顺序判：
 
 1. `getCheckoutOrder` 的 `status` 是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询。
-2. `status` 是 `SUCCEEDED`：成功页 + 选购明细 + 凭证 + 收据下载，凭证段按下表。
-3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`EXPIRED` / `CLOSED` 的「重新付款」是丢令牌、重新打开入口地址。
+2. `status` 是 `SUCCEEDED`：成功页 + 选购明细 + 凭证 +「下载收据」，凭证段按下表。
+3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`UNPAID` / `EXPIRED` / `CLOSED` 的「重新付款」开一笔新订单，见「页面：商品与票务付款页」的「一次进入只下一单」。
 
 `SUCCEEDED` 下的凭证段：
 

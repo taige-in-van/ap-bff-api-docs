@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"2d12c19c19271711","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"463628fbb2c75622","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 礼卡 —— 调用时序
@@ -43,8 +43,7 @@ stateDiagram-v2
     OPEN --> STATUS: 活动已停用或已过截止日
     OPEN --> RESULT: 已发起过支付
     BUY --> RESULT: 点付款
-    RESULT --> BUY: 没付成，换一种方式
-    RESULT --> ENTRY: 重新选购、重新付款
+    RESULT --> ENTRY: 重新付款
     RESULT --> VERIFY: 付成功，买家邮箱还没验证
     BUY --> LIST: 点「我的订单」，或付款时被告知先验证邮箱
     STATUS --> LIST: 点「我的订单」
@@ -89,10 +88,10 @@ stateDiagram-v2
 - **自购与送礼**：付款人选「自己用」（`purchaseMode = self`）或「送人」（`purchaseMode = gift`）。买家信息按 `payerInputs` 渲染，送礼时另按 `recipientInputs` 渲染收件人信息。两组里各有一项邮箱，都是必填。
 - **总应付**：页面把所选面值档的 `price` 作为 `amount` 取方式列表，每项的 `payable` 是选该方式的总应付。换面值档就重取。会话有订单后不用带，带了不采信。下单时后端只认 `giftcard.itemId` 重算，与 `expectedPayable` 不一致返回 `108103`。
 - **点付款时提交**：首次发起支付（会话还没有订单）时带 `giftcard { itemId, purchaseMode, collectedFields, recipientFields? }`。`collectedFields` 是买家信息，键取 `payerInputs[].key`；`recipientFields` 是收件人信息，键取 `recipientInputs[].key`，`purchaseMode = gift` 时必带。每项值是字符串，不超过 200 字。同一次请求里判限购与购买黑名单、占用销量、建订单。
-- **一次进入只下一单**：订单建好后面值、自购或送礼、填写内容就定在订单上，重试与换方式只带 `checkoutOption` 与 `expectedPayable`，再带 `giftcard` 块不采信。要改，页面丢掉本标签页的会话令牌、重新打开入口地址，原订单留到过期。
-- **请求被拒不留痕**：发起支付被拒（`400` / `409`）时不建任何订单、不占销量与限购额度，付款人留在购买页。
+- **一次进入只下一单**：订单建好后面值、自购或送礼、填写内容就定在订单上，已有订单后再发起只带 `checkoutOption` 与 `expectedPayable`，再带 `giftcard` 块不采信。要改内容或换方式，点「重新付款」：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，下一次付款开一笔新订单；原订单不取消、留到过期，它占着的销量与限购额度到那时才释放。
+- **请求被拒不占资源**：发起支付被拒（`400` / `409`）时本会话还没有订单、不占销量与限购额度，付款人留在购买页。
 - **限购**：商户可以给活动设每人张数上限与累计面值上限，超了发起支付返回 `108307` / `108308`。认得出的付款人按人算，不分用哪种方式付；在普通浏览器里认不出付款人时，与同一链接下其他认不出付款人的购买合在一起算。付款前不要求验证邮箱，支付方式也不因限购而变。
-- **购买黑名单**：在礼卡购买黑名单里的付款人不能买。首次发起支付时判：会话认得出的付款人在黑名单里，或本次填的买家邮箱或收件人邮箱是被拉黑的，任一命中返回 `108325`；认不出付款人时只看邮箱。有订单后的重试、换方式不判。这个错误不带 `context`、`detail` 不含原因，页面给中性的提示（如「暂时无法购买，请联系商户」），不要告诉付款人原因。
+- **购买黑名单**：在礼卡购买黑名单里的付款人不能买。首次发起支付时判：会话认得出的付款人在黑名单里，或本次填的买家邮箱或收件人邮箱是被拉黑的，任一命中返回 `108325`；认不出付款人时只看邮箱。已有订单后再发起不判。这个错误不带 `context`、`detail` 不含原因，页面给中性的提示（如「暂时无法购买，请联系商户」），不要告诉付款人原因。
 - **条款**：`policies` 是商户写的说明与条款，按页面语言给内容，只展示。
 - **邮件语言**：凭证邮件按首次发起支付时带的页面语言（`createCheckoutPayment` 的 `Accept-Language` 头）发，送礼给收件人的那封也是。
 
@@ -154,14 +153,15 @@ sequenceDiagram
 | 停留期间活动被停用或删除，或商户变为不能用这一产品收款 | `409`·`108300` | 提示「活动已结束」 |
 | 已达张数上限 | `409`·`108307` | 提示已达购买上限 |
 | 已达累计面值上限 | `409`·`108308`，`context.purchaseLimit` | 提示已达购买上限，带出限额金额与币种 |
+| 合计超过单笔上限 | `409`·`108111`，`context.orderAmountCeiling` 带上限 | 留在购买页，在合计处提示「合计超过单笔上限 {金额}」，换面值档再点 |
 | 认不出付款人（不在微信或支付宝里、本会话也没验证过邮箱）时达到上限 | `409`·`108307` / `108308` | 额度是同一链接下所有认不出付款人的购买合用的，可能是别人买满了；提示已达购买上限，并给出能认出他的两条路：在微信或支付宝里打开再买，或先在「我的订单」里验证邮箱再买（验过之后按他自己的额度算）；不要断言「你已买满」 |
 | 会话认得出的付款人在礼卡购买黑名单里，或本次填的买家邮箱或收件人邮箱被拉黑 | `409`·`108325` | 给中性的提示（如「暂时无法购买，请联系商户」），不要告诉付款人原因；留在购买页 |
 | 本付款人在这条链接下有一笔已付款、因买家邮箱没验证而没发放的订单 | `409`·`108309` | 提示先验证邮箱，带去「我的订单」，在那笔订单的详情里验证（见 [页面：我的订单](#页面：我的订单)），通过后回购买页再点付款 |
 | 停留期间商户改了价，页面显示的总应付与后端算的不一致 | `409`·`108103`，`context.payable` | 重调入口接口刷新，再重取方式列表 |
-| 有订单后回到购买页（卡被拒、支付窗点了取消、换方式） | — | 所买面值按 `getCheckoutOrder` 的 `sales.giftcard.cardValue` 显示（`sales.lines` 是礼卡名与实付价）、不能再改；取方式列表不带 `amount`；重试与换方式只带 `checkoutOption` 与 `expectedPayable`；页面给「重新选购」（丢令牌、重新打开入口地址，原订单留到过期） |
-| 设了限购的活动，付款人丢开一笔还没付成的订单重新选购 | 新的首次发起可能 `409`·`108307` / `108308` | 那笔订单在过期前仍占着额度；上限提示要能涵盖这种情形（如「你有未完成的订单，稍后再试」），不要断言「你已买满」 |
-| 有订单后重试或换方式时活动已停用、已删除或已过截止日 | `409`·`108300` / `108303` | 提示「活动已结束」，不给重试 |
-| 这笔订单到期或关闭 | `getCheckoutOrder` 的 `status` 为 `EXPIRED` / `CLOSED` | 「这次付款已超时」或「这笔付款已关闭」+「重新付款」（同上动作）；占用的销量与限购额度已释放 |
+| 卡被拒或没付完，留在卡表单再付 | — | 面值、自购或送礼、填写内容已定在订单上、不能再改；再发起只带 `checkoutOption`、`expectedPayable` 与 `card` 块 |
+| 设了限购的活动，付款人丢开一笔还没付成的订单（含 `UNPAID` 后点「重新付款」）重新购买 | 新的首次发起可能 `409`·`108307` / `108308` | 那笔订单在过期前仍占着额度；上限提示要能涵盖这种情形（如「你有未完成的订单，稍后再试」），不要断言「你已买满」 |
+| 已有订单后再发起时活动已停用、已删除或已过截止日 | `409`·`108300` / `108303` | 提示「活动已结束」，不给重试 |
+| 这笔订单到期或关闭 | `getCheckoutOrder` 的 `status` 为 `EXPIRED` / `CLOSED` | 「这次付款已超时」或「这笔付款已关闭」+「重新付款」（开新订单）；占用的销量与限购额度已释放 |
 
 **相对 demo 的改动**
 
@@ -183,7 +183,7 @@ sequenceDiagram
 
 1. `getCheckoutOrder` 的 `status` 是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询。
 2. `status` 是 `SUCCEEDED`：成功页 + 所买面值 + 下载收据（同商品与票务），发放段按下表的 `fulfillmentStatus`。
-3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`EXPIRED` / `CLOSED` 的「重新付款」是丢令牌、重新打开入口地址。
+3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`UNPAID` / `EXPIRED` / `CLOSED` 的「重新付款」开一笔新订单，见「页面：礼卡购买页」的「一次进入只下一单」。
 
 `SUCCEEDED` 下的发放段：
 

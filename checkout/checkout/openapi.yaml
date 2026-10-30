@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.1.0
+  version: 2.2.0
   contact:
     name: 收银台
   description: |
@@ -901,15 +901,18 @@ paths:
         - 会话还没有订单时另判：商品、票务所选某项不在销售期 `108303`、余量不够 `108304`；礼卡所选面值档已售罄 `108304`，已达张数上限 `108307`，已达累计面值上限 `108308`（`context.purchaseLimit` 带上限），本付款人在这条链接下有一笔已付款、因买家邮箱没验证而没发放的订单 `108309`（先验证邮箱），付款人或本次填的买家、收件人邮箱在礼卡购买黑名单里 `108325`（不带 `context`，`detail` 不含原因）；
         - 页面显示的总应付与服务端此刻重算的不一致 `108103`（`context.payable` 带此刻的总应付）；所选方式已不在当前可用方式里（含此刻算不出这一方式的总应付）`108102`；`card.savedCardId` 不是本会话付款人在这一方式下可用的已存卡 `108107`。
 
-        这笔付款无法受理时 `status` 为 `REJECTED`、不带 `nextAction`，不给原因。
+        会话还没有订单时，总应付超过单笔上限返回 `409`·`108111`（`context.orderAmountCeiling` 带生效的单笔上限，币种是商户结算币种）：不发起支付，这次尝试记一笔被拒订单，不占用本会话，付款人改了可再发起。
+
+        其他原因无法受理时 `status` 为 `REJECTED`、不带 `nextAction`，不给原因。
 
         商品、票务、礼卡会话首次发起时，`Accept-Language` 所示语言记为付款人的下单语言，凭证与收据邮件按它发。
 
-        不需要幂等键：同一会话内重复提交不会多下一笔订单。
+        不需要幂等键：同一会话内重复提交不会多发起一笔付款。
       x-error-codes:
         - 108102
         - 108103
         - 108107
+        - 108111
         - 108200
         - 108300
         - 108301
@@ -2742,10 +2745,12 @@ components:
           type: boolean
         presets:
           type: array
-          description: 预设小费档，百分比整数。
+          maxItems: 3
+          description: 预设小费档，百分比整数。`enabled` 为 `true` 时恒 3 档，每档 0–30；为 `false` 时为空数组。
           items:
             type: integer
             minimum: 0
+            maximum: 30
     PayerInputEntry:
       type: object
       description: |
@@ -3084,6 +3089,9 @@ components:
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            orderAmountCeiling:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时总应付超过单笔上限时，生效的单笔上限（各层取最严后的值），币种是商户结算币种，可能与页面标价币种不同（页面按本键把数额说出来；拼进 `detail` 前端取不出来）。
             currentIp:
               type: string
               minLength: 1

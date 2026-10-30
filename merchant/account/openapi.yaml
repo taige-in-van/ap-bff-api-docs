@@ -1535,6 +1535,9 @@ components:
             payable:
               $ref: '#/components/schemas/Money'
               description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            orderAmountCeiling:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时总应付超过单笔上限时，生效的单笔上限（各层取最严后的值），币种是商户结算币种，可能与页面标价币种不同（页面按本键把数额说出来；拼进 `detail` 前端取不出来）。
             currentIp:
               type: string
               minLength: 1

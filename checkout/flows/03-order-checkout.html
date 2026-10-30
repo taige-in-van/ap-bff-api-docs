@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"2d12c19c19271711","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"463628fbb2c75622","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 订单付款页 —— 调用时序
@@ -41,8 +41,9 @@
 - **到期**：`expiresAt` 到了以后订单不能再付。页面停留到期时显示「订单已失效，请向商户重新获取」（有 `order.cancelUrl` 另给「返回商户」），不必再调接口确认。到期按时刻当场判：订单状态还没更新时，入口返回 `EXPIRED`，发起支付也不发起、返回过期终态。
 - **返回商户**：入口返回了 `order.cancelUrl` 时，下列位置都给「返回商户」，指向它（原样跳转，不加参数）：订单付款页（发起支付之前就给）、当前环境没有可用支付方式时的环境引导页或「暂无可用支付方式」、支付结果页所有未成功的状态（含等待中）、链接状态页的已失效与已关闭。
 - **付成功后跳回**：只看订单视图的 `returnUrl`，有值就自动跳过去（原样跳转，不加参数）。`SUCCEEDED` 时还没有 `returnUrl`、而入口带过 `order.cancelUrl` 的，显示「付款成功，正在返回商户」并继续轮询，轮询有上限（多久由前端定），到上限还没有就停在成功页、不给按钮。入口没带 `order.cancelUrl` 的订单（如终端出的动态码）没有回跳，成功即停在成功页，不为此继续轮询。
+- **重新付款**：结果页的「重新付款」（含「付款未完成」、付款未成功时给的）重新打开入口地址后认回原来那笔订单，回到本页重选方式，仍是这笔订单；订单已到期或已关闭时进链接状态页（见下表）。
 - **进入时订单已付**：入口 `state = PAID`。有会话时取一次订单视图，有 `returnUrl` 就用它给「返回商户」；没有会话，或订单视图里还没有 `returnUrl` 时，有 `order.cancelUrl` 就用它。
-- **没有收据**：订单付款页的成功页不提供收据下载。
+- **没有收据**：订单付款页的成功页不给「下载收据」。
 
 ```mermaid
 sequenceDiagram
@@ -82,7 +83,7 @@ sequenceDiagram
     else SUCCEEDED 且还没有 returnUrl
         S->>P: 入口带过 cancelUrl 的显示「付款成功，正在返回商户」并继续轮询（有上限），<br/>其余停在成功页
     else 未成功（含等待中）
-        S->>P: 等待、重试或换方式（入口有 cancelUrl 另给「返回商户」）
+        S->>P: 确认中、付款未完成或未成功，给对应的「继续付款」「重新付款」<br/>（入口有 cancelUrl 另给「返回商户」）
     end
 ```
 

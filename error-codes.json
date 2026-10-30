@@ -36,6 +36,14 @@
       "name": "CHECKOUT_SAVED_CARD_NOT_AVAILABLE",
       "retryable": false
     },
+    "108111": {
+      "httpStatus": 409,
+      "name": "CORE_ORDER_AMOUNT_CEILING_EXCEEDED",
+      "requiredContextFields": [
+        "orderAmountCeiling"
+      ],
+      "retryable": false
+    },
     "108200": {
       "httpStatus": 409,
       "name": "PF1_FORM_NOT_AVAILABLE_FOR_MERCHANT",

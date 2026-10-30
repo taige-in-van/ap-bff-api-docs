@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"d4b2d491b4792775","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"2d12c19c19271711","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"463628fbb2c75622","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 店铺码 —— 调用时序
@@ -40,9 +40,8 @@
 - **小费**：`storeQr.tips.enabled` 为 true 时显示。`presets` 是百分比档位，付款人也可以自己填一个金额，或不给。选百分比档时页面按「金额 × 百分比」算出小费金额（四舍五入到币种最小单位），提交的始终是金额；算出来是 0 就不带 `storeQr.tip`。
 - **采集项**：按 `storeQr.payerInputs` 的顺序渲染，每项给标题、控件类型、是否必填、是否要再输一遍确认。提交的 `storeQr.collectedFields` 以各项的 `key` 为键、值为字符串（不超过 200 字）。后端校验必填项都有、没有列表外的键，格式只校验后端认识的系统项，自撰项不校验格式。
 - **总应付**：页面不自己算。金额或小费变了就带着它们重取方式列表，每项的 `payable` 即选该方式的总应付，`customerServiceFee` 是其中加收的客户服务费（没有加收时不返回）。
-- **一次进入只付一笔**：发起支付后金额、小费、采集内容就定在订单上，重试与换方式都是这一笔。换方式引起的客户服务费变化，每次发起按当次方式算，成交后以成交那次为准。要改金额，页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，原订单留到过期。
-- **订单从哪一刻算有**：发起支付返回 `200` / `201`（拿到 `CheckoutOrder`）起本会话就有订单了；返回 `400`、`409` 时没有建订单，付款人还可以改金额、小费和采集项再点。
-- **有订单后回到收款页**（卡被拒留在卡表单、支付窗点了取消、从引导页或第三方网关回来后换方式）：金额、小费按 `getCheckoutOrder` 的 `amount`、`tip` 显示，连同采集项都不能再改；取方式列表不带 `amount` 与 `tip`，每项的 `payable` 按订单上的金额算；页面给「改金额」。
+- **一次进入只付一笔**：发起支付后金额、小费、采集内容就定在订单上。在这笔订单上再付只有两种：卡被拒或没付完时留在卡表单换卡或重新填卡再付（金额、小费、采集项不能再改）；拉起之后「继续付款」照原来的动作再执行一次。要改金额、小费或换方式，点「重新付款」：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，回到录入态，下一次付款开一笔新订单；原订单不取消、留到过期。
+- **订单从哪一刻算有**：发起支付返回 `200` / `201`（拿到 `CheckoutOrder`）起本会话就有订单了；返回 `400`、`409` 时本会话还没有订单，付款人还可以改金额、小费和采集项再点。
 
 ```mermaid
 sequenceDiagram
@@ -80,15 +79,11 @@ sequenceDiagram
     C-->>S: 201 CheckoutOrder { status, nextAction? }
     S->>P: 按 nextAction 拉起，之后进支付结果页（见 00-shared）
 
-    Note over P,C: 结果页上未成功
-    alt 重试
-        S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable }
-        C-->>S: CheckoutOrder
-    else 换方式
-        S->>P: 回到收款页重选方式，再按上面「付款」一段发起
-    else 改金额
-        S->>S: 丢掉会话令牌，重新打开入口地址
-    end
+    Note over P,C: 结果页上未成功（UNPAID、EXPIRED、CLOSED）
+    S->>P: 给「重新付款」
+    P->>S: 点「重新付款」
+    S->>S: 丢掉会话令牌，重新打开入口地址
+    Note over S: 回到录入态，下一次付款开一笔新订单
 ```
 
 | 情形 | 接口返回 | 页面动作 |
@@ -97,18 +92,19 @@ sequenceDiagram
 | 带金额取方式列表，金额不合法 | `400` 参数校验 | 不显示总应付，在金额栏提示 |
 | 页面显示的总应付与后端此刻算的不一致 | `409`·`108103`，`context.payable` | 重取方式列表、显示新数，付款人再点一次 |
 | 所选方式刚被停用 | `409`·`108102` | 重取方式列表 |
-| 金额超过单笔上限 | `201`，订单 `status = REJECTED` | 结果页「暂时无法完成付款，请联系商户」；刷新后入口的 `paymentStarted` 为 true，仍进结果页 |
+| 合计超过单笔上限 | `409`·`108111`，`context.orderAmountCeiling` 带上限 | 留在收款页，在金额处提示「合计超过单笔上限 {金额}」，改金额或小费再点；刷新后入口的 `paymentStarted` 仍是 false，回录入态 |
 | 会话已有订单，请求里又带了 `storeQr` 块 | 不采信，按订单上的金额发起 | — |
 | 付款期间码被停用 | 已建的订单照常付完；重新进入时入口返回 `INACTIVE` | 链接状态页 |
-| 停留期间商户变为不能用店铺码收款（含有订单后重试、换方式） | `409`·`108200`，不建订单、不发起 | 提示「商户暂停收款」，不给重试 |
+| 停留期间商户变为不能用店铺码收款（含已有订单后再发起） | `409`·`108200`，不建订单、不发起 | 提示「商户暂停收款」，不给重试 |
 
 **相对 demo 的改动**
 
 | 位置 | demo | 改后 | 为什么 |
 |---|---|---|---|
-| 金额 | 输入框在页面上限制最多 99999.99 | 页面不设上限；超过单笔上限的付款被拒，结果页「暂时无法完成付款，请联系商户」 | 单笔上限由服务端判，入口不下发 |
+| 金额 | 输入框在页面上限制最多 99999.99 | 页面不设上限；合计超过单笔上限时发起支付被拒，留在收款页提示上限 | 单笔上限由服务端判，入口不下发，超限时错误里带上限 |
 | 成功页 | 有一张推广横幅（下次到店优惠） | 没有 | 商户侧没有这项配置 |
 | 收据 | 带「到柜台核销」二维码（内容是订单号） | 没有核销码 | 店铺码付款不产生凭证 |
+| 「下载收据」 | 点了下载一个 HTML 文件 | 点了在页面内整页显示收据，保存由付款人自己决定 | 微信内置浏览器很可能下载不了页面生成的文件 |
 
 ## 页面：支付结果 · 收据
 
