@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-29T20:18:19Z",
-  "implCommit": "114833b5",
+  "generatedAt": "2026-10-30T00:53:07Z",
+  "implCommit": "caab689a",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "d4b2d491b4792775",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -84,6 +84,8 @@
     "merchant/notifications/pollNotificationWechatBinding": "4ffb63e47b06dce9",
     "merchant/notifications/requestNotificationEmailOtp": "936741c33c08d22f",
     "merchant/notifications/updateNotificationSettings": "003f1b195ae33090",
+    "merchant/orders/cancelRefund": "e53f310176340394",
+    "merchant/orders/createRefund": "c5c6fbb749016a29",
     "merchant/orders/exportPayments": "7d12af2fc5f1884e",
     "merchant/orders/exportRefunds": "721377a2e6b238a8",
     "merchant/orders/getPayment": "9eea5ea2d72136a7",
@@ -138,5 +140,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdStage": "stage/261029-checkout-launch-ref"
+  "prdStage": "stage/261029-core-refund-merchant"
 }
