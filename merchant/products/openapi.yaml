@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.2.1
+  version: 2.2.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -40,7 +40,7 @@ paths:
       x-required-privilege: products:checkout:view
       summary: 读店铺码的各个码（第 1 项是主码）
       description: |
-        当前商户的店铺码，按结算币种以及 CNY 标价、预授权、银联码的开通情况给出各个码。第 1 项是主码（优先结算币种的标准码，该码不可用时由服务端在可用的码里定），其余按返回顺序排列；一个码都没有时返回空数组。
+        当前商户的店铺码：结算币种的标准码与预授权码恒有；商户有能以 CNY 标价的已开通支付方式时另有 CNY 的标准码与预授权码；开通银联时另有银联码。第 1 项是主码（优先结算币种的标准码，该码不可用时由服务端在可用的码里定），其余按返回顺序排列；一个码都没有时返回空数组。
       responses:
         '200':
           description: 店铺码的各个码
