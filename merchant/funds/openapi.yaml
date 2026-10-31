@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 资金 — 前端契约面
-  version: 2.1.2
+  version: 2.1.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -121,7 +121,7 @@ paths:
         - 给了 `topUpAmount` 时看 `topUp.status`：`POSTED` 已划转；`REJECTED` 是 Account Balance 不够，没有划转。
         - 给了 `minimumAmount` 时最低金额已保存，与充值是否成功无关。
 
-        最低金额低于平台规定的下限 → `400`·204018，当前下限在 `context.floorAmount`；整次提交不生效。
+        最低金额低于平台规定的下限 → `400`·204018，当前下限在 `context.floorAmount`；整次提交不生效，验证码已用掉，改正后须重新发码再提交。
 
         最低金额只是保存设置。准备金低于最低金额时，平台每天从待结算金额（`toSettle`）补一次，不够就补到有多少算多少。
 
