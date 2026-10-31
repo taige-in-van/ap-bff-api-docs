@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.2.4
+  version: 2.2.5
   contact:
     name: 商户后台 BFF
   description: |
@@ -136,7 +136,7 @@ paths:
       description: |
         保存店铺码收款页设置与商户小费配置，只提交要改的。
 
-        - 带了 `checkoutOptions` 时至少 1 项（空 → `400`·`204005`）。相对已保存的集合新加的项须已开通（`listCheckoutOptions` 里 `opened` 为 true），否则 → `409`·`208007`；已选着、后来停用的项可以原样保留，付款人看不到它，重新开通后即恢复。
+        - 带了 `checkoutOptions` 时，空数组按字段校验 → `400`·`904001`；整组里至少要有一项已开通（`listCheckoutOptions` 里 `opened` 为 true），相对已保存的集合新加的项也须已开通，否则 → `409`·`208007`；已选着、后来停用的项可以原样保留，付款人看不到它，重新开通后即恢复。
         - 带了 `payerInputKeys` 时提交保留下来的完整键列表；缺了必填项、或自撰标题以 `sys:` 开头 → `409`·`208030`。
         - `logoFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 指到 `logoFileId`）。
         - 商户还没激活、还没有收款页设置 → `404`。
@@ -175,7 +175,6 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 204005
         - 208007
         - 208030
         - 208040
@@ -667,7 +666,7 @@ paths:
       description: |
         `type` 决定带哪个内容段（`giftcard` / `product` / `ticket`）：必须带且只带对应的那个，否则 `400`。各项金额的币种须等于 `currency`，否则 `400`（`details` 指到字段）。
 
-        - 支付方式：新加的项须在 `listCheckoutOptions`（礼卡传 `linkType=giftcard`）里 `opened` 为真、且 `pricingCurrencies` 含 `currency`，否则 `409`·`208007`；一项都没选 `400`·`204005`。
+        - 支付方式：新加的项须在 `listCheckoutOptions`（礼卡传 `linkType=giftcard`）里 `opened` 为真、且 `pricingCurrencies` 含 `currency`，否则 `409`·`208007`；一项都没选按字段校验 → `400`·`904001`。
         - 采集项按 `key` 给全（见 `buyerInputKeys`）：缺了必填项、或自撰标题以 `sys:` 开头 `409`·`208030`。
         - 政策条款不在本请求里：新链接自动带上商户当前的默认条款，之后在详情页改。
         - 礼卡：`fulfillmentMode` 创建后不可改；`campaignEndDate` 不早于今天；`bonusTerms` 为 `custom` 时 `bonusNotes` 必填——不满足均为 `400`。
@@ -739,7 +738,6 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 204005
         - 208007
         - 208030
         - 208040
@@ -973,7 +971,7 @@ paths:
         部分更新：没带的字段不变。只带 `enabled` 即启停；`bannerFileId: null` 移除 Banner。内容段只能带与链接类型一致的那个（`giftcard` / `product` / `ticket`），否则 `400`；不收 `fulfillmentMode`。
 
         - 条目（商品 / 票档 / 面值档）：带回 `itemId` = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。`quantityLimit` 不能低于该项的 `committedQuantity`，否则 `409`·`208031`（`context.committedQuantity` 是那个数）；带了不属于本链接的 `itemId` → `409`·`208032`。
-        - 支付方式与采集项的校验同 `createProductLink`（`208007` / `204005` / `208030`）；只改 `currency` 时按新币种复核已选的方式。已选着、后来停用的项可以原样带回。
+        - 支付方式与采集项的校验同 `createProductLink`（`208007` / `208030`）；只改 `currency` 时按新币种复核已选的方式。已选着、后来停用的项可以原样带回，但带了 `checkoutOptions` 时整组里至少要有一项已开通，否则 → `409`·`208007`。
         - 礼卡：切换 `enabled` 会让该活动的限购计数重新开始。
         - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
 
@@ -1033,7 +1031,6 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
-        - 204005
         - 208007
         - 208030
         - 208031
@@ -1885,7 +1882,7 @@ components:
           description: |
             保留下来的采集项，按 `key` 给全：读回来的 `payerInputs` 里要留的项放它的 `key`，删掉的不放，新加的自撰项放它的标题。空数组 = 不采集。
 
-            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。合计不超过 `inputLimit` 项，超出 `400`。顺序即付款人页面的展示顺序。
+            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。合计不超过 `inputLimit` 项，超出 `400`；每条自撰标题不超过 10 字符，超出 `400`。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         description:
@@ -2476,7 +2473,7 @@ components:
           description: |
             保留下来的买家采集项，按 `key` 给全：以 `getProductLinkDefaults` 的 `buyerInputs`（修改时以详情的 `buyerInputs`）为起点，删掉的不放，新加的自撰项放它的标题。不传 = 用默认集。
 
-            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。系统项与自撰项合计不超过 `inputLimit` 项，超出 `400`。顺序即付款人页面的展示顺序。
+            必填项一个都不能少，自撰标题不能以 `sys:` 开头，违反 → `409`·`208030`。系统项的文案与必填性以服务端已存的为准，这里只表达留不留。系统项与自撰项合计不超过 `inputLimit` 项，超出 `400`；每条自撰标题不超过 40 字符，超出 `400`。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         recipientInputKeys:

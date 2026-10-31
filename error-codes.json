@@ -125,11 +125,6 @@
       "name": "INVOICE_DUE_DATE_INVALID",
       "retryable": false
     },
-    "204005": {
-      "httpStatus": 400,
-      "name": "PAYMENT_METHOD_SELECTION_EMPTY",
-      "retryable": false
-    },
     "204008": {
       "httpStatus": 400,
       "name": "REFUND_REJECTED",
