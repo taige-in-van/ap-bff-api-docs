@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -1740,7 +1740,7 @@ components:
         displayName:
           type: string
           minLength: 1
-          description: 展示名（品牌名）。
+          description: 不随语言变的展示名（品牌名）。前端有该选项的多语言资源时按 `checkoutOption` 取用，没有就显示本值。
         logoUrl:
           $ref: '#/components/schemas/WebUrl'
           description: 图标的长效公开地址；没有图标时不返回本键。
@@ -2664,7 +2664,7 @@ components:
           description: 付款链接，也是二维码的内容。
         checkoutOptions:
           type: array
-          description: 已选的支付方式，可能含后来停用的项（付款人看不到，重新开通后恢复）。展示时按 `listCheckoutOptions` 的顺序逐项显示、只显示在本列表里的，名字与图标取自那里。
+          description: 已选的支付方式，可能含后来停用的项（付款人看不到，重新开通后恢复）。展示时按 `listCheckoutOptions` 的顺序逐项显示、只显示在本列表里的；图标取自那里，名字按 `checkoutOption` 从前端多语言资源取，取不到显示那里的 `displayName`。
           items:
             $ref: '#/components/schemas/CheckoutOption'
         buyerInputs:

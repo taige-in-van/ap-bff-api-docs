@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -2516,6 +2516,7 @@ components:
         displayName:
           type: string
           minLength: 1
+          description: 不随语言变的展示名。前端有该选项的多语言资源时按 `checkoutOption` 取用，没有就显示本值。
         opened:
           type: boolean
           description: 该商户是否已开通（该项下至少一个支付方式已开通）。

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.2.1
+  version: 2.2.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -583,7 +583,7 @@ components:
         displayName:
           type: string
           minLength: 1
-          description: 支付方式展示名（非本地化）。
+          description: 不随语言变的支付方式展示名。前端有该支付方式的多语言资源时按 `paymentMethod` 取用，没有就显示本值。
         standardRate:
           allOf:
             - $ref: '#/components/schemas/FeeRate'

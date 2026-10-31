@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.6.1
+  version: 2.6.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -414,7 +414,7 @@ paths:
       description: |
         当前商户的受理模式与其支付方式、卡终端集成、电商集成的状态。
 
-        支付方式只给目录码，展示名与未开通的候选按当前商户币种取 `listPaymentMethodOptions`。凭据只给掩码摘要，明文不返回。
+        支付方式只给目录码：展示名按码从前端多语言资源取，取不到的与未开通的候选按当前商户币种取 `listPaymentMethodOptions`。凭据只给掩码摘要，明文不返回。
       responses:
         '200':
           description: OK
