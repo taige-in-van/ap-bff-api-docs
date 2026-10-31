@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.2.1
+  version: 2.2.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -1099,7 +1099,7 @@ paths:
       description: |
         店铺码收款页的付款人采集项、收款页说明与收款页支付方式，规则同商户在商户后台的收款页设置。`checkoutOptionCandidates` 是可选的支付方式候选，`opened` 为否的未开通、不能新加。Logo 由商户自己维护，本面只读。
 
-        商户还没保存过时，采集项按当时的系统目录给出。小费另见 `getMerchantTipSettings`。
+        采集项里的系统项是商户激活时按当时的系统目录固化的，此后目录变化不追溯；商户还没激活时，采集项按当时的系统目录给出。小费另见 `getMerchantTipSettings`。
       responses:
         '200':
           description: OK
@@ -1159,6 +1159,7 @@ paths:
         - `308411` 新加的支付方式在该商户下未开通。
         - `308412` 采集项缺了必填项，或自撰标题以 `sys:` 开头、重复。
         - 项数或标题长度超限、`checkoutOptions` 为空 → `400`，`details` 定位字段。
+        - 商户还没激活、还没有收款页设置 → `404`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:

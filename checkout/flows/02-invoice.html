@@ -37,7 +37,7 @@
 
 金额由商户建账单时定好，付款人不能改。页面内容一次由入口接口给齐：商户名与 Logo、账单号 `invoice.invoiceNo`、金额 `invoice.amount`、说明 `invoice.description`（商户写了才有）、付款截止时刻 `invoice.expiresAt`（商户设了才有）、备注输入（`invoice.payerInputs` 里的那一项）。
 
-- **倒计时**：商户设了 `invoice.expiresAt` 就倒计时到这一刻，没设不显示；归零显示「已过付款截止日」。`invoice.expiresAt` 只用来显示倒计时，不单独显示成截止日期（它是到期日结束的那一刻，格式化成日期会晚一天）。发起支付之后的等待页改用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间，两个倒计时不同时出现。
+- **倒计时**：商户设了 `invoice.expiresAt` 就倒计时到这一刻，没设不显示；归零显示「已过付款截止日」。`invoice.expiresAt` 只用来显示倒计时，不单独显示成截止日期（它是到期日结束的那一刻，格式化成日期会晚一天）。发起支付之后的等待页不再显示这个倒计时，可改用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。
 - **总应付**：进页面就取方式列表，每项的 `payable` 是选该方式的总应付，`customerServiceFee` 是其中加收的客户服务费。
 - **备注**：付款人可填可不填，点付款时随发起支付的 `invoice.collectedFields` 提交，键用备注项的 `key`。
 - **一张账单只成交一次**：每次进入至多建一笔可付订单。「重新付款」是一次新的进入，下一次付款为同一张账单开一笔新订单，原订单留到过期；两笔都付成功时同下面「两个人同时付」，后成功的那笔原路退回。别人已经付清、账单过了截止时刻或被商户删除后，这里再发起会被拒；截止按时刻当场判。已经发出去的那次支付不受影响。
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ## 页面：支付结果 · 收据
 
-用 `getCheckoutOrder` 的数据：`amount`（账单金额）、`customerServiceFee`、`payable`、`payerNote`（填了才返回）、`invoice`（`invoiceNo`、`status`）、`autoRefunded`（这次付款已扣款但不生效、将原路退回时为 true）。等待付款时用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。成功页给「下载收据」；账单没有凭证段。
+用 `getCheckoutOrder` 的数据：`amount`（账单金额）、`customerServiceFee`、`payable`、`payerNote`（填了才返回）、`invoice`（`invoiceNo`、`status`）、`autoRefunded`（这次付款已扣款但不生效、将原路退回时为 true）。等待付款时可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。成功页给「下载收据」，收据另带账单号 `invoice.invoiceNo`；账单没有凭证段。
 
 结果页按这个顺序判：
 
@@ -121,7 +121,8 @@ sequenceDiagram
 | `PAID` | 其余 | 「这张账单已付款」 |
 | `DELETED` | `autoRefunded` 为 true | 「这张账单已失效，您的这笔付款将原路退回」 |
 | `DELETED` | 其余 | 「这张账单已失效」 |
-| `OVERDUE` | 任意 | 「已过付款截止日」 |
+| `OVERDUE` | `autoRefunded` 为 true | 「已过付款截止日，您的这笔付款将原路退回」 |
+| `OVERDUE` | 其余 | 「已过付款截止日」 |
 | `UNPAID` | 任意 | 按 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的共用处理 |
 
 </script>
