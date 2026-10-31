@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-30T19:02:06Z",
-  "implCommit": "2a27590b",
+  "generatedAt": "2026-10-31T08:00:06Z",
+  "implCommit": "6aa04902",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -100,6 +100,8 @@
     "merchant/orders/listPayments": "572d66f5f47bd06e",
     "merchant/orders/listRecentPayments": "47ca8efc042aa484",
     "merchant/orders/listRefunds": "aa31eba28b14f2c5",
+    "merchant/products/createInvoice": "a1cd4d2d12c115c2",
+    "merchant/products/deleteInvoice": "51fe0dcdd0c24c5f",
     "merchant/products/getCheckoutSettings": "b6c4d042c7bb3af3",
     "merchant/products/getInvoiceCounts": "e2643c7d95bdf236",
     "merchant/products/getInvoiceSummary": "8bf25e065257a094",
@@ -108,6 +110,7 @@
     "merchant/products/getProductLinkDefaults": "c1d72f17713aa072",
     "merchant/products/getProductLinkOrder": "940f2ea001d9b6d9",
     "merchant/products/getProductLinkOrderCounts": "34dca3609fec2971",
+    "merchant/products/listCheckoutOptions": "0d4f92121e9c7b52",
     "merchant/products/listInvoices": "7b4eee7dd0b6c3eb",
     "merchant/products/listProductLinkOrders": "6aa97fcf9790f1c2",
     "merchant/products/listProductLinks": "4d6d7d6300351bbb",
@@ -140,5 +143,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdStage": "stage/261030-checkout-ceiling-409"
+  "prdStage": "stage/261031-core-invoice-pay"
 }
