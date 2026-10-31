@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-10-31T20:38:25Z",
-  "implCommit": "20b2557c",
+  "generatedAt": "2026-10-31T21:46:58Z",
+  "implCommit": "d38638f2",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -53,12 +53,15 @@
     "merchant/devices/updateDevice": "1fc4c15c37d1af31",
     "merchant/funds/exportSettlementDetails": "0f475eefe1da32bf",
     "merchant/funds/exportSettlements": "3af9098f97652e3b",
+    "merchant/funds/fundRefundReserve": "7b7341d533c44570",
     "merchant/funds/getBalance": "fe566baf3ce0b834",
     "merchant/funds/getStatement": "60bbcdb3e9eb4af5",
     "merchant/funds/getStatementPdf": "29cbc0d3aa35b24e",
     "merchant/funds/listSettlementDetails": "0e075487552ebbe2",
     "merchant/funds/listSettlements": "ea8b0e083965224f",
     "merchant/funds/listStatements": "e68a3e242d5e3051",
+    "merchant/funds/requestRefundReserveOtp": "8026b5d05178ef41",
+    "merchant/funds/withdrawRefundReserve": "4f5edb678e0bbfdb",
     "merchant/me/changeMyPassword": "78750fe7616d6a49",
     "merchant/me/confirmLoginEmailChange": "607fa428f0c14587",
     "merchant/me/confirmMfa": "739c392e0f403ed7",
@@ -145,5 +148,5 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdStage": "stage/261031-core-invoice-pay-b2"
+  "prdStage": "stage/261031-core-settlement-b3"
 }
