@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>清算结算 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"2a9b5d9242b79944","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"5cfb066c8c2bb623","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"c312f10b55c8873d","acquiring/listMerchantDeviceLogs":"304a773b53dc0109","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"dec5b45ad3493525","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"9e9b61944cfb8d58","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"5847c1e5c9321c87","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"bdb459f03acbc462","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/approveApplicationOverridingBlocklist":"d1750d32d9cf4d5f","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"ec49b8b7e563cbff","applications/decideApplication":"53f4008c64bb3c66","applications/getApplication":"7b020eac84558b05","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"22131a8db674cbc0","applications/uploadAssistedApplicationFile":"601761f535191beb","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","clearing/acknowledgePayoutFile":"b73078d374870cfd","clearing/cancelPayoutFile":"5e341e421eb7820c","clearing/confirmChannelSettlementReceipt":"f2cecb274b8a8438","clearing/createChannelRemittance":"22f9f3eb70cf3d72","clearing/createReconciliationRerun":"e02f271cc2f28bcc","clearing/createRoundingWriteOffs":"e12e3449cb6085b2","clearing/createSettlementExport":"fe2ea4d666c92383","clearing/decideRefundConfirmation":"6cc82c4b15408031","clearing/getChannelBillOriginal":"d88524c6a94528b2","clearing/getChannelSettlementSummary":"cc8b20da64cff158","clearing/getClearingOverview":"08cdb4e88bcf1f90","clearing/getMerchantReconFileOriginal":"08adcea892db2b71","clearing/getMerchantSettlementControls":"30cae0d786f80759","clearing/getPayoutFile":"1c8270e5ff80e0d0","clearing/getPayoutFileOriginal":"cf7ea914a8f1da30","clearing/getReconDiscrepancy":"0ff9f4a52a5f3b2e","clearing/getSettlementBatch":"1f4f47c348003132","clearing/getSettlementCalendarMonth":"4d945ae77045f907","clearing/getSettlementDaySummary":"74cdde9e30ad0e23","clearing/listChannelBills":"0b090bb0a9221f18","clearing/listChannelRemittances":"1d58e57704e1489d","clearing/listChannelSettlements":"3721e6c613eb9814","clearing/listClearingChannelOptions":"d7a43e4718ec6ead","clearing/listMerchantReconFiles":"964bf3629a2fce1b","clearing/listPayoutFiles":"dba262e4394814b7","clearing/listReconDiscrepancies":"1a3834b716b5df9a","clearing/listRefundConfirmations":"0c80733bb3ec9e08","clearing/listSettlementBatchLines":"4f0af2b26b24e6ea","clearing/listSettlementBatches":"7ad1a25bec51754b","clearing/listSettlementReports":"bc26ccf0bf250361","clearing/redeliverMerchantReconFile":"b47895ce42dc3753","clearing/redeliverSettlementReport":"da43d9c4b46a46e1","clearing/replaceSettlementCalendarMonth":"382eb552950c11fd","clearing/resolveChannelRemittanceDiscrepancy":"257a03e4e0b9596c","clearing/resolveChannelSettlementDiscrepancy":"2455b3b0cb008790","clearing/resolveReconDiscrepancy":"24a5430e2ce6c172","clearing/retrySettlementBatchPayout":"24a7c4d27802faf0","clearing/returnPayoutLine":"5b958a641d2e2dc4","clearing/reverseChannelRemittance":"2677d2726f0695a3","clearing/revokeChannelSettlementReceipt":"767039d600189691","clearing/submitDiscrepancyDisposition":"4253cf56140f9057","clearing/submitPayoutFile":"c83c9b7ba4cd0cb7","clearing/updateMerchantSettlementControls":"cf3985a23c60a031","clearing/writeOffReconDiscrepancy":"f65b49d63e2449d8","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"23e7fc12bfc147a6","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"f29b250553b107a9","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"1a59e520f0f14efa","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"a710101da2c18398","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"1f3ad9182b6f0153","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"19671acd796c2415","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"65ce03cfbc336251","settings/listAnnouncements":"c002a9041c562754","settings/listClearingPlatformParameters":"cae0bf61e03f1089","settings/listPlatformParameters":"86915df0b44973c5","settings/listRefundPlatformParameters":"ce48c8eea2e35aff","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"91f7f1c85fe72678","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updateClearingPlatformParameter":"7fe0222e9fd02050","settings/updatePlatformParameter":"a728c57f05737504","settings/updateRefundPlatformParameter":"aaa8cc83d67ae11d","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"1e861e3410235b54","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"bedf3db150ef68f3","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"ba8194eca0389618","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"6606052a36abf801","staff/updateStaffPassword":"51a57c95fcb8c174","staff/updateStaffStatus":"7c2834e413a97563","transactions/createPaymentExport":"69e338434281ac82","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"bf74bacb9ab23700","transactions/getPaymentSummary":"88d7c670066219d0","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"75a50023d8743df4","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 清算结算 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）。按商户组织的页面（待人工确认退款、清算日汇总、清算记录、结算单详情、商户详情 · 结算、清算报告）按数据可见范围过滤商户，按标识打开范围外商户的数据得到 `404`；通道侧的页面（对账与差异、出款文件、通道结算单、渠道方汇回、T&T 对账文件）是平台级，不按数据可见范围过滤。商户详情的结算页签挂在商户详情下（商户详情见 06-merchant-ops）。本文的金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算；不同结算币种的金额分别显示，不相加。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 对账与差异 | 导航「财务 › 对账与差异」；异常概览的「账单失败」「待处理差异」 | [页面：对账与差异](#页面：对账与差异) |
+| 差异详情 | 对账与差异的差异列表点一行 | [页面：差异详情](#页面：差异详情) |
+| 待人工确认退款 | 导航「财务 › 待人工确认退款」；异常概览的「待确认退款」 | [页面：待人工确认退款](#页面：待人工确认退款) |
+| 清算日历 | 导航「财务 › 清算日历」 | [页面：清算日历](#页面：清算日历) |
+| 清算日汇总 | 导航「财务 › 结算单」的「清算日汇总」页签 | [页面：清算日汇总](#页面：清算日汇总) |
+| 清算记录 | 导航「财务 › 结算单」的「清算记录」页签；异常概览的「出款失败」 | [页面：清算记录](#页面：清算记录) |
+| 结算单详情 | 清算记录、商户详情 · 结算、出款文件详情点一行 | [页面：结算单详情](#页面：结算单详情) |
+| 商户详情 · 结算 | 商户详情的「结算」页签；商户详情顶部的「设为高风险」/「恢复正常」 | [页面：商户详情 · 结算](#页面：商户详情%20·%20结算) |
+| 出款文件 | 导航「财务 › 出款」；异常概览的「未登记受理」 | [页面：出款文件](#页面：出款文件) |
+| 出款文件详情 | 出款文件点一行 | [页面：出款文件详情](#页面：出款文件详情) |
+| 通道结算单 | 导航「财务 › 通道结算单」 | [页面：通道结算单](#页面：通道结算单) |
+| 渠道方汇回 | 导航「财务 › 渠道方汇回」 | [页面：渠道方汇回](#页面：渠道方汇回) |
+| 清算报告 | 导航「财务 › 结算单」的「清算报告」页签 | [页面：清算报告](#页面：清算报告) |
+| T&T 对账文件 | 导航「财务 › T&T 对账文件」 | [页面：T&T 对账文件](#页面：T&T%20对账文件) |
+| 清结算异常概览 | 导航「财务 › 清结算异常概览」 | [页面：清结算异常概览](#页面：清结算异常概览) |
+| 平台清结算参数 | 导航「平台设置 › 清结算参数」 | [页面：平台清结算参数](#页面：平台清结算参数) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listChannelBills`](../clearing/index.html#tag/channel-bills/operation/listChannelBills) | `GET /channel-bills` | 通道账单与对账结果 |
+| 2 | [`getChannelBillOriginal`](../clearing/index.html#tag/channel-bills/operation/getChannelBillOriginal) | `GET /channel-bills/{billId}/original` | 通道账单原件下载地址 |
+| 3 | [`createReconciliationRerun`](../clearing/index.html#tag/channel-bills/operation/createReconciliationRerun) | `POST /channel-bill-reruns` | 重新对账 |
+| 4 | [`listReconDiscrepancies`](../clearing/index.html#tag/recon-discrepancies/operation/listReconDiscrepancies) | `GET /recon-discrepancies` | 差异列表 |
+| 5 | [`getReconDiscrepancy`](../clearing/index.html#tag/recon-discrepancies/operation/getReconDiscrepancy) | `GET /recon-discrepancies/{discrepancyId}` | 差异详情 |
+| 6 | [`submitDiscrepancyDisposition`](../clearing/index.html#tag/recon-discrepancies/operation/submitDiscrepancyDisposition) | `POST /recon-discrepancies/{discrepancyId}/disposition` | 提交处置 |
+| 7 | [`resolveReconDiscrepancy`](../clearing/index.html#tag/recon-discrepancies/operation/resolveReconDiscrepancy) | `POST /recon-discrepancies/{discrepancyId}/resolution` | 确认已处理 |
+| 8 | [`writeOffReconDiscrepancy`](../clearing/index.html#tag/recon-discrepancies/operation/writeOffReconDiscrepancy) | `POST /recon-discrepancies/{discrepancyId}/write-off` | 核销 |
+| 9 | [`createRoundingWriteOffs`](../clearing/index.html#tag/recon-discrepancies/operation/createRoundingWriteOffs) | `POST /recon-discrepancies/rounding-write-offs` | 取整差按区间批量核销 |
+| 10 | [`listRefundConfirmations`](../clearing/index.html#tag/refund-confirmations/operation/listRefundConfirmations) | `GET /refund-confirmations` | 待人工确认退款与待确认数 |
+| 11 | [`decideRefundConfirmation`](../clearing/index.html#tag/refund-confirmations/operation/decideRefundConfirmation) | `POST /refund-confirmations/{refundId}/decision` | 确认退款结果 |
+| 12 | [`getSettlementCalendarMonth`](../clearing/index.html#tag/settlement-calendar/operation/getSettlementCalendarMonth) | `GET /settlement-calendar/{month}` | 某月清算日历 |
+| 13 | [`replaceSettlementCalendarMonth`](../clearing/index.html#tag/settlement-calendar/operation/replaceSettlementCalendarMonth) | `PUT /settlement-calendar/{month}` | 整月设置 |
+| 14 | [`getSettlementDaySummary`](../clearing/index.html#tag/settlement-batches/operation/getSettlementDaySummary) | `GET /settlement-days/{settlementDate}/summary` | 清算日汇总 |
+| 15 | [`listSettlementBatches`](../clearing/index.html#tag/settlement-batches/operation/listSettlementBatches) | `GET /settlement-batches` | 清算记录 |
+| 16 | [`getSettlementBatch`](../clearing/index.html#tag/settlement-batches/operation/getSettlementBatch) | `GET /settlement-batches/{batchId}` | 结算单详情与出款尝试 |
+| 17 | [`listSettlementBatchLines`](../clearing/index.html#tag/settlement-batches/operation/listSettlementBatchLines) | `GET /settlement-batches/{batchId}/lines` | 结算单逐笔明细 |
+| 18 | [`createSettlementExport`](../clearing/index.html#tag/settlement-batches/operation/createSettlementExport) | `POST /settlement-exports` | 导出清算明细 |
+| 19 | [`getClearingOverview`](../clearing/index.html#tag/clearing-overview/operation/getClearingOverview) | `GET /clearing-overview` | 异常概览 |
+| 20 | [`listPayoutFiles`](../clearing/index.html#tag/payout-files/operation/listPayoutFiles) | `GET /payout-files` | 出款文件列表 |
+| 21 | [`getPayoutFile`](../clearing/index.html#tag/payout-files/operation/getPayoutFile) | `GET /payout-files/{payoutFileId}` | 出款文件详情与出款行 |
+| 22 | [`getPayoutFileOriginal`](../clearing/index.html#tag/payout-files/operation/getPayoutFileOriginal) | `GET /payout-files/{payoutFileId}/original` | 出款文件原件下载地址 |
+| 23 | [`submitPayoutFile`](../clearing/index.html#tag/payout-files/operation/submitPayoutFile) | `POST /payout-files/{payoutFileId}/submission` | 登记已提交 |
+| 24 | [`acknowledgePayoutFile`](../clearing/index.html#tag/payout-files/operation/acknowledgePayoutFile) | `POST /payout-files/{payoutFileId}/acknowledgement` | 登记受理结果 |
+| 25 | [`cancelPayoutFile`](../clearing/index.html#tag/payout-files/operation/cancelPayoutFile) | `POST /payout-files/{payoutFileId}/cancellation` | 作废 |
+| 26 | [`returnPayoutLine`](../clearing/index.html#tag/payout-files/operation/returnPayoutLine) | `POST /payout-file-lines/{payoutLineId}/return` | 登记退票 |
+| 27 | [`retrySettlementBatchPayout`](../clearing/index.html#tag/settlement-batches/operation/retrySettlementBatchPayout) | `POST /settlement-batches/{batchId}/payout-retry` | 重新出款 |
+| 28 | [`listChannelSettlements`](../clearing/index.html#tag/channel-settlements/operation/listChannelSettlements) | `GET /channel-settlements` | 通道结算单列表 |
+| 29 | [`getChannelSettlementSummary`](../clearing/index.html#tag/channel-settlements/operation/getChannelSettlementSummary) | `GET /channel-settlements/summary` | 按通道小计 |
+| 30 | [`confirmChannelSettlementReceipt`](../clearing/index.html#tag/channel-settlements/operation/confirmChannelSettlementReceipt) | `POST /channel-settlements/{channelSettlementId}/receipt-confirmation` | 确认到账 |
+| 31 | [`revokeChannelSettlementReceipt`](../clearing/index.html#tag/channel-settlements/operation/revokeChannelSettlementReceipt) | `DELETE /channel-settlements/{channelSettlementId}/receipt-confirmation` | 撤销到账确认 |
+| 32 | [`resolveChannelSettlementDiscrepancy`](../clearing/index.html#tag/channel-settlements/operation/resolveChannelSettlementDiscrepancy) | `POST /channel-settlements/{channelSettlementId}/discrepancy-resolution` | 通道结算单差异说明 |
+| 33 | [`listChannelRemittances`](../clearing/index.html#tag/channel-remittances/operation/listChannelRemittances) | `GET /channel-remittances` | 汇回单列表 |
+| 34 | [`createChannelRemittance`](../clearing/index.html#tag/channel-remittances/operation/createChannelRemittance) | `POST /channel-remittances` | 登记汇回单 |
+| 35 | [`reverseChannelRemittance`](../clearing/index.html#tag/channel-remittances/operation/reverseChannelRemittance) | `POST /channel-remittances/{remittanceId}/reversal` | 冲销汇回单 |
+| 36 | [`resolveChannelRemittanceDiscrepancy`](../clearing/index.html#tag/channel-remittances/operation/resolveChannelRemittanceDiscrepancy) | `POST /channel-remittances/{remittanceId}/discrepancy-resolution` | 汇回单差异说明 |
+| 37 | [`listSettlementReports`](../clearing/index.html#tag/settlement-reports/operation/listSettlementReports) | `GET /settlement-reports` | 某清算日应发报告的商户 |
+| 38 | [`redeliverSettlementReport`](../clearing/index.html#tag/settlement-reports/operation/redeliverSettlementReport) | `POST /merchants/{merchantId}/settlement-reports/{settlementDate}/redeliveries` | 补发清算报告 |
+| 39 | [`listMerchantReconFiles`](../clearing/index.html#tag/merchant-recon-files/operation/listMerchantReconFiles) | `GET /merchant-recon-files` | T&T 对账文件列表 |
+| 40 | [`getMerchantReconFileOriginal`](../clearing/index.html#tag/merchant-recon-files/operation/getMerchantReconFileOriginal) | `GET /merchant-recon-files/{reconFileId}/original` | T&T 对账文件原件下载地址 |
+| 41 | [`redeliverMerchantReconFile`](../clearing/index.html#tag/merchant-recon-files/operation/redeliverMerchantReconFile) | `POST /merchant-recon-files/{reconFileId}/redeliveries` | 重发 T&T 对账文件 |
+| 42 | [`getMerchantSettlementControls`](../clearing/index.html#tag/settlement-controls/operation/getMerchantSettlementControls) | `GET /merchants/{merchantId}/settlement-controls` | 暂停状态与起结门槛 |
+| 43 | [`updateMerchantSettlementControls`](../clearing/index.html#tag/settlement-controls/operation/updateMerchantSettlementControls) | `PATCH /merchants/{merchantId}/settlement-controls` | 暂停 / 恢复结算、改起结门槛 |
+| 44 | [`listClearingPlatformParameters`](../settings/index.html#tag/clearing-parameters/operation/listClearingPlatformParameters) | `GET /settings/clearing-parameters` | 平台清结算参数 |
+| 45 | [`updateClearingPlatformParameter`](../settings/index.html#tag/clearing-parameters/operation/updateClearingPlatformParameter) | `PUT /settings/clearing-parameters/{key}` | 改值 / 恢复默认 |
+| 46 | [`listNotificationDeliveries`](../ops/index.html#tag/notification-deliveries/operation/listNotificationDeliveries) | `GET /notification-deliveries` | 通知投递记录（清算报告的投递结果在这里看，见 04-ops-audit） |
+| 47 | [`listClearingChannelOptions`](../clearing/index.html#tag/clearing-channel-options/operation/listClearingChannelOptions) | `GET /clearing-channel-options` | 通道候选（各页通道筛选、登记汇回单选通道） |
+
+---
+
+## 页面：对账与差异
+
+上半区是通道账单与对账结果，调 #1；下半区是差异列表，调 #4。两者都按账单日区间筛选（`from` / `to` 两端必填，默认最近 30 天、含今天），可按通道 `channelId` 筛选（通道候选调 #47）；账单区另按账单状态 `billStatus`，差异区另按分类 `discrepancyClass`、对象类型 `objectType`（支付〔含撤销〕/ 退款）、状态 `status`。
+
+- 账单各列取：通道 `channel`（名称与收单主体号）、账单日 `billDate`、类型 `billType`、状态 `billStatus` 与失败原因 `failureReason`、通道声明的收款与退款笔数和金额、结果档 `resultLevel`（全部一致 / 有金额差异 / 有漏单）、各分类差异计数 `discrepancyCounts`。`hasOriginal` 为真时给「下载原件」，调 #2 拿短时地址后直接下载；`hasOriginal` 为假的行没有下载动作。
+- 账单行给「重新对账」，调 #3，带该行的 `channelId` 与 `billDate`，受理后提示「已开始重新对账，稍后刷新查看」；完成后重调 #1 / #4 看到新结果，旧的一份账单不再出现。
+- 差异各列取：通道、账单日、对象类型 `objectType`、分类 `discrepancyClass`、配对键 `matchKey`、通道金额 `channelAmount` 与平台金额 `platformAmount`、不符字段 `fieldDifferences`、状态 `status`、处置方向 `disposition`、说明 `note`、处理人 `resolvedBy` 与处理时刻 `resolvedAt`、平台订单号 `orderId` 与商户 `merchant`（平台没有这一笔时空着）。点一行进差异详情。
+- 「取整差批量核销」：选账单日区间（两端必填）、可选通道（候选调 #47）、填说明，调 #9，返回核销条数后提示「已核销 N 条」并重拉 #4。只作用于退款取整差汇总。
+
+### 场景：重新对账
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开对账与差异
+    S->>A: #35;1 [listChannelBills]<br/>GET /channel-bills?from=…&to=…
+    A-->>S: 200 { total, data: [ { billId, channel, billDate, billStatus,<br/>resultLevel, discrepancyCounts } ] }
+    U->>S: 某行点「重新对账」并确认
+    S->>A: #35;3 [createReconciliationRerun]<br/>POST /channel-bill-reruns<br/>{ channelId, billDate }
+    A-->>S: 202
+    U->>S: 稍后刷新
+    S->>A: #35;1 [listChannelBills]<br/>GET /channel-bills?from=…&to=…
+    A-->>S: 200 { total, data }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期范围缺一端或 `to` 早于 `from` | #1 / #4 `400` | 在日期选择器下提示 |
+| 差异列表的日期区间跨度超过允许的最大查询窗口 | #4 `400` | 在日期选择器下提示缩小范围 |
+| 该日已有处理过的差异 | #3 `409`·`308601` | 提示「该日已有处理过的差异，对账结果已冻结，不能重新对账」 |
+| 该日的对账正在执行 | #3 `409`·`308602` | 提示「对账正在执行，请稍后再试」 |
+| 取整差批量核销区间缺一端或说明没填 | #9 `400` | 对应输入框标红 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 重新对账 | v1 匿名可调，与定时对账不互斥 | 按权限点；已有处理过的差异即冻结；与定时对账互斥 | 已处理的结论不被重跑冲掉，两次对账不会同时改同一天 |
+| 账单原件下载 | v1 匿名可调 | 按权限点 | 原件含交易明细，须在已认证的会话里取 |
+
+---
+
+## 页面：差异详情
+
+单条差异，调 #5：列表行的字段，加所在账单 `billId` 与通道账单行号 `billLineNo`。按状态与分类给动作：
+
+- 待处理、不是退款取整差汇总、`disposition` 为空、为 `pursue` 或为 `refund_back`：「提交处置」（四选一 + 说明必填）调 #6。
+- 待处理、`disposition` 为空（没提交过处置时说明必填）、为 `pursue`、为 `refund_back` 或 `dispositionAppliedAt` 有值：「确认已处理」调 #7。
+- 待处理、是长款 / 短款 / 退款取整差汇总、`disposition` 为空或为 `pursue`：「核销」（说明必填）调 #8。状态不符的不给核销；已提交补记 / 字段更正 / 原路退回的不给核销，只给「确认已处理」。
+- 已处理、已核销：只读，显示处理人、时刻与说明。
+
+### 场景：差异处置
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点一条差异
+    S->>A: #35;5 [getReconDiscrepancy]<br/>GET /recon-discrepancies/{discrepancyId}
+    A-->>S: 200 { discrepancyId, discrepancyClass, status, fieldDifferences }
+    U->>S: 选处置方向并填说明
+    S->>A: #35;6 [submitDiscrepancyDisposition]<br/>POST /recon-discrepancies/{discrepancyId}/disposition<br/>{ disposition, note }
+    alt 补记 / 字段更正执行成功，或原路退回 / 向通道追款
+        A-->>S: 200 { status = pending, disposition, dispositionAppliedAt }
+        U->>S: 核实后点「确认已处理」
+        S->>A: #35;7 [resolveReconDiscrepancy]<br/>POST /recon-discrepancies/{discrepancyId}/resolution
+        A-->>S: 204
+    else 执行方拒绝
+        A-->>S: 409 308604 { context.reasonCode }
+        Note over S: 显示被拒原因，差异仍为待处理
+    end
+    S->>A: #35;5 [getReconDiscrepancy]<br/>GET /recon-discrepancies/{discrepancyId}
+    A-->>S: 200 { status, disposition, resolvedBy, resolvedAt }
+```
+
+- 原路退回、向通道追款由运营在通道端自行处理，提交后差异仍为待处理：原路退回核实退成后点「确认已处理」（不能核销）；追回后点「确认已处理」，追不回的点「核销」（长款 / 短款）。已提交原路退回或追款的可以改提其他处置。
+- 执行方拒绝的原因只在 #6 的这次失败响应里（`context.reasonCode`，按码取展示文案，取不到时显示码），详情里不保留。
+- 处置与确认都是具备权限的用户单人确认，没有审批单。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 差异已不在待处理（他人先处理了，或自己上一次已成功） | #6 / #7 / #8 `409`·`308603` | 提示「该差异已被处理」，重调 #5 |
+| 执行方拒绝该处置 | #6 `409`·`308604`（`context.reasonCode`） | 显示被拒原因，处置方向不记 |
+| 处置不适用（取整差汇总只能核销、状态不符不能核销、已提交补记 / 字段更正 / 原路退回的不能核销、已提交补记 / 字段更正后不能改提） | #6 / #7 / #8 `409`·`308605` | 提示该处置不适用，重调 #5 |
+| 说明没填或超长 | #6 / #7 / #8 `400` | 说明框标红 |
+| 差异不存在 | #5 / #6 / #7 / #8 `404` | 提示找不到，回到对账与差异并刷新 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 差异处置 | v1 一列覆盖写的「已处理」备注，无人无时 | 待处理 / 已处理 / 已核销三态 + 处置方向 + 说明 + 处理人与时刻 | 每条差异有人负责、有结论，可追查 |
+| 处置执行 | v1 对账时直接改写交易原行 | 处置交执行方执行，执行成功才记下 | 对账不越权改订单与退款 |
+
+---
+
+## 页面：待人工确认退款
+
+结果长期未明、已转人工确认的退款，按 `confirmationState` 分「待确认」（`PENDING`，默认）与「已确认」（`CONFIRMED`）两个页签，调 #10。筛选：商户 `merchantId`、关键词 `keyword`（平台订单号、平台退款号、通道退款号）；「已确认」另按确认日期区间 `from` / `to`，两端必填、默认最近 30 天；「待确认」不按日期。
+
+- 各列取：商户 `merchant` 与商户码、平台订单号 `orderId`、平台退款号 `refundId`、退款金额 `amount`、结算币种退款额 `settleAmount`、受理时刻 `acceptedAt`、转人工时刻 `escalatedAt`、通道退款号 `channelRefundNo`、通道错误 `channelError`（码与文字原样）。「已确认」另列结果（`status = SUCCESS` 显示「通道已退」，`FAILED` 显示「通道未退」）、确认人 `confirmedBy`、确认时刻 `confirmedAt`、确认说明 `confirmationNote`。
+- 导航上「待人工确认退款」的红点 = `confirmationState = PENDING` 时 #10 的 `total`；页面加载时与每次确认后刷新。
+- 点一行可进退款详情（`getRefund`，见 08-transactions-refunds；要另持 `txadm:refund:view`）。
+
+### 场景：确认退款结果
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开待人工确认退款
+    S->>A: #35;10 [listRefundConfirmations]<br/>GET /refund-confirmations?confirmationState=PENDING
+    A-->>S: 200 { total, data: [ { refundId, merchant, amount, escalatedAt,<br/>channelRefundNo, channelError } ] }
+    U->>S: 到通道后台查证后，选「通道未退」或「通道已退」，填说明
+    S->>A: #35;11 [decideRefundConfirmation]<br/>POST /refund-confirmations/{refundId}/decision<br/>{ outcome, note }
+    A-->>S: 200 { refundId, status, failureReason }
+    S->>A: #35;10 [listRefundConfirmations]<br/>GET /refund-confirmations?confirmationState=PENDING
+    A-->>S: 200 { total, data }
+```
+
+- 确认人取当前登录的用户，页面不填。说明必填，至多 256 字。
+- 「通道未退」后退款失败、失败原因为结果未确认，已受理的退款金额回到商户余额；「通道已退」后退款成功。行从「待确认」移到「已确认」。
+- 本页没有重新发起退款：重新发起只能由商户在商户后台做。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 退款已不是待确认（他人先确认了、已自行得出结果，或自己上一次已成功） | #11 `409`·`308615` | 提示「该退款已有结果」，重拉 #10 |
+| 已确认页签的日期区间缺一端、`to` 早于 `from` 或跨度超过允许的最大查询窗口 | #10 `400` | 在日期选择器下提示 |
+| 说明没填或超长 | #11 `400` | 说明框标红 |
+| 退款不存在或不在数据范围内 | #11 `404` | 提示找不到，重拉 #10 |
+
+待人工确认退款是新增的页面，现有管理后台与 Hub 都没有对应页面。
+
+---
+
+## 页面：清算日历
+
+按月显示每天普通轨与 KA 轨是否清算，调 #12：`month` 为 `YYYY-MM`，默认当月，可翻月。日历的「日」按平台运营时区划分。
+
+- 编辑：在日历上勾选两轨各自的清算日，保存时调 #13，请求体带该月两轨的完整清算日集合（没勾的日期为非清算日），成功后重调 #12。
+- 临时改非清算日（如突发关市）也在这里改。尚未建结算单的日期改为非清算日后，当天不建结算单，当天的明细顺延到下一个清算日；没有另外的补清算动作。已经建了未失败结算单的日期不能改为非清算日。
+
+### 场景：清算日历维护
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开清算日历
+    S->>A: #35;12 [getSettlementCalendarMonth]<br/>GET /settlement-calendar/{month}
+    A-->>S: 200 { month, days: [ { date, clearingDay, kaClearingDay } ] }
+    U->>S: 改勾选后保存
+    S->>A: #35;13 [replaceSettlementCalendarMonth]<br/>PUT /settlement-calendar/{month}<br/>{ clearingDates, kaClearingDates }
+    A-->>S: 204
+    S->>A: #35;12 [getSettlementCalendarMonth]<br/>GET /settlement-calendar/{month}
+    A-->>S: 200 { month, days }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 把已有未失败结算单的日期改为非清算日 | #13 `409`·`308617` | 提示「已建结算单的日期不能改为非清算日」，重调 #12 后改提；整月都没保存 |
+| 日期不在该月或同一轨重复 | #13 `400` | 提示后重调 #12 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 改动留痕 | v1 按月整体重置，改动写清算操作日志 | 按月整体设置，前后值进操作审计，只记实际变化的日期 | 统一在操作审计里追查 |
+
+---
+
+## 页面：清算日汇总
+
+选一个清算日（默认最近一个清算日），调 #14。
+
+- 按结算币种各一块，每块显示结算单张数 `batchCount`、出款额 `payoutAmount`、销售净额 `netSalesAmount`、商户手续费 `feeAmount`；块内两张小表：按结算周期档位（`bySchedule`，档位名取 `settlementCycleDisplayName`，前端有多语言资源时按 `settlementCycle` 取）、按支付方式（`byPaymentMethodFamily`，不带 `paymentMethodFamily` 的一项显示「其他」）。
+- 不同结算币种不相加，没有跨币种总额。当天没有结算单时显示为空。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期格式不对 | #14 `400` | 在日期选择器下提示 |
+
+---
+
+## 页面：清算记录
+
+结算单列表，调 #15。筛选：清算日区间 `from` / `to`（两端必填，默认最近 30 天）、商户 `merchantId`、状态 `status`（可多选）。从异常概览的「出款失败」进来时带 `status = FAILED`。
+
+- 各列取：商户 `merchant` 与商户码、清算日 `settlementDate`、交易期间 `periodFrom` ~ `periodTo`、销售净额 `netSalesAmount`、手续费 `feeAmount`、出款额 `payoutAmount`、状态 `status`、出款结果时刻 `finalizedAt`、打入账户 `payoutAccount`（银行名与账号末 4 位）。
+- `status = FAILED` 的行给「重新出款」，见 [页面：结算单详情](#页面：结算单详情)「场景：重新出款」。
+- 「导出」调 #18，请求体带当前筛选，同步下载 xlsx。点一行进结算单详情。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期范围缺一端、`to` 早于 `from` 或跨度超过允许的最大查询窗口 | #15 / #18 `400` | 在日期选择器下提示 |
+| 导出命中行数超过上限 | #18 `409`·`308503`（`context.maxRows` 是上限） | 提示「超过 N 行，请缩小范围后再导出」，N 取 `maxRows` |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 导出方式 | Hub 超过一定条数转下载中心 | 一律同步出文件，超过上限提示缩小范围 | 不建异步导出中心 |
+
+---
+
+## 页面：结算单详情
+
+单张结算单：汇总与全部出款尝试调 #16，逐笔明细（分页）调 #17。
+
+- 汇总同清算记录的列。出款尝试按序号列出：出款文件 `payoutFileId`（点进出款文件详情）、出款额、打入账户、失败类别 `failureKind`（受理时被剔除或所在文件整份被拒 / 退票）、原因码与原因（整份被拒时为文件的拒绝原因）、退票日期 `failedOn`。
+- 明细各列取：类型 `lineType`、来源单据 `sourceId`、订单号 `orderId`、支付方式 `paymentMethodFamily`、结算金额 `settleAmount`、手续费 `feeAmount`、调账原因 `adjustmentReason`、结算锁 `holdActive`、归属日 `businessDate`。
+- `status = FAILED` 时给「重新出款」，调 #27。
+
+### 场景：重新出款
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开结算单详情
+    S->>A: #35;16 [getSettlementBatch]<br/>GET /settlement-batches/{batchId}
+    A-->>S: 200 { batchId, status = FAILED, payoutAttempts }
+    U->>S: 点「重新出款」并确认
+    S->>A: #35;27 [retrySettlementBatchPayout]<br/>POST /settlement-batches/{batchId}/payout-retry<br/>Idempotency-Key
+    A-->>S: 204
+    S->>A: #35;16 [getSettlementBatch]<br/>GET /settlement-batches/{batchId}
+    A-->>S: 200 { status = PENDING, payoutAttempts }
+```
+
+- 重新出款后结算单回到待出款，下次生成出款文件时装入，详情里多一次出款尝试。该商户结算暂停或已停清算（如冻结）的照常受理、结算单保持待出款，恢复后才装入出款文件。
+- 每次点击生成一个新的 `Idempotency-Key`，同一次点击因超时重试时沿用同一个键。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 结算单不是出款失败 | #27 `409`·`308609` | 提示「该结算单已不需要重新出款」，重调 #16 |
+| 同一个键首次请求还在处理 | #27 `409`·`908002` | 稍后用同一个键重试 |
+| 结算单不存在或不在数据范围内 | #16 / #17 / #27 `404` | 提示找不到，回到来源列表并刷新 |
+
+---
+
+## 页面：商户详情 · 结算
+
+商户详情下的结算页签：清算记录固定了 `merchantId`（筛选、列、详情、导出同 [页面：清算记录](#页面：清算记录)，调 #15 / #18 时都带该商户的 `merchantId`），页签顶部另显示该商户是否暂停结算与起结门槛，调 #42。
+
+- 「暂停结算」/「恢复结算」调 #43，带 `settlementPaused = true` / `false`；「改起结门槛」调 #43，带 `minSettleAmount`（币种是该商户的结算币种，不小于 0）。成功后重调 #42。
+- 商户详情顶部的「设为高风险」/「恢复正常」是同一能力的另一个入口：分别调 #43 带 `settlementPaused = true` / `false`。治理档位的显示见 06-merchant-ops。
+- 冻结商户停清算由商户状态决定，不经本页、不改暂停状态。
+
+### 场景：暂停 / 恢复结算
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开商户详情 · 结算，或在商户详情顶部点「设为高风险」
+    S->>A: #35;42 [getMerchantSettlementControls]<br/>GET /merchants/{merchantId}/settlement-controls
+    A-->>S: 200 { settlementPaused = false, minSettleAmount }
+    U->>S: 点「暂停结算」并确认
+    S->>A: #35;43 [updateMerchantSettlementControls]<br/>PATCH /merchants/{merchantId}/settlement-controls<br/>{ settlementPaused = true }
+    A-->>S: 204
+    S->>A: #35;42 [getMerchantSettlementControls]<br/>GET /merchants/{merchantId}/settlement-controls
+    A-->>S: 200 { settlementPaused = true, minSettleAmount }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 门槛为负或币种不是该商户的结算币种 | #43 `400` | 输入框标红 |
+| 商户不存在或不在数据范围内 | #42 / #43 `404` | 提示找不到，回到商户列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 暂停结算 | v1 商户标签自动置「跳过清算」、改回正常不复位；登录即可改、无审计 | 一个暂停能力两处入口，按权限点，前后值进操作审计；冻结由商户状态决定 | 暂停只有一个真相，谁改的可追查 |
+| 清算记录页签 | Hub 商户详情有清算记录 | 承接，加暂停状态与起结门槛 | 结算问询在一处看全 |
+
+---
+
+## 页面：出款文件
+
+出款文件列表，调 #20。筛选：生成日期区间 `from` / `to`（两端必填，默认最近 30 天）、状态 `status`、文件格式 `fileFormat`（都可多选）。从异常概览的「未登记受理」进来时带 `status = SUBMITTED`。
+
+- 各列取：格式 `fileFormat`（CIBC EFT 1464 另显示文件序号 `fileSequenceNo`）、执行方式 `executionMode`（平台出款 / 渠道方执行）与渠道方 `channel`、结算币种、行数 `entryCount`、合计 `totalAmount`、状态 `status`、提交人 `submittedBy` 与提交时刻 `submittedAt`、受理凭据 `bankReference`、受理或被拒时刻 `acknowledgedAt`、被拒原因 `rejectionReason`。
+- 渠道方执行的文件由系统发给渠道方，发送成功即为已提交，没有登记提交的动作。
+- 点一行进出款文件详情。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期范围缺一端或 `to` 早于 `from` | #20 `400` | 在日期选择器下提示 |
+
+---
+
+## 页面：出款文件详情
+
+单份出款文件，调 #21：列表行的字段，加文件内全部出款行（行号、结算单 `batchId` 与其状态 `batchStatus`、商户、出款额、失败类别与原因）。「下载原件」调 #22。按文件状态给动作：
+
+| 文件状态 | 动作 |
+|---|---|
+| 已生成（平台出款） | 「登记已提交」#23、「作废」#25 |
+| 已生成（渠道方执行） | 只读（系统已发送，发送失败到通知投递记录人工重投） |
+| 已提交 | 「登记受理结果」#24 |
+| 已受理 | 未失败的行给「登记退票」#26 |
+| 被拒、已作废 | 只读 |
+
+### 场景：出款登记
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开出款文件详情
+    S->>A: #35;21 [getPayoutFile]<br/>GET /payout-files/{payoutFileId}
+    A-->>S: 200 { payoutFileId, status = GENERATED, lines }
+    U->>S: 下载原件交给银行
+    S->>A: #35;22 [getPayoutFileOriginal]<br/>GET /payout-files/{payoutFileId}/original
+    A-->>S: 200 { url, expiresAt }
+    U->>S: 点「登记已提交」，可填受理凭据
+    S->>A: #35;23 [submitPayoutFile]<br/>POST /payout-files/{payoutFileId}/submission<br/>{ bankReference }
+    A-->>S: 204
+    U->>S: 银行回结果后点「登记受理结果」，选受理并勾要剔除的行与原因，或选被拒并填原因
+    S->>A: #35;24 [acknowledgePayoutFile]<br/>POST /payout-files/{payoutFileId}/acknowledgement<br/>Idempotency-Key，{ result, bankReference, rejectedLines, rejectionReason }
+    A-->>S: 204
+    S->>A: #35;21 [getPayoutFile]<br/>GET /payout-files/{payoutFileId}
+    A-->>S: 200 { status = ACCEPTED, lines }
+```
+
+- 整份受理时被剔除的行所属结算单转出款失败（到清算记录重新出款），其余行所属结算单转已结算；整份被拒时全部行所属结算单转出款失败。
+- 作废只对还没提交的平台出款文件：所涉结算单回到待出款，下次生成出款文件时重新装入。渠道方执行的文件不能作废；它发送失败时保持已生成，到通知投递记录人工重投，重投发送成功即转已提交。
+- 登记受理结果是资金登记：每次点击生成一个新的 `Idempotency-Key`，同一次点击因超时重试时沿用同一个键。
+
+### 场景：退票后暂停
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 在已受理文件的一行点「登记退票」，填原因与退票日期
+    S->>A: #35;26 [returnPayoutLine]<br/>POST /payout-file-lines/{payoutLineId}/return<br/>Idempotency-Key，{ failureCode, failureReason, failedOn }
+    A-->>S: 200 { payoutLineId, batchId, merchant }
+    Note over S: 提示「已登记退票，可暂停该商户结算」
+    U->>S: 点提示里的「去暂停」
+    S->>A: #35;43 [updateMerchantSettlementControls]<br/>PATCH /merchants/{merchantId}/settlement-controls<br/>{ settlementPaused = true }
+    A-->>S: 204
+```
+
+- 登记退票不会暂停该商户结算；暂停是另一次独立操作（#43，要 `clr:settlement-terms:edit`），不点就不暂停。
+- 退票后所属结算单为已退票，退回的款回到该商户的待结算池、随后续结算单再出款。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 文件状态不受理该登记（已被他人登记，或自己上一次已成功） | #23 / #24 / #25 `409`·`308606` | 提示「文件状态已变化」，重调 #21 |
+| 剔除的行不属于该文件 | #24 `409`·`308607`（`details` 指到行） | 标出那几行，重调 #21 |
+| 不能登记退票（文件未受理、该行已被剔除或已退票） | #26 `409`·`308608` | 提示后重调 #21 |
+| 被拒没填原因、受理与被拒字段混填、原因超长 | #24 / #26 `400` | 对应输入框标红 |
+| 同一个键首次请求还在处理 | #24 / #26 `409`·`908002` | 稍后用同一个键重试 |
+| 文件或出款行不存在 | #21 ~ #26 `404` | 提示找不到，回到出款文件并刷新 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 出款文件 | v1 只按清算日现场生成下载，不落提交、受理、退票状态 | 文件落库，提交、受理、被拒、作废、退票、重新出款全流程登记 | 每笔出款都有结果、不双付 |
+| 多家银行文件 | v1 同一清算日对同一批商户生成多家银行文件，由运营挑着交 | 每张结算单按格式选择规则只进一份文件 | 不会把同一笔款交两家银行 |
+| 退票与暂停 | v1 无退票登记 | 登记退票，提示可暂停、不自动暂停 | 是否暂停由运营判断 |
+
+---
+
+## 页面：通道结算单
+
+通道结算单列表调 #28，按通道小计调 #29，两者带同一组筛选：结算日区间 `from` / `to`（两端必填，默认最近 30 天）、通道 `channelId`（候选调 #47）、核对结果 `verifyStatus`（一致 / 不一致 / 未核对）、是否已确认到账 `receiptConfirmed`。
+
+- 各列取：通道 `channel`、结算日 `settleDate`、通道批次号 `channelBatchNo`、覆盖区间、通道声明的收款 / 退款 / 净手续费 / 净额 / 未结算额、核对结果 `verifyStatus`、到账确认金额 / 人 / 时刻 / 备注、差异说明 / 人 / 时刻。小计每通道一行：声明净额合计、已确认笔数与确认金额合计、未确认笔数。
+- 未确认的行给「确认到账」：弹框默认带 `netAmount` 作确认金额、可改，备注可填，调 #30。已确认的行给「撤销确认」，调 #31。`awaitingDiscrepancyNote` 为真的行给「差异说明」，调 #32。每次成功后重调 #28 与 #29。
+- 确认与撤销只是记录，不改账务。撤销回到确认前，已填的差异说明一并清空；重新确认后仍有待说明差异的，照常再填说明。
+
+### 场景：到账确认
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开通道结算单
+    S->>A: #35;28 [listChannelSettlements]<br/>GET /channel-settlements?from=…&to=…&receiptConfirmed=false
+    A-->>S: 200 { total, data: [ { channelSettlementId, netAmount, verifyStatus } ] }
+    S->>A: #35;29 [getChannelSettlementSummary]<br/>GET /channel-settlements/summary?from=…&to=…&receiptConfirmed=false
+    A-->>S: 200 { items }
+    U->>S: 核对银行流水后点「确认到账」，改确认金额
+    S->>A: #35;30 [confirmChannelSettlementReceipt]<br/>POST /channel-settlements/{channelSettlementId}/receipt-confirmation<br/>{ confirmedAmount, note }
+    A-->>S: 204
+    S->>A: #35;28 [listChannelSettlements]<br/>GET /channel-settlements?from=…&to=…
+    A-->>S: 200 { data: [ { receiptConfirmedAmount, awaitingDiscrepancyNote = true } ] }
+    U->>S: 确认金额与声明净额不一致，点「差异说明」
+    S->>A: #35;32 [resolveChannelSettlementDiscrepancy]<br/>POST /channel-settlements/{channelSettlementId}/discrepancy-resolution<br/>{ note }
+    A-->>S: 204
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 确认时已被他人确认、撤销时尚未确认 | #30 / #31 `409`·`308610` | 提示状态已变化，重调 #28 看确认人 |
+| 没有待说明的差异或已说明过 | #32 `409`·`308611` | 提示后重调 #28 |
+| 确认金额为负或币种不对、说明没填 | #30 / #32 `400` | 输入框标红 |
+| 日期范围缺一端或 `to` 早于 `from` | #28 / #29 `400` | 在日期选择器下提示 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 到账确认 | v1 确认与撤销无条件、撤销不留痕 | 确认与撤销都记入操作审计 | 谁确认、谁撤销可追查 |
+| 通道打款与平台清算对比 | v1 有单独的对比页 | 由通道结算单的核对结果与差异说明替代 | 同一份核对，不另算一遍 |
+
+---
+
+## 页面：渠道方汇回
+
+汇回单列表，调 #33。筛选：到账日区间 `from` / `to`（两端必填，默认最近 30 天）、通道 `channelId`（候选调 #47）、核对结果 `verifyStatus`。
+
+- 各列取：通道 `channel`、期间、留存手续费 / 扣减成本 / 其他扣减、实汇净额、到账日 `receivedOn`、参考号、备注、核对结果与时刻、冲销人与时刻、差异说明 / 人 / 时刻、登记人。
+- 「登记汇回单」：选渠道方执行出款的通道（候选调 #47 带 `payoutExecutionMode=CHANNEL`，币种取所选通道的 `settleCurrency`），填期间、三项声明、实汇净额、到账日、参考号与备注，调 #34；前端提交前先校验等式「留存手续费 = 扣减成本 + 其他扣减 + 实汇净额」。返回的汇回单带核对结果。
+- 未冲销的行给「冲销」，调 #35；未冲销且 `verifyStatus = DISCREPANT`、还没说明的行给「差异说明」，调 #36。每次成功后重调 #33。
+
+### 场景：渠道方汇回
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点「登记汇回单」
+    S->>A: #35;47 [listClearingChannelOptions]<br/>GET /clearing-channel-options?payoutExecutionMode=CHANNEL
+    A-->>S: 200 { items[ channelId, channelName, settleCurrency ] }
+    U->>S: 选通道并填写
+    S->>A: #35;34 [createChannelRemittance]<br/>POST /channel-remittances<br/>Idempotency-Key，{ channelId, periodStartDate, periodEndDate,<br/>declaredFeeRetained, declaredCostDeducted, netRemittedAmount, receivedOn }
+    A-->>S: 201 { remittanceId, verifyStatus }
+    alt 核对不一致
+        U->>S: 点「差异说明」
+        S->>A: #35;36 [resolveChannelRemittanceDiscrepancy]<br/>POST /channel-remittances/{remittanceId}/discrepancy-resolution<br/>{ note }
+        A-->>S: 200 { remittanceId, discrepancyNote }
+    else 录错了
+        U->>S: 点「冲销」并确认，再录新单
+        S->>A: #35;35 [reverseChannelRemittance]<br/>POST /channel-remittances/{remittanceId}/reversal<br/>Idempotency-Key
+        A-->>S: 200 { remittanceId, reversedAt }
+    end
+```
+
+- 登记与冲销是资金登记：每次点击生成一个新的 `Idempotency-Key`，同一次点击因超时重试时沿用同一个键。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 所选通道不是渠道方执行出款的通道，或币种不对 | #34 `409`·`308612` | 提示后改选通道 |
+| 等式不成立、币种不一致、期间起晚于止 | #34 `400` | 对应输入框标红 |
+| 汇回单已冲销 | #35 / #36 `409`·`308613` | 提示后重调 #33 |
+| 核对一致或已说明过 | #36 `409`·`308611` | 提示后重调 #33 |
+| 同一个键首次请求还在处理 | #34 / #35 `409`·`908002` | 稍后用同一个键重试 |
+
+渠道方汇回登记是新增的页面，现有管理后台与 Hub 都没有对应页面。
+
+---
+
+## 页面：清算报告
+
+选一个清算日（必填，默认最近一个清算日），调 #37，列出当天应发清算报告的商户（当天有结算单、不属 T&T 商户组），可按商户 `merchantId` 筛选。
+
+- 各列取：商户 `merchant` 与商户码、清算日、当天结算单张数 `batchCount`、出款额合计 `payoutAmount`。
+- 每行给「查看投递」：跳到运维与审计的通知投递记录（#46），带该商户 `merchantId` 与 `scene = settlement_report.issued`，日期范围取该清算日起；要另持 `opscon:notification:view`。投递记录在那里看，本页不显示。
+- 每行给「补发」，调 #38；补发是再发一封、可重复，提交后到返回前禁用按钮。
+
+### 场景：清算报告补发
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 选清算日
+    S->>A: #35;37 [listSettlementReports]<br/>GET /settlement-reports?settlementDate=…
+    A-->>S: 200 { total, data: [ { merchant, settlementDate, batchCount, payoutAmount } ] }
+    U->>S: 某商户点「查看投递」
+    S->>A: #35;46 [listNotificationDeliveries]<br/>GET /notification-deliveries?merchantId=…&scene=settlement_report.issued&from=…&to=…
+    A-->>S: 200 { total, data: [ { deliveryId, status, recipientAddress } ] }
+    U->>S: 投递失败，回清算报告点「补发」
+    S->>A: #35;38 [redeliverSettlementReport]<br/>POST /merchants/{merchantId}/settlement-reports/{settlementDate}/redeliveries
+    A-->>S: 202
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 该商户属 T&T 商户组 | #38 `409`·`308616` | 提示「该商户不发清算报告」 |
+| 该商户该清算日没有结算单，或不在数据范围内 | #38 `404` | 提示找不到，重拉 #37 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 补发 | v1 只要登录即可补发、看不到发送结果 | 按权限点补发、进操作审计；投递结果在通知投递记录查看 | 谁补发的可追查，送没送达有记录 |
+| 合并发送 | v1 同一联系邮箱的多家门店合并成一封 | 一商户一封 | 每封对应一个商户，补发与追查按商户 |
+
+---
+
+## 页面：T&T 对账文件
+
+T&T 对账文件列表，调 #39。筛选：生成日期区间 `from` / `to`（两端必填，默认最近 30 天）。
+
+- 各列取：种类 `fileKind`（线下 / 线上）、覆盖区间 `periodFrom` ~ `periodTo`、生成时刻 `createdAt`、推送状态 `deliveryStatus`、推送次数 `deliveryAttempts`、最近推送时刻与失败原因、送达时刻 `deliveredAt`。
+- 「下载原件」调 #40。推送状态不是推送中的行给「重发」，调 #41；重发是同一文件再推一次，不重新生成内容，受理后稍后刷新 #39 看结果。
+
+### 场景：T&T 对账文件重发
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开 T&T 对账文件
+    S->>A: #35;39 [listMerchantReconFiles]<br/>GET /merchant-recon-files?from=…&to=…
+    A-->>S: 200 { total, data: [ { reconFileId, deliveryStatus = FAILED, lastFailureReason } ] }
+    U->>S: 点「重发」
+    S->>A: #35;41 [redeliverMerchantReconFile]<br/>POST /merchant-recon-files/{reconFileId}/redeliveries
+    A-->>S: 202
+    U->>S: 稍后刷新
+    S->>A: #35;39 [listMerchantReconFiles]<br/>GET /merchant-recon-files?from=…&to=…
+    A-->>S: 200 { data: [ { deliveryStatus = DELIVERED, deliveryAttempts, deliveredAt } ] }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 文件正在推送 | #41 `409`·`308614` | 提示「正在推送，请稍后再试」 |
+| 文件不存在 | #40 / #41 `404` | 提示找不到，重拉 #39 |
+
+---
+
+## 页面：清结算异常概览
+
+调 #19，一组计数卡片，每张可跳到对应列表：
+
+| 卡片 | 字段 | 跳到 |
+|---|---|---|
+| 出款失败待重新出款 | `failedBatchCount` | 清算记录，`status = FAILED` |
+| 已提交未登记受理（显示最早提交时刻） | `submittedPayoutFileCount`、`earliestSubmittedAt` | 出款文件，`status = SUBMITTED` |
+| 账单拉取 / 导入失败 | `failedBillCount` | 对账与差异，`billStatus` 选两种失败 |
+| 待处理差异（显示最早账单日） | `pendingDiscrepancyCount`、`earliestPendingBillDate` | 对账与差异的差异列表，`status = pending`，日期从最早账单日起 |
+| 待人工确认退款 | `pendingRefundConfirmationCount` | 待人工确认退款 |
+
+- 待人工确认退款只计本人数据范围内的商户，其余是平台级计数。计数为 0 时不显示最早时刻 / 最早账单日。
+
+---
+
+## 页面：平台清结算参数
+
+清结算相关的平台级参数：各结算币种的默认平台出款格式、出款文件头各项、T&T 商户组（T&T 主商户号）、NihaoPay 出款文件收件人、T&T 对账文件收件人。形态与平台参数页相同（见 03-settings），调 #44 列出、#45 改值或恢复默认（`value` 传 `null`）。
+
+- 这些参数没有默认值，没录入的显示为空（列表项不带 `value` 与 `effectiveValue`）；恢复默认后该参数无值。
+- 收件人是邮箱地址列表，以英文逗号分隔，不分抄送；系统向每个地址各发一份。
+- 改动对此后生成的文件与发出的邮件生效。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 版本已过期 | #45 `409`·`308103` | 提示他人已改过，重拉 #44 |
+| 值的类型或取值不合值域（如收件人里有不合法的邮箱） | #45 `400`，`details` 定位到 `value` | 输入框标红 |
+| 参数已不存在 | #45 `404` | 重拉 #44 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 出款文件头 | v1 发起方号、批号、退回账户等写死在程序里，改要发版 | 平台参数，运营可改、不发版，改动进操作审计 | 银行号随业务变化，不必等发版 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

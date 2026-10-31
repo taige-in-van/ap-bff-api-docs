@@ -743,6 +743,94 @@
       ],
       "retryable": false
     },
+    "308601": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_RERUN_DAY_HANDLED",
+      "retryable": false
+    },
+    "308602": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_RUN_IN_PROGRESS",
+      "retryable": false
+    },
+    "308603": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_DISCREPANCY_NOT_PENDING",
+      "retryable": false
+    },
+    "308604": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_CORRECTION_NOT_APPLIED",
+      "requiredContextFields": [
+        "reasonCode"
+      ],
+      "retryable": false
+    },
+    "308605": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_DISPOSITION_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "308606": {
+      "httpStatus": 409,
+      "name": "ADMIN_PAYOUT_FILE_STATE_CONFLICT",
+      "retryable": false
+    },
+    "308607": {
+      "httpStatus": 409,
+      "name": "ADMIN_PAYOUT_LINE_NOT_IN_FILE",
+      "retryable": false
+    },
+    "308608": {
+      "httpStatus": 409,
+      "name": "ADMIN_PAYOUT_LINE_NOT_RETURNABLE",
+      "retryable": false
+    },
+    "308609": {
+      "httpStatus": 409,
+      "name": "ADMIN_SETTLEMENT_BATCH_NOT_FAILED",
+      "retryable": false
+    },
+    "308610": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_SETTLEMENT_RECEIPT_STATE_CONFLICT",
+      "retryable": false
+    },
+    "308611": {
+      "httpStatus": 409,
+      "name": "ADMIN_DISCREPANCY_NOTE_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "308612": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_REMITTANCE_CHANNEL_INVALID",
+      "retryable": false
+    },
+    "308613": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_REMITTANCE_REVERSED",
+      "retryable": false
+    },
+    "308614": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_FILE_DELIVERY_IN_PROGRESS",
+      "retryable": false
+    },
+    "308615": {
+      "httpStatus": 409,
+      "name": "ADMIN_REFUND_NOT_AWAITING_CONFIRMATION",
+      "retryable": false
+    },
+    "308616": {
+      "httpStatus": 409,
+      "name": "ADMIN_SETTLEMENT_REPORT_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "308617": {
+      "httpStatus": 409,
+      "name": "ADMIN_SETTLEMENT_CALENDAR_DAY_HAS_BATCH",
+      "retryable": false
+    },
     "904001": {
       "httpStatus": 400,
       "name": "VALIDATION_FAILED",

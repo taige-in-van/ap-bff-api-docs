@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.2.2
+  version: 2.2.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -3085,7 +3085,7 @@ components:
           description: 当前生效的订单有效期：商户设过就是商户的值，没设过是平台默认值。
         customerServiceFeeEnabled:
           type: boolean
-          description: 是否把商户的手续费转给付款人承担。打开后付款人实付 = 能让商户扣完手续费后净得标价与小费的金额；费率就是商户各支付方式自己的费率（见 `getAccountService`），没有另外的加收费率。
+          description: 是否把商户的手续费转给付款人承担。打开后，每次发起支付时按所选支付方式当时的比例费率算出付款人应付：扣掉按该比例算的手续费后不低于标价与小费；商户实际手续费在成交后照常计算，固定单笔费仍由商户承担；比例费率就是商户各支付方式自己的费率（见 `getAccountService`），没有另外的加收费率。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'

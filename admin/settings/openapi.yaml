@@ -5,7 +5,7 @@ info:
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的平台设置契约：平台参数（`/settings/parameters`）、平台级收单参数（`/settings/acquiring-parameters`）、平台退款参数（`/settings/refund-parameters`）与发给全体商户的公告（`/announcements`）。
+    管理后台 React SPA 消费的平台设置契约：平台参数（`/settings/parameters`）、平台级收单参数（`/settings/acquiring-parameters`）、平台退款参数（`/settings/refund-parameters`）、平台清结算参数（`/settings/clearing-parameters`）与发给全体商户的公告（`/announcements`）。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
@@ -25,6 +25,9 @@ tags:
   - name: refund-parameters
     x-displayName: 平台退款参数
     description: 退款相关的平台级参数（退款审核总开关、审核金额阈值、最大退款期限）：可改值、可恢复默认。
+  - name: clearing-parameters
+    x-displayName: 平台清结算参数
+    description: 清结算相关的平台级参数（各结算币种默认出款格式、出款文件头、T&T 商户组、出款文件与对账文件收件人）：可改值、可恢复默认（无默认值，恢复后无值）。
   - name: announcements
     x-displayName: 公告
     description: 发给全体商户的公告：草稿、发布、撤回。
@@ -37,7 +40,7 @@ paths:
       x-required-privilege: syscfg:parameter:view
       summary: 平台参数列表（含生效值、默认值与写入用的版本）
       description: |
-        平台参数页上的全部参数，按分组给出。每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`，没有 `value` 即当前用的是默认值。收单相关的平台参数在平台收单参数页（`listAcquiringPlatformParameters`）；退款审核开关、审核金额阈值与最大退款期限在平台退款参数页（`listRefundPlatformParameters`），都不在本列表。
+        平台参数页上的全部参数，按分组给出。每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`，没有 `value` 即当前用的是默认值。收单相关的平台参数在平台收单参数页（`listAcquiringPlatformParameters`）；退款审核开关、审核金额阈值与最大退款期限在平台退款参数页（`listRefundPlatformParameters`）；清结算相关的在平台清结算参数页（`listClearingPlatformParameters`），都不在本列表。
 
         顺序即展示顺序。
       responses:
@@ -423,6 +426,141 @@ paths:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 308103
+  /settings/clearing-parameters:
+    get:
+      tags:
+        - clearing-parameters
+      operationId: listClearingPlatformParameters
+      x-required-privilege: clr:parameter:view
+      summary: 平台清结算参数列表（含生效值与写入用的版本）
+      description: |
+        清结算相关的平台级参数：各结算币种的默认平台出款格式（候选只含支持该币种的格式，见各项 `valueRangeNote`）；出款文件头各项（RBC CAD 户与 USD 户的发起方号与批号、RBC 公司名，CIBC 的发起方号、退回账户与交易码，NihaoPay 的 SWIFT 码与转账费）；T&T 商户组（T&T 主商户号，其子商户随之归组）；NihaoPay 出款文件收件人；T&T 对账文件收件人。形态与平台参数相同：每项带展示名、当前值与写入用的版本。顺序即展示顺序。
+
+        这些参数都没有默认值：上线前按现网值录入，没录入时不返回 `value` 与 `effectiveValue`（没录入的出款文件头会让该格式的出款文件生成不出来）。
+
+        收件人是邮箱地址列表，以英文逗号分隔，不分抄送；系统向列表里每个地址各发一份。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlatformParameter'
+              example:
+                items:
+                  - key: payout-file.default-format.cad
+                    groupName: 出款格式
+                    displayName: CAD 默认平台出款格式
+                    valueType: string
+                    valueRangeNote: RBC_ACH / CIBC_EFT_1464 / POCKYT_XLSX
+                    value:
+                      stringValue: RBC_ACH
+                    effectiveValue:
+                      stringValue: RBC_ACH
+                    version: 1
+                  - key: payout-file.default-format.usd
+                    groupName: 出款格式
+                    displayName: USD 默认平台出款格式
+                    valueType: string
+                    valueRangeNote: RBC_ACH
+                    value:
+                      stringValue: RBC_ACH
+                    effectiveValue:
+                      stringValue: RBC_ACH
+                    version: 1
+                  - key: payout-file.cibc.originator-id
+                    groupName: 出款文件头
+                    displayName: CIBC 发起方号
+                    valueType: string
+                    version: 0
+                  - key: payout-file.nihaopay.recipients
+                    groupName: 收件人
+                    displayName: NihaoPay 出款文件收件人
+                    valueType: string
+                    valueRangeNote: 邮箱地址，多个以英文逗号分隔
+                    value:
+                      stringValue: settle@nihaopay.example,ops@nihaopay.example
+                    effectiveValue:
+                      stringValue: settle@nihaopay.example,ops@nihaopay.example
+                    version: 3
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /settings/clearing-parameters/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 参数标识，取列表里的 `key`。
+        schema:
+          $ref: '#/components/schemas/ParameterKey'
+    put:
+      tags:
+        - clearing-parameters
+      operationId: updateClearingPlatformParameter
+      x-required-privilege: clr:parameter:edit
+      summary: 改一个平台清结算参数的值，或恢复默认
+      description: |
+        把这个参数在平台上的值设为 `value`；`value` 传 `null` 即恢复默认（这些参数没有默认值，恢复默认后该参数无值）。对此后生成的出款文件、对账文件与发出的邮件生效，已生成的不受影响。成功返回写入后的参数，每次成功都留下一条操作记录（带前后值）。
+
+        **全量覆盖**：请求体就是目标本身，`value` 与 `version` 都要传，缺省不代表保持原样。
+
+        **什么时候拒绝**：
+
+        - `version` 不是读到时的那个（别人已经改过）→ `409`·`308103`。重新调 `listClearingPlatformParameters` 读最新值，再决定是否重改。
+        - `value` 的类型或取值不合该参数的值域（如默认出款格式不在候选内、收件人里有不合法的邮箱地址）→ `400`，由 `details` 定位到 `value`；参数不变。
+        - 参数不存在或不在本页 → `404`。
+
+        **重复提交**：不带幂等键。上一次其实已经成功、响应丢了再提交，会因版本已变得到 `308103`，重读即可看到上次写入的值。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformParameterWrite'
+            examples:
+              setValue:
+                summary: 改值
+                value:
+                  value:
+                    stringValue: '0001234567'
+                  version: 0
+              restoreDefault:
+                summary: 恢复默认（无值）
+                value:
+                  value: null
+                  version: 1
+      responses:
+        '200':
+          description: 写入后的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformParameter'
+              example:
+                key: payout-file.cibc.originator-id
+                groupName: 出款文件头
+                displayName: CIBC 发起方号
+                valueType: string
+                value:
+                  stringValue: '0001234567'
+                effectiveValue:
+                  stringValue: '0001234567'
+                version: 1
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308103
   /announcements:
     get:
       tags:
@@ -747,8 +885,6 @@ components:
         - groupName
         - displayName
         - valueType
-        - defaultValue
-        - effectiveValue
         - version
       properties:
         key:
@@ -775,7 +911,7 @@ components:
         defaultValue:
           allOf:
             - $ref: '#/components/schemas/ParameterValue'
-          description: 默认值。
+          description: 默认值；没有默认值的参数（如平台清结算参数）不返回本键。
         value:
           allOf:
             - $ref: '#/components/schemas/ParameterValue'
@@ -783,7 +919,7 @@ components:
         effectiveValue:
           allOf:
             - $ref: '#/components/schemas/ParameterValue'
-          description: 当前生效值：设过且仍合法时取 `value`，否则取默认值。
+          description: 当前生效值：设过且仍合法时取 `value`，否则取默认值；两者都没有时不返回本键。
         version:
           type: integer
           minimum: 0
