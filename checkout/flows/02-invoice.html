@@ -107,12 +107,12 @@ sequenceDiagram
 
 ## 页面：支付结果 · 收据
 
-用 `getCheckoutOrder` 的数据：`amount`（账单金额）、`customerServiceFee`、`payable`、`payerNote`（填了才返回）、`invoice`（`invoiceNo`、`status`）、`autoRefunded`（这次付款已扣款但不生效、将原路退回时为 true）。等待付款时可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。成功页给「下载收据」，收据另带账单号 `invoice.invoiceNo`；账单没有凭证段。
+用 `getCheckoutOrder` 的数据：`amount`（账单金额）、`customerServiceFee`、`payable`、`payerNote`（填了才返回）、`invoice`（`invoiceNo`、`status`）、`autoRefunded`（这次付款已扣款但不生效、将原路退回时为 true）。等待付款时可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。成功页给「查看收据」，收据另带账单号 `invoice.invoiceNo`；账单没有凭证段。
 
 结果页按这个顺序判：
 
 1. 本会话订单还是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询，不看账单状态。
-2. 本会话订单是 `SUCCEEDED`：「账单已付款」+「下载收据」，不看账单状态。商户事后删除了这张账单，付款人这笔付款的结果和收据不受影响。
+2. 本会话订单是 `SUCCEEDED`：「账单已付款」+「查看收据」，不看账单状态。商户事后删除了这张账单，付款人这笔付款的结果和收据不受影响。
 3. 其余情况先看账单、再看这次付款：
 
 | invoice.status | 本会话订单 | 页面 |

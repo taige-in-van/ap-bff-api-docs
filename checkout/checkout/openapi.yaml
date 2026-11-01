@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.2.3
+  version: 2.2.4
   contact:
     name: 收银台
   description: |
@@ -1085,6 +1085,7 @@ paths:
                       sdkParams:
                         appId: wx8888888888888888
                         timeStamp: '1787994900'
+                        nonceStr: Q7M2XK9RT4BV8NHC
                         package: prepay_id=wx2026082809150010010001
                         signType: RSA
                         paySign: oR9d8PuhnIc+YZ8cBHFCwfgpaK9gd7vaRvkYD7rthRAZ

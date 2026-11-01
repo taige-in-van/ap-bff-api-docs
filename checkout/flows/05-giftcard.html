@@ -182,7 +182,7 @@ sequenceDiagram
 结果页按这个顺序判：
 
 1. `getCheckoutOrder` 的 `status` 是 `PENDING`：照 [00-shared 页面：支付结果](00-shared.html#页面：支付结果) 的等待处理继续轮询。
-2. `status` 是 `SUCCEEDED`：成功页 + 所买面值 + 下载收据（同商品与票务），发放段按下表的 `fulfillmentStatus`。
+2. `status` 是 `SUCCEEDED`：成功页 + 所买面值 + 查看收据（同商品与票务），发放段按下表的 `fulfillmentStatus`。
 3. 其余（`UNPAID` / `EXPIRED` / `CLOSED` / `REJECTED`）：按 00-shared 页面：支付结果的共用处理；`UNPAID` / `EXPIRED` / `CLOSED` 的「重新付款」开一笔新订单，见「页面：礼卡购买页」的「一次进入只下一单」。
 
 `SUCCEEDED` 下的发放段：
