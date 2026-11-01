@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.2.2
+  version: 2.2.3
   contact:
     name: 收银台
   description: |
@@ -278,6 +278,11 @@ paths:
                           label: 姓名
                           type: text
                           mandatory: false
+                        - key: sys:email
+                          label: 邮箱
+                          type: email
+                          mandatory: true
+                          needConfirm: true
                         - key: sys:phone
                           label: 电话
                           type: phone
@@ -971,6 +976,7 @@ paths:
                         quantity: 1
                     collectedFields:
                       sys:name: 王小明
+                      sys:email: xiaoming.wang@example.com
                       sys:notes: 下午三点来取
               giftcardGift:
                 summary: 礼卡送礼，会话还没有订单
