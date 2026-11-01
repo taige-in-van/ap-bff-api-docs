@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 运维与审计 — 前端契约面
-  version: 2.1.0
+  version: 2.1.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -938,7 +938,7 @@ components:
           type: string
           minLength: 1
           maxLength: 256
-          description: 收件地址：邮箱、微信接收方标识，或企业微信群机器人地址。
+          description: 收件地址：邮箱、微信接收方标识，或企业微信群机器人地址；通道关闭或没有接收方而不发的记录为 `-`。
         merchant:
           allOf:
             - $ref: '#/components/schemas/MerchantBrief'
@@ -951,7 +951,7 @@ components:
           description: 已尝试发送的次数。
         failureReason:
           type: string
-          description: 最近一次失败或不发的原因，服务商返回的原文、不本地化。没有时不返回。
+          description: 失败时为服务商原文、不本地化；不发时为原因码 `channel_disabled`（通道关闭）/ `recipient_empty`（没有接收方）。没有时不返回。
         sentAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
