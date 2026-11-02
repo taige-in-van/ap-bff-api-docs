@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 资金 — 前端契约面
-  version: 2.1.4
+  version: 2.1.5
   contact:
     name: 商户后台 BFF
   description: |
@@ -810,7 +810,7 @@ components:
         status:
           $ref: '#/components/schemas/SettlementStatus'
         payoutAccount:
-          description: 这张结算单出款打到的结算账户，取最近一次出款用的那个，不随商户之后更换结算账户而变。还没出过款（`PENDING` 且没有失败过）时不返回本键。
+          description: 这张结算单出款打到的结算账户，取最近一次有效出款尝试用的那个（出款文件被作废的那次不算），不随商户之后更换结算账户而变。还没有有效出款尝试（`PENDING` 且没有失败过，作废不算失败）时不返回本键。
           allOf:
             - $ref: '#/components/schemas/PayoutAccount'
     PayoutAccount:

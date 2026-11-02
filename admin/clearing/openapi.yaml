@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.0.2
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -859,7 +859,7 @@ paths:
       description: |
         本人数据范围内商户的结算单，分页，按清算日从新到旧。日期范围按清算日，两端必填；跨度超过允许的最大查询窗口 → `400`。商户详情的「结算」页签用本接口并固定 `merchantId`。
 
-        打入账户取该结算单最近一次出款尝试的账户；还没装进出款文件的结算单不返回 `payoutAccount`。`status = PROCESSING` 表示出款处理中（已装进出款文件、还没有结果）。
+        打入账户取该结算单最近一次有效出款尝试的账户（作废文件里的那次不算）；还没有有效出款尝试的结算单不返回 `payoutAccount`。`status = PROCESSING` 表示出款处理中（已装进出款文件、还没有结果）。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -926,7 +926,7 @@ paths:
       description: |
         单张结算单：列表行的字段，加全部出款尝试（按序号从先到后）。逐笔明细另取 `listSettlementBatchLines`。结算单不存在或所属商户在本人数据范围外 → `404`。
 
-        出款失败后重新出款的结算单有多次出款尝试，失败的那次带失败类别与原因；还没装进出款文件时 `payoutAttempts` 为空数组。
+        出款失败后重新出款的结算单有多次出款尝试，失败的那次带失败类别与原因；所在文件被作废的那次照列、失败类别为 `VOIDED`；还没装进出款文件时 `payoutAttempts` 为空数组。
       responses:
         '200':
           description: OK
@@ -1059,7 +1059,7 @@ paths:
       x-required-privilege: clr:payout:manage
       summary: 重新出款
       description: |
-        对出款失败的结算单发起重新出款：同一张结算单、同一批明细回到待出款，下次生成出款文件时装入、产生新的出款尝试。该商户结算暂停或已停清算（如冻结）的照常受理、结算单保持待出款，恢复后才装入出款文件。
+        对出款失败的结算单发起重新出款：同一张结算单、同一批明细回到待出款，下次生成出款文件时装入、产生新的出款尝试。该商户结算暂停或已冻结的照常受理、结算单保持待出款，恢复或解冻后才装入出款文件。
 
         **什么时候拒绝**：
 
@@ -1294,7 +1294,7 @@ paths:
       description: |
         单份出款文件：列表行的字段，加文件内全部出款行（按行号从先到后，不分页）。出款文件不存在 → `404`。
 
-        出款行带所属结算单与商户、出款额，以及失败类别与原因：`failureKind = REJECTED` 是受理时被剔除，`RETURNED` 是已付出后退回（退票）；没有失败的行不返回失败相关字段。
+        出款行带所属结算单与商户、出款额，以及失败类别与原因：`failureKind = REJECTED` 是受理时被剔除或所在文件整份被拒，`RETURNED` 是已付出后退回（退票），`VOIDED` 是文件提交前作废、钱未出（作废文件的全部行）；没有失败的行不返回失败相关字段。
       responses:
         '200':
           description: OK
@@ -1427,7 +1427,7 @@ paths:
         对已提交的出款文件登记银行或渠道方的结果，一次登记一个结果：
 
         - `ACCEPTED` 整份受理：`rejectedLines` 列出受理时被剔除的行（原因必填、原因码可填），这些行所属结算单转出款失败、明细不退回待结算池；其余行所属结算单转已结算。
-        - `REJECTED` 整份被拒：`rejectionReason` 必填；全部行所属结算单转出款失败。
+        - `REJECTED` 整份被拒：`rejectionReason` 必填；全部行记为被拒（钱未出），其所属结算单转出款失败。
 
         **什么时候拒绝**（文件不变）：
 
@@ -2192,7 +2192,7 @@ paths:
       description: |
         一个商户当前是否暂停结算与起结门槛，商户详情「结算」页签显示。商户不存在或在本人数据范围外 → `404`。
 
-        冻结商户停清算由商户状态决定，不反映在 `settlementPaused` 上。
+        冻结商户停出款（归集与建批照常）由商户状态决定，不反映在 `settlementPaused` 上。
       responses:
         '200':
           description: OK
@@ -2629,7 +2629,8 @@ components:
       enum:
         - REJECTED
         - RETURNED
-      description: 出款行失败类别：`REJECTED` 受理时被剔除 · `RETURNED` 已付出后退回（退票）。
+        - VOIDED
+      description: 出款行失败类别：`REJECTED` 受理时被剔除或所在出款文件整份被拒 · `RETURNED` 已付出后退回（退票） · `VOIDED` 所在出款文件提交前作废、钱未出。
     VerifyStatus:
       type: string
       enum:
@@ -3292,7 +3293,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
         payoutAccount:
-          description: 最近一次出款尝试打入的账户；还没装进出款文件时不返回本键。
+          description: 最近一次有效出款尝试打入的账户（作废文件里的那次不算）；还没有有效出款尝试时不返回本键。
           allOf:
             - $ref: '#/components/schemas/PayoutAccount'
     PayoutAttempt:

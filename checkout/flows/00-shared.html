@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"8d8ea258631bec6a","checkout/openQrcodeCheckout":"463628fbb2c75622","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"90cd1ba57b8e5a23","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 收银台共用环节 —— 调用时序
@@ -200,7 +200,7 @@ sequenceDiagram
 | 限流 | `429` | 退避后重试 |
 | 带的令牌已过期或不属于本入口 | 按没带处理：签发新会话 `201`；`state` 不是 `PAYABLE` 或要重新授权时不签发 `200` | 拿到新令牌就覆盖 sessionStorage 里的旧令牌；没签发时按上面各支处理 |
 | 自动重新授权用尽仍拿不到标识 | 仍返回 `reauthorizeUrl` | 授权失败页；「重试」重新计数再走一遍 |
-| 付款人切换页面语言 | `200`，认回同一会话；`Content-Language` 是实际给的语言（挑不中时退到入口的默认语言） | 按新返回的内容重新渲染，令牌不变 |
+| 付款人切换页面语言 | `200`，认回同一会话；`Content-Language` 是实际给的语言（挑不中时为英文） | 按新返回的内容重新渲染，令牌不变 |
 
 ## 页面：链接状态页
 
@@ -550,7 +550,7 @@ sequenceDiagram
     end
     alt SUCCEEDED
         S->>P: 成功页（金额构成、订单号、支付时间、方式）
-        opt 付款人点「查看收据」（动态码、托管页与电商插件订单没有）
+        opt 付款人点「查看收据」（动态码、托管页、电商插件订单与礼卡没有）
             S->>P: 页面内整页显示收据
         end
         alt 订单视图带 returnUrl
@@ -575,7 +575,7 @@ sequenceDiagram
 | status | 店铺码 / 商品 / 票务 / 礼卡 | 账单 | 动态码 / 开放 API 托管页 / 电商插件订单 |
 |---|---|---|---|
 | `PENDING` | 「确认中」，默认 20 秒没有终态显示「暂未查到付款结果」+「刷新结果」，见「流程：发起支付」的「拉起之后的确认」；带 `jsapi` / `app_launch` / `redirect`、或不在微信里带 `open_in_browser` 时，「暂未查到付款结果」上另有小字「还没付款？继续付款」（照这个动作再执行一次）；有 `nextAction.kind = qr` 时显示二维码；页面加载后拿到 `hidden_form` 时不提交表单，显示「确认中」并轮询；在微信里拿到 `open_in_browser` 时显示在浏览器打开引导 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
-| `SUCCEEDED` | 成功页 + 查看收据（商品 / 票务另有选购明细与凭证段，见 [04 页面：支付结果 · 凭证](04-products-tickets.html#页面：支付结果%20·%20凭证)；礼卡另有发放段、邮箱验证与凭证，见 [05 页面：支付结果 · 邮箱验证与凭证](05-giftcard.html#页面：支付结果%20·%20邮箱验证与凭证)） | 「账单已付款」+ 查看收据 | 订单视图带 `returnUrl` 就自动跳回商户（「正在返回商户」+ 按钮）；还没带、而入口带过 `order.cancelUrl` 时显示「付款成功，正在返回商户」并继续轮询，到上限还没有就停在成功页、不给按钮；入口没带 `order.cancelUrl` 的订单没有回跳，成功即停在成功页 |
+| `SUCCEEDED` | 成功页 + 查看收据（礼卡没有查看收据；商品 / 票务另有选购明细与凭证段，见 [04 页面：支付结果 · 凭证](04-products-tickets.html#页面：支付结果%20·%20凭证)；礼卡另有发放段、邮箱验证与凭证，见 [05 页面：支付结果 · 邮箱验证与凭证](05-giftcard.html#页面：支付结果%20·%20邮箱验证与凭证)） | 「账单已付款」+ 查看收据 | 订单视图带 `returnUrl` 就自动跳回商户（「正在返回商户」+ 按钮）；还没带、而入口带过 `order.cancelUrl` 时显示「付款成功，正在返回商户」并继续轮询，到上限还没有就停在成功页、不给按钮；入口没带 `order.cancelUrl` 的订单没有回跳，成功即停在成功页 |
 | `UNPAID`（带 `lastAttemptFailure`） | `DECLINED`「付款被拒」/ `INCOMPLETE`「付款未完成」；给「重新付款」 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
 | `EXPIRED` | 「这次付款已超时」+「重新付款」 | 「这次付款已超时」+「重新付款」（同左） | 「订单已失效，请向商户重新获取」；入口带 `order.cancelUrl` 时给「返回商户」 |
 | `CLOSED` | 「这笔付款已关闭」+「重新付款」 | 同左 | 「订单已关闭」；入口带 `order.cancelUrl` 时给「返回商户」 |
