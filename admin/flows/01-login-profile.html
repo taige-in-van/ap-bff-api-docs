@@ -104,7 +104,7 @@ sequenceDiagram
             A-->>S: 200 { status, mfaChallenge, mfaEnrollment }
         end
     end
-    Note over S,A: SCANNED：显示「扫码成功，请在手机上确认」，继续轮询<br/>EXPIRED：重新调 #35;3<br/>REJECTED：提示登录失败，重新调 #35;3<br/>ESTABLISHED：已 Set-Cookie<br/>MFA_REQUIRED / MFA_ENROLLMENT_REQUIRED：同模式一
+    Note over S,A: SCANNED：显示「扫码成功，请在手机上确认」，继续轮询；用户点「重新扫码」→ 停止轮询、重新调 #35;3<br/>EXPIRED：重新调 #35;3<br/>REJECTED：提示登录失败，重新调 #35;3<br/>ESTABLISHED：已 Set-Cookie<br/>MFA_REQUIRED / MFA_ENROLLMENT_REQUIRED：同模式一
 
     Note over U,A: 动态码步（两种模式共用）
     U->>S: 输验证器上的 6 位码，勾不勾「信任本浏览器」
@@ -135,7 +135,8 @@ sequenceDiagram
 | 限流 | `429` | 退避 |
 
 - 失败计数不回前端，页面不显示剩余次数。
-- 扫码人的账号不能登录（未绑定、已停用）或发起扫码的网络不在其白名单时，原因只在扫码人的企业微信里说明（白名单不放行明说当前网络不允许登录），不出确认按钮，页面一直显示已扫码到二维码过期。
+- 扫码人的账号不能登录（未绑定、已停用）或发起扫码的网络不在其白名单时，原因只在扫码人的企业微信里说明（白名单不放行明说当前网络不允许登录），不出确认按钮，页面一直显示已扫码，直到二维码过期或用户点「重新扫码」。
+- 「重新扫码」在已扫码时恒显示，不随检查是否通过变化：停止轮询旧票据、重新调 #3 换码；没有取消接口，旧票据任其过期，用户随后在企业微信里确认旧码也不会登录。
 
 **相对 v1 / Hub 的改动**
 
