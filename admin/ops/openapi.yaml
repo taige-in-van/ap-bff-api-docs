@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 运维与审计 — 前端契约面
-  version: 2.1.1
+  version: 2.2.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -698,6 +698,7 @@ paths:
         **什么时候拒绝**：
 
         - 这次执行不是失败或已停止（如已成功、仍在执行），或已有更晚的执行在续跑它，或它的失败是由所属服务的已放弃 / 状态不明归并来的（见 `BatchExecutionStatus`），所属服务不受理 → `409`·`308107`，状态不变。
+        - 该任务已有一次执行在进行，所属服务不产生新的执行 → `409`·`308108`。
         - 批任务或执行不存在 → `404`。
 
         **幂等**：`Idempotency-Key`，作用域 = 键 + 路径里的执行。同键重发返回首次受理的结果；同键用于另一次执行 → `409`·`908003`；首次请求还在处理 → `409`·`908002`。
@@ -720,6 +721,7 @@ paths:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 308107
+        - 308108
   /batch-jobs/{jobKey}/executions/{executionId}/cancellation:
     parameters:
       - name: jobKey
@@ -1158,8 +1160,8 @@ components:
         - `RUNNING` 执行中
         - `STOPPING` 停止中
         - `STOPPED` 已停止（被取消）
-        - `COMPLETED` 已成功
-        - `FAILED` 失败
+        - `COMPLETED` 已成功：任务跑完；个别商户等处理单元失败另行告警，不使执行失败
+        - `FAILED` 失败，指任务本身中断
 
         由所属服务的执行状态归并而来：所属服务的执行中（`STARTED`）记为 `RUNNING`；已放弃（`ABANDONED`）与状态不明（`UNKNOWN`）都记为 `FAILED`；其余同名照搬。
     BatchExecution:

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.1.0
+  version: 2.2.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -740,8 +740,10 @@ paths:
 
         **什么时候拒绝**（日历不变）：
 
-        - `308617` 某日已有未失败的结算单，而本次提交把它所在的那一轨改为非清算日；整次被拒，重读日历后改提。
-        - 列出的日期不在路径月份内、同一轨重复列出 → `400`。
+        - `308617` 某日已有未失败的结算单，而本次提交把该商户当前所在的那一轨改为非清算日；整次被拒，重读日历后改提。
+        - 列出的日期不在路径月份内 → `400`。
+
+        同一轨重复列出的日期按一次计。
 
         **全量覆盖**：两个集合都要传，空数组表示该轨整月都不清算。带状态前置，不挂幂等键；重复提交同一份日历结果不变。前后值记入操作审计（只记实际变化的日期）。
       parameters:
@@ -3114,14 +3116,12 @@ components:
         clearingDates:
           type: array
           maxItems: 31
-          uniqueItems: true
           description: 普通商户的清算日，都在路径月份内。
           items:
             $ref: '#/components/schemas/LocalDate'
         kaClearingDates:
           type: array
           maxItems: 31
-          uniqueItems: true
           description: KA 商户的清算日，都在路径月份内。
           items:
             $ref: '#/components/schemas/LocalDate'
