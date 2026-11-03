@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-02T06:27:33Z",
-  "implCommit": "3b278c58",
+  "generatedAt": "2026-11-03T01:05:51Z",
+  "implCommit": "4a4bcede",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -155,6 +155,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "509f1e4e5020009c0804b92280cb4fd260eda485",
-  "prdStage": "stage/261101-core-product-links-b3"
+  "prdSha": "86561c7ffbcb8f44aa0fb97e8afbb2e3d677c521",
+  "prdStage": "stage/261102-core-product-links-b4"
 }
