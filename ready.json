@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-03T01:05:51Z",
-  "implCommit": "4a4bcede",
+  "generatedAt": "2026-11-03T08:35:43Z",
+  "implCommit": "26be30ca",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -103,6 +103,7 @@
     "merchant/orders/listPayments": "572d66f5f47bd06e",
     "merchant/orders/listRecentPayments": "47ca8efc042aa484",
     "merchant/orders/listRefunds": "aa31eba28b14f2c5",
+    "merchant/orders/releasePreAuth": "173e486b2bb709eb",
     "merchant/products/createInvoice": "a1cd4d2d12c115c2",
     "merchant/products/createProductLink": "fc44ee9323b69fbb",
     "merchant/products/deleteInvoice": "51fe0dcdd0c24c5f",
@@ -155,6 +156,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "86561c7ffbcb8f44aa0fb97e8afbb2e3d677c521",
-  "prdStage": "stage/261102-core-product-links-b4"
+  "prdSha": "c1fdd5f5818760b535b8a9641f6c858f1d5112af",
+  "prdStage": "stage/261103-merchant-portal-m4"
 }
