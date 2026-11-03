@@ -1303,7 +1303,7 @@ components:
           description: 是否已设 Refund PIN（write-only PIN 不回显，前端据此判断 Step 4 PIN 是否完成；跨设备恢复）。
     DocumentsStep:
       type: object
-      description: Step 5 Documents。docIncorporation / docOwnerId / docVoidCheque 必传；docStoreInside / docStoreOutside 在 Services 步选了线下支付方式时必传；docOther1 / docOther2 可选。绑定按 fileId。
+      description: Step 5 Documents。docIncorporation / docOwnerId 必传；docVoidCheque 必传，所填国家平台不对该国商户出款（结算配置里该国没有银行账户制式）时不必传；docStoreInside / docStoreOutside 在 Services 步选了线下支付方式时必传；docOther1 / docOther2 可选。绑定按 fileId。
       additionalProperties: false
       properties:
         docStoreInside:

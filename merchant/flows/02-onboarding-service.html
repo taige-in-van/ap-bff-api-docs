@@ -44,9 +44,9 @@ stateDiagram-v2
     st --> RJ: 被拒
     WIZ --> REV: Documents 步 Next
     REV --> OK: Submit
-    OK --> L: 回登录页
-    UR --> L: 回登录页
-    RJ --> L: 回登录页
+    OK --> L: 登出，回登录页
+    UR --> L: 登出，回登录页
+    RJ --> L: 登出，回登录页
 
     classDef other fill:#eceff1,stroke:#90a4ae,color:#546e7a
     class BOOT,L other
@@ -95,6 +95,7 @@ stateDiagram-v2
 | 16 | [`getOnboardingConfirmation`](../auth/index.html#tag/onboarding-confirmation/operation/getOnboardingConfirmation) | `GET /auth/onboarding-confirmation` | 取确认页内容（代填的申请资料与待签合同） |
 | 17 | [`signOnboardingConfirmation`](../auth/index.html#tag/onboarding-confirmation/operation/signOnboardingConfirmation) | `POST /auth/onboarding-confirmation/signature` | 签署合同并提交入驻申请 |
 | 18 | [`disputeOnboardingConfirmation`](../auth/index.html#tag/onboarding-confirmation/operation/disputeOnboardingConfirmation) | `POST /auth/onboarding-confirmation/dispute` | 对代填资料提异议 |
+| 19 | [`logout`](../auth/index.html#tag/sessions/operation/logout) | `DELETE /auth/sessions/current` | 结果页回登录页前登出 |
 
 ---
 
@@ -148,19 +149,22 @@ sequenceDiagram
     Note over U,A: 有未保存修改时离开向导
     S->>U: 提示是否保存草稿
     opt 保存
-        S->>A: #35;7 [updateOnboardingStep]<br/>PUT /merchants/{merchantId}/application/steps/{step}?mode=draft
-        A-->>S: 204
+        loop 按步骤顺序，每个有未保存修改的步骤
+            S->>A: #35;7 [updateOnboardingStep]<br/>PUT /merchants/{merchantId}/application/steps/{step}?mode=draft
+            A-->>S: 204
+        end
     end
 ```
 
-- 草稿存后端：点 Next 用 `mode=next`；在关页面、切商户、去别的页面前提示保存时用 `mode=draft`。Back / 点步骤条不保存。重登录或换设备后按 `completedSteps` 落在第一个未完成的步骤，全部完成进 Review 页；步骤条的完成态也看它。
+- 草稿存后端：点 Next 用 `mode=next`；站内离开（切商户、登出、去别的页面）前提示保存，确认后用 `mode=draft` 按步骤顺序逐个保存有未保存修改的步骤，全部成功再离开，任一步失败就留在该步提示重试；刷新、关标签页只用 `beforeunload` 出浏览器自带提示、不保存。Back / 点步骤条不保存。重登录或换设备后按 `completedSteps` 落在第一个未完成的步骤，全部完成进 Review 页；步骤条的完成态也看它。
 - Documents：选文件后先按 `MerchantFilePurpose` 用途表里 `onboarding_document` 的格式与大小上限拦一道（前端常量），再上传；最终以服务端 `204015` 为准，不合规提示换一个文件。保存 documents 步时引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`，正确页面下不会出现，出现就提示重新上传。只选了线上方式时，门店内照、外照不显示必填标记（必传规则见 `updateOnboardingStep`）。
 - 哪些字段只读看 `readonlyFields`（`<step>.<field>`），不要自己按入驻模式推。
 - Contact：姓名、职务、电话是 Owner 的账号资料，在这里可改、保存即写回账号资料；登录邮箱与 Merchant ID（`merchantCode`）只读，Referred By 有值即只读。Referred By 为 Moneris（不分大小写）时 Moneris MID 与客户经理名必填。
-- Business：先定币种与国家；改国家后省 / 州、邮编、时区重选，新国家用不上的旧值（没有省 / 州或邮编制度的国家）传 `null` 清掉（邮编格式按国家取前端参考数据预校；时区候选按省 / 州从 `listCountryOptions` 下发的候选里选）；已填的结算银行账户若制式对不上新国家（含新国家平台不出款）会被清掉，Settlement 步要重填。商户语言 `language`（English / Français / 中文）和时区一起填，决定发给商户的通知（邮件、微信、站内信）与月对账单的语言；语言还没填时前端按浏览器语言预选（法语 → Français，中文 → 中文，其余 → English），商户可改，服务端不代填。线上服务类型与网址常显、选填。行业 / MCC 下拉在前端本地搜索（码前缀 + 当前语言名称子串），两级联动（选大类列出 MCC，搜到 MCC 反推大类），MCC 按「名称 (码)」显示。
+- Business：先定币种与国家；改国家后省 / 州、邮编、时区重选，新国家用不上的旧值（没有省 / 州或邮编制度的国家）传 `null` 清掉（邮编格式按国家取前端参考数据预校；时区候选按省 / 州从 `listCountryOptions` 下发的候选里选）；已填的结算银行账户若制式对不上新国家（含新国家平台不出款）会被清掉，Settlement 步要重填。商户语言 `language`（English / Français / 中文）必填，和时区一起填，决定发给商户的通知（邮件、微信、站内信）与月对账单的语言；语言还没填时前端按浏览器语言预选（法语 → Français，中文 → 中文，其余 → English），商户可改，服务端不代填。线上服务类型与网址常显、选填。行业 / MCC 下拉在前端本地搜索（码前缀 + 当前语言名称子串），两级联动（选大类列出 MCC，搜到 MCC 反推大类），MCC 按「名称 (码)」显示。
 - Services：候选用 Business 所选币种调 #5，改了币种重新取；按 `acceptanceMode` 分线下 / 线上两组展示；每项显示 `standardRate`（前端格式化成「1.5% + $0.10 per transaction」），`recommended` 为真的标 Recommended。勾了任一线上方式时，点 Next 先校验 Business 的线上服务类型与网址，缺了提示回 Business 补（服务端同样校验，见 `updateOnboardingStep`）。
 - Settlement：银行账号、Refund PIN 已填看 `accountNumberSet` / `refundPinSet`；两次 PIN 一致前端先校验。银行账户表单按 Business 步 `country` 在 `bankAccountTypes` 里对应的 `type` 渲染，只有一种。结算周期初始选中读申请返回的 `settlementCycle`（Branch 尚未保存时后端按主商户当前档位返回），没有不预选。Legal Business Name 只读回显 Business 的值。
 - 保存拿到 `409`·`208003`（申请已不在可编辑状态）时重调 #1，按新状态进对应页面。
+- 保存 Settlement 步拿到 `400`·`204017`（结算周期已不在候选内）时重调 #6，让用户重选结算周期，不自动选第一项。
 - `assistedOnboarding` 为 true（工作人员代为建档）时向导整份只读：不显示 Next / 保存 / Submit，提示到确认邮件里的确认页签署；出现 `409`·`208046` 就按只读重渲染。
 
 **相对 demo 的改动**
@@ -171,7 +175,7 @@ sequenceDiagram
 | Business · 线上服务类型与网址 | 勾了线上支付方式才出现，默认 Website | 常显、选填、不预选；到 Services 勾了线上方式才必填 | 顺序调换后，填 Business 时还不知道会不会勾线上方式 |
 | Business · 商户语言 | 没有 | 和时区一起填，必填 | 发给商户的通知与月对账单按商户语言出 |
 | Contact · 邮箱 / Referred By | 首次入驻全部可改 | 登录邮箱恒只读、Referred By 有值即只读；姓名 / 职务 / 电话可改并写回账号资料 | 邮箱是登录名，改走 My Profile 的改邮箱流程；推荐来源保存后改由运营 |
-| 离开向导 | 自动存在浏览器本地 | 有未保存修改时提示是否保存草稿（存后端） | 草稿要能跨设备、重登录续填 |
+| 离开向导 | 自动存在浏览器本地 | 站内离开时有未保存修改提示是否保存草稿（存后端）；刷新、关标签页只出浏览器自带提示、不保存 | 草稿要能跨设备、重登录续填 |
 | Documents · 门店内照 / 外照 | 一律必传 | 选了线下方式才必传 | 门店照是线下的开通材料，纯线上商户拍不出门店 |
 
 ---
@@ -199,20 +203,29 @@ sequenceDiagram
         S->>U: 错误条，点击回跳对应步骤
     else 状态不可提交
         A-->>S: 409·208003
+        S->>A: #35;1 [getOnboardingApplication]<br/>GET /merchants/{merchantId}/application
+        S->>U: 按新状态进对应页面
     end
 ```
 
 - `details` 写作 `<step>.<field>`，前端按前缀对应到步骤条。
 - 汇总里的支付方式按候选集（Business 步所选币种调 #5 取）的顺序逐项显示，只显示已选中的，名称按码从前端多语言资源取（取不到显示该候选的 `displayName`），标准费率取自该候选；行业与 MCC 用 #4，国家与省州用 #3，结算周期用 #6，按码从向导里已取的候选集查。直接进 Review 页（刷新后恢复）时先把这几份候选取回来。
 
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 结算周期已不在候选内 | `400`·`204017` | 重调 #6 取候选，回 Settlement 步让用户重选结算周期，不自动选第一项 |
+| 工作人员代为建档的申请 | `409`·`208046` | 重调 #1，按只读重渲染 |
+
 ---
 
 ## 页面：提交成功、审核状态、拒绝结果
 
-三个都是结果页，都不调接口：
+三个都是结果页，进入时不调接口：
 - **提交成功页**：只在首次入驻 Submit 后出现一次。
 - **审核状态页**、**拒绝结果页**：首次入驻的 Owner 之后每次登录由启动链路（见 [flows 03-shell-dashboard「流程：登录后的启动链路」](03-shell-dashboard.html#流程：登录后的启动链路)）按状态分流进入。审核时效、客服联系方式是前端固定文案。
-- **出口**按当前商户判：首次入驻（当前商户未激活）只有「回登录页」；从顶栏切换器点审核中的关联商户进来的审核状态页（当前商户已激活）是「回首页」。被拒的关联商户不在切换器里，拒绝结果页只会出现在首次入驻。
+- **出口**按当前商户判：首次入驻（当前商户未激活）只有「回登录页」：先调 #19 登出，成功后进登录页；从顶栏切换器点审核中的关联商户进来的审核状态页（当前商户已激活）是「回首页」。被拒的关联商户不在切换器里，拒绝结果页只会出现在首次入驻。
 
 - 拒绝原因只随拒绝邮件发出，页面不展示。拒绝是终态，原申请不能改回草稿。
 - 补料不发邮件或站内信，审核员电话联系；Owner 重新登录后进入驻向导（关联商户在切换器里显示「待补充」，点击进向导）。
@@ -239,7 +252,7 @@ sequenceDiagram
 
 ## 页面：代客建档确认页
 
-工作人员代商户建档、录好资料后发出确认邮件，Owner 点邮件里的链接进本页，不需要登录、不在商户后台的框架里。链接形如 `…#token=…`：页面从 fragment 取确认令牌，之后每次调用都放在请求头 `X-Confirmation-Token` 里（令牌不进 query，不随 `Referer` 外泄）。
+工作人员代商户建档、录好资料后发出确认邮件，Owner 点邮件里的链接进本页，不需要登录、不在商户后台的框架里。链接形如 `/confirm-onboarding#token=…`：页面从 fragment 取确认令牌，之后每次调用都放在请求头 `X-Confirmation-Token` 里（令牌不进 query，不随 `Referer` 外泄）。
 
 ```mermaid
 sequenceDiagram
@@ -345,7 +358,7 @@ sequenceDiagram
 - 卡片按 `modes[].status` 显示：`NOT_CONNECTED` 点开是开通弹窗，`UNDER_REVIEW` 不可点，`ACTIVATING` 不可点、显示开通中，`ACTIVE` 点开是管理弹窗。方式全关了的 `ACTIVE` 模式，卡片显示 Inactive、0 个方式，照常点进去再打开。
 - 弹窗的方式列表是 #5 里该模式的全部候选：读面 `ACTIVE` 的是开关、显示实际费率 `rate`（没有 `rate` 的不显示费率）；`UNDER_REVIEW` 的显示审核中、不可操作；`ACTIVATING` 的显示开通中、不可操作；其余显示标准费率，勾上即申请。该模式已有开通申请在审时，未开通的行置灰。
 - 本页显示费率的地方（实际费率、标准费率、电商集成的费率）都是比例与固定单笔费一起显示，固定费为 0 时只显示比例。
-- 线上模式：`typeOfOnlineService` 为 `WEBSITE` 时显示网址；`websiteUrlUnderReview` 为真时显示「审核中」标记，照常可用。
+- 线上模式：`typeOfOnlineService` 为 `WEBSITE` 时显示网址；管理弹窗的服务类型对所有类型都可改，选 `WEBSITE` 时出网址框、必填；`websiteUrlUnderReview` 为真时显示「审核中」标记，照常可用。
 - Moneris / Clover：3DS 初始值取读面这家的 `threedsEnabled`，没有则关。管理在用的那家只改 3DS 时凭据框可以留空；停用后重连要重新输入凭据。
 - Shopify / Allvalue：弹窗的方式候选取读面该集成的 `paymentMethods`，逐个显示它的 `rate`（没有 `rate` 的不显示费率）；卡不在候选里，不受这个弹窗影响。候选为空时 Connect 置灰，提示先开通线上方式；要断开的提示联系客服。
 
