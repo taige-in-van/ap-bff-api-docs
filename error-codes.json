@@ -826,6 +826,16 @@
       "name": "ADMIN_SETTLEMENT_CALENDAR_DAY_HAS_BATCH",
       "retryable": false
     },
+    "308618": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_LOSS_RECOVERY_NOT_APPLICABLE",
+      "retryable": false
+    },
+    "308619": {
+      "httpStatus": 409,
+      "name": "ADMIN_RECON_LOSS_RECOVERY_EXCEEDS_MERCHANT_FUNDS",
+      "retryable": false
+    },
     "904001": {
       "httpStatus": 400,
       "name": "VALIDATION_FAILED",

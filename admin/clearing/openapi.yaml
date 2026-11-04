@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.2.0
+  version: 2.3.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -12,7 +12,7 @@ info:
 
     **幂等 / CSRF 口径**：
 
-    - 登记受理结果、登记退票、重新出款、登记汇回单、冲销汇回单是资金登记，带 `Idempotency-Key`：同一次操作的重试沿用同一个键，重复提交不会重复登记。
+    - 登记受理结果、登记退票、重新出款、登记汇回单、冲销汇回单、从差异向商户追回是资金登记，带 `Idempotency-Key`：同一次操作的重试沿用同一个键，重复提交不会重复登记。
     - 其余写操作带状态前置（只对处于某一状态的对象生效，两人同时操作以先到者为准），不挂幂等键。
     - 导出按读处理，不挂幂等键。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
@@ -31,7 +31,7 @@ tags:
     description: 按账单日的通道账单与对账结果、原件下载、重新对账。
   - name: recon-discrepancies
     x-displayName: 对账差异
-    description: 对账差异列表与详情，提交处置、确认已处理、核销与取整差批量核销。
+    description: 对账差异列表与详情，提交处置、确认已处理、核销与取整差批量核销，从计入平台资损的差异向商户追回。
   - name: refund-confirmations
     x-displayName: 待人工确认退款
     description: 结果长期未明、已转人工的退款，与确认结果。
@@ -193,7 +193,7 @@ paths:
 
         - `308601` 该通道该账单日已有处理过的差异（已核销、已转已处理、已填处置方向或说明），这一天的对账结果冻结。
         - `308602` 该通道该账单日的对账正在执行（定时对账或上一次重新对账还没完）；结束后再提交。
-        - 通道不存在 → `404`。
+        - 通道不存在，或该通道不做对账 → 通用 `404`。
 
         带状态前置，不挂幂等键；重复提交在对账执行期间会得到 `308602`。
       parameters:
@@ -225,7 +225,7 @@ paths:
       description: |
         按账单日区间列出对账差异，分页，按账单日从新到旧。日期范围按账单日，两端必填；跨度超过允许的最大查询窗口 → `400`。
 
-        平台订单号与商户只在平台有这一笔时给出；通道单边的差异没有平台订单号。
+        平台订单号与商户只在平台有这一笔时给出；通道单边的差异没有平台订单号。核销时计入平台资损的差异带原因归属，向商户追回过的另带追回额与调账单号。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -347,7 +347,7 @@ paths:
                   amount: '1200'
                   currency: CAD
                 status: written_off
-                note: 通道确认无法追回，按坏账核销
+                note: 平台重复入账，按平台资损核销
                 resolvedBy:
                   userId: usr_a102
                   displayName: Grace Lin
@@ -356,6 +356,12 @@ paths:
                 merchant:
                   merchantId: mch_8812
                   merchantName: Maple Coffee
+                lossCause: PLATFORM_ERROR
+                lossRecovery:
+                  adjustmentId: SA261103000007
+                  amount:
+                    amount: '1200'
+                    currency: CAD
                 billId: CB261101000012
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
@@ -372,13 +378,18 @@ paths:
       description: |
         对一条待处理差异提交处置方向与说明（说明必填）：
 
-        - 补记（`correct_post`）/ 字段更正（`align_correction`）：当场交执行方执行；处置成功即已执行，处置方向、说明与执行时刻同时记下，差异仍为待处理，等确认已处理（`resolveReconDiscrepancy`）；失败不留任何改动。
+        - 补记（`correct_post`）/ 字段更正（`align_correction`）：当场交执行方执行；处置成功即已执行，处置方向、说明与执行时刻同时记下，差异仍为待处理，等确认已处理（`resolveReconDiscrepancy`）；失败不留任何改动。可执行的只有三种：
+          - 收款长款提补记：平台有这笔交易且尚未成功（已关闭、处理中或待发起），且该账单里没有同一笔的撤销行 → 按通道账单补记为成功（订单待付或已过期则成交；订单已有成交或已关闭则不重开、原路自动退回）。
+          - 撤销状态不符提字段更正：平台交易的撤销尚未定论（处理中或待发起）→ 关闭该交易。
+          - 退款长款提补记：平台退款仍在通道处理中且尚未被通道受理 → 补做受理后转成功。
+
+          其余补记 / 字段更正（含平台无对应交易的单边长款，以及金额、汇率、手续费、交易时间的更正）一律被拒；已成功的交易或退款被通道账单推翻的，同样不改其状态，按差异分类追款、核销或确认已处理（可核销的收款短款、退款长款可选原因归属计入平台资损并向商户追回）。
         - 原路退回（`refund_back`）：由运营在通道端自行退款，系统只记下处置方向与说明，执行时刻为空；差异仍为待处理，核实退成后确认已处理，不能核销。已提交原路退回的可改提其他处置。
         - 向通道追款（`pursue`）：同样由运营在通道端自行追款，系统只记下处置方向与说明，差异仍为待处理；追回后确认已处理，或转核销（`writeOffReconDiscrepancy`）。已提交追款的可改提其他处置。
 
         **什么时候拒绝**（差异不变）：
 
-        - `308604` 执行方拒绝或未能执行该处置，不记处置方向；`context.reasonCode` 带执行方给的拒绝原因码，页面按码取展示文案，取不到时显示码。
+        - `308604` 执行方拒绝或未能执行该处置，不记处置方向；`context.reasonCode` 取 `CORRECTION_NOT_SUPPORTED`（这类差异没有可执行的补记 / 字段更正）或 `TXN_STATE_CONFLICT`（在可执行范围内，但对应交易或退款当前状态不受理，如已失败、已成功），页面按码取展示文案，取不到时显示码。
         - `308603` 差异已不在待处理（他人先处理了），重读差异。
         - `308605` 该差异不适用这种处置：退款取整差汇总只能核销；已提交补记、字段更正后不能再改提交（原路退回、追款可改提）。
         - `disposition` 不在取值内、`note` 缺或超长 → `400`。
@@ -398,7 +409,7 @@ paths:
                 summary: 字段更正
                 value:
                   disposition: align_correction
-                  note: 通道账单状态为成功，按通道更正
+                  note: 通道账单显示该笔已撤销，按通道关闭交易
               pursue:
                 summary: 向通道追款
                 value:
@@ -472,11 +483,14 @@ paths:
       description: |
         核销一条待处理的长款、短款或退款取整差汇总差异，说明必填：差异转已核销，记处理人、时刻与说明，差额按通道清算差异核销入账。
 
+        核销收款短款或退款长款时，系统差错造成、由平台承担的可选原因归属 `lossCause`，选了即把该核销额计入平台资损、不进通道清算差异，之后可向商户追回（`createReconLossRecovery`）；能否核销、核销额照常。
+
         **什么时候拒绝**（差异不变）：
 
         - `308603` 差异已不在待处理，重读差异。
-        - `308605` 差异是状态不符，不核销，改走字段更正；或差异已提交补记、字段更正（已执行）或原路退回，只能确认已处理；或差异是退款行短款且该退款已确认在通道受理后失败、已结回商户，只能确认已处理（除此之外只提交了向通道追款的仍可核销）。
-        - `note` 缺或超长 → `400`。
+        - `308605` 收款长款、退款短款或退款取整差汇总选了原因归属。
+        - `308605` 差异是状态不符，不核销，改走字段更正；或差异已提交补记、字段更正（已执行）或原路退回，只能确认已处理；或差异是退款行短款且该退款已确认在通道受理后失败、已结回商户，只能确认已处理；或差异是退款行短款且该退款已被通道受理、仍在通道处理中，等该退款有结论后再处置（除此之外只提交了向通道追款的仍可核销）。
+        - `note` 缺或超长、`lossCause` 不在取值内 → `400`。
         - 差异不存在 → `404`。
 
         带状态前置，不挂幂等键。记入操作审计。
@@ -487,9 +501,17 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DiscrepancyNote'
-            example:
-              note: 通道确认无法追回，按坏账核销
+              $ref: '#/components/schemas/DiscrepancyWriteOffRequest'
+            examples:
+              writeOff:
+                summary: 核销
+                value:
+                  note: 通道确认无法追回，按坏账核销
+              platformLoss:
+                summary: 计入平台资损
+                value:
+                  note: 平台重复入账、通道无此笔，按平台资损核销
+                  lossCause: PLATFORM_ERROR
       responses:
         '204':
           description: 已核销
@@ -498,6 +520,62 @@ paths:
       x-error-codes:
         - 308603
         - 308605
+  /recon-discrepancies/{discrepancyId}/loss-recovery:
+    parameters:
+      - $ref: '#/components/parameters/DiscrepancyIdPath'
+    post:
+      tags:
+        - recon-discrepancies
+      operationId: createReconLossRecovery
+      x-required-privilege: clr:discrepancy:manage
+      summary: 从计入平台资损的差异向商户追回
+      description: |
+        对一条核销时已计入平台资损的差异，向对应商户追回，原因必填、商户可见：对该商户建一笔调账扣款（商户侧明细与其他调账扣款同一类型，带填写的原因），商户可结算余额扣至 0、不足部分记应收商户款且不超授信额度。成功后差异的追回额与调账单号在列表与详情里显示。
+
+        - 每条差异至多追回一次；追回额不小于 1 个最小单位、不大于该差异计入平台资损的金额，部分追回后剩余部分由平台承担。
+        - 对象商户：差异对应交易或退款所属的商户；平台没有该退款记录的单边退款差异，按通道交易号找到的原收款交易所属商户。
+        - `amount` 币种须是该差异的结算币种。
+
+        **什么时候拒绝**（不建调账）：
+
+        - `308618` 该差异核销时未计入平台资损、已追回过、追回额超过资损额，或找不到对应商户。
+        - `308619` 商户可结算余额加剩余授信额度不足追回额。
+        - `amount` 币种不是该差异的结算币种、`reason` 缺或超长 → `400`。
+        - 差异不存在 → `404`。
+
+        资金登记，带 `Idempotency-Key`：同键同请求回放首次结果；同键不同请求 → `409`·`908003`；首次请求还在处理 → `409`·`908002`。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReconLossRecoveryRequest'
+            example:
+              amount:
+                amount: '1200'
+                currency: CAD
+              reason: 11-01 交易被平台重复入账，追回该笔款项
+      responses:
+        '201':
+          description: 已追回，返回调账单号与追回额
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReconLossRecoveryResult'
+              example:
+                discrepancyId: RD261102000046
+                adjustmentId: SA261103000007
+                amount:
+                  amount: '1200'
+                  currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308618
+        - 308619
   /recon-discrepancies/rounding-write-offs:
     post:
       tags:
@@ -2600,6 +2678,13 @@ components:
         - pursue
         - align_correction
       description: 处置方向：`correct_post` 补记 · `refund_back` 原路退回 · `pursue` 向通道追款 · `align_correction` 字段更正。
+    LossCause:
+      type: string
+      enum:
+        - PLATFORM_ERROR
+        - CHANNEL_ERROR
+        - OPERATOR_ERROR
+      description: 计入平台资损的原因归属：`PLATFORM_ERROR` 平台系统差错 · `CHANNEL_ERROR` 通道差错 · `OPERATOR_ERROR` 运营差错。
     SettlementBatchStatus:
       type: string
       enum:
@@ -2847,6 +2932,30 @@ components:
           description: 平台侧这一笔所属的商户；平台侧没有这一笔时不返回本键。
           allOf:
             - $ref: '#/components/schemas/MerchantBrief'
+        lossCause:
+          description: 核销时计入平台资损的原因归属；未计入时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/LossCause'
+        lossRecovery:
+          description: 向商户追回的结果；未追回时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/LossRecovery'
+    LossRecovery:
+      type: object
+      additionalProperties: false
+      required:
+        - adjustmentId
+        - amount
+      properties:
+        adjustmentId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 追回建的调账单号。
+        amount:
+          description: 追回额。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
     ReconDiscrepancyDetail:
       description: 对账差异详情：列表行的字段加下面这些。
       allOf:
@@ -2922,6 +3031,59 @@ components:
           minLength: 1
           maxLength: 512
           description: 处理说明。
+    DiscrepancyWriteOffRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - note
+      properties:
+        note:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 核销说明。
+        lossCause:
+          description: 计入平台资损的原因归属；不选 = 按通道清算差异核销。
+          allOf:
+            - $ref: '#/components/schemas/LossCause'
+    ReconLossRecoveryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - amount
+        - reason
+      properties:
+        amount:
+          description: 追回额，币种须是该差异的结算币种，不大于该差异计入平台资损的金额。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 追回原因，作为调账原因，商户可见。
+    ReconLossRecoveryResult:
+      type: object
+      additionalProperties: false
+      required:
+        - discrepancyId
+        - adjustmentId
+        - amount
+      properties:
+        discrepancyId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 对账差异。
+        adjustmentId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 追回建的调账单号。
+        amount:
+          description: 追回额。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
     RoundingWriteOffRequest:
       type: object
       additionalProperties: false
@@ -4364,6 +4526,15 @@ components:
         merchantName:
           type: string
           minLength: 1
+    PositiveMoney:
+      description: 正额金额（amount = 最小币种单位正非零整数字符串、currency 同 Money）；schema 化收口「> 0」。用于「划多少」类输入（资金划转额 / 阈值 / 退款额等），金额方向由具体业务操作表达、不用正负号表示；区别于 Money（可正可负，用于余额 / 分录 / 结算净额 / 回冲等账面值）。
+      allOf:
+        - $ref: '#/components/schemas/Money'
+        - type: object
+          properties:
+            amount:
+              type: string
+              pattern: ^[1-9][0-9]*$
     RefundId:
       type: string
       minLength: 1
