@@ -720,6 +720,11 @@
       "name": "ADMIN_CHANNEL_APPLICATION_FILE_NOT_USABLE",
       "retryable": false
     },
+    "308417": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_APPLICATION_PROFILE_INCOMPLETE",
+      "retryable": false
+    },
     "308501": {
       "httpStatus": 409,
       "name": "ADMIN_REFUND_NOT_UNDER_REVIEW",

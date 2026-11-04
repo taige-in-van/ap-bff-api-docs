@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.2.4
+  version: 2.3.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -57,7 +57,9 @@ paths:
       x-required-privilege: chcfg:config:view
       summary: 通道签约总览（含报备进度与可加的支付方式）
       description: |
-        按支付方式列出该商户的签约：所签通道、子商户号、MCC、运营启停与商户自助开关、是否要报备才能拿到子商户号（`applicationRequired`）、银联 Express（只银联在线有）、已登记的线上平台标识、各类报备的最近一次结果与通道给的拒绝原因。入驻申请提交后由系统建立的签约与报备同样在这里。
+        按支付方式列出该商户的签约：所签通道、子商户号、MCC、运营启停与商户自助开关、是否要报备才能拿到子商户号（`applicationRequired`）、银联 Express（只银联在线有）、已登记的线上平台标识、各类报备的最近一次结果与通道给的拒绝原因。入驻申请提交后由系统建立的签约与报备同样在这里。共用子商户号的签约（如同一通道商户号下的线下微信与线上微信）给同一组的报备。
+
+        `autoApplications` 是系统自动发起、还没有形成报备记录、且比该类最近一条报备记录新的那一轮自动报备的状态，每类至多一条；某类在这里有一条时显示它，否则显示 `applications` 里的那条：`IN_PROGRESS` 显示「自动报备中」；`FAILED` 显示「自动报备失败」及原因（`failureMessage`）与时间（`concludedAt`），不会再自动重提，由运营提交报备或录入子商户号。`failureCategory` 为 `outcome_unknown`（已发出、未得到通道应答，子商户可能已在通道侧建出）时，提示先到渠道服务商平台核实，再录入子商户号或重提，并显示 `merchantRemark` 供在平台上核对。
 
         `availableMethods` 列出该商户结算币种下尚未签约、可以加的支付方式，各带可选的通道（每个通道带 `applicationRequired`，为是的才可填子商户号）与标准费率（没有标准费率的不带）；加支付方式用 `createMerchantChannelContract`。
       responses:
@@ -88,7 +90,27 @@ paths:
                         channelStatus: AUDIT_PASS
                         submittedAt: '2026-03-03T10:00:00Z'
                         decidedAt: '2026-03-04T08:00:00Z'
+                    autoApplications: []
                     updatedAt: '2026-03-04T08:00:01.284105Z'
+                  - contractId: mc_1203
+                    paymentMethod: wechat_online
+                    channel:
+                      channelId: ch_wx_02
+                      channelName: WeChat Pay CA Online
+                      channelMerchantId: '1900067890'
+                    enabled: false
+                    merchantEnabled: true
+                    applicationRequired: true
+                    subApps: []
+                    applications: []
+                    autoApplications:
+                      - applicationType: maintain
+                        state: FAILED
+                        failureCategory: outcome_unknown
+                        failureMessage: 提交后未收到通道应答
+                        concludedAt: '2026-10-16T08:12:30Z'
+                        merchantRemark: M10086_a8Kd2Pq7
+                    updatedAt: '2026-10-16T08:00:00.123456Z'
                   - contractId: mc_1202
                     paymentMethod: alipay_online
                     channel:
@@ -107,6 +129,7 @@ paths:
                         rejectReason: 营业执照照片不清晰
                         submittedAt: '2026-10-16T08:10:00Z'
                         decidedAt: '2026-10-16T09:00:00Z'
+                    autoApplications: []
                     updatedAt: '2026-10-16T08:00:00.123456Z'
                 availableMethods:
                   - paymentMethod: unionpay_online
@@ -255,7 +278,8 @@ paths:
 
         - `308415` H5 申请的档位与材料不齐：选了无限额而缺营业执照或业务说明（没传营业执照时先取商户入驻证照中的图片件，仍无才拒），或选了未上线而缺网站首页或业务页截图。`details` 指到缺的字段，不向通道提交。
         - `308416` 带的 `fileId` 不可用于这里（不存在、不是本商户上传的，或用途不是 `channel_application_material`）。`details` 指到该字段，重新上传后再带。
-        - `308404` 同签约同类报备还在审，不能再提；刷新状态后再定。
+        - `308404` 该签约或共用子商户号的另一条签约上同类报备还在审，不能再提；刷新状态后再定。
+        - `308417` 商户资料缺这类报备的必填项（支付宝线上缺经营网址；微信缺注册证件号或国家、法定名与经营名皆空，或按经营形态缺营业地址或网址），不向通道提交。`details` 逐项指到缺的资料项，补齐商户资料后重提。
         - `308405` 通道当场拒绝，`context.channelErrorCode` / `context.channelErrorMessage` 是通道给的原因（通道给了才带）；改资料后重提。
         - 该签约的通道不适用这类报备 → `400`。
       parameters:
@@ -345,6 +369,7 @@ paths:
         - 308405
         - 308415
         - 308416
+        - 308417
   /merchants/{merchantId}/channel-contracts/{contractId}/applications/{channelApplicationId}/synchronization:
     parameters:
       - $ref: '#/components/parameters/MerchantIdPath'
@@ -362,7 +387,7 @@ paths:
       x-required-privilege: chcfg:config:view
       summary: 刷新一条报备的状态
       description: |
-        向通道查询这条报备的当前状态并返回。首次子商户进件因此查到成功时，系统同样回写子商户号并启用签约。刷新不进操作审计；按流程语义不挂幂等键，重复刷新无副作用。
+        向通道查询这条报备的当前状态并返回。共用子商户号的签约给的是同一组的报备，在其中任一条签约上都可刷新；报备不属于该签约所在组的按不存在处理。首次子商户进件因此查到成功时，系统同样回写子商户号并启用签约。刷新不进操作审计；按流程语义不挂幂等键，重复刷新无副作用。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -1944,6 +1969,42 @@ components:
           description: 上次提交的网站业务页截图；没提交过不返回本键。
           items:
             $ref: '#/components/schemas/FileId'
+    AutoChannelApplication:
+      type: object
+      additionalProperties: false
+      description: 一类报备最新一轮系统自动提交的状态；该轮形成报备记录、或该类有了更新的报备记录后不再返回。
+      required:
+        - applicationType
+        - state
+      properties:
+        applicationType:
+          $ref: '#/components/schemas/ChannelApplicationType'
+        state:
+          type: string
+          enum:
+            - IN_PROGRESS
+            - FAILED
+          description: '`IN_PROGRESS` 自动报备中 / `FAILED` 自动报备失败，不会再自动重提。'
+        failureCategory:
+          type: string
+          enum:
+            - outcome_unknown
+            - retry_exhausted
+            - channel_rejected
+            - assembly_failed
+          description: 失败类别：`outcome_unknown` 已发出、未得到通道应答（先到渠道服务商平台核实）/ `retry_exhausted` 多次未能送达通道 / `channel_rejected` 通道当场拒绝 / `assembly_failed` 商户资料缺报备必填项、没有提交；只 `FAILED` 返回本键。
+        failureMessage:
+          type: string
+          minLength: 1
+          description: 失败原因：通道给的拒绝原因、缺的资料项或未能送达的原因；只 `FAILED` 返回本键。
+        concludedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 失败的时刻；只 `FAILED` 返回本键。
+        merchantRemark:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 该次提交给通道的商户备注，供在渠道服务商平台核对；只 `outcome_unknown` 且该通道要求商户备注时返回本键。
     SubAppType:
       type: string
       enum:
@@ -1976,6 +2037,7 @@ components:
         - applicationRequired
         - subApps
         - applications
+        - autoApplications
         - updatedAt
       properties:
         contractId:
@@ -2011,9 +2073,14 @@ components:
             $ref: '#/components/schemas/SubApp'
         applications:
           type: array
-          description: 各类报备的最近一次记录，每类至多一条；从未报备为空数组。
+          description: 各类报备的最近一次记录，每类至多一条，共用子商户号的签约给同一组的记录；从未报备为空数组。
           items:
             $ref: '#/components/schemas/ChannelApplication'
+        autoApplications:
+          type: array
+          description: 系统自动发起、还没有形成报备记录、且比该类最近一条报备记录新的那一轮自动报备的状态，每类至多一条，共用子商户号的签约给同一组的状态；没有为空数组。
+          items:
+            $ref: '#/components/schemas/AutoChannelApplication'
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
           description: 签约最近一次修改的时刻，精确到微秒（如 `2026-10-16T08:00:00.123456Z`）；改签约时原样带回，不要截断或重新格式化，否则会被当作他人已改过。
