@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.3.1
+  version: 2.3.2
   contact:
     name: 收银台
   description: |
@@ -1154,10 +1154,9 @@ paths:
                 $ref: '#/components/schemas/CheckoutLaunch'
               examples:
                 alipayOnline:
-                  summary: 支付宝 Online，带备用地址
+                  summary: 支付宝 Online，唤起地址是收银台网页、不带备用地址
                   value:
-                    launchUrl: alipayconnect://platformapi/acwallet/alipayconnectcode?code=golcashier0a1b2c3d4e5f6a7b8c9d&pspName=ALIPAY_CN
-                    fallbackUrl: https://render.alipay.com/p/c/jzmcoal2/acn-wap-continue.html?code=golcashier0a1b2c3d4e5f6a7b8c9d
+                    launchUrl: https://render.alipay.com/p/c/jzmcoal2/acn-wap-continue.html?code=golcashier0a1b2c3d4e5f6a7b8c9d
         default:
           $ref: '#/components/responses/DefaultError'
   /giftcard/email/otp-challenges:
