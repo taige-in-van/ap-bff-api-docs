@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-04T05:52:43Z",
-  "implCommit": "3f8daac1",
+  "generatedAt": "2026-11-05T00:34:16Z",
+  "implCommit": "2532cd60",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -156,6 +156,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "084f3c4b4476080f9c203f1a3378570b6b06c1c1",
-  "prdStage": "stage/261103-core-channel-setup-b2"
+  "prdSha": "b4e2e8eccdd6bac9c0fe22d1b55ba1cc8ac42d2e",
+  "prdStage": "stage/261104-channel-registration"
 }
