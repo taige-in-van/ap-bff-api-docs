@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-05T17:30:50Z",
-  "implCommit": "e95092c5",
+  "generatedAt": "2026-11-05T20:29:05Z",
+  "implCommit": "e8ab547a",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -74,7 +74,7 @@
     "merchant/me/updateMyProfile": "5b40d7033505d63b",
     "merchant/me/verifyLoginEmailChangeIdentity": "2de85307f1003efc",
     "merchant/merchants/createMerchant": "8b444f94da70d94b",
-    "merchant/merchants/deleteMerchant": "5a00c040b9fcf7ec",
+    "merchant/merchants/deleteMerchant": "4758ae5f96bc0169",
     "merchant/merchants/getOnboardingApplication": "1a0beb3670027835",
     "merchant/merchants/listMerchants": "8cf83d2920abc6dc",
     "merchant/merchants/submitOnboardingApplication": "c026375e989e0fe3",
@@ -156,6 +156,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "2e31eca0159fe4918e7b55471bdc0f07dd8a18f3",
-  "prdStage": "stage/261105-merchant-portal-03-r1"
+  "prdSha": "590d0154d124c85a3a44ab30acb0a80fc02525f6",
+  "prdStage": "stage/261105-merchant-portal-03-r2"
 }
