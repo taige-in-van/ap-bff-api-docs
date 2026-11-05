@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.3.3
+  version: 2.4.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -36,7 +36,7 @@ paths:
       x-required-privilege: session
       summary: 商户列表（顶栏切换器、启动链路）
       description: |
-        登录者能进的商户：Owner 是名下全部商户；主商户的员工是主商户加它名下的全部关联商户（切过去用同一个角色）；关联商户的员工只有本商户。再排除已删除、已冻结和入驻被拒的。主商户排第一，关联商户按创建时间排在后面。
+        登录者能进的商户：Owner 是名下全部商户；主商户的员工是主商户加它名下的全部关联商户（切过去用同一个角色）；关联商户的员工只有本商户。再排除已删除、已冻结和入驻被拒的。主商户在前，关联商户在后，各按创建时间排；Owner 名下可以有不止一个主商户（工作人员代为建档的商户都是主商户）。关联商户用 `parentMerchantId` 指向它的主商户。
         被拒的商户不在本列表，但它的入驻申请仍可按 `merchantId` 读。
 
         - 已激活的商户 `status` 为 `ACTIVE`；未激活的返回入驻申请的状态（`DRAFT` / `UNDER_REVIEW` / `MORE_INFO_REQUIRED`）。
@@ -65,6 +65,7 @@ paths:
                     status: ACTIVE
                   - merchantId: '1000024'
                     tradeName: Maple Vet Clinic Downtown
+                    parentMerchantId: '1000023'
                     currency: CAD
                     status: DRAFT
         default:
@@ -81,7 +82,7 @@ paths:
 
         - 只有 Owner 能调，其他人 → 403。
         - 以会话当前商户为发起商户：当前商户未激活或不可访问 → `409`·208022。
-        - 新商户一律挂在主商户下面、Owner 同主商户，不论当前商户是主商户还是关联商户。
+        - 新商户一律挂在当前商户所属的主商户下面（当前商户是主商户时就是它自己），Owner 同主商户。
         - 所属主商户已冻结 → `409`·208054，不建商户也不建申请。
         - `BRANCH` 按主商户的资料预填，`NEW_LEGAL_ENTITY` 只预填 Contact 步（含推荐来源）与本请求里的字段；预填结果在入驻向导读申请时返回。
         - `country` 与 `currency` 须是 `/config/currencies` 里的一条组合，否则 400。
@@ -204,7 +205,7 @@ paths:
                     businessAddress: 88 King St W
                     city: Toronto
                     province: 'ON'
-                    postalCode: M5H 1A1
+                    postalCode: M5H1A1
                     timeZone: America/Toronto
                     language: en
                     businessPhone: '+14165550199'
@@ -518,6 +519,11 @@ components:
         tradeName:
           type: string
           description: 对外经营名。首次入驻的主商户在 Business 步保存前没有，不返回本键
+        parentMerchantId:
+          allOf:
+            - $ref: '#/components/schemas/MerchantId'
+          readOnly: true
+          description: 上级主商户的 `merchantId`。主商户没有上级，不返回本键。有本键、且还没激活的行，Owner 可以删除；新建关联商户挂在当前商户所属的主商户下：当前商户有本键就挂在它指的那个商户下，没有就挂在当前商户自己下。
         currency:
           allOf:
             - $ref: '#/components/schemas/Currency'
@@ -943,7 +949,7 @@ components:
           description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
         postalCode:
           type: string
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
+          description: 邮编（加拿大的为规整后的值：不含空格、字母大写）；所选国家有邮编制度时必填。
         timeZone:
           type: string
           description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
@@ -1216,7 +1222,7 @@ components:
             - string
             - 'null'
           maxLength: 16
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）。所选国家有邮编制度时必填；没有的国家不设值：新填不传，改 country 后已存的旧值传 `null` 清掉。
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；加拿大邮编先去掉空格、转大写再校验，按规整后的值保存，前端预校时同样先规整。所选国家有邮编制度时必填；没有的国家不设值：新填不传，改 country 后已存的旧值传 `null` 清掉。
         timeZone:
           type:
             - string

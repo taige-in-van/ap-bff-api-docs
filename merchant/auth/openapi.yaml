@@ -1533,7 +1533,7 @@ components:
           description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
         postalCode:
           type: string
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；所选国家有邮编制度时必填。
+          description: 邮编（加拿大的为规整后的值：不含空格、字母大写）；所选国家有邮编制度时必填。
         timeZone:
           type: string
           description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。

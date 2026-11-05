@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户运营管理 — 前端契约面
-  version: 2.2.1
+  version: 2.2.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -184,7 +184,7 @@ paths:
                   businessAddress: 88 King St W
                   city: Toronto
                   province: 'ON'
-                  postalCode: M5H 1A1
+                  postalCode: M5H1A1
                   country: CA
                   businessPhone: '+14165550199'
                   homeOffice: false

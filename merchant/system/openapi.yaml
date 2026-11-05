@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.2.2
+  version: 2.2.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -364,7 +364,7 @@ paths:
       operationId: getNotice
       x-required-privilege: session
       summary: 站内信详情
-      description: 只读，不会把这条标成已读；标已读用 `markNoticeRead`。
+      description: 只读，不会把这条标成已读；标已读用 `markNoticeRead`。站内信不存在、不属于当前商户或是已撤回的公告 → `404`。
       parameters:
         - name: noticeId
           in: path
@@ -394,7 +394,7 @@ paths:
       operationId: markNoticeRead
       x-required-privilege: session
       summary: 标一条已读
-      description: 把这条站内信标为已读，对全商户生效。已读的再标一次什么都不变。
+      description: 把这条站内信标为已读，对全商户生效。已读的再标一次什么都不变。站内信不存在、不属于当前商户或是已撤回的公告 → `404`。
       parameters:
         - name: noticeId
           in: path
@@ -680,7 +680,12 @@ components:
           $ref: '#/components/schemas/Timestamp'
         body:
           type: string
-          description: 正文，服务端处理过的 HTML；标题与正文在生成时已按商户语言写好。
+          description: |
+            正文 HTML，服务端已按下面的白名单净化；前端渲染前按同一白名单再净化一次。标题与正文在生成时已按商户语言写好。
+
+            - 标签：`p` `br` `b` `strong` `i` `em` `u` `ul` `ol` `li` `blockquote` `div` `span` `a`。白名单外的标签去掉、保留其中文字。
+            - 属性：只有 `a` 的 `href`，且只放行 `http:` / `https:` 地址，其余地址连同 `href` 去掉；其余属性一律去掉。
+            - 链接在新窗口打开。
     DeveloperSettings:
       type: object
       additionalProperties: false
