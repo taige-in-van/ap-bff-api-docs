@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.3.0
+  version: 2.4.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1862,7 +1862,16 @@ paths:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
         - $ref: '#/components/parameters/ChannelFilter'
-        - $ref: '#/components/parameters/VerifyStatusFilter'
+        - name: verifyStatus
+          in: query
+          required: false
+          description: 按核对结果筛选。
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/VerifyStatus'
         - $ref: '#/components/parameters/PageNum'
         - $ref: '#/components/parameters/PageSize'
       responses:
@@ -1909,7 +1918,6 @@ paths:
                     receivedOn: '2026-10-08'
                     bankReference: WIRE20261008001
                     verifyStatus: MATCHED
-                    verifiedAt: '2026-10-08T17:00:02Z'
                     createdBy:
                       userId: usr_a102
                       displayName: Grace Lin
@@ -1924,12 +1932,17 @@ paths:
       x-required-privilege: clr:remittance:manage
       summary: 登记渠道方汇回单
       description: |
-        按渠道方的声明登记一次汇回：期内留存的平台手续费 = 扣减的交易成本 + 其他扣减 + 实汇净额（实汇净额为负表示平台反向付渠道方）。登记即记账，并当场给出核对结果：留存手续费与期内该通道渠道方出款结算单的手续费合计、扣减成本与期内该通道的通道成本合计两项都一致为 `MATCHED`，否则 `DISCREPANT`；不一致的另填差异说明（`resolveChannelRemittanceDiscrepancy`）。
+        按渠道方的声明登记一次汇回：期内留存的平台手续费 = 扣减的交易成本 + 其他扣减 + 实汇净额（实汇净额为负表示平台反向付渠道方）。登记即记账，并当场给出核对结果，核对只在登记时算一次、之后不重算：
+
+        - 留存手续费比期内该通道渠道方出款结算单的手续费合计。期内按结算单的清算日算，只计已出款或已退回的结算单，处理中的不计。
+        - 扣减成本比期内该通道的收款成本减退款成本合计。期内按通道日算；期内有成本为空的通道明细时，这一项判不一致。
+        - 两项都一致为 `MATCHED`，否则 `DISCREPANT`。两项用的日期不是同一根轴。同一通道的期间允许重叠，各单各自核对。
+        - 不一致的另填差异说明（`resolveChannelRemittanceDiscrepancy`）。
 
         **什么时候拒绝**（不登记）：
 
         - `308612` 所选通道不是渠道方执行出款的通道，或币种不是该通道的结算币种。
-        - 等式不成立、四个金额的币种不一致、`periodStartDate` 晚于 `periodEndDate`、字段缺或超长 → `400`。
+        - 等式不成立、四个金额的币种不一致、四个金额全为 0、`periodStartDate` 晚于 `periodEndDate`、字段缺或超长 → `400`。
         - 通道不存在 → `404`。
 
         资金登记，带 `Idempotency-Key`：同键同请求回放首次结果；同键不同请求 → `409`·`908003`；首次请求还在处理 → `409`·`908002`。记入操作审计。
@@ -1990,7 +2003,6 @@ paths:
                 receivedOn: '2026-10-08'
                 bankReference: WIRE20261008001
                 verifyStatus: DISCREPANT
-                verifiedAt: '2026-10-08T17:00:02Z'
                 createdBy:
                   userId: usr_a102
                   displayName: Grace Lin
@@ -2166,7 +2178,7 @@ paths:
       x-required-privilege: clr:report:view
       summary: T&T 对账文件列表
       description: |
-        按生成日期区间列出 T&T 对账文件与推送结果，分页，按生成时刻从新到旧。日期范围按生成日期，两端必填。每个 KA 清算日生成线下与线上两份，覆盖上一 KA 清算日（含）至生成当日（不含），相邻两份首尾相接。
+        按生成日期区间列出 T&T 对账文件与推送结果，分页，按生成时刻从新到旧。日期范围按生成日期，两端必填。每个 KA 清算日生成线下与线上两份：线下覆盖 T&T 商户组全部商户，线上覆盖 T&T 线上商户清单所列商户，两份范围可重叠。每份含本期的成功收款与退款、退款受理后失败的回冲、本期创建且仍未成功的订单，另把上一期的成功收款、退款与回冲再报一次；本期 = 上一 KA 清算日（含）至生成当日（不含），各份本期首尾相接，上一期再报是有意的重复。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -4028,6 +4040,7 @@ components:
         - declaredOtherDeducted
         - netRemittedAmount
         - receivedOn
+        - verifyStatus
         - createdAt
       properties:
         remittanceId:
@@ -4076,13 +4089,9 @@ components:
           maxLength: 512
           description: 备注；没填时不返回本键。
         verifyStatus:
-          description: 核对结果；冲销后的单不再核对，保留冲销前的结果。
+          description: 核对结果，登记时算定、之后不重算；冲销后的单保留登记时的结果。
           allOf:
             - $ref: '#/components/schemas/VerifyStatus'
-        verifiedAt:
-          description: 最近一次核对时刻；还没核对时不返回本键。
-          allOf:
-            - $ref: '#/components/schemas/Timestamp'
         discrepancyNote:
           type: string
           minLength: 1
@@ -4573,7 +4582,7 @@ components:
         | `INSUFFICIENT_FUNDS` | 账户资金不足，退款没有送到通道 |
         | `CHANNEL_REJECTED` | 通道明确拒绝 |
         | `CHANNEL_UNREACHABLE` | 退款请求没能送到通道（连接未建立、请求未发出），重提已用尽 |
-        | `UNCONFIRMED` | 通道一直没有明确结果，经对账或人工核对确认没有退成 |
+        | `UNCONFIRMED` | 通道一直没有明确结果，经运营人工核对确认没有退成 |
 
         请求已发出而超时、应答丢失、查单查无此单都不算失败，退款留在 `CHANNEL_PROCESSING`，由平台查单与对账收敛。
     SettlementCycleCode:

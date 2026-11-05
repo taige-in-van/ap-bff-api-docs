@@ -1881,7 +1881,7 @@ components:
         | `INSUFFICIENT_FUNDS` | 账户资金不足，退款没有送到通道 |
         | `CHANNEL_REJECTED` | 通道明确拒绝 |
         | `CHANNEL_UNREACHABLE` | 退款请求没能送到通道（连接未建立、请求未发出），重提已用尽 |
-        | `UNCONFIRMED` | 通道一直没有明确结果，经对账或人工核对确认没有退成 |
+        | `UNCONFIRMED` | 通道一直没有明确结果，经运营人工核对确认没有退成 |
 
         请求已发出而超时、应答丢失、查单查无此单都不算失败，退款留在 `CHANNEL_PROCESSING`，由平台查单与对账收敛。
     EntryPoint:
