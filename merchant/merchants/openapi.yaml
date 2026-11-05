@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -129,7 +129,6 @@ paths:
         - 已激活（含已冻结）的商户 → `409`·208003；
         - 入驻被拒的商户 → `409`·208003；
         - 主商户 → `409`·208024；
-        - 工作人员代为建档的待激活商户 → `409`·208046（撤回由工作人员办理）；
         - 商户不存在、或不是登录者名下的商户 → 404（已删除的按下面的幂等规则返回 204）。
 
         幂等：已删除的商户再删返回 204，不挂 Idempotency-Key。
@@ -148,7 +147,6 @@ paths:
       x-error-codes:
         - 208003
         - 208024
-        - 208046
   /merchants/{merchantId}/application:
     get:
       tags:
@@ -949,7 +947,7 @@ components:
           description: 取自 `/config/countries` 里所选 country 那一组的 `provinces[].code`（ISO 3166-2 地区部分），展示名取同项的 `label`；改 country 后须重选。所选国家有省 / 州候选时必填，否则不传。
         postalCode:
           type: string
-          description: 邮编（加拿大的为规整后的值：不含空格、字母大写）；所选国家有邮编制度时必填。
+          description: 邮编（加拿大的为规整后的值：不含空格与连字符、字母大写）；所选国家有邮编制度时必填。
         timeZone:
           type: string
           description: 商户 IANA 时区（如 `America/Toronto`，不用 PT / ET 缩写）。候选随所选省 / 州、无省 / 州的国家按国家，取 `/config/countries` 下发的 `timeZones`，服务端按同一候选校验。
@@ -1222,7 +1220,7 @@ components:
             - string
             - 'null'
           maxLength: 16
-          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；加拿大邮编先去掉空格、转大写再校验，按规整后的值保存，前端预校时同样先规整。所选国家有邮编制度时必填；没有的国家不设值：新填不传，改 country 后已存的旧值传 `null` 清掉。
+          description: 邮编，按所选国家的格式校验（前端参考数据预校，服务端重校）；加拿大邮编先去掉空格与连字符、转大写再校验，按规整后的值保存，前端预校时同样先规整。所选国家有邮编制度时必填；没有的国家不设值：新填不传，改 country 后已存的旧值传 `null` 清掉。
         timeZone:
           type:
             - string

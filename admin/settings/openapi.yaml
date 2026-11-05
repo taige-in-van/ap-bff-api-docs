@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 平台设置与公告 — 前端契约面
-  version: 2.0.3
+  version: 2.0.4
   contact:
     name: 管理后台 BFF
   description: |
@@ -961,7 +961,7 @@ components:
     AnnouncementBody:
       type: string
       minLength: 1
-      description: 正文，受限 HTML：段落、换行、粗体、斜体、下划线、列表、引用与链接（只放行 http / https 地址），不含图片；其余标签与属性在商户端展示前去掉、保留文字。
+      description: 正文，受限 HTML：放行的标签与属性同商户后台站内信正文的白名单（不含图片），其余在商户端展示前去掉、保留文字。
     AnnouncementUpdate:
       type: object
       additionalProperties: false
