@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1934,7 +1934,7 @@ paths:
       description: |
         按渠道方的声明登记一次汇回：期内留存的平台手续费 = 扣减的交易成本 + 其他扣减 + 实汇净额（实汇净额为负表示平台反向付渠道方）。登记即记账，并当场给出核对结果，核对只在登记时算一次、之后不重算：
 
-        - 留存手续费比期内该通道渠道方出款结算单的手续费合计。期内按结算单的清算日算，只计已出款或已退回的结算单，处理中的不计。
+        - 留存手续费比期内该通道渠道方出款结算单已入账的手续费合计，不比结算单上显示的手续费（手续费月结的商户两者不同）。期内按结算单的清算日算，只计已出款或已退回的结算单，处理中的不计。
         - 扣减成本比期内该通道的收款成本减退款成本合计。期内按通道日算；期内有成本为空的通道明细时，这一项判不一致。
         - 两项都一致为 `MATCHED`，否则 `DISCREPANT`。两项用的日期不是同一根轴。同一通道的期间允许重叠，各单各自核对。
         - 不一致的另填差异说明（`resolveChannelRemittanceDiscrepancy`）。
@@ -2886,7 +2886,7 @@ components:
         channel:
           $ref: '#/components/schemas/ChannelBrief'
         billDate:
-          description: 最近一次观察到该差异的账单日。
+          description: 最近一次更新该差异的账单的账单日。还没填处置方向或说明的待处理差异，在后续账单里再次出现时随之更新；已填处置方向或说明、已处理或已核销的不再更新。
           allOf:
             - $ref: '#/components/schemas/LocalDate'
         objectType:
@@ -2980,7 +2980,7 @@ components:
               type: string
               minLength: 1
               maxLength: 32
-              description: 最近一次观察到该差异的通道账单。
+              description: 最近一次更新该差异的通道账单，更新规则同 `billDate`。
             billLineNo:
               type: integer
               minimum: 1
