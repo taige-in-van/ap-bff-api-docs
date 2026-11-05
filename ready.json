@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-05T20:29:05Z",
-  "implCommit": "e8ab547a",
+  "generatedAt": "2026-11-05T23:50:22Z",
+  "implCommit": "410af763",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -156,6 +156,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "590d0154d124c85a3a44ab30acb0a80fc02525f6",
-  "prdStage": "stage/261105-merchant-portal-03-r2"
+  "prdSha": "b99a6c9fd94afe6f9fea860cdb72149a5dea970f",
+  "prdStage": "stage/261105-alipay-plus-wechat-cashier"
 }
