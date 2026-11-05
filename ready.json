@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-05T00:34:16Z",
-  "implCommit": "2532cd60",
+  "generatedAt": "2026-11-05T17:30:50Z",
+  "implCommit": "e95092c5",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -76,7 +76,7 @@
     "merchant/merchants/createMerchant": "8b444f94da70d94b",
     "merchant/merchants/deleteMerchant": "5a00c040b9fcf7ec",
     "merchant/merchants/getOnboardingApplication": "1a0beb3670027835",
-    "merchant/merchants/listMerchants": "1a59055f4abfc04e",
+    "merchant/merchants/listMerchants": "8cf83d2920abc6dc",
     "merchant/merchants/submitOnboardingApplication": "c026375e989e0fe3",
     "merchant/merchants/updateOnboardingStep": "83cf6bb40628bcff",
     "merchant/merchants/uploadOnboardingDocumentFile": "997d69ef40ae1cb8",
@@ -156,6 +156,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "b4e2e8eccdd6bac9c0fe22d1b55ba1cc8ac42d2e",
-  "prdStage": "stage/261104-channel-registration"
+  "prdSha": "2e31eca0159fe4918e7b55471bdc0f07dd8a18f3",
+  "prdStage": "stage/261105-merchant-portal-03-r1"
 }
