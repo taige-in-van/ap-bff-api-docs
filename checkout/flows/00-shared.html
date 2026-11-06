@@ -481,7 +481,7 @@ sequenceDiagram
 
 选了要离开收银台的方式（银联网关、支付宝 Online），或卡要做持卡人验证时，发起支付（或查订单）返回 `status = PENDING` 且带 `nextAction`。
 
-- **整页跳转**：`nextAction.kind = redirect` 带 `redirectUrl`、`redirectMethod`（`GET` / `POST`），`POST` 时另带 `redirectForm`（键值都是字符串）。`GET` 时整页跳 `redirectUrl`；`POST` 时页面用 `redirectForm` 的键值生成隐藏表单，整页提交到 `redirectUrl`。银联网关、支付宝 Online、发卡行验证页都用它。字段原样使用，不要改写。
+- **整页跳转**：`nextAction.kind = redirect` 带 `redirectUrl`、`redirectMethod`（`GET` / `POST`），`POST` 时另带 `redirectForm`（键值都是字符串）。`GET` 时整页跳 `redirectUrl`；`POST` 时页面用 `redirectForm` 的键值生成隐藏表单，整页提交到 `redirectUrl`。银联网关、不在微信里的支付宝 Online、发卡行验证页都用它；在微信里选支付宝 Online 返回的是 `open_in_browser`，见「页面：在浏览器打开引导」。字段原样使用，不要改写。
 - **持卡人验证分两步**，都不需要新接口，前端做完动作后照常轮询 `getCheckoutOrder`。第 1 步是设备信息收集：返回 `kind = hidden_form` 时，页面在一个看不见的框里把 `redirectForm` 的键值作为表单提交到 `redirectUrl`，付款人无感；同一个 `hidden_form` 只提交一次，提交后继续轮询订单（轮询期间可能仍返回它，不要再提交），下一步由订单的返回决定，可能直接成功或失败，也可能进入第 2 步。第 2 步是验证页面：返回 `kind = redirect`、`redirectMethod = POST`，照上一条整页提交到发卡行的页面。
 - **回跳**：付款人在那边付完、取消或放弃后，浏览器先回到收银台后端，后端再把它送回**付款人原来的那个入口页面地址**（店铺码的回店铺码的页面，订单入口的回订单入口的页面），地址上带一个一次性的码 `resume`。页面照常调本入口的入口接口，把这个码作为 `resumeCode` 交上去；后端凭它认回付款前的那个会话，在返回里为这个会话另给一枚会话令牌（`grant`，原来的令牌仍可用），`paymentStarted` 为 true，进支付结果页轮询。用过之后前端把地址上的 `resume` 去掉、把令牌存进 sessionStorage，之后刷新就和平常一样。
 - **回来的不一定是原来那个标签页**：钱包 App 付完把付款人带回浏览器时，可能是新开的标签页，也可能是系统默认浏览器，那里的 sessionStorage 没有令牌，凭地址上的一次性码认回。原来的标签页如果还开着，照常轮询、同样会显示结果。本节的回跳规则同样适用于「唤起钱包 App」付完回来、以及「在浏览器打开引导」里浏览器那一边付完回来。

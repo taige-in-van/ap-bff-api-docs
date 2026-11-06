@@ -18,7 +18,7 @@
 |---|---|---|
 | 入驻向导 | 启动链路判定当前商户的申请为 `DRAFT` / `MORE_INFO_REQUIRED`；顶栏切换器新建关联商户、或点未激活的商户 | [页面：入驻向导](#页面：入驻向导)；[流程：新增关联商户后进入向导](#流程：新增关联商户后进入向导) |
 | Review | 入驻向导 Documents 步点 Next | [页面：Review](#页面：Review) |
-| 提交成功、审核状态、拒绝结果 | 首次入驻 Submit 后；启动链路按申请状态分流；顶栏切换器点审核中的关联商户 | [页面：提交成功、审核状态、拒绝结果](#页面：提交成功、审核状态、拒绝结果) |
+| 提交成功、审核状态、拒绝结果 | 首次入驻 Submit 后；启动链路按申请状态分流；顶栏切换器点审核中的商户 | [页面：提交成功、审核状态、拒绝结果](#页面：提交成功、审核状态、拒绝结果) |
 | Service | 侧边栏 Account › Service | [页面：Service](#页面：Service) |
 | 代客建档确认页 | 工作人员代为建档后，Owner 点确认邮件里的链接（免登录） | [页面：代客建档确认页](#页面：代客建档确认页) |
 
@@ -52,7 +52,7 @@ stateDiagram-v2
     class BOOT,L other
 ```
 
-**关联商户**
+**从顶栏切换器进入**
 
 ```mermaid
 stateDiagram-v2
@@ -165,7 +165,7 @@ sequenceDiagram
 - Settlement：银行账号、Refund PIN 已填看 `accountNumberSet` / `refundPinSet`；两次 PIN 一致前端先校验。银行账户表单按 Business 步 `country` 在 `bankAccountTypes` 里对应的 `type` 渲染，只有一种。结算周期初始选中读申请返回的 `settlementCycle`（Branch 尚未保存时后端按主商户当前档位返回），没有不预选。Legal Business Name 只读回显 Business 的值。
 - 保存拿到 `409`·`208003`（申请已不在可编辑状态）时重调 #1，按新状态进对应页面。
 - 保存 Settlement 步拿到 `400`·`204017`（结算周期已不在候选内）时重调 #6，让用户重选结算周期，不自动选第一项。
-- `assistedOnboarding` 为 true（工作人员代为建档）时向导整份只读：不显示 Next / 保存 / Submit，提示到确认邮件里的确认页签署；出现 `409`·`208046` 就按只读重渲染。
+- `assistedOnboarding` 为 true（工作人员代为建档）时向导整份只读：Back / Next 只翻页、不保存，离开时不提示保存，不显示 Submit；提示到确认邮件里的确认页签署；出现 `409`·`208046` 就按只读重渲染。
 
 **相对 demo 的改动**
 
@@ -225,10 +225,10 @@ sequenceDiagram
 三个都是结果页，进入时不调接口：
 - **提交成功页**：只在首次入驻 Submit 后出现一次。
 - **审核状态页**、**拒绝结果页**：首次入驻的 Owner 之后每次登录由启动链路（见 [flows 03-shell-dashboard「流程：登录后的启动链路」](03-shell-dashboard.html#流程：登录后的启动链路)）按状态分流进入。审核时效、客服联系方式是前端固定文案。
-- **出口**按当前商户判：首次入驻（当前商户未激活）只有「回登录页」：先调 #19 登出，成功后进登录页；从顶栏切换器点审核中的关联商户进来的审核状态页（当前商户已激活）是「回首页」。被拒的关联商户不在切换器里，拒绝结果页只会出现在首次入驻。
+- **出口**按当前商户判：首次入驻（当前商户未激活）只有「回登录页」：先调 #19 登出，成功后进登录页；从顶栏切换器点审核中的商户进来的审核状态页（当前商户已激活）是「回首页」。被拒的商户不在切换器里，拒绝结果页只会出现在首次入驻。
 
 - 拒绝原因只随拒绝邮件发出，页面不展示。拒绝是终态，原申请不能改回草稿。
-- 补料不发邮件或站内信，审核员电话联系；Owner 重新登录后进入驻向导（关联商户在切换器里显示「待补充」，点击进向导）。
+- 补料不发邮件或站内信，审核员电话联系；Owner 重新登录后进入驻向导（不是当前商户的，在切换器里显示「待补充」，点击进向导）。
 
 **相对 demo 的改动**
 
@@ -240,7 +240,7 @@ sequenceDiagram
 
 ## 流程：新增关联商户后进入向导
 
-顶栏商户切换器 Add New Merchant 建商户与草稿（`createMerchant`，见 [flows 03-shell-dashboard「页面：顶栏 · Create a Merchant 弹窗」](03-shell-dashboard.html#页面：顶栏%20·%20Create%20a%20Merchant%20弹窗)），前端带返回的 `merchantId` 进入同一向导；在切换器里点 `DRAFT` / `MORE_INFO_REQUIRED` 的关联商户同样带它的 `merchantId` 进来。两种都不切换当前商户，当前商户仍是原来那个已激活的商户。申请的 `entryMode` 为 `BRANCH` / `NEW_LEGAL_ENTITY`，前端据此区分。与首次入驻的区别：
+顶栏商户切换器 Add New Merchant 建商户与草稿（`createMerchant`，见 [flows 03-shell-dashboard「页面：顶栏 · Create a Merchant 弹窗」](03-shell-dashboard.html#页面：顶栏%20·%20Create%20a%20Merchant%20弹窗)），前端带返回的 `merchantId` 进入同一向导；在切换器里点 `DRAFT` / `MORE_INFO_REQUIRED` 的商户同样带它的 `merchantId` 进来，工作人员代为建档的待激活主商户也从这里进（向导只读，见[页面：入驻向导](#页面：入驻向导)）。两种都不切换当前商户，当前商户仍是原来那个已激活的商户。顶栏出口按当前商户判（同审核状态页），不看 `entryMode`。新建的关联商户（`entryMode` 为 `BRANCH` / `NEW_LEGAL_ENTITY`）与首次入驻的区别：
 - 弹窗里选的 Trade Name / 国家 / 结算币种预填到 Business 步、可改（改了币种按 Business 步规则重取候选）；Contact 全部只读（Owner 是同一人）。
 - Branch 按主商户预填部分资料、可改。
 - Refund PIN 要重设、文档重新上传。

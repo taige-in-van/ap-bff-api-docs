@@ -180,7 +180,7 @@ paths:
                   address: 1288 Pine Street
                   suburb: Vancouver
                   state: BC
-                  postcode: V6H 3R1
+                  postcode: V6H3R1
                   company_phone: '6045550123'
         '400':
           $ref: '#/components/responses/Rejected'
@@ -1601,7 +1601,7 @@ paths:
                 company_name: Pine Street Hospitality Ltd.
                 short_name: Pine Street Cafe
                 address1: 1288 Pine Street
-                address2: Vancouver,British Columbia V6H 3R1
+                address2: Vancouver,British Columbia V6H3R1
         '400':
           $ref: '#/components/responses/Rejected'
         '401':

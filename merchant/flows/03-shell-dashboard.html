@@ -81,7 +81,7 @@ stateDiagram-v2
 | 9 | [`listNotices`](../system/index.html#tag/notices/operation/listNotices) | `GET /notices` | 站内信列表（分页）；Dashboard 取最近三条 |
 | 10 | [`deleteMerchant`](../merchants/index.html#tag/merchants/operation/deleteMerchant) | `DELETE /merchants/{merchantId}` | 删除未激活的关联商户 |
 | 11 | [`listCurrencyOptions`](../system/index.html#tag/config/operation/listCurrencyOptions) | `GET /config/currencies` | 结算币种及各币种可选的国家 |
-| 12 | [`createMerchant`](../merchants/index.html#tag/merchants/operation/createMerchant) | `POST /merchants` | 新建关联商户（一律挂在主商户下，不切当前商户） |
+| 12 | [`createMerchant`](../merchants/index.html#tag/merchants/operation/createMerchant) | `POST /merchants` | 新建关联商户（一律挂在当前商户所属的主商户下，不切当前商户） |
 | 13 | [`getNoticeSummary`](../system/index.html#tag/notices/operation/getNoticeSummary) | `GET /notices/summary` | 顶栏铃铛的未读数 |
 | 14 | [`getNotice`](../system/index.html#tag/notices/operation/getNotice) | `GET /notices/{noticeId}` | 站内信详情 |
 | 15 | [`markNoticeRead`](../system/index.html#tag/notices/operation/markNoticeRead) | `PUT /notices/{noticeId}` | 标一条已读 |
