@@ -1816,7 +1816,7 @@ components:
 
         各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
-        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形：已生效账户的读面用 `BankAccountView`（须带 `accountNumberMasked` + `accountNumberSet`），整组提交的写面用 `BankAccountInput`（账号必填）；入驻草稿这类分步保存的读写面直接用基础形，齐全 / 必填规则见各面自己的说明。
       required:
         - type
       properties:

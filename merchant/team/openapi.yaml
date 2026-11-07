@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 团队成员 — 前端契约面
-  version: 2.2.2
+  version: 2.2.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -302,7 +302,7 @@ paths:
       operationId: deleteTeamMember
       x-required-privilege: account:team:manage
       summary: 删除员工（删后不在列表显示、全部会话失效；Owner 不可删）
-      description: 软删除：员工从本商户移除、不能再登录，历史记录保留。之后可用同一登录名再新建（见 `createTeamMember`）。Owner 行不可删，返回 `403`；该成员的角色里有超出操作者权限边界的 → `403`·`206013`。已删除的员工再删同样回 `204`（并重做该员工终端登录的撤销）。
+      description: 软删除：员工从本商户移除、不能再登录，历史记录保留。之后可用同一登录名再新建（见 `createTeamMember`）。Owner 行与操作者自己这一行不可删，返回 `403`·`906003`；该成员的角色里有超出操作者权限边界的 → `403`·`206013`。已删除的员工再删同样回 `204`（并重做该员工终端登录的撤销）。
       parameters:
         - name: operatorId
           in: path

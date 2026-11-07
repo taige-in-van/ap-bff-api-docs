@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 个人账号 — 前端契约面
-  version: 2.2.1
+  version: 2.2.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -198,6 +198,7 @@ paths:
         - `968001` 新邮箱已被别人使用。
         - `206006` 这笔改邮箱已过期、已完成、已被顶掉，或已提交过新邮箱。
         - `206005` 不是发起者本人。
+        - 新邮箱格式不对或与当前登录邮箱相同 → `400`（通用校验失败，`details` 指 `newEmail`）。
       parameters:
         - name: challengeId
           in: path
@@ -298,6 +299,7 @@ paths:
 
         - `206011` 当前密码错（会话仍有效，不计入登录锁定）。
         - `908003` 同一幂等键被用于不同的请求体。
+        - 新密码不满足规则或与当前密码相同 → `400`（通用校验失败，`details` 指 `newPassword`）。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'

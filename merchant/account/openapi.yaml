@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.6.4
+  version: 2.7.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -42,7 +42,8 @@ paths:
         - `businessInformation` 对应入驻 Business 步，行业、MCC、省州给码，展示名取 `/config/industries`、`/config/countries`；企业类型是枚举码，展示名由前端 i18n。
         - `settlement` 对应入驻 Settlement 步，账号只给末 4 位掩码；不含 Legal Business Name（同 `businessInformation.legalBusinessName`）。
         - `contactInformation` 对应入驻 Contact 步，编辑走 `updateOwnerContact`。
-        - `documents` 与入驻 documents 步同形状，`previewUrl` 短时效、不要持久化。
+        - `documents` 与入驻 documents 步同形状，`previewUrl` 短时效、不要持久化；`requiredDocuments` 列出本商户必传的文档位。
+        - `signedContract` 是工作人员代为建档时签署的合同，没有时不返回。
       responses:
         '200':
           description: OK
@@ -100,6 +101,10 @@ paths:
                     fileSize: 402113
                     uploadedAt: '2026-06-18T09:13:00Z'
                     previewUrl: https://files.example.com/o/3b7d90a4?exp=1755331200&sig=REDACTED&disp=inline
+                requiredDocuments:
+                  - docOwnerId
+                  - docIncorporation
+                  - docVoidCheque
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -318,7 +323,7 @@ paths:
         发 6 位码到 Owner 的登录邮箱（不论谁发起），返回 `challengeId`。
         本步只发码、不带变更内容；码和变更内容在第 2 步一起提交。非 Owner 的操作员发起时，要拿到 Owner 收到的码才能提交，等于每次结算变更都经 Owner 过目。
 
-        重新发码会让旧码作废，冷却中 → `429`·208013。Owner 账号不可用（已停用、已删除或没有已验证邮箱）→ `409`·208056。按挑战流程语义不挂幂等键。
+        重新发码会让旧码作废，冷却中 → `429`·208013。Owner 账号不可用（已停用、已删除或没有已验证邮箱）→ `409`·208056。结算由通道方执行（`settlement.settledByChannel` 为 true）→ `409`·208038，不发码。按挑战流程语义不挂幂等键。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
@@ -338,6 +343,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 208013
+        - 208038
         - 208056
   /account/profile/settlement/change-requests:
     post:
@@ -744,9 +750,11 @@ paths:
 
         错误码：
 
-        - `400` 当前 PIN 错、已设置时没带当前 PIN、新 PIN 与当前相同或格式非法。
-        - `206004` 当前 PIN 连续错到上限，临时锁定；剩余秒数见 `context.cooldownSeconds`，锁定期内不校验。
+        - `206003` 当前 PIN 不对；留在表单重输。
+        - `206004` 当前 PIN 连续错到上限，临时锁定，锁定期内不校验；提示稍后再试。
+        - `208003` 已设置却按首次设置提交（没带 `currentPin`）；重拉 `getRefundPin`、按修改表单展示。
         - `908003` 同一幂等键被用于不同的请求体。
+        - 新 PIN 与当前相同或格式不对 → `400`（通用校验失败，`details` 指 `newPin`）。
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CsrfToken'
@@ -777,7 +785,9 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
+        - 206003
         - 206004
+        - 208003
   /account/refund-pin/resets:
     post:
       tags:
@@ -918,6 +928,7 @@ components:
         - settlement
         - contactInformation
         - documents
+        - requiredDocuments
       properties:
         merchantCode:
           $ref: '#/components/schemas/MerchantCode'
@@ -937,6 +948,24 @@ components:
           allOf:
             - $ref: '#/components/schemas/DocumentsStepRead'
           description: 入驻时上传的文档，与入驻申请 documents 步同形状、同键名；没上传的键不返回。只读，没有上传或替换入口。`previewUrl` 短时效、不要持久化。
+        requiredDocuments:
+          type: array
+          readOnly: true
+          uniqueItems: true
+          items:
+            type: string
+            enum:
+              - docOwnerId
+              - docIncorporation
+              - docVoidCheque
+              - docStoreInside
+              - docStoreOutside
+          description: 本商户必传的文档位，元素是 `documents` 的键名；在这里、`documents` 里没有的键，页面显示缺失占位。
+        signedContract:
+          allOf:
+            - $ref: '#/components/schemas/DocumentRefFeRead'
+          readOnly: true
+          description: 工作人员代为建档时签署的合同；没有时不返回本键。只读，`previewUrl` 短时效、不要持久化。
     BusinessInformationView:
       type: object
       additionalProperties: false
@@ -1106,11 +1135,7 @@ components:
           description: 平台不对该商户出款的商户不返回本键。
         bankAccount:
           allOf:
-            - $ref: '#/components/schemas/BankAccountIdentification'
-            - type: object
-              required:
-                - accountNumberMasked
-                - accountNumberSet
+            - $ref: '#/components/schemas/BankAccountView'
           description: 当前生效的结算银行账户；账号只给末 4 位掩码，任何面都不回明文。制式 = `/config/settlement` 的 `bankAccountTypes` 里商户 Country 对应的 `type`。平台不对该商户出款的商户不返回本键。
         settlementCycle:
           allOf:
@@ -1143,10 +1168,7 @@ components:
           description: 与 `bankAccount` 同进同出
         bankAccount:
           allOf:
-            - $ref: '#/components/schemas/BankAccountIdentification'
-            - type: object
-              required:
-                - accountNumber
+            - $ref: '#/components/schemas/BankAccountInput'
           description: 新的结算银行账户（整组提交、**账号必填**；`type` 须等于商户 Country 对应的制式；账号明文 write-only）。与 `bankName` 同进同出。
     SettlementChangeRequestInput:
       type: object
@@ -1602,7 +1624,7 @@ components:
 
         各制式的字段名保留本国叫法、位数为固定契约值、由服务端按 `type` 校验。`type` 由商户 Country 决定，国家 → 制式由所在面的配置接口给出（形状见 `CountryBankAccountType`）。
 
-        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形；写面与读面各自用 allOf 收紧（写面的齐全 / 必填规则见各写面，读面须带 `accountNumberMasked` + `accountNumberSet`）。
+        账号明文 write-only、读侧走掩码 + 已填标志。本 schema 是基础形：已生效账户的读面用 `BankAccountView`（须带 `accountNumberMasked` + `accountNumberSet`），整组提交的写面用 `BankAccountInput`（账号必填）；入驻草稿这类分步保存的读写面直接用基础形，齐全 / 必填规则见各面自己的说明。
       required:
         - type
       properties:
@@ -1641,6 +1663,13 @@ components:
           type: boolean
           readOnly: true
           description: 是否已填 accountNumber（跨设备恢复 / 草稿完整性判定用）。
+    BankAccountView:
+      description: 结算银行账户的读侧形态：账号只给末 4 位掩码与已填标志，不回明文。
+      required:
+        - accountNumberMasked
+        - accountNumberSet
+      allOf:
+        - $ref: '#/components/schemas/BankAccountIdentification'
     SettlementCycleCode:
       type: string
       minLength: 1
@@ -1857,6 +1886,12 @@ components:
           $ref: '#/components/schemas/ChallengeId'
         code:
           $ref: '#/components/schemas/OtpCode'
+    BankAccountInput:
+      description: 结算银行账户的写侧形态：账号必填（明文 write-only）。
+      required:
+        - accountNumber
+      allOf:
+        - $ref: '#/components/schemas/BankAccountIdentification'
     AcceptanceMode:
       type: string
       enum:
