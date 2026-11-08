@@ -12,10 +12,11 @@
 
 <h2>环境列表</h2>
 <table>
-<tr><th>环境</th><th>用途</th><th>商户后台 BFF</th><th>其他主机</th></tr>
-<tr><td><strong>test</strong></td><td>前端联调用这个</td><td><code>https://mer26-test.hqwu.io/api/merchant/v1</code></td><td>邮件 <code>mailpit26-test</code>、微信确认页 <code>wx26-test</code>、文件 <code>file26-test</code>（均为 <code>.hqwu.io</code>）</td></tr>
-<tr><td>dev</td><td>后端先行验证，随合并频繁更新，可能不稳定</td><td><code>https://mer26-dev.hqwu.io/api/merchant/v1</code></td><td>同上，把 <code>-test</code> 换成 <code>-dev</code></td></tr>
+<tr><th>环境</th><th>用途</th><th>商户后台 BFF</th><th>同一主机下的其他路径</th></tr>
+<tr><td><strong>test</strong></td><td>前端联调用这个</td><td><code>https://p26-test.alphapay.ca/api/merchant/v1</code></td><td>邮件 <code>/mailpit/</code>、微信确认页 <code>/wechat/</code>、收银台 <code>/checkout/</code>、文件 <code>/payment26-public/</code></td></tr>
+<tr><td>dev</td><td>后端先行验证，随合并频繁更新，可能不稳定</td><td><code>https://p26-dev.alphapay.ca/api/merchant/v1</code></td><td>同上，主机换成 <code>p26-dev</code></td></tr>
 </table>
+<p>每个环境只有一个主机，按路径区分。原来的 <code>mer26-test</code>、<code>wx26-test</code>、<code>mailpit26-test</code> 等 <code>.hqwu.io</code> 地址在过渡期内仍可用（按同样的路径访问），请尽快改用新地址。</p>
 
 <h2>本机前端怎么连（必须走 Vite proxy）</h2>
 <p>会话靠 httpOnly cookie <code>__Host-msession</code>，外加 CSRF 伴生 cookie <code>__Host-mcsrf</code>，都是 <code>SameSite=Lax</code>：浏览器跨站请求不会带上它们，后端也不开 CORS。所以本机前端要让浏览器只看到 localhost，由 Vite 转发：</p>
@@ -24,7 +25,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api/merchant/v1': {
-        target: 'https://mer26-test.hqwu.io',
+        target: 'https://p26-test.alphapay.ca',
         changeOrigin: true,
       },
     },
@@ -57,7 +58,7 @@ export default defineConfig({
 <h2>自助注册</h2>
 <ul>
 <li>注册只联调到「激活后能登录」为止：新注册的账号登录后进入驻向导会失败（入驻接口尚未部署）。</li>
-<li>邮件不真发，统一进 Mailpit：test 是 <a href="https://mailpit26-test.hqwu.io/">https://mailpit26-test.hqwu.io/</a>（dev 是 <code>https://mailpit26-dev.hqwu.io/</code>）。</li>
+<li>邮件不真发，统一进 Mailpit：test 是 <a href="https://p26-test.alphapay.ca/mailpit/">https://p26-test.alphapay.ca/mailpit/</a>（dev 是 <code>https://p26-dev.alphapay.ca/mailpit/</code>）。</li>
 <li>激活链接打开的是 <code>http://localhost:5173/verify-email#token=…</code>（本机 Vite 默认端口）。你的 Vite 端口不是 5173 时告诉后端改。</li>
 </ul>
 
@@ -65,7 +66,7 @@ export default defineConfig({
 <ul>
 <li><strong>轮询要串行</strong>：上一次 <code>pollWechatLogin</code> 的响应回来后再发下一次，不要用定时器并发发；重叠的轮询可能让刚建立的登录失效。（flows 扫码登录一节有同样说明。）</li>
 <li>轮询 <code>status</code>：<code>WAITING</code> 显示二维码；<code>SCANNED</code> 换成「扫码成功，请在手机上确认」，扫码人被拒时也停在这里直到过期；<code>EXPIRED</code>（过期或手机上取消）自动重新调 <code>initiateWechatLogin</code> 换新码；<code>ESTABLISHED</code> 响应已带会话 cookie。</li>
-<li>手机微信里打开的「微信确认页」在独立主机的根路径（test 是 <code>https://wx26-test.hqwu.io/</code>，dev 是 <code>https://wx26-dev.hqwu.io/</code>），与 <code>wechat</code> 面 <code>/identity/wechat/v1</code> 同源。文件（图片、PDF 等）的下载地址在 <code>https://file26-test.hqwu.io/</code>（dev 为 <code>file26-dev</code>）下，由接口返回，前端不用另配。</li>
+<li>手机微信里打开的「微信确认页」在 <code>/wechat/</code> 路径下（test 是 <code>https://p26-test.alphapay.ca/wechat/</code>，dev 是 <code>https://p26-dev.alphapay.ca/wechat/</code>），与 <code>wechat</code> 面 <code>/identity/wechat/v1</code> 同源。文件（图片、PDF 等）的下载地址在同一主机的 <code>/payment26-public/</code> 等路径下，由接口返回，前端不用另配。</li>
 <li>微信号要先绑定到测试账号才能扫码登录，而绑定接口尚未部署：先用要用的微信扫一次（手机会提示未绑定），把要绑的测试账号和环境（test / dev）告诉后端，后端补上绑定后再扫即可。两个环境的绑定各自独立。</li>
 </ul>
 
