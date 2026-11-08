@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.2.3
+  version: 2.3.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -234,6 +234,54 @@ paths:
                       percentageRate: '0.015'
                       fixedFee: '10'
                     recommended: false
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes: []
+  /config/payment-method-catalog:
+    get:
+      tags:
+        - config
+      operationId: listPaymentMethodCatalog
+      x-required-privilege: session
+      summary: 支付方式目录（含图标）
+      description: |
+        平台上全部启用的支付方式，含信用卡与银联码；平台配置、和当前商户无关，不按商户开通与否、不按币种过滤。
+
+        业务数据里的支付方式只给方式码或族，前端按码或族在这里取图标：同一族的各支付方式图标相同，按族取其中任一项即可。展示名按方式码先取前端多语言资源，取不到再用这里该项的 `displayName`。
+
+        需要时就调，前端不必缓存。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    minItems: 1
+                    items:
+                      $ref: '#/components/schemas/CatalogPaymentMethod'
+              example:
+                items:
+                  - paymentMethod: wechat_instore
+                    paymentMethodFamily: wechat
+                    acceptanceMode: in_store
+                    displayName: WeChat Pay
+                    logoUrl: https://cdn.example.com/core/payment-method-logo/wechat.png
+                  - paymentMethod: card
+                    paymentMethodFamily: credit_card
+                    acceptanceMode: online
+                    displayName: Credit Card
+                    logoUrl: https://cdn.example.com/core/payment-method-logo/card.png
+                  - paymentMethod: unionpay_qrc
+                    paymentMethodFamily: unionpay
+                    acceptanceMode: in_store
+                    displayName: UnionPay QR
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -590,6 +638,29 @@ components:
           description: 标准费率：未另议价的商户审核通过后按此签约。
         recommended:
           type: boolean
+    CatalogPaymentMethod:
+      type: object
+      additionalProperties: false
+      description: 支付方式目录里的一项。
+      required:
+        - paymentMethod
+        - paymentMethodFamily
+        - acceptanceMode
+        - displayName
+      properties:
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        paymentMethodFamily:
+          $ref: '#/components/schemas/PaymentMethodFamily'
+        acceptanceMode:
+          $ref: '#/components/schemas/AcceptanceMode'
+        displayName:
+          type: string
+          minLength: 1
+          description: 不随语言变的支付方式展示名。前端有该支付方式的多语言资源时按 `paymentMethod` 取用，没有就显示本值。
+        logoUrl:
+          $ref: '#/components/schemas/WebUrl'
+          description: 图标的长效公开地址；没有图标时不返回本键。
     ConfigIndustry:
       type: object
       additionalProperties: false
@@ -882,6 +953,9 @@ components:
             floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
             minimumMinutes:
               type: integer
               minimum: 1
@@ -1040,6 +1114,18 @@ components:
           description: 固定单笔费，结算币种的最小单位整数串（`10` = 0.10）；没有固定费或在免收期内为 `0`。不带币种，按该商户的结算币种解释（收费币种与结算币种一致、不跨币种换算）。
           examples:
             - '10'
+    PaymentMethodFamily:
+      type: string
+      description: 支付方式族（品牌）。
+      enum:
+        - wechat
+        - alipay
+        - unionpay
+        - credit_card
+    WebUrl:
+      type: string
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
     SettlementCycleCode:
       type: string
       minLength: 1
@@ -1118,10 +1204,6 @@ components:
       minLength: 1
       maxLength: 20
       description: 对外商户码。
-    WebUrl:
-      type: string
-      pattern: ^https?://\S+$
-      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
     SigningKeyUpsertRequest:
       type: object
       additionalProperties: false

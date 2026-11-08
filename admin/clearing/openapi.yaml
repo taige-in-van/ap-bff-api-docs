@@ -5,19 +5,21 @@ info:
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的清算结算契约：通道对账结果与差异处置、待人工确认退款、清算日历、清算日汇总与清算记录、结算单详情与导出、清结算异常概览、出款文件与出款登记（提交、受理结果、作废、退票、重新出款）、通道结算单与到账确认、渠道方汇回、清算报告与补发、T&T 对账文件与重发、商户暂停结算与起结门槛。
+    管理后台 React SPA 消费的清算结算契约：通道对账结果与差异处置、待人工确认退款、清算日历、清算日汇总与清算记录、结算单详情与导出、清结算异常概览、出款文件与出款登记（提交、受理结果、作废、退票、重新出款）、通道结算单与到账确认、渠道方汇回、清算报告与补发、T&T 对账文件与重发、商户暂停结算与起结门槛、商户资金概览、扣款与补偿、授信额度、月度对账单与税行汇总、服务费收款与退回、返利活动与商户开通、营销账户记录。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     **金额口径**：金额是对应币种最小单位的整数串，带币种；同一页上不同结算币种的金额分别合计，不跨币种相加。
 
     **幂等 / CSRF 口径**：
 
-    - 登记受理结果、登记退票、重新出款、登记汇回单、冲销汇回单、从差异向商户追回是资金登记，带 `Idempotency-Key`：同一次操作的重试沿用同一个键，重复提交不会重复登记。
-    - 其余写操作带状态前置（只对处于某一状态的对象生效，两人同时操作以先到者为准），不挂幂等键。
+    - 登记受理结果、登记退票、重新出款、登记汇回单、冲销汇回单、从差异向商户追回、扣款与补偿、登记服务费收款、登记收款退回是资金登记，带 `Idempotency-Key`：同一次操作的重试沿用同一个键，重复提交不会重复登记。
+    - 其余写操作带状态前置（只对处于某一状态的对象生效，两人同时操作以先到者为准）、按目标值写或靠唯一键防重，不挂幂等键。
     - 导出按读处理，不挂幂等键。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
 
-    **数据可见范围**：同管理后台约定「数据可见范围」。按商户组织的接口（待人工确认退款、清算日汇总、清算记录、结算单与明细、导出、清算报告与补发、暂停结算与起结门槛）按商户求值：范围外商户的数据不出现在列表、合计与导出里，按标识访问一律 `404`。通道侧的接口（通道对账与差异、出款文件、通道结算单、渠道方汇回、T&T 对账文件）是平台级，不按数据可见范围过滤。
+    **本人动态码确认**：扣款与补偿、设置授信额度的请求体带 `totpCode`（操作人本人验证器上的当前 6 位动态码）。码错 → `403`·`306004`，动作不执行，原处重输；会话仍有效，不影响登录。重试沿用同一幂等键时也要带当前有效的动态码。其余写操作不带。
+
+    **数据可见范围**：同管理后台约定「数据可见范围」。按商户组织的接口（待人工确认退款、清算日汇总、清算记录、结算单与明细、导出、清算报告与补发、暂停结算与起结门槛、资金概览、扣款与补偿、授信额度、月度对账单与其导出、服务费收款与其导出、返利参加、营销账户记录）按商户求值：范围外商户的数据不出现在列表、合计与导出里，按标识访问一律 `404`。通道侧与平台级的接口（通道对账与差异、出款文件、通道结算单、渠道方汇回、T&T 对账文件、税行汇总、返利活动）不按数据可见范围过滤。
 
     **操作审计**：本面的写操作记入操作审计（带操作人、对象、前后状态或前后值与说明）；查询、详情、导出、原件下载不记。操作人恒为当前登录的后台用户，请求体里没有操作人字段。
 servers:
@@ -65,6 +67,18 @@ tags:
   - name: settlement-controls
     x-displayName: 暂停结算与起结门槛
     description: 单个商户的暂停结算与起结门槛。
+  - name: merchant-funds
+    x-displayName: 商户资金
+    description: 单个商户的资金概览、扣款与补偿、授信额度。
+  - name: statements
+    x-displayName: 月度对账单
+    description: 商户月度对账单列表、详情与文件下载，税行汇总，及两者的导出。
+  - name: fee-collections
+    x-displayName: 服务费收款
+    description: 服务费收款记录、登记收款、登记退回与导出。
+  - name: promotions
+    x-displayName: 返利
+    description: 返利活动的建立与终止、商户开通与终止参加、营销账户记录。
 paths:
   /channel-bills:
     get:
@@ -2344,6 +2358,1010 @@ paths:
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
+  /merchants/{merchantId}/funds:
+    parameters:
+      - $ref: '#/components/parameters/MerchantIdPath'
+    get:
+      tags:
+        - merchant-funds
+      operationId: getMerchantFundOverview
+      x-required-privilege: clr:settlement:view
+      summary: 商户资金概览
+      description: |
+        商户详情「结算」页签的资金区块：待结算、退款准备金、应收商户款、授信额度、剩余授信、当前可扣额、应收服务费款、营销账户余额，均为该商户的结算币种。某项从未发生过账时为 `0`。只读，现查现给。
+
+        - 待结算 = 可结算余额减去在途占用，再减去应收商户款。
+        - 剩余授信 = 授信额度减去已用（应收商户款，含在途占用），不小于 0。
+        - 当前可扣额 = 可结算余额减去在途占用（不小于 0）加剩余授信；扣款能否足额以提交时为准，本数只作展示。
+
+        商户不存在或在本人数据范围外 → `404`。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantFundOverview'
+              example:
+                merchantId: mch_8812
+                toSettle:
+                  amount: '2000'
+                  currency: CAD
+                refundReserve:
+                  amount: '10000'
+                  currency: CAD
+                merchantReceivable:
+                  amount: '3000'
+                  currency: CAD
+                creditLimit:
+                  amount: '10000'
+                  currency: CAD
+                creditAvailable:
+                  amount: '7000'
+                  currency: CAD
+                deductibleAmount:
+                  amount: '12000'
+                  currency: CAD
+                feeReceivable:
+                  amount: '11300'
+                  currency: CAD
+                promotionBalance:
+                  amount: '0'
+                  currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /merchants/{merchantId}/fund-adjustments:
+    parameters:
+      - $ref: '#/components/parameters/MerchantIdPath'
+    post:
+      tags:
+        - merchant-funds
+      operationId: createMerchantFundAdjustment
+      x-required-privilege: clr:fund-adjustment:create
+      summary: 对商户扣款或补偿
+      description: |
+        对该商户提交一笔调账，原因必填、商户可见（商户在结算单明细里看到该笔调账与原因）；成功返回调账单号。单人确认、不建审批单；已冻结的商户照常可调账，已关户的商户按不存在处理。不碰退款准备金。
+
+        - **扣款**（`PENALTY`）：可结算余额扣至 0，不足部分记应收商户款，应收不超过授信额度。
+        - **补偿**（`COMPENSATION`）：先冲减应收商户款，余下入可结算余额。
+        - `amount` 不小于 1 个最小单位、不超过平台设定的单笔调账上限（扣款与补偿共用），币种须是该商户的结算币种。
+        - `totpCode` 必带，见总说明「本人动态码确认」。
+
+        **什么时候拒绝**（不建调账）：
+
+        - `306004` 动态码错，原处重输。
+        - `308650` 扣款额超出商户可扣范围（可结算余额加剩余授信额度不足）。
+        - `308651` 金额超过单笔调账上限，`context.maxAmount` 带当时的上限。
+        - `adjustmentType` 不是两种之一、`amount` 币种不是该商户的结算币种、`reason` 缺或超长 → `400`。
+        - 商户不存在、已关户或在本人数据范围外 → `404`。
+
+        资金登记，带 `Idempotency-Key`：同键同请求回放首次结果；同键不同请求 → `409`·`908003`；首次请求还在处理 → `409`·`908002`。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantFundAdjustmentCreate'
+            examples:
+              penalty:
+                summary: 扣款
+                value:
+                  adjustmentType: PENALTY
+                  amount:
+                    amount: '25000'
+                    currency: CAD
+                  reason: 10 月违规交易罚款
+                  totpCode: '123456'
+              compensation:
+                summary: 补偿
+                value:
+                  adjustmentType: COMPENSATION
+                  amount:
+                    amount: '3000'
+                    currency: CAD
+                  reason: 10-12 通道故障导致重复扣费，补偿差额
+                  totpCode: '123456'
+      responses:
+        '201':
+          description: 已调账，返回调账单号
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantFundAdjustment'
+              example:
+                adjustmentId: SA261107000012
+                adjustmentType: PENALTY
+                amount:
+                  amount: '25000'
+                  currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 306004
+        - 308650
+        - 308651
+  /merchants/{merchantId}/credit-limit:
+    parameters:
+      - $ref: '#/components/parameters/MerchantIdPath'
+    put:
+      tags:
+        - merchant-funds
+      operationId: updateMerchantCreditLimit
+      x-required-privilege: clr:credit-limit:edit
+      summary: 设置商户授信额度
+      description: |
+        设置该商户的授信额度（应收商户款的上限），即时生效；`0` = 不授信。退款与扣款在可结算余额（与退款准备金）不足时可动用授信，超出即拒绝。
+
+        - `creditLimit` 不小于 0、不超过平台设定的授信额度上限，币种须是该商户的结算币种。
+        - 下调到低于当前应收商户款照常生效：已有应收不变，此后动用应收的退款与扣款按新额度判。
+        - `totpCode` 必带，见总说明「本人动态码确认」。
+
+        **什么时候拒绝**（额度不变）：
+
+        - `306004` 动态码错，原处重输。
+        - `308651` 额度超过授信额度上限，`context.maxAmount` 带当时的上限。
+        - `creditLimit` 为负或币种不是该商户的结算币种 → `400`。
+        - 商户不存在、已关户或在本人数据范围外 → `404`。
+
+        按目标值写，重复提交结果不变，不挂幂等键。前后值记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantCreditLimitWrite'
+            example:
+              creditLimit:
+                amount: '500000'
+                currency: CAD
+              totpCode: '123456'
+      responses:
+        '204':
+          description: 已生效
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 306004
+        - 308651
+  /statements:
+    get:
+      tags:
+        - statements
+      operationId: listMerchantStatements
+      x-required-privilege: clr:statement:view
+      summary: 月度对账单列表
+      description: |
+        本人数据范围内商户已出具的月度对账单（对账单文件已生成的才列），分页，按交易月从新到旧。交易月区间两端必填；跨度超过允许的最大查询窗口 → `400`。商户详情里查看时固定 `merchantId`。交易月取对账单出具时记下的值，之后不变。
+      parameters:
+        - $ref: '#/components/parameters/FromMonth'
+        - $ref: '#/components/parameters/ToMonth'
+        - $ref: '#/components/parameters/MerchantFilter'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MerchantStatement'
+              example:
+                total: 1
+                data:
+                  - statementId: ST2610000123
+                    statementNo: 202610-C3BM68
+                    merchant:
+                      merchantId: mch_8812
+                      merchantName: Maple Coffee
+                    statementMonth: 2026-10
+                    transactionCount: 1342
+                    grossAmount:
+                      amount: '8562000'
+                      currency: CAD
+                    refundAmount:
+                      amount: '41000'
+                      currency: CAD
+                    feeAmount:
+                      amount: '21400'
+                      currency: CAD
+                    settlementAmount:
+                      amount: '8540600'
+                      currency: CAD
+                    receivableAmount:
+                      amount: '11300'
+                      currency: CAD
+                    issuedAt: '2026-11-01T09:12:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /statements/{statementId}:
+    parameters:
+      - $ref: '#/components/parameters/StatementIdPath'
+    get:
+      tags:
+        - statements
+      operationId: getMerchantStatement
+      x-required-privilege: clr:statement:view
+      summary: 月度对账单详情
+      description: |
+        一张对账单：列表行的字段，加手续费明细、额外收费与税。各明细行之和与对账单合计一致。税行的计税省、税种与税率是出具时记下的值。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantStatementDetail'
+              example:
+                statementId: ST2610000123
+                statementNo: 202610-C3BM68
+                merchant:
+                  merchantId: mch_8812
+                  merchantName: Maple Coffee
+                statementMonth: 2026-10
+                transactionCount: 1342
+                grossAmount:
+                  amount: '8562000'
+                  currency: CAD
+                refundAmount:
+                  amount: '41000'
+                  currency: CAD
+                feeAmount:
+                  amount: '21400'
+                  currency: CAD
+                settlementAmount:
+                  amount: '8540600'
+                  currency: CAD
+                receivableAmount:
+                  amount: '11300'
+                  currency: CAD
+                issuedAt: '2026-11-01T09:12:00Z'
+                feeLines:
+                  - paymentMethod: wechat_instore
+                    acceptanceMode: in_store
+                    entryPoint: pos
+                    feeRate: '0.025000'
+                    fixedFee:
+                      amount: '0'
+                      currency: CAD
+                    transactionCount: 1342
+                    grossAmount:
+                      amount: '8562000'
+                      currency: CAD
+                    refundAmount:
+                      amount: '41000'
+                      currency: CAD
+                    feeAmount:
+                      amount: '21400'
+                      currency: CAD
+                chargeLines:
+                  - chargeType: APP_SUBSCRIPTION
+                    quantity: 2
+                    amount:
+                      amount: '10000'
+                      currency: CAD
+                taxLines:
+                  - taxedComponent: APP_SUBSCRIPTION
+                    taxProvince: 'ON'
+                    taxType: HST
+                    taxRate: '0.130000'
+                    taxableAmount:
+                      amount: '10000'
+                      currency: CAD
+                    taxAmount:
+                      amount: '1300'
+                      currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /statements/{statementId}/file:
+    parameters:
+      - $ref: '#/components/parameters/StatementIdPath'
+    get:
+      tags:
+        - statements
+      operationId: getMerchantStatementFile
+      x-required-privilege: clr:statement:view
+      summary: 对账单文件的下载地址
+      description: |
+        返回这张对账单出具时存档的文件的短时下载地址，到 `expiresAt` 失效；失效后重调取新地址，文件不变。不记操作审计。
+      responses:
+        '200':
+          description: 短时下载地址
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileAccessUrl'
+              example:
+                url: https://storage.example.com/private/statement/2026/10/ST2610000123.pdf?X-Amz-Expires=300&X-Amz-Signature=...
+                expiresAt: '2026-11-07T15:35:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /statement-tax-summary:
+    get:
+      tags:
+        - statements
+      operationId: getStatementTaxSummary
+      x-required-privilege: clr:statement:view
+      summary: 对账单税行汇总
+      description: |
+        按交易月区间（两端必填）汇总已出具对账单的税：按交易月 × 税种 × 计税省 × 结算币种分组，给出税基合计、税额合计与涉及的对账单数。计税省、税种与税率取对账单出具时记下的值，商户之后改了进件省也不变。平台级汇总，不按数据可见范围过滤。按交易月从新到旧，同月按税种、计税省、币种排序；不分页。跨度超过允许的最大查询窗口 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/FromMonth'
+        - $ref: '#/components/parameters/ToMonth'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StatementTaxSummaryItem'
+              example:
+                items:
+                  - statementMonth: 2026-09
+                    taxType: HST
+                    taxProvince: 'ON'
+                    taxableAmount:
+                      amount: '30000'
+                      currency: CAD
+                    taxAmount:
+                      amount: '390'
+                      currency: CAD
+                    statementCount: 2
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /statement-exports:
+    post:
+      tags:
+        - statements
+      operationId: createStatementExport
+      x-required-privilege: clr:statement-export:create
+      summary: 导出月度对账单列表（xlsx）
+      description: |
+        按所给筛选导出命中的对账单，不只是当前页；筛选字段与 `listMerchantStatements` 相同，只含本人数据范围内商户的对账单。列同列表。同步返回文件流。表头按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限，缩小筛选后重试。
+        - 交易月区间缺一端、`toMonth` 早于 `fromMonth`、跨度超过允许的最大查询窗口 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementListFilter'
+            example:
+              fromMonth: 2026-07
+              toMonth: 2026-10
+              merchantId: mch_8812
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /statement-tax-summary-exports:
+    post:
+      tags:
+        - statements
+      operationId: createStatementTaxSummaryExport
+      x-required-privilege: clr:statement-export:create
+      summary: 导出税行汇总（xlsx）
+      description: |
+        按所给交易月区间导出税行汇总，列同 `getStatementTaxSummary`。同步返回文件流。表头按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限，缩小区间后重试。
+        - 交易月区间缺一端、`toMonth` 早于 `fromMonth`、跨度超过允许的最大查询窗口 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatementTaxSummaryFilter'
+            example:
+              fromMonth: 2026-07
+              toMonth: 2026-09
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /fee-collections:
+    get:
+      tags:
+        - fee-collections
+      operationId: listFeeCollections
+      x-required-privilege: clr:fee-collection:view
+      summary: 服务费收款记录
+      description: |
+        本人数据范围内商户的服务费收款记录，分页，按到账日从新到旧。日期范围按到账日，两端必填；跨度超过允许的最大查询窗口 → `400`。带 `merchantId` 时另回该商户当前的应收服务费款 `feeReceivable`（应收按商户累计冲减，不按对账单分摊）。
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/MerchantFilter'
+        - name: collectionMethod
+          in: query
+          required: false
+          description: 按收款方式。
+          schema:
+            $ref: '#/components/schemas/FeeCollectionMethod'
+        - name: returned
+          in: query
+          required: false
+          description: '`true` 只看已退回 / `false` 只看未退回；不传不筛。'
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeeCollectionItem'
+                  feeReceivable:
+                    description: 该商户当前的应收服务费款；没带 `merchantId`、或该商户在本人数据范围外时不返回本键。
+                    allOf:
+                      - $ref: '#/components/schemas/Money'
+              example:
+                total: 1
+                data:
+                  - collectionId: FC261107000003
+                    merchant:
+                      merchantId: mch_8812
+                      merchantName: Maple Coffee
+                    amount:
+                      amount: '11300'
+                      currency: CAD
+                    collectionMethod: PAD
+                    receivedOn: '2026-11-05'
+                    bankReference: PAD20261105017
+                    statementId: ST2610000123
+                    statementNo: 202610-C3BM68
+                    createdBy:
+                      userId: usr_0031
+                      displayName: Alice Chen
+                    createdAt: '2026-11-07T15:31:40Z'
+                feeReceivable:
+                  amount: '0'
+                  currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    post:
+      tags:
+        - fee-collections
+      operationId: createFeeCollection
+      x-required-privilege: clr:fee-collection:manage
+      summary: 登记服务费收款
+      description: |
+        按实际到账登记一笔商户付来的服务费，登记即记账，该商户的应收服务费款随之减少。金额可以不等于任何一张对账单的应收：应收按商户累计冲减、不按单分摊，所填对账单只作参考；收款大于当前应收时照常登记，应收服务费款随之为负。已冻结的商户照常可登记，已关户的商户按不存在处理。不要求动态码。
+
+        - `amount` 不小于 1 个最小单位，币种须是该商户的结算币种。
+        - `receivedOn` 不能晚于今天。
+        - `statementId` 可不填；填了须是该商户已出具的对账单。
+
+        **什么时候拒绝**（不登记）：
+
+        - `308652` 所填对账单不存在、不属于该商户或尚未出具完成。
+        - `amount` 币种不是该商户的结算币种、`collectionMethod` 不是三种之一、`receivedOn` 晚于今天、字段超长 → `400`。
+        - 商户不存在、已关户或在本人数据范围外 → `404`。
+
+        资金登记，带 `Idempotency-Key`：同键同请求回放首次结果；同键不同请求 → `409`·`908003`；首次请求还在处理 → `409`·`908002`。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeeCollectionCreate'
+            example:
+              merchantId: mch_8812
+              amount:
+                amount: '11300'
+                currency: CAD
+              collectionMethod: PAD
+              receivedOn: '2026-11-05'
+              bankReference: PAD20261105017
+              statementId: ST2610000123
+      responses:
+        '201':
+          description: 已登记，返回收款登记号
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeCollectionCreated'
+              example:
+                collectionId: FC261107000003
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308652
+  /fee-collections/{collectionId}/return:
+    parameters:
+      - $ref: '#/components/parameters/CollectionIdPath'
+    post:
+      tags:
+        - fee-collections
+      operationId: returnFeeCollection
+      x-required-privilege: clr:fee-collection:manage
+      summary: 登记收款退回
+      description: |
+        登记一笔收款被退回（如预授权借记退票、转账被退），该商户的应收服务费款按原收款额增回。收款记录不改金额、不删除，显示退回日、原因与退回人；收款录错也走退回（原因写明录错），再按实际重录。每笔至多退回一次。已冻结商户的收款照常可登记退回，已关户商户的收款按不存在处理。
+
+        - `returnedOn` 不早于该收款的到账日、不晚于今天。
+
+        **什么时候拒绝**：
+
+        - `308653` 该收款已登记过退回，重读收款记录。
+        - `returnedOn` 早于到账日或晚于今天、`returnReason` 缺或超长 → `400`。
+        - 收款记录不存在、所属商户已关户或在本人数据范围外 → `404`。
+
+        资金登记，带 `Idempotency-Key`：同键同请求回放首次结果；同键不同请求 → `409`·`908003`；首次请求还在处理 → `409`·`908002`。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeeCollectionReturn'
+            example:
+              returnedOn: '2026-11-09'
+              returnReason: 银行退回：账户余额不足
+      responses:
+        '204':
+          description: 已登记退回
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308653
+  /fee-collection-exports:
+    post:
+      tags:
+        - fee-collections
+      operationId: createFeeCollectionExport
+      x-required-privilege: clr:statement-export:create
+      summary: 导出服务费收款记录（xlsx）
+      description: |
+        按所给筛选导出命中的收款记录，不只是当前页；筛选字段与 `listFeeCollections` 相同，只含本人数据范围内商户的记录。列同列表。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限，缩小筛选后重试。
+        - 日期范围缺一端、`to` 早于 `from`、跨度超过允许的最大查询窗口、字段格式不对 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeeCollectionListFilter'
+            example:
+              from: '2026-10-01'
+              to: '2026-10-31'
+              returned: false
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /promotion-programs:
+    get:
+      tags:
+        - promotions
+      operationId: listPromotionPrograms
+      x-required-privilege: clr:promotion:view
+      summary: 返利活动列表
+      description: |
+        全部返利活动，分页，按建立时刻从新到旧。平台级，不按数据可见范围过滤；参加商户数与已发放笔数、金额是全平台的计数。
+
+        状态按今天推得：已终止 = 提前终止过；否则今天早于开始日 = 未开始；设了计划结束日且今天晚于它 = 已结束；其余 = 进行中。
+      parameters:
+        - name: status
+          in: query
+          required: false
+          description: 按活动状态，可多选。
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/PromotionProgramStatus'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromotionProgram'
+              example:
+                total: 1
+                data:
+                  - programId: PP261107000001
+                    programCode: VOL-REBATE-2027
+                    threshold:
+                      amount: '10000000'
+                      currency: CAD
+                    rebateRate: '0.001'
+                    windowDays: 365
+                    effectiveFrom: '2026-12-01'
+                    effectiveTo: '2027-11-30'
+                    status: SCHEDULED
+                    description: 2027 年度交易量返利
+                    enrollmentCount: 12
+                    rebateCount: 0
+                    rebateAmount:
+                      amount: '0'
+                      currency: CAD
+                    createdAt: '2026-11-07T16:02:11Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    post:
+      tags:
+        - promotions
+      operationId: createPromotionProgram
+      x-required-privilege: clr:promotion:manage
+      summary: 建立返利活动
+      description: |
+        建一个返利活动：参加的商户自累计起算日起、窗口天数内累计的已清算净额达到门槛时，按达标时的累计额乘以返利比例一次性发放到营销账户，每个参加至多发放一次。条款建后不改，要改就终止本活动、另建新活动。
+
+        - `programCode` 全平台唯一。
+        - `threshold` 的币种即活动币种，只有结算币种相同的商户能参加。
+        - `rebateRate` 大于 0、小于 1，最多六位小数；门槛乘以比例不得少于该币种一个最小单位，保证达标时发放额至少一个最小单位。
+        - `effectiveFrom` 不早于今天；`effectiveTo` 可不填，填了不早于开始日。
+
+        **什么时候拒绝**（不建活动）：
+
+        - `308654` 活动码已被占用。
+        - 门槛币种不是平台支持的币种、比例或窗口天数超出范围、按门槛与比例算出的返利不足一个最小单位（如 CAD 不足 0.01）、开始日早于今天、计划结束日早于开始日、字段超长 → `400`。
+
+        活动码唯一，不挂幂等键：上一次其实已建成、响应丢了再提交，会得到 `308654`，重读列表即可看到。记入操作审计（含全部条款）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromotionProgramCreate'
+            example:
+              programCode: VOL-REBATE-2027
+              threshold:
+                amount: '10000000'
+                currency: CAD
+              rebateRate: '0.001'
+              windowDays: 365
+              effectiveFrom: '2026-12-01'
+              effectiveTo: '2027-11-30'
+              description: 2027 年度交易量返利
+      responses:
+        '201':
+          description: 已建立，返回活动标识
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromotionProgramCreated'
+              example:
+                programId: PP261107000001
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308654
+  /promotion-programs/{programId}/termination:
+    parameters:
+      - $ref: '#/components/parameters/ProgramIdPath'
+    post:
+      tags:
+        - promotions
+      operationId: terminatePromotionProgram
+      x-required-privilege: clr:promotion:manage
+      summary: 提前终止返利活动
+      description: |
+        提前终止活动，对全部参加商户生效：此后不再发放，也不能再开通商户；已入营销账户的返利不收回。
+
+        **什么时候拒绝**：
+
+        - `308656` 活动已终止，重读活动。
+        - 活动不存在 → `404`。
+
+        带状态前置，不挂幂等键。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: 已终止
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308656
+  /promotion-programs/{programId}/enrollments:
+    parameters:
+      - $ref: '#/components/parameters/ProgramIdPath'
+    post:
+      tags:
+        - promotions
+      operationId: createPromotionEnrollment
+      x-required-privilege: clr:promotion:manage
+      summary: 为商户开通返利活动
+      description: |
+        为一个商户开通该活动。只可开通未终止、已到开始日、未过计划结束日且币种与该商户结算币种相同的活动；同一活动同一商户只开通一次（终止后也不能再开通）。已冻结的商户照常可开通，已关户的商户按不存在处理。
+
+        - `windowFrom`（累计起算日）不传 = 开通当天；可填更早的日期，但不早于活动开始日、不晚于今天。
+
+        **什么时候拒绝**（不开通）：
+
+        - `308655` 活动当前不可开通，原因见 `context.reasonCode`：`TERMINATED` 已终止 · `NOT_STARTED` 未到开始日 · `ENDED` 已过计划结束日 · `CURRENCY_MISMATCH` 活动币种与商户结算币种不同。
+        - `308657` 该商户已参加过该活动（含已终止的参加）。
+        - `windowFrom` 晚于今天或早于活动开始日 → `400`。
+        - 活动不存在、商户不存在、已关户或在本人数据范围外 → `404`。
+
+        同一活动同一商户只能开通一次，不挂幂等键：上一次其实已开通、响应丢了再提交，会得到 `308657`。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PromotionEnrollmentCreate'
+            examples:
+              defaultWindow:
+                summary: 起算日取开通当天
+                value:
+                  merchantId: mch_8812
+              backdated:
+                summary: 起算日填更早的日期
+                value:
+                  merchantId: mch_8812
+                  windowFrom: '2026-12-01'
+      responses:
+        '201':
+          description: 已开通，返回起算日
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromotionEnrollmentCreated'
+              example:
+                programId: PP261107000001
+                merchantId: mch_8812
+                windowFrom: '2026-12-03'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308655
+        - 308657
+  /promotion-programs/{programId}/enrollments/{merchantId}/termination:
+    parameters:
+      - $ref: '#/components/parameters/ProgramIdPath'
+      - $ref: '#/components/parameters/MerchantIdPath'
+    post:
+      tags:
+        - promotions
+      operationId: terminatePromotionEnrollment
+      x-required-privilege: clr:promotion:manage
+      summary: 终止某商户的返利参加
+      description: |
+        终止该商户对该活动的参加，只对该商户生效：此后不再给它发放；已入营销账户的返利不收回。
+
+        **什么时候拒绝**：
+
+        - `308658` 该参加已终止，或所属活动已终止，重读参加。
+        - 活动不存在、该商户未参加该活动、商户在本人数据范围外 → `404`。
+
+        带状态前置，不挂幂等键。记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: 已终止
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308658
+  /promotion-enrollments:
+    get:
+      tags:
+        - promotions
+      operationId: listPromotionEnrollments
+      x-required-privilege: clr:promotion:view
+      summary: 返利参加列表（按活动或按商户）
+      description: |
+        某活动的参加商户，或某商户参加的活动，分页，按开通时刻从新到旧。`programId` 与 `merchantId` 至少带一个，都不带 → `400`。只含本人数据范围内商户的参加；按范围外的 `merchantId` 查结果为空。商户详情的「返利」区块固定 `merchantId`。
+      parameters:
+        - name: programId
+          in: query
+          required: false
+          description: 只看这个活动的参加。
+          schema:
+            $ref: '#/components/schemas/ProgramId'
+        - $ref: '#/components/parameters/MerchantFilter'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromotionEnrollment'
+              example:
+                total: 1
+                data:
+                  - programId: PP261107000001
+                    programCode: VOL-REBATE-2027
+                    merchant:
+                      merchantId: mch_8812
+                      merchantName: Maple Coffee
+                    windowFrom: '2026-12-03'
+                    enrolledBy:
+                      userId: usr_0031
+                      displayName: Alice Chen
+                    enrolledAt: '2026-12-03T14:10:00Z'
+                    rebated: false
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /promotion-account-operations:
+    get:
+      tags:
+        - promotions
+      operationId: listPromotionAccountOperations
+      x-required-privilege: clr:promotion:view
+      summary: 营销账户记录
+      description: |
+        本人数据范围内商户的营销账户操作（返利入账与取现），分页，按创建时刻从新到旧。日期范围按创建日期，两端必填；跨度超过允许的最大查询窗口 → `400`。只读：返利由系统按活动发放，取现由商户发起。营销账户余额见 `getMerchantFundOverview`。
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/MerchantFilter'
+        - name: programId
+          in: query
+          required: false
+          description: 只看这个活动的返利入账。
+          schema:
+            $ref: '#/components/schemas/ProgramId'
+        - name: operationType
+          in: query
+          required: false
+          description: 按类型。
+          schema:
+            $ref: '#/components/schemas/PromotionOperationType'
+        - name: operationStatus
+          in: query
+          required: false
+          description: 按结果。
+          schema:
+            $ref: '#/components/schemas/PromotionOperationStatus'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PromotionAccountOperation'
+              example:
+                total: 1
+                data:
+                  - operationId: PO270615000004
+                    merchant:
+                      merchantId: mch_8812
+                      merchantName: Maple Coffee
+                    operationType: REBATE
+                    operationStatus: POSTED
+                    amount:
+                      amount: '10012'
+                      currency: CAD
+                    programCode: VOL-REBATE-2027
+                    basisAmount:
+                      amount: '10012000'
+                      currency: CAD
+                    reason: VOL-REBATE-2027 返利（2026-12-03 至 2027-06-14 累计达标）
+                    occurredAt: '2027-06-15T07:00:12Z'
+                    createdAt: '2027-06-15T07:00:12Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
 components:
   securitySchemes:
     cookieAuth:
@@ -2520,6 +3538,43 @@ components:
       description: 商户标识。商户不存在或在本人数据范围外 → `404`。
       schema:
         $ref: '#/components/schemas/MerchantId'
+    FromMonth:
+      name: fromMonth
+      in: query
+      required: true
+      description: 起始交易月（含）。与 `toMonth` 同为必填，`toMonth` 早于 `fromMonth` → `400`。
+      schema:
+        $ref: '#/components/schemas/StatementMonth'
+    ToMonth:
+      name: toMonth
+      in: query
+      required: true
+      description: 截止交易月（含；与 `fromMonth` 成对必填）。
+      schema:
+        $ref: '#/components/schemas/StatementMonth'
+    StatementIdPath:
+      name: statementId
+      in: path
+      required: true
+      description: 对账单。对账单不存在、尚未出具完成或所属商户在本人数据范围外 → `404`。
+      schema:
+        $ref: '#/components/schemas/StatementId'
+    CollectionIdPath:
+      name: collectionId
+      in: path
+      required: true
+      description: 收款登记号。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+    ProgramIdPath:
+      name: programId
+      in: path
+      required: true
+      description: 返利活动。活动不存在 → `404`。
+      schema:
+        $ref: '#/components/schemas/ProgramId'
     PageNum:
       name: pageNum
       in: query
@@ -4296,6 +5351,822 @@ components:
           description: 起结门槛，不小于 0，币种是该商户的结算币种。
           allOf:
             - $ref: '#/components/schemas/NonNegativeMoney'
+    MerchantFundOverview:
+      type: object
+      additionalProperties: false
+      description: 一个商户的资金概览，均为该商户的结算币种；某项从未发生过账时为 0。
+      required:
+        - merchantId
+        - toSettle
+        - refundReserve
+        - merchantReceivable
+        - creditLimit
+        - creditAvailable
+        - deductibleAmount
+        - feeReceivable
+        - promotionBalance
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        toSettle:
+          description: 待结算：可结算余额减去在途占用，再减去应收商户款；可为负。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        refundReserve:
+          description: 退款准备金余额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        merchantReceivable:
+          description: 应收商户款（商户欠平台的款项）。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        creditLimit:
+          description: 授信额度；0 = 不授信。
+          allOf:
+            - $ref: '#/components/schemas/NonNegativeMoney'
+        creditAvailable:
+          description: 剩余授信：授信额度减去已用，不小于 0。
+          allOf:
+            - $ref: '#/components/schemas/NonNegativeMoney'
+        deductibleAmount:
+          description: 当前可扣额：可结算余额减去其上的在途占用（不小于 0），再加剩余授信；仅作展示，扣款能否足额以提交时为准。
+          allOf:
+            - $ref: '#/components/schemas/NonNegativeMoney'
+        feeReceivable:
+          description: 应收服务费款（月对账单应收、尚未收到的部分）；多收时为负。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        promotionBalance:
+          description: 营销账户余额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+    MerchantFundAdjustmentType:
+      type: string
+      enum:
+        - PENALTY
+        - COMPENSATION
+      description: 调账类型：`PENALTY` 扣款 · `COMPENSATION` 补偿。
+    MerchantFundAdjustmentCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - adjustmentType
+        - amount
+        - reason
+        - totpCode
+      properties:
+        adjustmentType:
+          $ref: '#/components/schemas/MerchantFundAdjustmentType'
+        amount:
+          description: 调账额，币种须是该商户的结算币种，不超过单笔调账上限。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 调账原因，商户可见。
+        totpCode:
+          description: 操作人本人验证器上的当前 6 位动态码。
+          allOf:
+            - $ref: '#/components/schemas/OtpCode'
+    MerchantFundAdjustment:
+      type: object
+      additionalProperties: false
+      required:
+        - adjustmentId
+        - adjustmentType
+        - amount
+      properties:
+        adjustmentId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 调账单号。
+        adjustmentType:
+          $ref: '#/components/schemas/MerchantFundAdjustmentType'
+        amount:
+          description: 调账额。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+    MerchantCreditLimitWrite:
+      type: object
+      additionalProperties: false
+      required:
+        - creditLimit
+        - totpCode
+      properties:
+        creditLimit:
+          description: 授信额度，不小于 0、不超过授信额度上限，币种须是该商户的结算币种；0 = 不授信。
+          allOf:
+            - $ref: '#/components/schemas/NonNegativeMoney'
+        totpCode:
+          description: 操作人本人验证器上的当前 6 位动态码。
+          allOf:
+            - $ref: '#/components/schemas/OtpCode'
+    StatementMonth:
+      type: string
+      pattern: ^\d{4}-(0[1-9]|1[0-2])$
+      description: 交易月 `YYYY-MM`。
+      examples:
+        - 2026-10
+    MerchantStatement:
+      type: object
+      x-parent: true
+      description: 月度对账单列表的一行；详情在它上面加明细。金额均为该对账单的结算币种。
+      required:
+        - statementId
+        - statementNo
+        - merchant
+        - statementMonth
+        - transactionCount
+        - grossAmount
+        - refundAmount
+        - feeAmount
+        - settlementAmount
+        - receivableAmount
+        - issuedAt
+      properties:
+        statementId:
+          $ref: '#/components/schemas/StatementId'
+        statementNo:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 对账单号。
+        merchant:
+          $ref: '#/components/schemas/MerchantBrief'
+        statementMonth:
+          $ref: '#/components/schemas/StatementMonth'
+        transactionCount:
+          type: integer
+          minimum: 0
+          description: 成交笔数。
+        grossAmount:
+          description: 销售净额（收款减退款，扣手续费前）。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        refundAmount:
+          description: 退款额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        feeAmount:
+          description: 手续费（收取减退回）。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        settlementAmount:
+          description: 应结净额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        receivableAmount:
+          description: 本单应收（另行收取的手续费、额外收费与税）；0 = 本单无应收。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        issuedAt:
+          description: 出具时刻。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+    StatementFeeLine:
+      type: object
+      additionalProperties: false
+      description: 手续费明细的一行：一个支付方式 × 受理入口 × 费率的月合计。
+      required:
+        - paymentMethod
+        - acceptanceMode
+        - entryPoint
+        - feeRate
+        - fixedFee
+        - transactionCount
+        - grossAmount
+        - refundAmount
+        - feeAmount
+      properties:
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        acceptanceMode:
+          type: string
+          enum:
+            - in_store
+            - online
+          description: 受理模式：`in_store` 线下 · `online` 线上。
+        entryPoint:
+          $ref: '#/components/schemas/EntryPoint'
+        feeRate:
+          type: string
+          pattern: ^0\.[0-9]{1,6}$
+          description: 比例费率，小数（`0.025000` = 2.5%）。
+        fixedFee:
+          description: 固定单笔费。
+          allOf:
+            - $ref: '#/components/schemas/NonNegativeMoney'
+        transactionCount:
+          type: integer
+          minimum: 0
+          description: 成交笔数。
+        grossAmount:
+          description: 销售净额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        refundAmount:
+          description: 退款额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        feeAmount:
+          description: 手续费。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+    StatementChargeLine:
+      type: object
+      additionalProperties: false
+      description: 额外收费的一行。
+      required:
+        - chargeType
+        - quantity
+        - amount
+      properties:
+        chargeType:
+          type: string
+          enum:
+            - APP_SUBSCRIPTION
+          description: 收费类型：`APP_SUBSCRIPTION` 终端 APP 订阅费。
+        quantity:
+          type: integer
+          minimum: 0
+          description: 计费数量（APP 订阅费为设备月数）。
+        amount:
+          description: 收费额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+    StatementTaxLine:
+      type: object
+      additionalProperties: false
+      description: 税的一行：一个被税组件 × 税种。计税省、税种与税率是出具时记下的值。
+      required:
+        - taxedComponent
+        - taxProvince
+        - taxType
+        - taxRate
+        - taxableAmount
+        - taxAmount
+      properties:
+        taxedComponent:
+          type: string
+          enum:
+            - APP_SUBSCRIPTION
+            - FEE
+          description: 被税组件：`APP_SUBSCRIPTION` APP 订阅费 · `FEE` 手续费。
+        taxProvince:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 计税省 / 州代码。
+        taxType:
+          $ref: '#/components/schemas/StatementTaxType'
+        taxRate:
+          type: string
+          pattern: ^0\.[0-9]{1,6}$
+          description: 税率，小数（`0.130000` = 13%）。
+        taxableAmount:
+          description: 税基。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        taxAmount:
+          description: 税额。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+    StatementTaxType:
+      type: string
+      enum:
+        - GST
+        - HST
+        - PST
+        - QST
+        - RST
+      description: 税种。
+    MerchantStatementDetail:
+      description: 月度对账单详情：列表行的字段加手续费明细、额外收费与税。
+      allOf:
+        - $ref: '#/components/schemas/MerchantStatement'
+        - type: object
+          required:
+            - feeLines
+            - chargeLines
+            - taxLines
+          properties:
+            feeLines:
+              type: array
+              description: 手续费明细；本单没有时为空数组。
+              items:
+                $ref: '#/components/schemas/StatementFeeLine'
+            chargeLines:
+              type: array
+              description: 额外收费；本单没有时为空数组。
+              items:
+                $ref: '#/components/schemas/StatementChargeLine'
+            taxLines:
+              type: array
+              description: 税；本单没有时为空数组。
+              items:
+                $ref: '#/components/schemas/StatementTaxLine'
+    StatementTaxSummaryItem:
+      type: object
+      additionalProperties: false
+      description: 税行汇总的一行：交易月 × 税种 × 计税省 × 结算币种。
+      required:
+        - statementMonth
+        - taxType
+        - taxProvince
+        - taxableAmount
+        - taxAmount
+        - statementCount
+      properties:
+        statementMonth:
+          $ref: '#/components/schemas/StatementMonth'
+        taxType:
+          $ref: '#/components/schemas/StatementTaxType'
+        taxProvince:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 计税省 / 州代码（出具时记下的值）。
+        taxableAmount:
+          description: 税基合计；币种即本行的结算币种。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        taxAmount:
+          description: 税额合计。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        statementCount:
+          type: integer
+          minimum: 1
+          description: 涉及的对账单数。
+    StatementListFilter:
+      type: object
+      additionalProperties: false
+      description: 月度对账单导出的筛选，与 `listMerchantStatements` 的同名查询参数同义；`fromMonth` / `toMonth` 必填。
+      required:
+        - fromMonth
+        - toMonth
+      properties:
+        fromMonth:
+          $ref: '#/components/schemas/StatementMonth'
+        toMonth:
+          $ref: '#/components/schemas/StatementMonth'
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+    StatementTaxSummaryFilter:
+      type: object
+      additionalProperties: false
+      description: 税行汇总导出的交易月区间，与 `getStatementTaxSummary` 的同名查询参数同义。
+      required:
+        - fromMonth
+        - toMonth
+      properties:
+        fromMonth:
+          $ref: '#/components/schemas/StatementMonth'
+        toMonth:
+          $ref: '#/components/schemas/StatementMonth'
+    FeeCollectionMethod:
+      type: string
+      enum:
+        - PAD
+        - BANK_TRANSFER
+        - OTHER
+      description: 收款方式：`PAD` 预授权借记 · `BANK_TRANSFER` 商户转账 · `OTHER` 其他。
+    FeeCollectionItem:
+      type: object
+      additionalProperties: false
+      description: 一条服务费收款记录。金额为该商户的结算币种。
+      required:
+        - collectionId
+        - merchant
+        - amount
+        - collectionMethod
+        - receivedOn
+        - createdAt
+      properties:
+        collectionId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 收款登记号。
+        merchant:
+          $ref: '#/components/schemas/MerchantBrief'
+        amount:
+          description: 收款金额；退回后也不变。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        collectionMethod:
+          $ref: '#/components/schemas/FeeCollectionMethod'
+        receivedOn:
+          description: 到账日期。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        bankReference:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 银行到账参考号；没填时不返回本键。
+        statementId:
+          description: 对应的对账单；没填时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/StatementId'
+        statementNo:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 对应对账单的单号；没填对账单时不返回本键。
+        note:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 备注；没填时不返回本键。
+        createdBy:
+          description: 登记人；没有记录时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+        createdAt:
+          description: 登记时刻。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+        returnedOn:
+          description: 退回日期；未退回时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        returnReason:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: 退回原因；未退回时不返回本键。
+        returnedBy:
+          description: 登记退回的人；未退回时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+    FeeCollectionCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - merchantId
+        - amount
+        - collectionMethod
+        - receivedOn
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        amount:
+          description: 收款金额，币种须是该商户的结算币种。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        collectionMethod:
+          $ref: '#/components/schemas/FeeCollectionMethod'
+        receivedOn:
+          description: 到账日期，不晚于今天。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        bankReference:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 银行到账参考号，可不填。
+        statementId:
+          description: 对应的对账单，可不填；填了须是该商户已出具的对账单。
+          allOf:
+            - $ref: '#/components/schemas/StatementId'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 备注，可不填。
+    FeeCollectionCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - collectionId
+      properties:
+        collectionId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 收款登记号。
+    FeeCollectionReturn:
+      type: object
+      additionalProperties: false
+      required:
+        - returnedOn
+        - returnReason
+      properties:
+        returnedOn:
+          description: 退回日期，不早于该收款的到账日、不晚于今天。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        returnReason:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: 退回原因。
+    FeeCollectionListFilter:
+      type: object
+      additionalProperties: false
+      description: 服务费收款导出的筛选，与 `listFeeCollections` 的同名查询参数同义；`from` / `to`（到账日）必填，其余不传的项不筛。
+      required:
+        - from
+        - to
+      properties:
+        from:
+          $ref: '#/components/schemas/LocalDate'
+        to:
+          $ref: '#/components/schemas/LocalDate'
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        collectionMethod:
+          $ref: '#/components/schemas/FeeCollectionMethod'
+        returned:
+          type: boolean
+          description: '`true` 只导已退回 / `false` 只导未退回。'
+    ProgramId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 返利活动标识。
+    RebateRate:
+      type: string
+      pattern: ^0\.[0-9]{1,6}$
+      description: 返利比例，小数、最多六位小数（`0.001` = 0.1%）；须大于 0。
+      examples:
+        - '0.001'
+    PromotionProgramStatus:
+      type: string
+      enum:
+        - SCHEDULED
+        - ACTIVE
+        - ENDED
+        - TERMINATED
+      description: 活动状态：`SCHEDULED` 未开始 · `ACTIVE` 进行中 · `ENDED` 已结束（过了计划结束日）· `TERMINATED` 已终止（提前终止）。
+    PromotionProgram:
+      type: object
+      additionalProperties: false
+      description: 一个返利活动的条款、状态与发放计数。
+      required:
+        - programId
+        - programCode
+        - threshold
+        - rebateRate
+        - windowDays
+        - effectiveFrom
+        - status
+        - enrollmentCount
+        - rebateCount
+        - rebateAmount
+        - createdAt
+      properties:
+        programId:
+          $ref: '#/components/schemas/ProgramId'
+        programCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 活动码。
+        threshold:
+          description: 达标门槛：窗口内累计已清算净额；币种即活动币种。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        rebateRate:
+          $ref: '#/components/schemas/RebateRate'
+        windowDays:
+          type: integer
+          minimum: 1
+          maximum: 3660
+          description: 累计窗口天数，自参加的累计起算日起算。
+        effectiveFrom:
+          description: 活动开始日。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        effectiveTo:
+          description: 计划结束日（含）；没设时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        status:
+          $ref: '#/components/schemas/PromotionProgramStatus'
+        terminatedBy:
+          description: 终止人；未终止时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+        terminatedAt:
+          description: 终止时刻；未终止时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+        description:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 活动说明；没填时不返回本键。
+        enrollmentCount:
+          type: integer
+          minimum: 0
+          description: 参加商户数（含已终止的参加）。
+        rebateCount:
+          type: integer
+          minimum: 0
+          description: 已发放笔数。
+        rebateAmount:
+          description: 已发放金额合计，活动币种。
+          allOf:
+            - $ref: '#/components/schemas/NonNegativeMoney'
+        createdAt:
+          description: 建立时刻。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+    PromotionProgramCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - programCode
+        - threshold
+        - rebateRate
+        - windowDays
+        - effectiveFrom
+      properties:
+        programCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 活动码，全平台唯一。
+        threshold:
+          description: 达标门槛；其币种即活动币种，只有结算币种相同的商户能参加。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        rebateRate:
+          $ref: '#/components/schemas/RebateRate'
+        windowDays:
+          type: integer
+          minimum: 1
+          maximum: 3660
+          description: 累计窗口天数。
+        effectiveFrom:
+          description: 活动开始日，不早于今天。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        effectiveTo:
+          description: 计划结束日（含），可不填；填了不早于开始日。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        description:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 活动说明，可不填。
+    PromotionProgramCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - programId
+      properties:
+        programId:
+          $ref: '#/components/schemas/ProgramId'
+    PromotionEnrollment:
+      type: object
+      additionalProperties: false
+      description: 一个商户对一个返利活动的参加。
+      required:
+        - programId
+        - programCode
+        - merchant
+        - windowFrom
+        - enrolledAt
+        - rebated
+      properties:
+        programId:
+          $ref: '#/components/schemas/ProgramId'
+        programCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 活动码。
+        merchant:
+          $ref: '#/components/schemas/MerchantBrief'
+        windowFrom:
+          description: 累计起算日。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+        enrolledBy:
+          description: 开通人；没有记录时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+        enrolledAt:
+          description: 开通时刻。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+        terminatedBy:
+          description: 终止该商户参加的人；未终止时不返回本键。整个活动被终止不反映在这里，看活动状态。
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+        terminatedAt:
+          description: 终止该商户参加的时刻；未终止时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+        rebated:
+          type: boolean
+          description: 是否已发放。
+        rebateAmount:
+          description: 发放额；未发放时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+    PromotionEnrollmentCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - merchantId
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        windowFrom:
+          description: 累计起算日；不传 = 开通当天。不早于活动开始日、不晚于今天。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+    PromotionEnrollmentCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - programId
+        - merchantId
+        - windowFrom
+      properties:
+        programId:
+          $ref: '#/components/schemas/ProgramId'
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        windowFrom:
+          description: 累计起算日（不传时即开通当天）。
+          allOf:
+            - $ref: '#/components/schemas/LocalDate'
+    PromotionOperationType:
+      type: string
+      enum:
+        - REBATE
+        - WITHDRAWAL
+      description: 营销账户操作类型：`REBATE` 返利入账 · `WITHDRAWAL` 取现。
+    PromotionOperationStatus:
+      type: string
+      enum:
+        - POSTED
+        - REJECTED
+      description: 结果：`POSTED` 成功 · `REJECTED` 被拒。
+    PromotionAccountOperation:
+      type: object
+      additionalProperties: false
+      description: 营销账户的一次返利入账或取现。金额为该商户的结算币种，币种列取 `amount.currency`。
+      required:
+        - operationId
+        - merchant
+        - operationType
+        - operationStatus
+        - amount
+        - reason
+        - createdAt
+      properties:
+        operationId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 操作标识。
+        merchant:
+          $ref: '#/components/schemas/MerchantBrief'
+        operationType:
+          $ref: '#/components/schemas/PromotionOperationType'
+        operationStatus:
+          $ref: '#/components/schemas/PromotionOperationStatus'
+        amount:
+          description: 入账或取现额。
+          allOf:
+            - $ref: '#/components/schemas/PositiveMoney'
+        programCode:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 返利所属活动码；只对返利入账返回。
+        basisAmount:
+          description: 返利基数（达标时的累计已清算净额）；只对返利入账返回。
+          allOf:
+            - $ref: '#/components/schemas/Money'
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 说明，商户可见。
+        rejectionReason:
+          type: string
+          enum:
+            - INSUFFICIENT_BALANCE
+          description: 被拒原因：`INSUFFICIENT_BALANCE` 营销账户余额不足；只对被拒的取现返回（返利入账恒为成功）。
+        occurredAt:
+          description: 发生时刻；被拒时不返回本键。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+        createdAt:
+          description: 创建时刻。
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
     LocalDate:
       type: string
       format: date
@@ -4434,6 +6305,9 @@ components:
             floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
             minimumMinutes:
               type: integer
               minimum: 1
@@ -4605,6 +6479,41 @@ components:
             amount:
               type: string
               pattern: ^[0-9]+$
+    OtpCode:
+      type: string
+      pattern: ^[0-9]{6}$
+      description: |
+        **一次性验证码**:恒为 **6 位纯数字**,长度固定、不随部署变化 —— 客户端可据此做输入框长度限制与"填满即可提交"的交互。
+
+        **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
+
+        本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
+    StatementId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 月对账单标识。
+    PaymentMethod:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
+      examples:
+        - wechat_instore
+    EntryPoint:
+      type: string
+      description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `system` 系统发起。
+      enum:
+        - pos
+        - merchant_app
+        - merchant_portal
+        - open_api
+        - checkout
+        - channel_inbound
+        - plugin_shopify
+        - plugin_allvalue
+        - plugin_allvalue_xhs
+        - system
   responses:
     AdminBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见管理后台约定与 API 基础约定「错误响应体」。

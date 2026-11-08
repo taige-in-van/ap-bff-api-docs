@@ -1,16 +1,16 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.3.9
+  version: 2.3.10
   contact:
     name: 商户后台 BFF
   description: |
-    商户后台 React SPA 消费的认证契约：登录与会话（密码、MFA、微信扫码、代登落地、当前会话、切换当前商户、登出）、忘记密码、注册与邮件链接落地页（邮箱激活、设密链接、确认新登录邮箱、代客建档确认页）。
+    商户后台 React SPA 消费的认证契约：登录与会话（密码、MFA、微信扫码、代登落地、当前会话、切换当前商户、登出）、忘记密码、注册与邮件链接落地页（邮箱激活、设密链接、确认新登录邮箱、代客建档确认页、退款 PIN 设置链接）。
     浏览器持 httpOnly 会话 cookie（登录后 set-cookie），字段类型与校验规则以本 spec 各字段为准。
 
     **幂等 / CSRF 口径**：
 
-    - 认证类（登录、登出、MFA、扫码）与多步挑战类（找回密码、激活链接、确认新邮箱）按流程语义不挂 `Idempotency-Key`；注册按注册邮箱去重、不挂。
+    - 认证类（登录、登出、MFA、扫码）与多步挑战类（找回密码、激活链接、确认新邮箱、退款 PIN 设置链接）按流程语义不挂 `Idempotency-Key`；注册按注册邮箱去重、不挂。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`；公开端点（`security: []`）不要求会话、不带。
     - 代客建档确认页三个接口不要求会话，凭请求头 `X-Confirmation-Token` 里的确认令牌（`onboardingConfirmationToken`），不带 cookie 凭据、不要求 CSRF；签署与提异议以确认令牌去重，不挂 `Idempotency-Key`。
 
@@ -33,6 +33,9 @@ tags:
   - name: onboarding-confirmation
     x-displayName: 代客建档确认页
     description: 工作人员代为建档后，Owner 凭确认邮件里的链接免登录核对资料与合同，签署提交或提异议。不建会话。
+  - name: refund-pin-reset-links
+    x-displayName: 退款 PIN 设置链接
+    description: 工作人员向商户 Owner 发出退款 PIN 设置链接后，Owner 凭链接免登录设新的退款 PIN。不建会话。
 paths:
   /auth/sessions:
     post:
@@ -687,7 +690,7 @@ paths:
         错误码：
 
         - `206006` 链接无效、已过期或已被 Owner 的新改动顶掉。
-        - `968001` 确认前新邮箱已被别人使用，这次改动作废，请 Owner 换一个邮箱重改。
+        - `968001` 确认前新邮箱已被其他账号占用：本次改动作废，登录邮箱不变；要改需 Owner 重新发起。
       security: []
       requestBody:
         required: true
@@ -711,6 +714,53 @@ paths:
       x-error-codes:
         - 206006
         - 968001
+  /auth/refund-pin-reset-links/completion:
+    post:
+      tags:
+        - refund-pin-reset-links
+      operationId: resetRefundPinByLink
+      summary: 凭邮件里的退款 PIN 设置链接设新 PIN（落地页提交；不建会话）
+      description: |
+        工作人员向商户 Owner 的登录邮箱发出设置链接后，Owner 在落地页输入新的 6 位退款 PIN 提交，校验链接里的一次性令牌后写入新 PIN。成功即旧 PIN 失效、退款 PIN 的失败锁定解除、未完成的忘记 PIN 作废，并给 Owner 登录邮箱发 PIN 已修改通知。不建会话。
+
+        链接形如 `/set-refund-pin#token=…&merchant=…`：页面从地址的 fragment 取令牌和商户经营名，经营名只供页面展示，提交以令牌为准。打开页面不消费令牌；提交通过校验后先一次性消费令牌、再写入新 PIN，同一链接只能生效一次。校验没通过（如新 PIN 格式不符）的不消费，可用同一链接重试；令牌已消费而新 PIN 没写上（系统出错）时链接同样作废，需联系客服重新发送。链接默认 30 分钟有效，工作人员再发一次即作废之前的链接；设好新 PIN 之前旧 PIN 照常可用。
+
+        错误码：
+
+        - `206009` 链接无效、已过期、已被重发作废，或该商户已关户；提示链接已失效、联系客服。
+        - `206010` 链接已用过，PIN 已设好；本次提交的 PIN 未生效，提示直接在退款处使用已设好的 PIN。
+        - 新 PIN 不是 6 位数字 → 通用 `400`。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - token
+                - newPin
+              properties:
+                token:
+                  type: string
+                  minLength: 1
+                  description: 设置链接里的一次性令牌
+                newPin:
+                  allOf:
+                    - $ref: '#/components/schemas/RefundPin'
+                  description: 新 PIN；两次输入一致由前端校验
+            example:
+              token: rptok_3f8a2c9d1e
+              newPin: '654321'
+      responses:
+        '204':
+          description: 新 PIN 已生效（旧 PIN 失效），不建会话
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 206009
+        - 206010
   /auth/onboarding-confirmation:
     get:
       tags:
@@ -1272,6 +1322,9 @@ components:
             floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
             minimumMinutes:
               type: integer
               minimum: 1
@@ -1429,6 +1482,11 @@ components:
         email:
           type: string
           format: email
+    RefundPin:
+      type: string
+      writeOnly: true
+      pattern: ^[0-9]{6}$
+      description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
     ContactStep:
       type: object
       description: Step 1 Contact。姓名、职务、电话是 Owner 的账号资料：本步回显当前值、可修改，保存即写回账号资料；哪些字段只读看申请的 `readonlyFields`。referredBy = Moneris（大小写不敏感）时 monerisMid + monerisManagerName 必填。
@@ -1627,11 +1685,6 @@ components:
       minLength: 1
       maxLength: 64
       description: 店铺编号，商户自设。
-    RefundPin:
-      type: string
-      writeOnly: true
-      pattern: ^[0-9]{6}$
-      description: 商户级 Refund PIN——**6 位纯数字**。 **write-only**：仅作入参采集，**绝不出现在任何响应**（含错误响应）；读面走掩码 / 已填标志。
     SettlementStepRead:
       type: object
       description: '`SettlementStep` 的读侧形态：未指定门店时不返回 `storeId` 键。'

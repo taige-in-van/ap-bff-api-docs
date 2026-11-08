@@ -5,13 +5,13 @@ info:
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的商户运营契约：商户列表、导出与详情，冻结 / 解冻、关户，代登商户后台，商户成员（新增、停用启用、改角色、删除、解绑微信、解锁、重置 MFA、发重置密码链接）与代改 Owner 登录邮箱，运营资料、资料文件、结算账户与结算周期直改，日切时刻与 KA 等级，商户级设置代配。
+    管理后台 React SPA 消费的商户运营契约：商户列表、导出与详情，冻结 / 解冻、关户，代登商户后台，商户成员（新增、停用启用、改角色、删除、解绑微信、解锁、重置 MFA、发重置密码链接）与代改 Owner 登录邮箱，运营资料、资料文件、结算账户与结算周期直改，日切时刻与 KA 等级，商户级设置代配，发退款 PIN 设置链接。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     **幂等 / CSRF 口径**：
 
     - 关户、新增成员、新增资料挂 `Idempotency-Key`：同键同请求体重发返回首次结果；同键改请求体 → `409`·`908003`；首次请求仍在处理 → `409`·`908002`，稍后同键同请求体重发。
-    - 置值写（改状态、改角色、改资料、改结算、改日切与 KA 等级、改登录邮箱）与删除不挂；带版本的商户级设置以版本防并发覆盖、不挂；代登、发重置密码链接、取用文件按流程语义不挂；上传每次产生新文件，不挂。
+    - 置值写（改状态、改角色、改资料、改结算、改日切与 KA 等级、改登录邮箱）与删除不挂；带版本的商户级设置以版本防并发覆盖、不挂；代登、发重置密码链接、发退款 PIN 设置链接、取用文件按流程语义不挂；上传每次产生新文件，不挂。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
 
     **数据可见范围**：同管理后台约定「数据可见范围」：列表与导出只含范围内的商户（含本人生效中的临时授权），按标识访问范围外的商户及其成员、文件、设置一律 `404`。成员接口里的 `userId` 不是该商户的在册成员 → `404`。
@@ -25,7 +25,7 @@ security:
 tags:
   - name: merchants
     x-displayName: 商户
-    description: 商户列表、导出与详情，冻结 / 解冻、关户、代登，运营资料、结算、日切时刻与 KA 等级。
+    description: 商户列表、导出与详情，冻结 / 解冻、关户、代登，运营资料、结算、日切时刻与 KA 等级，发退款 PIN 设置链接。
   - name: members
     x-displayName: 商户成员
     description: 商户成员列表与新增、账号处理、代改 Owner 登录邮箱。
@@ -394,11 +394,13 @@ paths:
 
         - `account`：整组提交新的结算账户，账号重新输入、不能只改其中一个字段；须先上传 Void Cheque（`uploadMerchantFile`，用途 `void_cheque`）并带上 `voidChequeFileId`。
         - `settlementCycle`：取 `/config/settlement` 的候选档位 code。
+        - `totpCode`：操作人本人验证器上的当前 6 位动态码，每次提交必带；码对才执行改动。
 
-        至少给一项。置值写，不挂幂等键。
+        `account` 与 `settlementCycle` 至少给一项。置值写，不挂幂等键。
 
         **什么时候拒绝**：
 
+        - `306004` 动态码错：结算信息不变，原处重输；会话仍有效，不影响登录。
         - `308314` 商户未激活：待激活商户的结算信息在审核中心的代客建档里改。
         - `308307` 商户有审核中的结算变更申请（先在审核中心处理它），或刚通过的申请新周期尚未同步（在审核中心重发该通过补做同步）。
         - `308206` 作废支票文件不可用（不是本商户上传的，或用途不符），重新上传后再引用。
@@ -413,12 +415,14 @@ paths:
               $ref: '#/components/schemas/MerchantSettlementUpdate'
             example:
               settlementCycle: t1
+              totpCode: '123456'
       responses:
         '204':
           description: 已生效
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
+        - 306004
         - 308206
         - 308307
         - 308314
@@ -454,6 +458,38 @@ paths:
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
+  /merchants/{merchantId}/refund-pin-resets:
+    parameters:
+      - $ref: '#/components/parameters/MerchantIdPath'
+    post:
+      tags:
+        - merchants
+      operationId: createMerchantRefundPinReset
+      x-required-privilege: mops:refund-pin:create
+      summary: 给商户 Owner 发退款 PIN 设置链接
+      description: |
+        系统向该商户 Owner 的登录邮箱发一个退款 PIN 设置链接，商户点开后自行设 6 位数字 PIN。运营不经手 PIN、看不到 PIN，也不要求动态码。只对已激活的商户（含已冻结）。
+
+        - 链接一次性，默认 30 分钟有效（由平台设定）；再发即作废之前发出的链接。
+        - 旧 PIN 在商户设好新 PIN 之前照常可用。
+        - 发链接本身不记操作审计；商户凭链接设好 PIN 时记一条，操作人为发链接的后台用户。
+
+        每次发都产生一条新链接，不挂幂等键。无请求体。
+
+        **什么时候拒绝**（不发信）：
+
+        - `308314` 商户未激活：待激活商户的退款 PIN 在入驻向导里设。
+        - `308315` 商户 Owner 账号不可用（已停用、已删除或没有登录邮箱）：先处理 Owner 账号。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '202':
+          description: 已发出，设置链接邮件随后送达 Owner 登录邮箱
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308314
+        - 308315
   /merchants/{merchantId}/members:
     parameters:
       - $ref: '#/components/parameters/MerchantIdPath'
@@ -1736,8 +1772,10 @@ components:
     MerchantSettlementUpdate:
       type: object
       additionalProperties: false
-      minProperties: 1
-      description: 直改结算，只放要改的，至少一项。
+      required:
+        - totpCode
+      minProperties: 2
+      description: 直改结算：`account` 与 `settlementCycle` 只放要改的、至少一项，另带 `totpCode`。
       properties:
         account:
           $ref: '#/components/schemas/MerchantSettlementAccountInput'
@@ -1745,6 +1783,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
           description: 新的结算周期档位 code，取自 `/config/settlement` 的 `settlementCycleOptions`。
+        totpCode:
+          allOf:
+            - $ref: '#/components/schemas/OtpCode'
+          description: 操作人本人验证器上的当前 6 位动态码。
     MerchantOperatingAttributesUpdate:
       type: object
       additionalProperties: false
@@ -2088,6 +2130,9 @@ components:
             floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
             minimumMinutes:
               type: integer
               minimum: 1
@@ -2280,6 +2325,15 @@ components:
         - accountNumber
       allOf:
         - $ref: '#/components/schemas/BankAccountIdentification'
+    OtpCode:
+      type: string
+      pattern: ^[0-9]{6}$
+      description: |
+        **一次性验证码**:恒为 **6 位纯数字**,长度固定、不随部署变化 —— 客户端可据此做输入框长度限制与"填满即可提交"的交互。
+
+        **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
+
+        本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
     LoginId:
       type: string
       minLength: 1

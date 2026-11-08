@@ -5,12 +5,12 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"8c48a2b3b0d04d9b","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"c2b1a19fa451410b","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"e85f368140ea912d","acquiring/listMerchantDeviceLogs":"304a773b53dc0109","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"dec5b45ad3493525","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"9e9b61944cfb8d58","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"e23f3bf0f63bf53b","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"8b426d433067f0a9","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/approveApplicationOverridingBlocklist":"d1750d32d9cf4d5f","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"ec49b8b7e563cbff","applications/decideApplication":"53f4008c64bb3c66","applications/getApplication":"7b020eac84558b05","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"22131a8db674cbc0","applications/uploadAssistedApplicationFile":"601761f535191beb","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","clearing/acknowledgePayoutFile":"b73078d374870cfd","clearing/cancelPayoutFile":"5e341e421eb7820c","clearing/confirmChannelSettlementReceipt":"f2cecb274b8a8438","clearing/createChannelRemittance":"5856c7d2d1e764a8","clearing/createReconLossRecovery":"669e56a6ae442e69","clearing/createReconciliationRerun":"e02f271cc2f28bcc","clearing/createRoundingWriteOffs":"e12e3449cb6085b2","clearing/createSettlementExport":"fe2ea4d666c92383","clearing/decideRefundConfirmation":"6cc82c4b15408031","clearing/getChannelBillOriginal":"d88524c6a94528b2","clearing/getChannelSettlementSummary":"cc8b20da64cff158","clearing/getClearingOverview":"08cdb4e88bcf1f90","clearing/getMerchantReconFileOriginal":"08adcea892db2b71","clearing/getMerchantSettlementControls":"30cae0d786f80759","clearing/getPayoutFile":"5fba0836eea69f42","clearing/getPayoutFileOriginal":"cf7ea914a8f1da30","clearing/getReconDiscrepancy":"e3f7139271ccdd4b","clearing/getSettlementBatch":"cd8702eac4c78710","clearing/getSettlementCalendarMonth":"4d945ae77045f907","clearing/getSettlementDaySummary":"74cdde9e30ad0e23","clearing/listChannelBills":"0b090bb0a9221f18","clearing/listChannelRemittances":"d02b58418f1a0fcd","clearing/listChannelSettlements":"3721e6c613eb9814","clearing/listClearingChannelOptions":"d7a43e4718ec6ead","clearing/listMerchantReconFiles":"964bf3629a2fce1b","clearing/listPayoutFiles":"dba262e4394814b7","clearing/listReconDiscrepancies":"5e80cf8d0a6777ba","clearing/listRefundConfirmations":"0c80733bb3ec9e08","clearing/listSettlementBatchLines":"4f0af2b26b24e6ea","clearing/listSettlementBatches":"7ad1a25bec51754b","clearing/listSettlementReports":"bc26ccf0bf250361","clearing/redeliverMerchantReconFile":"b47895ce42dc3753","clearing/redeliverSettlementReport":"da43d9c4b46a46e1","clearing/replaceSettlementCalendarMonth":"242a3368f81f0a10","clearing/resolveChannelRemittanceDiscrepancy":"0cacf3c025cd3076","clearing/resolveChannelSettlementDiscrepancy":"2455b3b0cb008790","clearing/resolveReconDiscrepancy":"24a5430e2ce6c172","clearing/retrySettlementBatchPayout":"24a7c4d27802faf0","clearing/returnPayoutLine":"5b958a641d2e2dc4","clearing/reverseChannelRemittance":"5abfec523719ecd6","clearing/revokeChannelSettlementReceipt":"767039d600189691","clearing/submitDiscrepancyDisposition":"4253cf56140f9057","clearing/submitPayoutFile":"c83c9b7ba4cd0cb7","clearing/updateMerchantSettlementControls":"cf3985a23c60a031","clearing/writeOffReconDiscrepancy":"331e9b69b17177c3","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"23e7fc12bfc147a6","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"f29b250553b107a9","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"1a59e520f0f14efa","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"a710101da2c18398","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"1f3ad9182b6f0153","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"ef150131fb898c62","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"65ce03cfbc336251","settings/listAnnouncements":"c002a9041c562754","settings/listClearingPlatformParameters":"cae0bf61e03f1089","settings/listPlatformParameters":"86915df0b44973c5","settings/listRefundPlatformParameters":"ce48c8eea2e35aff","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"91f7f1c85fe72678","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updateClearingPlatformParameter":"7fe0222e9fd02050","settings/updatePlatformParameter":"a728c57f05737504","settings/updateRefundPlatformParameter":"aaa8cc83d67ae11d","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"1e861e3410235b54","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"bedf3db150ef68f3","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"ba8194eca0389618","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"6606052a36abf801","staff/updateStaffPassword":"51a57c95fcb8c174","staff/updateStaffStatus":"7c2834e413a97563","transactions/createPaymentExport":"69e338434281ac82","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"bf74bacb9ab23700","transactions/getPaymentSummary":"88d7c670066219d0","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"75a50023d8743df4","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"8c48a2b3b0d04d9b","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"c2b1a19fa451410b","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"e85f368140ea912d","acquiring/listMerchantDeviceLogs":"304a773b53dc0109","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"dec5b45ad3493525","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"9e9b61944cfb8d58","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"e23f3bf0f63bf53b","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"8b426d433067f0a9","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/approveApplicationOverridingBlocklist":"d1750d32d9cf4d5f","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"ec49b8b7e563cbff","applications/decideApplication":"53f4008c64bb3c66","applications/getApplication":"7b020eac84558b05","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"22131a8db674cbc0","applications/uploadAssistedApplicationFile":"601761f535191beb","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","clearing/acknowledgePayoutFile":"b73078d374870cfd","clearing/cancelPayoutFile":"5e341e421eb7820c","clearing/confirmChannelSettlementReceipt":"f2cecb274b8a8438","clearing/createChannelRemittance":"5856c7d2d1e764a8","clearing/createFeeCollection":"86963e2e39140aa5","clearing/createFeeCollectionExport":"f061c16bcce620ab","clearing/createMerchantFundAdjustment":"179dba2d044ae294","clearing/createPromotionEnrollment":"3fbb2293024c9a93","clearing/createPromotionProgram":"b89149bfda609931","clearing/createReconLossRecovery":"669e56a6ae442e69","clearing/createReconciliationRerun":"e02f271cc2f28bcc","clearing/createRoundingWriteOffs":"e12e3449cb6085b2","clearing/createSettlementExport":"fe2ea4d666c92383","clearing/createStatementExport":"b72331fcf0b9eaee","clearing/createStatementTaxSummaryExport":"895ccbbcba3992e3","clearing/decideRefundConfirmation":"6cc82c4b15408031","clearing/getChannelBillOriginal":"d88524c6a94528b2","clearing/getChannelSettlementSummary":"cc8b20da64cff158","clearing/getClearingOverview":"08cdb4e88bcf1f90","clearing/getMerchantFundOverview":"b3354398278f65c2","clearing/getMerchantReconFileOriginal":"08adcea892db2b71","clearing/getMerchantSettlementControls":"30cae0d786f80759","clearing/getMerchantStatement":"dd2d8543c38e63b4","clearing/getMerchantStatementFile":"c4914e5e7879c5d3","clearing/getPayoutFile":"5fba0836eea69f42","clearing/getPayoutFileOriginal":"cf7ea914a8f1da30","clearing/getReconDiscrepancy":"e3f7139271ccdd4b","clearing/getSettlementBatch":"cd8702eac4c78710","clearing/getSettlementCalendarMonth":"4d945ae77045f907","clearing/getSettlementDaySummary":"74cdde9e30ad0e23","clearing/getStatementTaxSummary":"09444e36ba257811","clearing/listChannelBills":"0b090bb0a9221f18","clearing/listChannelRemittances":"d02b58418f1a0fcd","clearing/listChannelSettlements":"3721e6c613eb9814","clearing/listClearingChannelOptions":"d7a43e4718ec6ead","clearing/listFeeCollections":"38b3f979a6eb7d1c","clearing/listMerchantReconFiles":"964bf3629a2fce1b","clearing/listMerchantStatements":"5e66f82756346f08","clearing/listPayoutFiles":"dba262e4394814b7","clearing/listPromotionAccountOperations":"172fba11afbbc83c","clearing/listPromotionEnrollments":"95e0ec2135708b36","clearing/listPromotionPrograms":"8e28d60d5ad7e371","clearing/listReconDiscrepancies":"5e80cf8d0a6777ba","clearing/listRefundConfirmations":"0c80733bb3ec9e08","clearing/listSettlementBatchLines":"4f0af2b26b24e6ea","clearing/listSettlementBatches":"7ad1a25bec51754b","clearing/listSettlementReports":"bc26ccf0bf250361","clearing/redeliverMerchantReconFile":"b47895ce42dc3753","clearing/redeliverSettlementReport":"da43d9c4b46a46e1","clearing/replaceSettlementCalendarMonth":"242a3368f81f0a10","clearing/resolveChannelRemittanceDiscrepancy":"0cacf3c025cd3076","clearing/resolveChannelSettlementDiscrepancy":"2455b3b0cb008790","clearing/resolveReconDiscrepancy":"24a5430e2ce6c172","clearing/retrySettlementBatchPayout":"24a7c4d27802faf0","clearing/returnFeeCollection":"4c55a99ad5bbbfff","clearing/returnPayoutLine":"5b958a641d2e2dc4","clearing/reverseChannelRemittance":"5abfec523719ecd6","clearing/revokeChannelSettlementReceipt":"767039d600189691","clearing/submitDiscrepancyDisposition":"4253cf56140f9057","clearing/submitPayoutFile":"c83c9b7ba4cd0cb7","clearing/terminatePromotionEnrollment":"6461388860a06c8f","clearing/terminatePromotionProgram":"93a14e077b23f7ce","clearing/updateMerchantCreditLimit":"306311f81d2fff2a","clearing/updateMerchantSettlementControls":"cf3985a23c60a031","clearing/writeOffReconDiscrepancy":"331e9b69b17177c3","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/createMerchantRefundPinReset":"6c7101c8c7c96357","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"23e7fc12bfc147a6","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"f29b250553b107a9","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"1a59e520f0f14efa","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"c2be1b9a45104e46","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"1f3ad9182b6f0153","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"ef150131fb898c62","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"65ce03cfbc336251","settings/listAnnouncements":"c002a9041c562754","settings/listClearingPlatformParameters":"cae0bf61e03f1089","settings/listPlatformParameters":"86915df0b44973c5","settings/listRefundPlatformParameters":"ce48c8eea2e35aff","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"91f7f1c85fe72678","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updateClearingPlatformParameter":"7fe0222e9fd02050","settings/updatePlatformParameter":"a728c57f05737504","settings/updateRefundPlatformParameter":"aaa8cc83d67ae11d","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"1e861e3410235b54","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"bedf3db150ef68f3","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"ba8194eca0389618","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"6606052a36abf801","staff/updateStaffPassword":"51a57c95fcb8c174","staff/updateStaffStatus":"7c2834e413a97563","transactions/createPaymentExport":"69e338434281ac82","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"bf74bacb9ab23700","transactions/getPaymentSummary":"88d7c670066219d0","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"75a50023d8743df4","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 清算结算 —— 调用时序
 
-> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）。按商户组织的页面（待人工确认退款、清算日汇总、清算记录、结算单详情、商户详情 · 结算、清算报告）按数据可见范围过滤商户，按标识打开范围外商户的数据得到 `404`；通道侧的页面（对账与差异、出款文件、通道结算单、渠道方汇回、T&T 对账文件）是平台级，不按数据可见范围过滤。商户详情的结算页签挂在商户详情下（商户详情见 06-merchant-ops）。本文的金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算；不同结算币种的金额分别显示，不相加。
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）。按商户组织的页面（待人工确认退款、清算日汇总、清算记录、结算单详情、商户详情 · 结算、清算报告、月度对账单、服务费收款、活动参加、营销账户记录）按数据可见范围过滤商户，按标识打开范围外商户的数据得到 `404`；通道侧与平台级的页面（对账与差异、出款文件、通道结算单、渠道方汇回、T&T 对账文件、税行汇总、返利活动）不按数据可见范围过滤。商户详情的结算页签挂在商户详情下（商户详情见 06-merchant-ops）。本文的金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算；不同结算币种的金额分别显示，不相加。
 
 ## 本文的页面
 
@@ -31,6 +31,12 @@
 | 清算报告 | 导航「财务 › 结算单」的「清算报告」页签 | [页面：清算报告](#页面：清算报告) |
 | T&T 对账文件 | 导航「财务 › T&T 对账文件」 | [页面：T&T 对账文件](#页面：T&T%20对账文件) |
 | 清结算异常概览 | 导航「财务 › 清结算异常概览」 | [页面：清结算异常概览](#页面：清结算异常概览) |
+| 月度对账单 | 导航「财务 › 月度对账单」 | [页面：月度对账单](#页面：月度对账单) |
+| 税行汇总 | 导航「财务 › 税行汇总」 | [页面：税行汇总](#页面：税行汇总) |
+| 服务费收款 | 导航「财务 › 服务费收款」 | [页面：服务费收款](#页面：服务费收款) |
+| 返利活动 | 导航「财务 › 返利活动」 | [页面：返利活动](#页面：返利活动) |
+| 活动参加 | 返利活动点一行；商户详情 · 结算的「返利」区块 | [页面：活动参加](#页面：活动参加) |
+| 营销账户记录 | 导航「财务 › 营销账户记录」 | [页面：营销账户记录](#页面：营销账户记录) |
 | 平台清结算参数 | 导航「平台设置 › 清结算参数」 | [页面：平台清结算参数](#页面：平台清结算参数) |
 
 ## 接口
@@ -85,6 +91,26 @@
 | 46 | [`listNotificationDeliveries`](../ops/index.html#tag/notification-deliveries/operation/listNotificationDeliveries) | `GET /notification-deliveries` | 通知投递记录（清算报告的投递结果在这里看，见 04-ops-audit） |
 | 47 | [`listClearingChannelOptions`](../clearing/index.html#tag/clearing-channel-options/operation/listClearingChannelOptions) | `GET /clearing-channel-options` | 通道候选（各页通道筛选、登记汇回单选通道） |
 | 48 | [`createReconLossRecovery`](../clearing/index.html#tag/recon-discrepancies/operation/createReconLossRecovery) | `POST /recon-discrepancies/{discrepancyId}/loss-recovery` | 从计入平台资损的差异向商户追回 |
+| 49 | [`getMerchantFundOverview`](../clearing/index.html#tag/merchant-funds/operation/getMerchantFundOverview) | `GET /merchants/{merchantId}/funds` | 商户资金概览 |
+| 50 | [`createMerchantFundAdjustment`](../clearing/index.html#tag/merchant-funds/operation/createMerchantFundAdjustment) | `POST /merchants/{merchantId}/fund-adjustments` | 扣款 / 补偿 |
+| 51 | [`updateMerchantCreditLimit`](../clearing/index.html#tag/merchant-funds/operation/updateMerchantCreditLimit) | `PUT /merchants/{merchantId}/credit-limit` | 设置授信额度 |
+| 52 | [`listMerchantStatements`](../clearing/index.html#tag/statements/operation/listMerchantStatements) | `GET /statements` | 月度对账单列表 |
+| 53 | [`getMerchantStatement`](../clearing/index.html#tag/statements/operation/getMerchantStatement) | `GET /statements/{statementId}` | 月度对账单详情 |
+| 54 | [`getMerchantStatementFile`](../clearing/index.html#tag/statements/operation/getMerchantStatementFile) | `GET /statements/{statementId}/file` | 对账单文件下载地址 |
+| 55 | [`createStatementExport`](../clearing/index.html#tag/statements/operation/createStatementExport) | `POST /statement-exports` | 导出月度对账单列表 |
+| 56 | [`getStatementTaxSummary`](../clearing/index.html#tag/statements/operation/getStatementTaxSummary) | `GET /statement-tax-summary` | 税行汇总 |
+| 57 | [`createStatementTaxSummaryExport`](../clearing/index.html#tag/statements/operation/createStatementTaxSummaryExport) | `POST /statement-tax-summary-exports` | 导出税行汇总 |
+| 58 | [`listFeeCollections`](../clearing/index.html#tag/fee-collections/operation/listFeeCollections) | `GET /fee-collections` | 服务费收款记录 |
+| 59 | [`createFeeCollection`](../clearing/index.html#tag/fee-collections/operation/createFeeCollection) | `POST /fee-collections` | 登记服务费收款 |
+| 60 | [`returnFeeCollection`](../clearing/index.html#tag/fee-collections/operation/returnFeeCollection) | `POST /fee-collections/{collectionId}/return` | 登记收款退回 |
+| 61 | [`createFeeCollectionExport`](../clearing/index.html#tag/fee-collections/operation/createFeeCollectionExport) | `POST /fee-collection-exports` | 导出服务费收款记录 |
+| 62 | [`listPromotionPrograms`](../clearing/index.html#tag/promotions/operation/listPromotionPrograms) | `GET /promotion-programs` | 返利活动列表 |
+| 63 | [`createPromotionProgram`](../clearing/index.html#tag/promotions/operation/createPromotionProgram) | `POST /promotion-programs` | 建立返利活动 |
+| 64 | [`terminatePromotionProgram`](../clearing/index.html#tag/promotions/operation/terminatePromotionProgram) | `POST /promotion-programs/{programId}/termination` | 提前终止返利活动 |
+| 65 | [`listPromotionEnrollments`](../clearing/index.html#tag/promotions/operation/listPromotionEnrollments) | `GET /promotion-enrollments` | 返利参加（按活动或按商户） |
+| 66 | [`createPromotionEnrollment`](../clearing/index.html#tag/promotions/operation/createPromotionEnrollment) | `POST /promotion-programs/{programId}/enrollments` | 为商户开通返利 |
+| 67 | [`terminatePromotionEnrollment`](../clearing/index.html#tag/promotions/operation/terminatePromotionEnrollment) | `POST /promotion-programs/{programId}/enrollments/{merchantId}/termination` | 终止某商户的参加 |
+| 68 | [`listPromotionAccountOperations`](../clearing/index.html#tag/promotions/operation/listPromotionAccountOperations) | `GET /promotion-account-operations` | 营销账户记录 |
 
 ---
 
@@ -351,6 +377,8 @@ sequenceDiagram
 - 「暂停结算」/「恢复结算」调 #43，带 `settlementPaused = true` / `false`；「改起结门槛」调 #43，带 `minSettleAmount`（币种是该商户的结算币种，不小于 0）。成功后重调 #42。
 - 商户详情顶部的「设为高风险」/「恢复正常」是同一能力的另一个入口：分别调 #43 带 `settlementPaused = true` / `false`。治理档位的显示见 06-merchant-ops。
 - 冻结商户停出款（归集与建批照常）由商户状态决定，不经本页、不改暂停状态。
+- 资金区块调 #49：待结算、退款准备金、应收商户款、授信额度、剩余授信、当前可扣额、应收服务费款、营销账户余额，均为该商户的结算币种。「扣款 / 补偿」调 #50、「改授信额度」调 #51，两者提交前都弹本人动态码输入框；成功后重调 #49。当前可扣额只作提示，扣款能否足额以 #50 的结果为准。
+- 返利区块调 #65 并固定 `merchantId`，列出该商户参加的活动；开通与终止同 [页面：活动参加](#页面：活动参加)。
 
 ### 场景：暂停 / 恢复结算
 
@@ -381,6 +409,74 @@ sequenceDiagram
 |---|---|---|---|
 | 暂停结算 | v1 商户标签自动置「跳过清算」、改回正常不复位；登录即可改、无审计 | 一个暂停能力两处入口，按权限点，前后值进操作审计；冻结由商户状态决定 | 暂停只有一个真相，谁改的可追查 |
 | 清算记录页签 | Hub 商户详情有清算记录 | 承接，加暂停状态与起结门槛 | 结算问询在一处看全 |
+
+### 场景：扣款 / 补偿
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开商户详情 · 结算
+    S->>A: #35;49 [getMerchantFundOverview]<br/>GET /merchants/{merchantId}/funds
+    A-->>S: 200 { toSettle, merchantReceivable, creditAvailable, deductibleAmount }
+    U->>S: 点「扣款 / 补偿」，选类型、填金额与原因
+    S->>U: 弹本人动态码输入框
+    U->>S: 输入验证器上的 6 位动态码并确认
+    S->>A: #35;50 [createMerchantFundAdjustment]<br/>POST /merchants/{merchantId}/fund-adjustments<br/>Idempotency-Key<br/>{ adjustmentType, amount, reason, totpCode }
+    A-->>S: 201 { adjustmentId, adjustmentType, amount }
+    S->>U: 显示调账单号
+    S->>A: #35;49 [getMerchantFundOverview]<br/>GET /merchants/{merchantId}/funds
+    A-->>S: 200 { toSettle, merchantReceivable, creditAvailable, deductibleAmount }
+```
+
+同一次提交的重试（含动态码错后改码重提）沿用同一个 `Idempotency-Key`，每次都带当前有效的动态码。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 动态码错 | #50 `403`·`306004` | 留在动态码输入框，清空后重输；会话仍有效 |
+| 扣款额超出商户可扣范围 | #50 `409`·`308650` | 提示「商户可扣不足」，重调 #49 看当前可扣额 |
+| 金额超过单笔调账上限 | #50 `400`·`308651`（`context.maxAmount`） | 提示「不能超过 N」，N 取 `context.maxAmount` |
+| 原因没填或超长、金额为 0 或币种不对 | #50 `400` | 对应输入框标红 |
+| 商户不存在、已关户或不在数据范围内 | #49 / #50 `404` | 提示找不到，回到商户列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 商户扣款 | v1 无权限位、无审计、只能扣到待清算余额；Hub 限超管 + 本人动态码 | 单独权限点 + 本人动态码 + 审计；可扣进应收商户款至授信额度；补偿同一能力 | 资金动作可追责，扣款与补偿一处处理 |
+
+### 场景：改授信额度
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 在资金区块点「改授信额度」，填新额度
+    S->>U: 弹本人动态码输入框
+    U->>S: 输入验证器上的 6 位动态码并确认
+    S->>A: #35;51 [updateMerchantCreditLimit]<br/>PUT /merchants/{merchantId}/credit-limit<br/>{ creditLimit, totpCode }
+    A-->>S: 204
+    S->>A: #35;49 [getMerchantFundOverview]<br/>GET /merchants/{merchantId}/funds
+    A-->>S: 200 { creditLimit, creditAvailable, deductibleAmount }
+```
+
+下调到低于当前应收商户款照常生效，剩余授信显示 0。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 动态码错 | #51 `403`·`306004` | 留在动态码输入框，清空后重输；会话仍有效 |
+| 额度超过授信额度上限 | #51 `400`·`308651`（`context.maxAmount`） | 提示「不能超过 N」，N 取 `context.maxAmount` |
+| 额度为负或币种不对 | #51 `400` | 输入框标红 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 授信额度 | v1 不拒负数、无审计，另有两个开关 | 0 ~ 上限、0 即不授信、改动带前后值；须本人动态码 | 一个额度表达开与关，改动可追查 |
 
 ---
 
@@ -663,16 +759,17 @@ sequenceDiagram
 
 ## 页面：平台清结算参数
 
-清结算相关的平台级参数：各结算币种的默认平台出款格式、出款文件头各项、T&T 商户组（T&T 主商户号）、T&T 线上商户清单、NihaoPay 出款文件收件人、T&T 对账文件收件人。形态与平台参数页相同（见 03-settings），调 #44 列出、#45 改值或恢复默认（`value` 传 `null`）。
+清结算相关的平台级参数：各结算币种的默认平台出款格式、出款文件头各项、T&T 商户组（T&T 主商户号）、T&T 线上商户清单、NihaoPay 出款文件收件人、T&T 对账文件收件人，以及三个金额参数（退款准备金最低金额下限、单笔调账上限、授信额度上限）。形态与平台参数页相同（见 03-settings），调 #44 列出、#45 改值或恢复默认（`value` 传 `null`）。
 
-- 这些参数没有默认值，没录入的显示为空（列表项不带 `value` 与 `effectiveValue`）；恢复默认后该参数无值。
+- 三个金额参数有默认值（列表项带 `defaultValue`），值须大于 0，按各商户自己的结算币种的最小单位解释，页面按「金额」展示与输入；恢复默认即回到默认值。改值只约束此后的保存与调账，已存的最低金额与授信额度不动。
+- 其余参数没有默认值，没录入的显示为空（列表项不带 `value` 与 `effectiveValue`）；恢复默认后该参数无值。
 - 收件人是邮箱地址列表，以英文逗号分隔，不分抄送；系统向每个地址各发一份。
-- 改动对此后生成的文件与发出的邮件生效。
+- 出款文件头、格式与收件人的改动对此后生成的文件与发出的邮件生效。
 
 | 情形 | 响应 | 页面 |
 |---|---|---|
 | 版本已过期 | #45 `409`·`308103` | 提示他人已改过，重拉 #44 |
-| 值的类型或取值不合值域（如收件人里有不合法的邮箱） | #45 `400`，`details` 定位到 `value` | 输入框标红 |
+| 值的类型或取值不合值域（如收件人里有不合法的邮箱、金额参数不大于 0） | #45 `400`，`details` 定位到 `value` | 输入框标红 |
 | 参数已不存在 | #45 `404` | 重拉 #44 |
 
 **相对 v1 / Hub 的改动**
@@ -680,6 +777,197 @@ sequenceDiagram
 | 位置 | v1 / Hub | 改后 | 为什么 |
 |---|---|---|---|
 | 出款文件头 | v1 发起方号、批号、退回账户等写死在程序里，改要发版 | 平台参数，运营可改、不发版，改动进操作审计 | 银行号随业务变化，不必等发版 |
+
+---
+
+## 页面：月度对账单
+
+已出具的商户月度对账单，调 #52。筛选：交易月区间 `fromMonth` / `toMonth`（`YYYY-MM`，两端必填）、商户 `merchantId`（可选）。
+
+- 各列取：对账单号 `statementNo`、商户 `merchant`、交易月 `statementMonth`、结算币种（取金额的币种）、成交笔数 `transactionCount`、销售净额 `grossAmount`、退款额 `refundAmount`、手续费 `feeAmount`、应结净额 `settlementAmount`、本单应收 `receivableAmount`、出具时刻 `issuedAt`。
+- 点一行打开详情，调 #53：另显示手续费明细 `feeLines`、额外收费 `chargeLines` 与税 `taxLines`（含计税省 `taxProvince`）。「下载对账单」调 #54 拿短时地址后直接下载。
+- 「导出」调 #55，带当前筛选。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开月度对账单
+    S->>A: #35;52 [listMerchantStatements]<br/>GET /statements?fromMonth=…&toMonth=…
+    A-->>S: 200 { total, data: [ { statementId, statementNo, merchant, statementMonth, receivableAmount } ] }
+    U->>S: 点一行
+    S->>A: #35;53 [getMerchantStatement]<br/>GET /statements/{statementId}
+    A-->>S: 200 { statementNo, feeLines, chargeLines, taxLines }
+    U->>S: 点「下载对账单」
+    S->>A: #35;54 [getMerchantStatementFile]<br/>GET /statements/{statementId}/file
+    A-->>S: 200 { url, expiresAt }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 交易月区间缺一端、`toMonth` 早于 `fromMonth` 或跨度超过允许的最大查询窗口 | #52 / #55 `400` | 在月份选择器下提示 |
+| 导出命中行数超过上限 | #55 `409`·`308503`（`context.maxRows`） | 提示缩小筛选 |
+| 对账单不存在或所属商户不在数据范围内 | #53 / #54 `404` | 提示找不到，重拉 #52 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 月结手续费 | 只能整笔补填冲正、无收款记录 | 对账单查询 + 收款登记 / 退回、应收按商户累计 | 应收有据可查 |
+
+---
+
+## 页面：税行汇总
+
+已出具对账单的税按交易月 × 税种 × 计税省 × 结算币种汇总，调 #56。交易月区间 `fromMonth` / `toMonth` 两端必填。不分页。
+
+- 各列取：交易月 `statementMonth`、税种 `taxType`、计税省 `taxProvince`、结算币种（取金额的币种）、税基合计 `taxableAmount`、税额合计 `taxAmount`、对账单数 `statementCount`。
+- 计税省是对账单出具时记下的值，商户之后改了进件省不影响已出具的月份。
+- 「导出」调 #57，带当前区间。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 交易月区间缺一端、`toMonth` 早于 `fromMonth` 或跨度超过允许的最大查询窗口 | #56 / #57 `400` | 在月份选择器下提示 |
+| 导出命中行数超过上限 | #57 `409`·`308503`（`context.maxRows`） | 提示缩小区间 |
+
+---
+
+## 页面：服务费收款
+
+服务费收款记录，调 #58。筛选：到账日区间 `from` / `to`（两端必填，默认最近 30 天、含今天）、商户 `merchantId`、收款方式 `collectionMethod`、是否已退回 `returned`。选了商户时页头另显示该商户当前的应收服务费款 `feeReceivable`。
+
+- 各列取：商户、币种（取金额的币种）、金额 `amount`、收款方式、到账日 `receivedOn`、参考号 `bankReference`、对应对账单号 `statementNo`、备注 `note`、登记人 `createdBy` 与时刻 `createdAt`、退回日 `returnedOn`、退回原因 `returnReason`、退回人 `returnedBy`。
+- 「登记收款」调 #59；未退回的行给「登记退回」，调 #60。两者都是资金登记，提交时带 `Idempotency-Key`，同一次提交的重试沿用同一个键。成功后重拉 #58。
+- 「导出」调 #61，带当前筛选。
+
+### 场景：登记收款与退回
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点「登记收款」，选商户、填金额、方式、到账日，可选对账单
+    S->>A: #35;59 [createFeeCollection]<br/>POST /fee-collections<br/>Idempotency-Key<br/>{ merchantId, amount, collectionMethod, receivedOn, statementId }
+    A-->>S: 201 { collectionId }
+    S->>A: #35;58 [listFeeCollections]<br/>GET /fee-collections?from=…&to=…&merchantId=…
+    A-->>S: 200 { total, data, feeReceivable }
+    U->>S: 某行点「登记退回」，填退回日与原因
+    S->>A: #35;60 [returnFeeCollection]<br/>POST /fee-collections/{collectionId}/return<br/>Idempotency-Key<br/>{ returnedOn, returnReason }
+    A-->>S: 204
+    S->>A: #35;58 [listFeeCollections]<br/>GET /fee-collections?from=…&to=…&merchantId=…
+    A-->>S: 200 { total, data, feeReceivable }
+```
+
+收款大于当前应收时照常登记，应收服务费款显示为负。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 所填对账单不存在、不是该商户的或尚未出具完成 | #59 `409`·`308652` | 对账单选择框标红，重选 |
+| 该收款已登记过退回 | #60 `409`·`308653` | 提示「该收款已退回」，重拉 #58 |
+| 到账日晚于今天、退回日早于到账日或晚于今天、金额币种不对、字段超长 | #59 / #60 `400` | 对应输入框标红 |
+| 日期范围缺一端、`to` 早于 `from` 或跨度超过允许的最大查询窗口 | #58 / #61 `400` | 在日期选择器下提示 |
+| 导出命中行数超过上限 | #61 `409`·`308503`（`context.maxRows`） | 提示缩小筛选 |
+| 商户或收款记录不存在、商户已关户或不在数据范围内 | #59 / #60 `404` | 提示找不到，重拉 #58 |
+
+---
+
+## 页面：返利活动
+
+全部返利活动，调 #62，可按状态 `status`（未开始 / 进行中 / 已结束 / 已终止，可多选）筛选。平台级，不按数据可见范围过滤。
+
+- 各列取：活动码 `programCode`、门槛 `threshold`（含活动币种）、返利比例 `rebateRate`、窗口天数 `windowDays`、开始日 `effectiveFrom`、计划结束日 `effectiveTo`、状态 `status`、终止人 `terminatedBy` 与时刻 `terminatedAt`、参加商户数 `enrollmentCount`、已发放笔数 `rebateCount` 与金额 `rebateAmount`。
+- 「建立活动」调 #63；未终止的活动给「提前终止」，确认框提示「终止后对全部参加商户不再发放，已发放的不收回」，确认后调 #64。成功后重拉 #62。
+- 点一行进活动参加。
+
+### 场景：建立与终止活动
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 点「建立活动」，填活动码、门槛、比例、窗口天数、开始日、可选计划结束日与说明
+    S->>A: #35;63 [createPromotionProgram]<br/>POST /promotion-programs<br/>{ programCode, threshold, rebateRate, windowDays, effectiveFrom }
+    A-->>S: 201 { programId }
+    S->>A: #35;62 [listPromotionPrograms]<br/>GET /promotion-programs
+    A-->>S: 200 { total, data }
+    U->>S: 某行点「提前终止」并确认
+    S->>A: #35;64 [terminatePromotionProgram]<br/>POST /promotion-programs/{programId}/termination
+    A-->>S: 204
+```
+
+条款建后不改；要改就终止本活动、另建新活动。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 活动码已被占用（含上一次其实已建成） | #63 `409`·`308654` | 活动码框标红；重拉 #62 看是否已建成 |
+| 门槛、比例、窗口天数超出范围、按门槛与比例算出的返利不足一个最小单位、开始日早于今天、计划结束日早于开始日、字段超长 | #63 `400` | 对应输入框标红 |
+| 活动已终止 | #64 `409`·`308656` | 提示「该活动已终止」，重拉 #62 |
+| 活动不存在 | #64 `404` | 重拉 #62 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 返利 | 无返利条款与发放 | 活动条款、商户开通、系统按条款发放入营销账户 | 返利按条款有据可查 |
+
+---
+
+## 页面：活动参加
+
+某活动的参加商户，调 #65 带 `programId`；商户详情 · 结算的「返利」区块调 #65 带 `merchantId`。只列数据可见范围内商户的参加。
+
+- 各列取：活动码 `programCode`、商户 `merchant`、累计起算日 `windowFrom`、开通人 `enrolledBy` 与时刻 `enrolledAt`、终止人 `terminatedBy` 与时刻 `terminatedAt`、是否已发放 `rebated` 与发放额 `rebateAmount`。
+- 「开通商户」调 #66：选商户，起算日默认今天、可改为更早的日期（不早于活动开始日）。只对进行中的活动给此动作。
+- 参加中的行给「终止参加」，调 #67，只对该商户生效。成功后重拉 #65。
+
+### 场景：开通与终止参加
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开某活动的参加
+    S->>A: #35;65 [listPromotionEnrollments]<br/>GET /promotion-enrollments?programId=…
+    A-->>S: 200 { total, data }
+    U->>S: 点「开通商户」，选商户、可改起算日
+    S->>A: #35;66 [createPromotionEnrollment]<br/>POST /promotion-programs/{programId}/enrollments<br/>{ merchantId, windowFrom }
+    A-->>S: 201 { programId, merchantId, windowFrom }
+    U->>S: 某行点「终止参加」并确认
+    S->>A: #35;67 [terminatePromotionEnrollment]<br/>POST /promotion-programs/{programId}/enrollments/{merchantId}/termination
+    A-->>S: 204
+    S->>A: #35;65 [listPromotionEnrollments]<br/>GET /promotion-enrollments?programId=…
+    A-->>S: 200 { total, data }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 活动不可开通（已终止、未到开始日、已过计划结束日、币种与商户结算币种不同） | #66 `409`·`308655`（`context.reasonCode`） | 按 `reasonCode` 提示原因 |
+| 该商户已参加过该活动（含已终止的参加，或上一次其实已开通） | #66 `409`·`308657` | 提示「该商户已参加过」，重拉 #65 |
+| 起算日晚于今天或早于活动开始日 | #66 `400` | 起算日框标红 |
+| 该参加或其活动已终止 | #67 `409`·`308658` | 提示已终止，重拉 #65 |
+| 既没带活动也没带商户 | #65 `400` | 不应出现，按页面入口带上 |
+| 活动或商户不存在、商户已关户或不在数据范围内、商户未参加该活动 | #66 / #67 `404` | 提示找不到，重拉 #65 |
+
+---
+
+## 页面：营销账户记录
+
+营销账户的返利入账与取现，调 #68。筛选：创建日期区间 `from` / `to`（两端必填，默认最近 30 天、含今天）、商户 `merchantId`、活动 `programId`、类型 `operationType`、结果 `operationStatus`。只读，本页没有写动作。
+
+- 各列取：商户、类型、结果、币种（取金额的币种）、金额 `amount`、所属活动 `programCode`、基数 `basisAmount`、说明 `reason`、拒绝原因 `rejectionReason`、发生时刻 `occurredAt`。所属活动与基数只对返利入账有值，拒绝原因只对被拒的取现有值。
+- 营销账户余额在商户详情 · 结算的资金区块看（#49）。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期范围缺一端、`to` 早于 `from` 或跨度超过允许的最大查询窗口 | #68 `400` | 在日期选择器下提示 |
 
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>

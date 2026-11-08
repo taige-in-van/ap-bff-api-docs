@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.3.2
+  version: 2.3.3
   contact:
     name: 收银台
   description: |
@@ -2668,10 +2668,10 @@ components:
         launchUrl:
           type: string
           minLength: 1
-          description: 唤起钱包的地址，页面直接跳过去。
+          description: 这次支付的唤起地址，页面直接跳过去：可能是唤起钱包 App 的地址，也可能是钱包的收银台网页。
         fallbackUrl:
           $ref: '#/components/schemas/WebUrl'
-          description: 唤不起钱包时的备用地址，有才返回。
+          description: '`launchUrl` 唤起钱包 App、唤不起时用的备用地址；`launchUrl` 本身是网页时不返回。'
     CheckoutSessionGrant:
       type: object
       description: |
@@ -3043,6 +3043,9 @@ components:
             floorAmount:
               $ref: '#/components/schemas/Money'
               description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
             minimumMinutes:
               type: integer
               minimum: 1

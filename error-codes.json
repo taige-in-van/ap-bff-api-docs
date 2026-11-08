@@ -637,6 +637,11 @@
       "name": "MERCHANT_NOT_ACTIVATED",
       "retryable": false
     },
+    "308315": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_OWNER_UNREACHABLE",
+      "retryable": false
+    },
     "308401": {
       "httpStatus": 409,
       "name": "ADMIN_MERCHANT_CHANNEL_CONCURRENT_UPDATE",
@@ -839,6 +844,57 @@
     "308619": {
       "httpStatus": 409,
       "name": "ADMIN_RECON_LOSS_RECOVERY_EXCEEDS_MERCHANT_FUNDS",
+      "retryable": false
+    },
+    "308650": {
+      "httpStatus": 409,
+      "name": "ADMIN_FUND_ADJUSTMENT_EXCEEDS_MERCHANT_FUNDS",
+      "retryable": false
+    },
+    "308651": {
+      "httpStatus": 400,
+      "name": "ADMIN_FUND_ACTION_AMOUNT_EXCEEDS_LIMIT",
+      "requiredContextFields": [
+        "maxAmount"
+      ],
+      "retryable": false
+    },
+    "308652": {
+      "httpStatus": 409,
+      "name": "ADMIN_FEE_COLLECTION_STATEMENT_MISMATCH",
+      "retryable": false
+    },
+    "308653": {
+      "httpStatus": 409,
+      "name": "ADMIN_FEE_COLLECTION_ALREADY_RETURNED",
+      "retryable": false
+    },
+    "308654": {
+      "httpStatus": 409,
+      "name": "ADMIN_PROMOTION_PROGRAM_CODE_TAKEN",
+      "retryable": false
+    },
+    "308655": {
+      "httpStatus": 409,
+      "name": "ADMIN_PROMOTION_PROGRAM_NOT_ENROLLABLE",
+      "requiredContextFields": [
+        "reasonCode"
+      ],
+      "retryable": false
+    },
+    "308656": {
+      "httpStatus": 409,
+      "name": "ADMIN_PROMOTION_PROGRAM_ALREADY_TERMINATED",
+      "retryable": false
+    },
+    "308657": {
+      "httpStatus": 409,
+      "name": "ADMIN_PROMOTION_ENROLLMENT_EXISTS",
+      "retryable": false
+    },
+    "308658": {
+      "httpStatus": 409,
+      "name": "ADMIN_PROMOTION_ENROLLMENT_TERMINATED",
       "retryable": false
     },
     "904001": {
