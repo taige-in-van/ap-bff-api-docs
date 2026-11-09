@@ -1,0 +1,2609 @@
+openapi: 3.1.0
+info:
+  title: 管理后台 机构与分润 — 前端契约面
+  version: 2.0.0
+  contact:
+    name: 管理后台 BFF
+  description: |
+    管理后台 React SPA 消费的机构与分润契约：机构与两层上下级、启停，机构分润方案与成本率，平台提成矩阵与提成规则，按生效日改派商户的归属销售与整机构改派，提成报表与员工提成的查看与导出，后台账号的推荐码。
+    浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
+
+    **金额与比例口径**：金额是对应币种最小单位的整数串，带币种；不同结算币种的金额分别合计，不跨币种相加。比例是小数串，最多六位小数（`0.006` = 0.6%）。交易月与生效月是 `YYYY-MM`，按字面值收发。
+
+    **幂等 / CSRF 口径**：
+
+    - 新建机构、整机构改派带 `Idempotency-Key`：同一次操作的重试沿用同一个键，重复提交不会重复执行。
+    - 其余写操作按目标值写，同值重提不改动，不挂幂等键。
+    - 导出按读处理，不挂幂等键。
+    - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
+
+    **可见范围**：机构、分润方案、提成矩阵与提成规则是平台级页面，只看功能权限。改派按商户（单户）或源机构（整机构）求数据可见范围。提成报表按主体收口：数据范围为本人名下商户的只看主体为本人的 BD 报表；为所属机构的只看主体为所属机构及其直接下级机构的机构报表；全部商户的看全部。员工提成按员工收口：本人名下商户只看本人；所属机构只看所属组织为所属机构及其直接下级机构的员工；全部商户看全部。跨范围临时授权不作用于两者。他人推荐码按账号的所属机构收口。范围外的对象不出现在列表、合计与导出里，按标识访问一律 `404`。
+
+    **操作审计**：本面的写操作记入操作审计（带操作人、对象、前后状态或前后值）；查询、详情、导出不记。操作人恒为当前登录的后台用户，请求体里没有操作人字段。
+servers:
+  - url: /api/admin/v1
+    description: 管理后台 BFF（浏览器经边缘网关 admin.* 可达；cookieAuth 会话 + CSRF）
+security:
+  - cookieAuth: []
+tags:
+  - name: partners
+    x-displayName: 机构
+    description: 机构列表与详情、新建、编辑、停用与启用。
+  - name: commission-plans
+    x-displayName: 机构分润方案
+    description: 机构的分润方案时段与成本率，设新方案。
+  - name: commission-rate-matrix
+    x-displayName: 提成矩阵
+    description: 平台提成矩阵：按月查看、整组提交新版、导出。
+  - name: merchant-assignments
+    x-displayName: 商户归属
+    description: 按生效日改派单个商户的归属销售、整机构改派。
+  - name: commission-reports
+    x-displayName: 提成报表
+    description: 提成报表列表、合计与行，员工提成，导出。
+  - name: referral-codes
+    x-displayName: 推荐码
+    description: 本人推荐码与推荐链接，他人推荐码的查看与停用 / 重新启用。
+  - name: options
+    x-displayName: 候选
+    description: 机构候选与销售候选。
+paths:
+  /partners:
+    get:
+      tags:
+        - partners
+      operationId: listPartners
+      x-required-privilege: orgbd:partner:view
+      summary: 机构列表
+      description: |
+        列出机构，分页，按创建时间从新到旧。可按名称或联系人关键字、启用状态、上级机构筛选。
+
+        每行带当月生效的分润方案的基数类型 `currentBasisType`；当月没有生效方案的不返回本键。
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 按机构名称或联系人模糊匹配。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+        - name: enabled
+          in: query
+          required: false
+          description: '`true` 只看启用中 / `false` 只看已停用；不传不筛。'
+          schema:
+            type: boolean
+        - name: parentPartnerId
+          in: query
+          required: false
+          description: 按上级机构，只列它的直接下级机构。
+          schema:
+            $ref: '#/components/schemas/PartnerId'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartnerSummary'
+              example:
+                total: 1
+                data:
+                  - partnerId: ptn_0032
+                    partnerName: Maple Partners East
+                    parent:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
+                    contactName: Linda Wu
+                    contactPhone: '+16045550188'
+                    contactEmail: linda@maplepartners.example
+                    commissionEnabled: true
+                    enabled: true
+                    currentBasisType: SPREAD
+                    createdAt: '2026-03-02T10:00:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    post:
+      tags:
+        - partners
+      operationId: createPartner
+      x-required-privilege: orgbd:partner:manage
+      summary: 新建机构
+      description: |
+        新建一个机构。只有机构名称必填；不传 `commissionEnabled` = 计算分润。新机构为启用中。机构名称不要求唯一。
+
+        建成后可随即邀请该机构的首个机构账号：另调 staff 契约的 `createStaff`（数据范围 `partner`、`partnerId` 为新机构）。两次调用互相独立，邀请失败时机构保留，之后在后台账号处以该机构为所属机构再邀请；邀请另需建号权限，没有时只建机构。
+
+        幂等基准：`Idempotency-Key`。
+
+        **什么时候拒绝**（不建）：
+
+        - `308754` 所选上级机构不可选：不存在、已停用，或本身已有上级（只两层）。
+        - 名称缺失、字段超长、邮箱格式不对 → `400`。
+
+        记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerCreate'
+            example:
+              partnerName: Maple Partners East
+              parentPartnerId: ptn_0031
+              contactName: Linda Wu
+              contactPhone: '+16045550188'
+              contactEmail: linda@maplepartners.example
+      responses:
+        '201':
+          description: 已建机构
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerCreated'
+              example:
+                partnerId: ptn_0032
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308754
+  /partners/{partnerId}:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdPath'
+    get:
+      tags:
+        - partners
+      operationId: getPartner
+      x-required-privilege: orgbd:partner:view
+      summary: 机构详情
+      description: |
+        一个机构的全部资料、上级与直接下级机构。不含分润方案与成本率：详情页的分润方案区块另调 `listPartnerCommissionPlans`（需看分润配置的权限），无该权限不显示该区块。
+
+        详情页的「名下商户」「机构账号」「提成报表」分别以 `partnerId` 筛选商户列表（merchants 契约 `listMerchants`）、后台账号列表（staff 契约 `listStaff`）与提成报表列表（`listCommissionReports`）。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerDetail'
+              example:
+                partnerId: ptn_0031
+                partnerName: Maple Partners
+                contactName: Linda Wu
+                commissionEnabled: true
+                enabled: true
+                officeAddress: 100 King St W, Toronto
+                children:
+                  - partnerId: ptn_0032
+                    partnerName: Maple Partners East
+                    enabled: true
+                createdAt: '2026-03-02T10:00:00Z'
+                updatedAt: '2026-09-20T08:00:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    put:
+      tags:
+        - partners
+      operationId: updatePartner
+      x-required-privilege: orgbd:partner:manage
+      summary: 编辑机构
+      description: |
+        整体替换机构资料、上级机构与是否计算分润，字段规则同 `createPartner`；不传的选填字段 = 清空，不传 `parentPartnerId` = 清空上级（成为一级机构）。
+
+        - 改「是否计算分润」自改值当月起生效，之前的月份（含之后被重算的）仍按当时的值；同一个月内多次改值以最后一次为准；改值本身不触发重算。
+        - 改上级即改上级机构的机构账号看得到的商户范围。
+
+        **什么时候拒绝**（机构不变）：
+
+        - `308754` 上级机构不可选：不存在、已停用、本身已有上级、就是本机构，或本机构已有下级机构（只两层）。只在新设或更换上级时判；`parentPartnerId` 与现值相同时不判，上级已停用的机构照常可改其他资料。
+        - 名称缺失、`commissionEnabled` 缺失、字段超长、邮箱格式不对 → `400`。
+
+        按目标值写，不挂幂等键。有改动时记入操作审计（带改动字段的前后值）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerUpdate'
+            example:
+              partnerName: Maple Partners
+              commissionEnabled: false
+              contactName: Linda Wu
+      responses:
+        '200':
+          description: 改后的机构详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerDetail'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308754
+  /partners/{partnerId}/enablement:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdPath'
+    put:
+      tags:
+        - partners
+      operationId: updatePartnerEnablement
+      x-required-privilege: orgbd:partner:manage
+      summary: 停用 / 启用机构
+      description: |
+        `enabled = false` 停用、`true` 启用。已处于目标状态的照常成功、状态不变。停用后不能再被选为上级机构、后台账号的所属机构或改派目标；已有报表与下级机构不受影响。启用不判前置。
+
+        **什么时候拒绝**（停用时，状态不变）：
+
+        - `308703` 有当前或尚未生效的归属落在该机构的未删除商户（含子商户）；先改派名下商户。
+        - `308704` 还有所属机构为它的在册后台账号；先移除这些账号。
+
+        按目标值写，不挂幂等键。状态有变化时记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerEnablement'
+            example:
+              enabled: false
+      responses:
+        '200':
+          description: 当前启停状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerEnablement'
+              example:
+                enabled: false
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308703
+        - 308704
+  /partner-options:
+    get:
+      tags:
+        - options
+      operationId: listPartnerOptions
+      x-required-privilege: session
+      summary: 机构候选
+      description: |
+        全部机构的标识与名称，不分页，按名称排序。后台账号表单的所属机构、商户 / 账号 / 报表的机构筛选、改派与划转的目标机构共用。默认只列启用中的；`includeDisabled = true` 时含已停用的（筛选用）。
+      parameters:
+        - name: includeDisabled
+          in: query
+          required: false
+          description: '`true` 含已停用的机构；不传 = 只列启用中的。'
+          schema:
+            type: boolean
+            default: false
+        - name: keyword
+          in: query
+          required: false
+          description: 按机构名称模糊匹配。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PartnerOption'
+              example:
+                items:
+                  - partnerId: ptn_0031
+                    partnerName: Maple Partners
+                    enabled: true
+                  - partnerId: ptn_0032
+                    partnerName: Maple Partners East
+                    parentPartnerId: ptn_0031
+                    enabled: true
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /partners/{partnerId}/commission-plans:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdPath'
+    get:
+      tags:
+        - commission-plans
+      operationId: listPartnerCommissionPlans
+      x-required-privilege: orgbd:commission-config:view
+      summary: 机构的分润方案时段
+      description: |
+        该机构的全部方案时段，按起始月从新到旧：起止月、基数类型、保留比例、成本率、设置人与时刻。被同月重设替换、从未生效的方案不列。
+
+        机构详情的分润方案区块也取本接口：当月生效的那一段 = 起始月不晚于当月、且没有截止月或截止月不早于当月。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommissionPlan'
+              example:
+                items:
+                  - planId: cpl_0107
+                    basisType: SPREAD
+                    commissionPct: '0.8'
+                    effectiveFromMonth: 2026-10
+                    costRates:
+                      - paymentMethod: wechat_instore
+                        costRate: '0.006'
+                      - paymentMethod: alipay_online
+                        entryPoint: plugin_shopify
+                        costRate: '0.007'
+                    createdBy:
+                      userId: usr_0031
+                      displayName: Alice Chen
+                    createdAt: '2026-09-20T08:00:00Z'
+                  - planId: cpl_0088
+                    basisType: MATRIX
+                    effectiveFromMonth: 2026-04
+                    effectiveToMonth: 2026-09
+                    costRates: []
+                    createdBy:
+                      userId: usr_0031
+                      displayName: Alice Chen
+                    createdAt: '2026-03-28T08:00:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    post:
+      tags:
+        - commission-plans
+      operationId: createPartnerCommissionPlan
+      x-required-privilege: orgbd:commission-config:manage
+      summary: 设机构分润方案
+      description: |
+        从 `effectiveFromMonth` 的月初起生效一份新方案，截止当前最新方案。与最新方案同月即替换它。
+
+        - 差价方案（`SPREAD`）必带保留比例 `commissionPct`（大于 0、不大于 1），可带按支付方式 × 入口的成本率（不小于 0、小于 1，同一支付方式 × 入口只一条；未配的支付方式不计提）。
+        - 提成矩阵（`MATRIX`）与上浮（`UPLIFT`）方案不带保留比例与成本率。
+        - 支付方式与入口只能取平台目录里的值。
+
+        **什么时候拒绝**（不生效）：
+
+        - `308755` 生效月不被允许：早于提交时所在月的上一个月，或早于当前最新方案的起始月。`context.earliestAllowedMonth` 带最早可用的生效月，页面据此回填。
+        - `308756` 成本率的支付方式不在平台目录里。
+        - 差价方案缺保留比例、非差价方案带了保留比例或成本率、比例越界、成本率重复、入口不是可选值 → `400`。
+
+        同月重提 = 替换、结果相同，不挂幂等键。记入操作审计（带新方案与被截止方案的内容）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionPlanCreate'
+            example:
+              basisType: SPREAD
+              commissionPct: '0.8'
+              costRates:
+                - paymentMethod: wechat_instore
+                  costRate: '0.006'
+              effectiveFromMonth: 2026-12
+      responses:
+        '201':
+          description: 已设方案
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionPlanCreated'
+              example:
+                planId: cpl_0121
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308755
+        - 308756
+  /commission-rate-matrix:
+    get:
+      tags:
+        - commission-rate-matrix
+      operationId: listCommissionRateMatrix
+      x-required-privilege: orgbd:commission-rule:view
+      summary: 某月生效的提成矩阵
+      description: |
+        所选月份生效的矩阵行（不传 `month` = 当月），按支付方式 × 入口分组、组内按费率区间与流水档排序，每行带起止月。可按支付方式、入口缩小。提成规则页的计算说明是页面静态文案，不在本接口。
+      parameters:
+        - name: month
+          in: query
+          required: false
+          description: 看哪个月生效的版本；不传 = 当月。
+          schema:
+            $ref: '#/components/schemas/YearMonth'
+        - name: paymentMethod
+          in: query
+          required: false
+          description: 按支付方式。
+          schema:
+            $ref: '#/components/schemas/PaymentMethod'
+        - name: entryPoint
+          in: query
+          required: false
+          description: 按专用入口；不传不筛（含默认入口的组）。
+          schema:
+            $ref: '#/components/schemas/FeeRateEntryPoint'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommissionRateMatrixRow'
+              example:
+                items:
+                  - matrixId: crm_0301
+                    paymentMethod: wechat_instore
+                    merchantRateFrom: '0'
+                    merchantRateTo: '0.02'
+                    monthlyVolumeFrom: '0'
+                    monthlyVolumeTo: '10000000'
+                    commissionRate: '0.1'
+                    effectiveFromMonth: 2026-10
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /commission-rate-matrix-versions:
+    post:
+      tags:
+        - commission-rate-matrix
+      operationId: createCommissionRateMatrixVersion
+      x-required-privilege: orgbd:commission-config:manage
+      summary: 提交提成矩阵新版
+      description: |
+        按一个支付方式 × 入口（不带入口 = 默认）整组提交从 `effectiveFromMonth` 的月初起生效的新一版，截止该组当前最新版本。与最新版本同月即替换它。
+
+        - 每行 = 商户签约比例费率区间（起含、止不含，止不传 = 无上限）× 商户当月流水档（起含、止不含，止不传 = 无上限，按商户结算币种最小单位）× 提成比例（不小于 0、小于 1）。
+        - 同组各行的区间 × 档位不得重叠，可以有空档（空档不计提）。
+        - 至少一行；要让该组自该月起不再计提，提交一行覆盖全部区间与档位（起 0、止不传）、提成比例为 0。
+        - 落档按商户当月净流水；净流水不大于 0（退款多于收款）时按 0 落档，0 落在空档则不计提。
+
+        **什么时候拒绝**（不生效）：
+
+        - `308755` 生效月不被允许：早于提交时所在月的上一个月，或早于该组当前最新版本的起始月。`context.earliestAllowedMonth` 带最早可用的生效月。
+        - `308756` 支付方式不在平台目录里。
+        - 没有行、行重叠、区间或档位止不大于起、比例越界、入口不是可选值 → `400`。
+
+        同月重提 = 替换、结果相同，不挂幂等键。记入操作审计（带改前与改后的行）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionRateMatrixVersionCreate'
+            example:
+              paymentMethod: wechat_instore
+              effectiveFromMonth: 2026-12
+              rows:
+                - merchantRateFrom: '0'
+                  merchantRateTo: '0.02'
+                  monthlyVolumeFrom: '0'
+                  monthlyVolumeTo: '10000000'
+                  commissionRate: '0.1'
+                - merchantRateFrom: '0'
+                  merchantRateTo: '0.02'
+                  monthlyVolumeFrom: '10000000'
+                  commissionRate: '0.15'
+      responses:
+        '201':
+          description: 已提交新版
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CommissionRateMatrixVersionCreated'
+              example:
+                effectiveFromMonth: 2026-12
+                rowCount: 2
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308755
+        - 308756
+  /commission-rate-matrix-exports:
+    post:
+      tags:
+        - commission-rate-matrix
+      operationId: createCommissionRateMatrixExport
+      x-required-privilege: orgbd:commission-export:create
+      summary: 导出提成矩阵（xlsx）
+      description: |
+        导出所选月份（不传 = 当月）生效的全部矩阵行，列同 `listCommissionRateMatrix`。同步返回文件流。表头按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionRateMatrixExportFilter'
+            example:
+              month: 2026-11
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /merchants/{merchantId}/sales-assignment:
+    parameters:
+      - $ref: '#/components/parameters/MerchantId'
+    put:
+      tags:
+        - merchant-assignments
+      operationId: updateMerchantSalesAssignment
+      x-required-privilege: orgbd:merchant-assignment:manage
+      summary: 改派单个商户的归属销售
+      description: |
+        自所选生效日起，把一个主商户的归属销售改为所选账号，所属组织随之为该账号的所属组织（Platform 总部销售 → 直营、无所属机构）；该主商户的全部子商户随之。页面先选组织（某机构或 Platform 总部）再选销售，候选取自 `listSalesOptions`。不提供清空归属销售。
+
+        - 尚无归属的商户首次指定归属销售也用本接口。
+        - 提交生效日（系统运营日）与改派原因。生效日可选未来；可倒签，但不早于当月的上一个月 1 日，也不早于该商户最早一段归属的生效日（尚无归属的只看前一条），否则 `308705`（`context.earliestAllowedDate` 带最早可选日）。
+        - 数据范围为所属机构的操作者：只能改派给本人所属机构或其直接下级机构的销售，且生效日另不早于该商户当前归属的生效日；数据范围为全部商户的不受这两条限。
+        - 生效日当天及之后开始的归属（已生效或尚未生效）都被本次取代；与某段归属同一生效日即替换它，尚未生效的改派被本次取代；要撤回待生效的改派，以原销售按同一生效日再提交。
+        - 从生效日 0 点起建单的订单归新销售，之前建单的仍归原销售，退款随原订单；倒签部分在次日重算的报表里体现。生效日之前负责与可见仍按原归属。
+        - `affectedMerchantCount` = 归属实际有变化的商户数（含子商户），可为 0。
+
+        **什么时候拒绝**（不改）：
+
+        - `308757` 商户是子商户；归属只能在主商户上改，子商户随主商户。
+        - `308702` 所选销售不可选：不在册、已停用，或（所属机构档操作者）其所属组织不在本人范围内；重取销售候选再选。
+        - `308701` 所选销售的所属机构已停用。
+        - `308705` 生效日早于最早可选日（含所属机构档操作者早于该商户当前归属的生效日）。
+        - 商户不存在或在本人数据范围外 → `404`。
+        - 未填生效日或原因、原因超长 → `400`。
+
+        按目标值写，不挂幂等键。主商户与每个子商户各记一条操作审计（带前后归属、生效日与原因），未变化的不记。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SalesAssignmentUpdate'
+            example:
+              salesUserId: usr_b07
+              effectiveDate: '2026-11-01'
+              changeReason: 原销售离职交接
+      responses:
+        '200':
+          description: 改派后的归属
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesAssignmentResult'
+              example:
+                merchantId: mch_8812
+                salesUser:
+                  userId: usr_b07
+                  displayName: Bob BD
+                partner:
+                  partnerId: ptn_0031
+                  partnerName: Maple Partners
+                affectedMerchantCount: 3
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308701
+        - 308702
+        - 308705
+        - 308757
+  /partners/{partnerId}/merchant-transfers:
+    parameters:
+      - $ref: '#/components/parameters/PartnerIdPath'
+    post:
+      tags:
+        - merchant-assignments
+      operationId: createPartnerMerchantTransfer
+      x-required-privilege: orgbd:merchant-assignment:manage
+      summary: 整机构改派（商户划转）
+      description: |
+        自同一生效日起，把路径机构名下的全部归属改为目标销售与目标组织（不传 `targetPartnerId` = Platform 总部、无所属机构），全部成功或全部不变，返回改写的户数（含子商户）；没有涉及的商户时照常成功、户数 0。改派对订单与报表的影响同 `updateMerchantSalesAssignment`。
+
+        - 涉及的商户 = 未删除的主商户中，自生效日起有任一段归属属于路径机构的（含当前不归它、但已排了改派到它的），子商户随主商户；不按操作者对商户的当前可见范围过滤。
+        - 自生效日起凡属于路径机构的时段一律改为目标归属，改派原因取本次填写的原因；跨生效日的时段在生效日处截断，生效日之前不动；属于其他机构或总部的时段（含待生效的改派）原样保留；改写后相邻且归属销售相同的时段合为一段。成功后自生效日起路径机构名下没有任何归属。
+        - 生效日（系统运营日）可选未来；可倒签，但不早于当月的上一个月 1 日。
+
+        源机构的可见范围：数据范围为全部商户的可选任意机构；为所属机构的只能选本机构或其直接下级机构，目标组织也只能是本人所属机构或其直接下级机构；其余 → `404`。
+
+        幂等基准：`Idempotency-Key`。
+
+        **什么时候拒绝**（无商户变动）：
+
+        - `304701` 目标机构就是源机构。
+        - `308701` 目标机构不存在或已停用。
+        - `308702` 目标销售不可选：不在册、已停用，其所属组织不是所选目标组织，或（所属机构档操作者）目标组织不在本人范围内；重取销售候选再选。
+        - `308705` 生效日早于当月的上一个月 1 日；`context.earliestAllowedDate` 带该日。
+        - 源机构不存在或在本人可见范围外 → `404`。
+        - 未填生效日或原因、原因超长 → `400`。
+
+        每家商户（含子商户）按被改写的每一段时段各记一条操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PartnerMerchantTransferCreate'
+            example:
+              targetPartnerId: ptn_0040
+              targetSalesUserId: usr_b19
+              effectiveDate: '2026-11-01'
+              changeReason: 机构合并
+      responses:
+        '200':
+          description: 已改派
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartnerMerchantTransferResult'
+              example:
+                transferredMerchantCount: 7
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 304701
+        - 308701
+        - 308702
+        - 308705
+  /sales-options:
+    get:
+      tags:
+        - options
+      operationId: listSalesOptions
+      x-required-privilege: session
+      summary: 销售候选
+      description: |
+        所选组织（不传 `partnerId` = Platform 总部，即无所属机构）下在册、未停用的后台账号，不看其数据范围，不分页，按显示名排序。改派归属销售、整机构改派的目标销售与代客建档的归属 BD 共用。当前用户数据范围为所属机构时，只有本人所属机构及其直接下级机构有候选，选其他机构或 Platform 总部回空列表。
+      parameters:
+        - name: partnerId
+          in: query
+          required: false
+          description: 所属机构；不传 = 总部账号。
+          schema:
+            $ref: '#/components/schemas/PartnerId'
+        - name: keyword
+          in: query
+          required: false
+          description: 按显示名或登录邮箱模糊匹配。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SalesOption'
+              example:
+                items:
+                  - userId: usr_b07
+                    displayName: Bob BD
+                    email: bob@example.com
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /commission-reports:
+    get:
+      tags:
+        - commission-reports
+      operationId: listCommissionReports
+      x-required-privilege: orgbd:commission-report:view
+      summary: 提成报表列表
+      description: |
+        本人可见范围内的月度提成报表，一行 = 一个主体一个交易月一个币种，分页，按交易月从新到旧。交易月区间两端必填；跨度超过允许的最大查询窗口 → `400`。只有已结束的月份有报表，所选区间含当月或以后的月份时这些月份没有行。机构详情的提成报表 = 按该机构筛选（`subjectType = partner`、`subjectId` = 该机构）。
+
+        报表在月份结束后由系统计算，之后该月的交易明细、商户归属或分润配置有变动时重算；页面展示最近一次计算的结果，`computedAt` 是最近一次计算该月的时刻；没有状态，付款在线下完成。每行的流水、手续费、机构成本、提成是该报表全部行的合计（机构成本只有差价方案的机构报表才有）；`activeMerchantCount` 是有交易商户数：当月有成交的去重商户数。
+      parameters:
+        - $ref: '#/components/parameters/FromMonth'
+        - $ref: '#/components/parameters/ToMonth'
+        - $ref: '#/components/parameters/SubjectTypeFilter'
+        - $ref: '#/components/parameters/SubjectIdFilter'
+        - $ref: '#/components/parameters/SettleCurrencyFilter'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommissionReportSummary'
+              example:
+                total: 1
+                data:
+                  - subjectType: partner
+                    subject:
+                      subjectId: ptn_0031
+                      subjectName: Maple Partners
+                    reportMonth: 2026-10
+                    settleCurrency: CAD
+                    volumeAmount:
+                      amount: '152000000'
+                      currency: CAD
+                    feeAmount:
+                      amount: '3344000'
+                      currency: CAD
+                    costAmount:
+                      amount: '912000'
+                      currency: CAD
+                    commissionAmount:
+                      amount: '1945600'
+                      currency: CAD
+                    activeMerchantCount: 18
+                    computedAt: '2026-11-08T04:00:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /commission-reports/summary:
+    get:
+      tags:
+        - commission-reports
+      operationId: getCommissionReportSummary
+      x-required-privilege: orgbd:commission-report:view
+      summary: 提成报表按币种合计
+      description: |
+        与 `listCommissionReports` 同一组筛选命中的全部报表（不只是当前页），按结算币种分别合计：报表数、流水、手续费、提成。
+      parameters:
+        - $ref: '#/components/parameters/FromMonth'
+        - $ref: '#/components/parameters/ToMonth'
+        - $ref: '#/components/parameters/SubjectTypeFilter'
+        - $ref: '#/components/parameters/SubjectIdFilter'
+        - $ref: '#/components/parameters/SettleCurrencyFilter'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommissionReportCurrencyTotal'
+              example:
+                items:
+                  - settleCurrency: CAD
+                    reportCount: 12
+                    volumeAmount:
+                      amount: '980000000'
+                      currency: CAD
+                    feeAmount:
+                      amount: '21560000'
+                      currency: CAD
+                    commissionAmount:
+                      amount: '6200000'
+                      currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /commission-report-lines:
+    get:
+      tags:
+        - commission-reports
+      operationId: listCommissionReportLines
+      x-required-privilege: orgbd:commission-report:view
+      summary: 提成报表的行
+      description: |
+        一份报表（主体 × 交易月 × 币种）按商户的行，分页，按商户、归属销售、支付方式、入口排序。报表可见即其行可见，不再按行里商户的数据范围过滤（商户已改派到别的机构、已关户的行照常显示）。
+
+        - 每行带商户、归属销售、支付方式、入口、成交笔数、流水净额、手续费净额、机构成本（差价方案才有）、计提基数、所用比例与提成金额。
+        - 一个商户同月因改派分属两名销售、或因费率区间 / 方案版本不同，分成多行；流水档按商户该月全部流水落档，不因月内改派拆开。
+        - 提成金额：BD 与提成矩阵型机构的行 = 行净流水 × 所用比例，上浮型的行 = 行净流水 × 费率差（入口费率不高于基础费率时费率差为 0、提成为 0），净流水为负的行提成为负；差价方案按机构 × 支付方式 × 入口汇总价差，该组汇总价差小于 0 时组内各行提成为 0（计提基数照常显示各行价差），否则各行 = 行价差 × 保留比例，个别行可为负。
+
+        报表不存在（该主体该月该币种无行）或在本人可见范围外 → `404`。
+      parameters:
+        - $ref: '#/components/parameters/ReportSubjectType'
+        - $ref: '#/components/parameters/ReportSubjectId'
+        - $ref: '#/components/parameters/ReportMonth'
+        - $ref: '#/components/parameters/ReportSettleCurrency'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CommissionReportLine'
+              example:
+                total: 2
+                data:
+                  - merchant:
+                      merchantId: mch_8812
+                      merchantName: Maple Coffee
+                    merchantCode: C3BM68
+                    salesUser:
+                      userId: usr_b07
+                      displayName: Bob BD
+                    paymentMethod: wechat_instore
+                    txnCount: 230
+                    volumeAmount:
+                      amount: '4562000'
+                      currency: CAD
+                    feeAmount:
+                      amount: '100364'
+                      currency: CAD
+                    costAmount:
+                      amount: '27372'
+                      currency: CAD
+                    baseAmount:
+                      amount: '72992'
+                      currency: CAD
+                    appliedRate: '0.8'
+                    commissionAmount:
+                      amount: '58394'
+                      currency: CAD
+                  - merchant:
+                      merchantId: mch_8812
+                      merchantName: Maple Coffee
+                    merchantCode: C3BM68
+                    salesUser:
+                      userId: usr_b19
+                      displayName: Carol BD
+                    paymentMethod: wechat_instore
+                    txnCount: 182
+                    volumeAmount:
+                      amount: '4000000'
+                      currency: CAD
+                    feeAmount:
+                      amount: '88000'
+                      currency: CAD
+                    costAmount:
+                      amount: '24000'
+                      currency: CAD
+                    baseAmount:
+                      amount: '64000'
+                      currency: CAD
+                    appliedRate: '0.8'
+                    commissionAmount:
+                      amount: '51200'
+                      currency: CAD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /staff-commissions:
+    get:
+      tags:
+        - commission-reports
+      operationId: listStaffCommissions
+      x-required-privilege: orgbd:commission-report:view
+      summary: 员工提成
+      description: |
+        按员工看一个交易月的提成：一行 = 一名后台账号（归属销售）一个币种，来源是同一份月度提成报表按归属销售汇总。只有已结束的月份有数据。
+
+        - Platform 员工（无所属机构）的提成 = 其 BD 报表的提成合计。
+        - 机构员工的提成 = 所属机构的机构分润中归于其名下交易的部分，只作展示，机构分润照常按机构计、不另计付。
+        - 月内改派使一个商户同月分属两名员工时，各计各的交易，两人的有交易商户数都计该商户。
+
+        可见范围按员工收口：数据范围为本人名下商户的只看本人；为所属机构的只看所属组织为所属机构及其直接下级机构的员工；全部商户的看全部。分页，按显示名排序。
+      parameters:
+        - $ref: '#/components/parameters/ReportMonth'
+        - $ref: '#/components/parameters/SettleCurrencyFilter'
+        - name: partnerId
+          in: query
+          required: false
+          description: 只看所属机构为该机构的员工；不传 = 不按机构筛。
+          schema:
+            $ref: '#/components/schemas/PartnerId'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StaffCommission'
+              example:
+                total: 1
+                data:
+                  - staff:
+                      userId: usr_b07
+                      displayName: Bob BD
+                    partner:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
+                    settleCurrency: CAD
+                    volumeAmount:
+                      amount: '4562000'
+                      currency: CAD
+                    commissionAmount:
+                      amount: '58394'
+                      currency: CAD
+                    activeMerchantCount: 1
+                    txnCount: 230
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /commission-report-exports:
+    post:
+      tags:
+        - commission-reports
+      operationId: createCommissionReportExport
+      x-required-privilege: orgbd:commission-export:create
+      summary: 导出提成报表列表（xlsx）
+      description: |
+        按所给筛选导出命中的报表，不只是当前页；筛选字段与 `listCommissionReports` 相同，只含本人可见范围内的报表。列同列表。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限，缩小筛选后重试。
+        - 交易月区间缺一端、`toMonth` 早于 `fromMonth`、跨度超过允许的最大查询窗口 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionReportListFilter'
+            example:
+              fromMonth: 2026-07
+              toMonth: 2026-10
+              subjectType: partner
+              subjectId: ptn_0031
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /commission-report-line-exports:
+    post:
+      tags:
+        - commission-reports
+      operationId: createCommissionReportLineExport
+      x-required-privilege: orgbd:commission-export:create
+      summary: 导出提成报表的行（xlsx）
+      description: |
+        导出一份报表（主体 × 交易月 × 币种）的全部行，列同 `listCommissionReportLines`。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限。
+        - 报表不存在或在本人可见范围外 → `404`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionReportKey'
+            example:
+              subjectType: partner
+              subjectId: ptn_0031
+              reportMonth: 2026-10
+              settleCurrency: CAD
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /commission-report-transaction-exports:
+    post:
+      tags:
+        - commission-reports
+      operationId: createCommissionReportTransactionExport
+      x-required-privilege: orgbd:commission-export:create
+      summary: 导出提成报表的逐笔明细（xlsx）
+      description: |
+        导出一份报表的行背后的每笔收款、退款与退款回冲：商户（商户码、经营名）、归属销售、类型、订单号 / 退款号、日期、支付方式、入口、结算金额、手续费；可按 `merchantId` 缩小到一家商户。入口与报表行同一口径：专用入口照记，其余入口记为默认，不写实际受理入口。只含按计提判据计入某一行的交易，落在空档等未计提的交易不列出。
+
+        逐笔明细按导出时的归属与配置取交易：按商户 × 支付方式 × 入口 × 归属销售汇总后的流水与手续费，等于这四项都相同的报表行之和（同一组可因费率区间或方案版本不同分成多行）。报表计算之后若有改派、配置变更或交易明细变动，下一次计算之前两者可能对不上，下一次计算之后一致；报表的计算时刻见 `computedAt`。
+
+        从现有管理后台迁入的历史月份只有报表行、没有逐笔明细。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限，可按商户缩小后重试。
+        - 报表不存在或在本人可见范围外 → `404`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommissionReportTransactionExportFilter'
+            example:
+              subjectType: partner
+              subjectId: ptn_0031
+              reportMonth: 2026-10
+              settleCurrency: CAD
+              merchantId: mch_8812
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /staff-commission-exports:
+    post:
+      tags:
+        - commission-reports
+      operationId: createStaffCommissionExport
+      x-required-privilege: orgbd:commission-export:create
+      summary: 导出员工提成（xlsx）
+      description: |
+        按所给筛选导出命中的员工提成，不只是当前页；筛选字段与 `listStaffCommissions` 相同，只含本人可见范围内的员工。列同列表。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。按读处理，不挂幂等键，不记操作审计。
+
+        **什么时候拒绝**：
+
+        - 命中行数超过导出上限 → `409`·`308503`，不出文件；`context.maxRows` 带当时的上限。
+        - 交易月缺失或格式不对 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/AcceptLanguage'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StaffCommissionFilter'
+            example:
+              reportMonth: 2026-10
+              partnerId: ptn_0031
+      responses:
+        '200':
+          $ref: '#/components/responses/XlsxFile'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308503
+  /me/referral-codes:
+    get:
+      tags:
+        - referral-codes
+      operationId: listMyReferralCodes
+      x-required-privilege: session
+      summary: 本人的推荐码
+      description: |
+        本人全部推荐码，生效码在前、其余按创建时间从新到旧。在册账号恰有一枚生效码；生效码带推荐链接 `referralLink`（商户后台注册页的推荐链接），页面据此显示链接、二维码与复制按钮。`openCount` = 链接在有效时被打开的次数。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferralCodeList'
+              example:
+                items:
+                  - referralCode: K7MR2XTA
+                    status: ACTIVE
+                    referralLink: https://merchant.example.com/register?referralCode=K7MR2XTA
+                    openCount: 3
+                    issuedPartner:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
+                    createdAt: '2026-10-05T08:00:00Z'
+                  - referralCode: B3NH8ZVQ
+                    status: STOPPED
+                    openCount: 12
+                    issuedPartner:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
+                    createdAt: '2026-06-01T08:00:00Z'
+                    statusChangedAt: '2026-10-05T08:00:00Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /me/referral-codes/{referralCode}/status:
+    parameters:
+      - $ref: '#/components/parameters/ReferralCodePath'
+    put:
+      tags:
+        - referral-codes
+      operationId: updateMyReferralCodeStatus
+      x-required-privilege: session
+      summary: 停用 / 重新启用本人的推荐码
+      description: |
+        - `STOPPED`：停用这枚码，系统同时发一枚新的生效码；旧链接随即无效。
+        - `ACTIVE`：重新启用一枚历史码，原生效码同时转停用。
+
+        已处于目标状态的照常成功、不变。返回本人全部推荐码。
+
+        **什么时候拒绝**：
+
+        - 码不存在或不是本人的 → `404`。
+
+        按目标值写，不挂幂等键。状态有变化时记入操作审计。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferralCodeStatusUpdate'
+            example:
+              status: STOPPED
+      responses:
+        '200':
+          description: 本人全部推荐码
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferralCodeList'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /referral-codes:
+    get:
+      tags:
+        - referral-codes
+      operationId: listReferralCodes
+      x-required-privilege: orgbd:referral-code:view
+      summary: 推荐码管理
+      description: |
+        本人可管范围内后台账号的推荐码，分页，按码主人、生效码在前。范围按账号的所属机构收口：数据范围为全部商户的看全部账号；为所属机构的只看所属机构为本人所属机构或其直接下级机构的账号；为本人名下商户的只看本人。停用 / 重新启用他人的码用同一范围。可按码主人、码主人的所属机构、状态筛选。
+      parameters:
+        - name: ownerUserId
+          in: query
+          required: false
+          description: 按码主人。
+          schema:
+            $ref: '#/components/schemas/UserId'
+        - name: partnerId
+          in: query
+          required: false
+          description: 按码主人当前的所属机构。
+          schema:
+            $ref: '#/components/schemas/PartnerId'
+        - name: status
+          in: query
+          required: false
+          description: 按码状态。
+          schema:
+            $ref: '#/components/schemas/ReferralCodeStatus'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ManagedReferralCode'
+              example:
+                total: 1
+                data:
+                  - referralCode: K7MR2XTA
+                    status: ACTIVE
+                    referralLink: https://merchant.example.com/register?referralCode=K7MR2XTA
+                    openCount: 3
+                    issuedPartner:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
+                    createdAt: '2026-10-05T08:00:00Z'
+                    owner:
+                      userId: usr_b07
+                      displayName: Bob BD
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /referral-codes/{referralCode}/status:
+    parameters:
+      - $ref: '#/components/parameters/ReferralCodePath'
+    put:
+      tags:
+        - referral-codes
+      operationId: updateReferralCodeStatus
+      x-required-privilege: orgbd:referral-code:manage
+      summary: 停用 / 重新启用他人的推荐码
+      description: |
+        语义同 `updateMyReferralCodeStatus`，作用于本人可管范围内账号的码（范围同 `listReferralCodes`）。返回该码主人的全部推荐码。
+
+        **什么时候拒绝**：
+
+        - 码不存在或码主人在本人可管范围外 → `404`。
+
+        按目标值写，不挂幂等键。状态有变化时记入操作审计（带操作人、码与码主人）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferralCodeStatusUpdate'
+            example:
+              status: STOPPED
+      responses:
+        '200':
+          description: 该码主人的全部推荐码
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReferralCodeList'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-asession
+      description: |
+        管理后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决操作者身份、权限点与数据可见范围。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读可读伴生 cookie `__Host-acsrf`、原样放进 `X-CSRF-Token`（详见管理后台约定）；
+        - 受信浏览器凭据在另一个 HttpOnly cookie 里，由服务端读写，前端不读、不写、不转发。
+  parameters:
+    PartnerIdPath:
+      name: partnerId
+      in: path
+      required: true
+      description: 机构标识。
+      schema:
+        $ref: '#/components/schemas/PartnerId'
+    ReferralCodePath:
+      name: referralCode
+      in: path
+      required: true
+      description: 推荐码。
+      schema:
+        $ref: '#/components/schemas/ReferralCode'
+    FromMonth:
+      name: fromMonth
+      in: query
+      required: true
+      description: 起始交易月（含）。与 `toMonth` 同为必填，`toMonth` 早于 `fromMonth` → `400`。
+      schema:
+        $ref: '#/components/schemas/YearMonth'
+    ToMonth:
+      name: toMonth
+      in: query
+      required: true
+      description: 截止交易月（含；与 `fromMonth` 成对必填）。
+      schema:
+        $ref: '#/components/schemas/YearMonth'
+    SubjectTypeFilter:
+      name: subjectType
+      in: query
+      required: false
+      description: 按主体类型。
+      schema:
+        $ref: '#/components/schemas/CommissionSubjectType'
+    SubjectIdFilter:
+      name: subjectId
+      in: query
+      required: false
+      description: 按主体：机构标识或后台用户标识；与 `subjectType` 同用。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+    SettleCurrencyFilter:
+      name: settleCurrency
+      in: query
+      required: false
+      description: 按结算币种。
+      schema:
+        $ref: '#/components/schemas/Currency'
+    ReportSubjectType:
+      name: subjectType
+      in: query
+      required: true
+      description: 报表的主体类型。
+      schema:
+        $ref: '#/components/schemas/CommissionSubjectType'
+    ReportSubjectId:
+      name: subjectId
+      in: query
+      required: true
+      description: 报表的主体：机构标识或后台用户标识。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+    ReportMonth:
+      name: reportMonth
+      in: query
+      required: true
+      description: 交易月。
+      schema:
+        $ref: '#/components/schemas/YearMonth'
+    ReportSettleCurrency:
+      name: settleCurrency
+      in: query
+      required: true
+      description: 报表的结算币种。
+      schema:
+        $ref: '#/components/schemas/Currency'
+    PageNum:
+      name: pageNum
+      in: query
+      description: 页码(从 1 计;分页)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
+      schema:
+        type: string
+        minLength: 1
+        pattern: .*\S.*
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
+      schema:
+        type: string
+        minLength: 1
+        pattern: .*\S.*
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      description: |
+        页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+        响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 256
+    MerchantId:
+      name: merchantId
+      in: path
+      required: true
+      description: 商户标识。
+      schema:
+        $ref: '#/components/schemas/MerchantId'
+  schemas:
+    YearMonth:
+      type: string
+      pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      description: 年月 `YYYY-MM`，按字面值收发。
+      examples:
+        - 2026-10
+    Ratio:
+      type: string
+      pattern: ^0(\.[0-9]{1,6})?$
+      description: 比例，小数、最多六位小数，不小于 0、小于 1（`0.006` = 0.6%）。
+      examples:
+        - '0.006'
+    CommissionPct:
+      type: string
+      pattern: ^(0\.[0-9]{1,6}|1(\.0{1,6})?)$
+      description: 差价方案的保留比例，小数、最多六位小数，大于 0、不大于 1（`1` = 价差全额归机构）；为 0 → `400`。
+      examples:
+        - '0.8'
+    VolumeAmount:
+      type: string
+      pattern: ^[0-9]+$
+      description: 商户月流水档的金额，不带币种，按商户结算币种最小单位的非负整数串。
+      examples:
+        - '10000000'
+    CommissionEntryPoint:
+      description: 专用入口；不返回 / 不传 = 默认（未单列的入口都算默认）。
+      allOf:
+        - $ref: '#/components/schemas/FeeRateEntryPoint'
+    PartnerCore:
+      type: object
+      x-parent: true
+      description: 机构的列表字段。
+      required:
+        - partnerId
+        - partnerName
+        - commissionEnabled
+        - enabled
+        - createdAt
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 机构名称。
+        parent:
+          $ref: '#/components/schemas/PartnerRef'
+          description: 上级机构；一级机构不返回本键。
+        contactName:
+          type: string
+          maxLength: 64
+          description: 联系人；没填不返回本键。
+        contactPhone:
+          type: string
+          maxLength: 40
+          description: 联系电话；没填不返回本键。
+        contactEmail:
+          type: string
+          maxLength: 128
+          description: 联系邮箱；没填不返回本键。
+        commissionEnabled:
+          type: boolean
+          description: 当月是否计算分润。
+        enabled:
+          type: boolean
+          description: 是否启用。
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    PartnerSummary:
+      description: 机构列表的一行。
+      allOf:
+        - $ref: '#/components/schemas/PartnerCore'
+        - type: object
+          properties:
+            currentBasisType:
+              $ref: '#/components/schemas/CommissionBasisType'
+              description: 当月生效的分润方案的基数类型；当月没有生效方案不返回本键。
+      unevaluatedProperties: false
+    PartnerDetail:
+      description: 机构详情。
+      allOf:
+        - $ref: '#/components/schemas/PartnerCore'
+        - type: object
+          required:
+            - children
+            - updatedAt
+          properties:
+            officeAddress:
+              type: string
+              maxLength: 256
+              description: 机构地址；没填不返回本键。
+            note:
+              type: string
+              maxLength: 512
+              description: 备注；没填不返回本键。
+            children:
+              type: array
+              description: 直接下级机构；没有为空数组。
+              items:
+                $ref: '#/components/schemas/PartnerChild'
+            updatedAt:
+              $ref: '#/components/schemas/Timestamp'
+      unevaluatedProperties: false
+    PartnerChild:
+      type: object
+      additionalProperties: false
+      required:
+        - partnerId
+        - partnerName
+        - enabled
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
+        enabled:
+          type: boolean
+    PartnerCreate:
+      type: object
+      additionalProperties: false
+      description: 新建机构。不传 `commissionEnabled` = 计算分润。
+      required:
+        - partnerName
+      properties:
+        partnerName:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: 机构名称，必填，不要求唯一。
+        parentPartnerId:
+          $ref: '#/components/schemas/PartnerId'
+          description: 上级机构，新设或更换时须是启用中的一级机构，与现值相同时不判；不传 = 一级机构。候选取自 `listPartnerOptions`。
+        commissionEnabled:
+          type: boolean
+          description: 是否计算分润；新建时所填值自建立当月的上一个月起生效，改值自改值当月起生效，之前的月份按当时的值；不计算分润的月份，分润计算不为该机构计提、不出它的报表行。
+        contactName:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 联系人。
+        contactPhone:
+          type: string
+          minLength: 1
+          maxLength: 40
+          description: 联系电话。
+        contactEmail:
+          type: string
+          format: email
+          minLength: 3
+          maxLength: 128
+          description: 联系邮箱。
+        officeAddress:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: 机构地址。
+        note:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 备注。
+    PartnerUpdate:
+      description: 编辑机构：整体替换，不传的选填字段 = 清空。
+      allOf:
+        - $ref: '#/components/schemas/PartnerCreate'
+      required:
+        - partnerName
+        - commissionEnabled
+      unevaluatedProperties: false
+    PartnerCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - partnerId
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+    PartnerEnablement:
+      type: object
+      additionalProperties: false
+      required:
+        - enabled
+      properties:
+        enabled:
+          type: boolean
+          description: '`true` 启用中 / `false` 已停用。'
+    PartnerOption:
+      type: object
+      additionalProperties: false
+      required:
+        - partnerId
+        - partnerName
+        - enabled
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
+        parentPartnerId:
+          $ref: '#/components/schemas/PartnerId'
+          description: 上级机构；一级机构不返回本键。
+        enabled:
+          type: boolean
+    CommissionBasisType:
+      type: string
+      enum:
+        - SPREAD
+        - MATRIX
+        - UPLIFT
+      description: 分润基数类型：`SPREAD` 差价（商户手续费减机构成本，乘保留比例）/ `MATRIX` 提成矩阵 / `UPLIFT` 上浮（商户在特定入口高出基础费率的部分，不高于基础费率时没有上浮）。
+    CostRate:
+      type: object
+      additionalProperties: false
+      required:
+        - paymentMethod
+        - costRate
+      properties:
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        entryPoint:
+          $ref: '#/components/schemas/CommissionEntryPoint'
+        costRate:
+          $ref: '#/components/schemas/Ratio'
+          description: 机构成本率。
+    CommissionPlan:
+      type: object
+      additionalProperties: false
+      description: 一段分润方案。
+      required:
+        - planId
+        - basisType
+        - effectiveFromMonth
+        - costRates
+        - createdAt
+      properties:
+        planId:
+          type: string
+          minLength: 1
+          maxLength: 32
+        basisType:
+          $ref: '#/components/schemas/CommissionBasisType'
+        commissionPct:
+          $ref: '#/components/schemas/CommissionPct'
+          description: 保留比例；差价方案才返回。
+        effectiveFromMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 起始月（含）。
+        effectiveToMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 截止月（含）；长期有效不返回本键。
+        costRates:
+          type: array
+          description: 机构成本率；非差价方案为空数组。
+          items:
+            $ref: '#/components/schemas/CostRate'
+        createdBy:
+          $ref: '#/components/schemas/UserRef'
+          description: 设置人；迁移来的方案不返回本键。
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    CommissionPlanCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - basisType
+        - effectiveFromMonth
+      properties:
+        basisType:
+          $ref: '#/components/schemas/CommissionBasisType'
+        commissionPct:
+          $ref: '#/components/schemas/CommissionPct'
+          description: 保留比例；差价方案必带，其他方案不带。
+        costRates:
+          type: array
+          maxItems: 200
+          description: 机构成本率；只差价方案可带，同一支付方式 × 入口只一条。
+          items:
+            $ref: '#/components/schemas/CostRate'
+        effectiveFromMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 从这个月的月初起生效。
+    CommissionPlanCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - planId
+      properties:
+        planId:
+          type: string
+          minLength: 1
+          maxLength: 32
+    CommissionRateMatrixRowFields:
+      type: object
+      x-parent: true
+      description: 矩阵一行的区间、档位与比例。
+      required:
+        - merchantRateFrom
+        - monthlyVolumeFrom
+        - commissionRate
+      properties:
+        merchantRateFrom:
+          $ref: '#/components/schemas/Ratio'
+          description: 商户签约比例费率区间起（含）。
+        merchantRateTo:
+          $ref: '#/components/schemas/Ratio'
+          description: 区间止（不含），须大于起；不传 = 无上限。
+        monthlyVolumeFrom:
+          $ref: '#/components/schemas/VolumeAmount'
+          description: 商户当月流水档起（含）。
+        monthlyVolumeTo:
+          $ref: '#/components/schemas/VolumeAmount'
+          description: 流水档止（不含），须大于起；不传 = 无上限。
+        commissionRate:
+          $ref: '#/components/schemas/Ratio'
+          description: 提成比例。
+    CommissionRateMatrixRowInput:
+      description: 矩阵新版的一行。
+      allOf:
+        - $ref: '#/components/schemas/CommissionRateMatrixRowFields'
+      unevaluatedProperties: false
+    CommissionRateMatrixRow:
+      description: 某月生效的一行矩阵。
+      allOf:
+        - $ref: '#/components/schemas/CommissionRateMatrixRowFields'
+        - type: object
+          required:
+            - matrixId
+            - paymentMethod
+            - effectiveFromMonth
+          properties:
+            matrixId:
+              type: string
+              minLength: 1
+              maxLength: 32
+            paymentMethod:
+              $ref: '#/components/schemas/PaymentMethod'
+            entryPoint:
+              $ref: '#/components/schemas/CommissionEntryPoint'
+            effectiveFromMonth:
+              $ref: '#/components/schemas/YearMonth'
+              description: 该行所在版本的起始月（含）。
+            effectiveToMonth:
+              $ref: '#/components/schemas/YearMonth'
+              description: 截止月（含）；长期有效不返回本键。
+      unevaluatedProperties: false
+    CommissionRateMatrixVersionCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - paymentMethod
+        - effectiveFromMonth
+        - rows
+      properties:
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        entryPoint:
+          $ref: '#/components/schemas/CommissionEntryPoint'
+        effectiveFromMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 从这个月的月初起生效。
+        rows:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: 新版的全部行，至少一行。
+          items:
+            $ref: '#/components/schemas/CommissionRateMatrixRowInput'
+    CommissionRateMatrixVersionCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - effectiveFromMonth
+        - rowCount
+      properties:
+        effectiveFromMonth:
+          $ref: '#/components/schemas/YearMonth'
+        rowCount:
+          type: integer
+          minimum: 1
+          description: 新版的行数。
+    CommissionRateMatrixExportFilter:
+      type: object
+      additionalProperties: false
+      properties:
+        month:
+          $ref: '#/components/schemas/YearMonth'
+          description: 导出哪个月生效的版本；不传 = 当月。
+    SalesAssignmentUpdate:
+      type: object
+      additionalProperties: false
+      required:
+        - salesUserId
+        - effectiveDate
+        - changeReason
+      properties:
+        salesUserId:
+          $ref: '#/components/schemas/UserId'
+          description: 新的归属销售；候选取自 `listSalesOptions`。
+        effectiveDate:
+          $ref: '#/components/schemas/LocalDate'
+          description: 生效日（系统运营日）：可选未来；可倒签，但不早于当月的上一个月 1 日，也不早于该商户最早一段归属的生效日。
+        changeReason:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: 改派原因。
+    SalesAssignmentResult:
+      type: object
+      additionalProperties: false
+      required:
+        - merchantId
+        - salesUser
+        - affectedMerchantCount
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        salesUser:
+          $ref: '#/components/schemas/UserRef'
+          description: 改派后的归属销售。
+        partner:
+          $ref: '#/components/schemas/PartnerRef'
+          description: 改派后的所属机构；Platform 总部销售不返回本键。
+        affectedMerchantCount:
+          type: integer
+          minimum: 0
+          description: 归属实际有变化的商户数（含子商户）。
+    PartnerMerchantTransferCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - targetSalesUserId
+        - effectiveDate
+        - changeReason
+      properties:
+        targetPartnerId:
+          $ref: '#/components/schemas/PartnerId'
+          description: 目标机构；不传 = Platform 总部（无所属机构）。
+        targetSalesUserId:
+          $ref: '#/components/schemas/UserId'
+          description: 目标销售，所属组织须为目标组织；候选取自 `listSalesOptions`。
+        effectiveDate:
+          $ref: '#/components/schemas/LocalDate'
+          description: 生效日（系统运营日）：可选未来；可倒签，但不早于当月的上一个月 1 日。
+        changeReason:
+          type: string
+          minLength: 1
+          maxLength: 256
+          description: 改派原因。
+    PartnerMerchantTransferResult:
+      type: object
+      additionalProperties: false
+      required:
+        - transferredMerchantCount
+      properties:
+        transferredMerchantCount:
+          type: integer
+          minimum: 0
+          description: 改写了归属的商户数（含子商户）。
+    SalesOption:
+      type: object
+      additionalProperties: false
+      required:
+        - userId
+        - displayName
+      properties:
+        userId:
+          $ref: '#/components/schemas/UserId'
+        displayName:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+          description: 登录邮箱；没有不返回本键。
+    CommissionSubjectType:
+      type: string
+      enum:
+        - partner
+        - bd_user
+      description: 提成报表主体类型：`partner` 机构 / `bd_user` BD（后台用户）。
+    CommissionSubject:
+      type: object
+      additionalProperties: false
+      required:
+        - subjectId
+        - subjectName
+      properties:
+        subjectId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 机构标识或后台用户标识。
+        subjectName:
+          type: string
+          minLength: 1
+          description: 机构名称或后台用户显示名。
+    CommissionReportSummary:
+      type: object
+      additionalProperties: false
+      description: 提成报表列表的一行：一个主体一个交易月一个币种。
+      required:
+        - subjectType
+        - subject
+        - reportMonth
+        - settleCurrency
+        - volumeAmount
+        - feeAmount
+        - commissionAmount
+        - activeMerchantCount
+        - computedAt
+      properties:
+        subjectType:
+          $ref: '#/components/schemas/CommissionSubjectType'
+        subject:
+          $ref: '#/components/schemas/CommissionSubject'
+        reportMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 交易月。
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+        volumeAmount:
+          $ref: '#/components/schemas/Money'
+          description: 流水净额合计。
+        feeAmount:
+          $ref: '#/components/schemas/Money'
+          description: 手续费净额合计。
+        costAmount:
+          $ref: '#/components/schemas/Money'
+          description: 机构成本合计；只有差价方案的机构报表返回本键。
+        commissionAmount:
+          $ref: '#/components/schemas/Money'
+          description: 提成合计，可负（退款冲回了已按流水计的提成）；合计为负的月份不付款、不结转到下月。
+        activeMerchantCount:
+          type: integer
+          minimum: 0
+          description: 有交易商户数：当月有成交的去重商户数。
+        computedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 最近一次计算的时刻。
+    CommissionReportCurrencyTotal:
+      type: object
+      additionalProperties: false
+      required:
+        - settleCurrency
+        - reportCount
+        - volumeAmount
+        - feeAmount
+        - commissionAmount
+      properties:
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+        reportCount:
+          type: integer
+          minimum: 0
+          description: 报表数（主体 × 交易月）。
+        volumeAmount:
+          $ref: '#/components/schemas/Money'
+        feeAmount:
+          $ref: '#/components/schemas/Money'
+        commissionAmount:
+          $ref: '#/components/schemas/Money'
+    CommissionReportLine:
+      type: object
+      additionalProperties: false
+      description: 提成报表按商户的一行：商户 × 归属销售 × 支付方式 × 入口按同一比例的提成。从现有管理后台迁入的历史月份按原记录粒度展示，可能没有商户、归属销售、支付方式与所用比例。
+      required:
+        - txnCount
+        - volumeAmount
+        - feeAmount
+        - baseAmount
+        - commissionAmount
+      properties:
+        merchant:
+          $ref: '#/components/schemas/MerchantBrief'
+          description: 商户；迁入的无商户粒度记录不返回本键。
+        merchantCode:
+          $ref: '#/components/schemas/MerchantCode'
+          description: 商户码；不返回 `merchant` 时也不返回本键。
+        salesUser:
+          $ref: '#/components/schemas/UserRef'
+          description: 归属销售（交易建单时刻生效的归属）；迁入且无从确定的不返回本键。
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+          description: 支付方式；迁入的无支付方式粒度记录不返回本键。
+        entryPoint:
+          $ref: '#/components/schemas/CommissionEntryPoint'
+        txnCount:
+          type: integer
+          minimum: 0
+          description: 成交笔数（退款不计）。
+        volumeAmount:
+          $ref: '#/components/schemas/Money'
+          description: 流水净额。
+        feeAmount:
+          $ref: '#/components/schemas/Money'
+          description: 手续费净额。
+        costAmount:
+          $ref: '#/components/schemas/Money'
+          description: 机构成本；差价方案的行才返回。
+        baseAmount:
+          $ref: '#/components/schemas/Money'
+          description: 计提基数：差价方案为行价差，提成矩阵型与 BD 为行净流水，上浮型为行净流水；可负。
+        appliedRate:
+          type: string
+          pattern: ^(0|1)(\.[0-9]{1,6})?$
+          description: 所用比例（保留比例、提成比例或上浮费率差），小数串；上浮费率差不小于 0，入口费率不高于基础费率时为 0；迁入且原记录无此值的不返回本键。
+        commissionAmount:
+          $ref: '#/components/schemas/Money'
+          description: 提成金额，可负；差价方案所在组（机构 × 支付方式 × 入口）汇总价差小于 0 时为 0。
+    StaffCommission:
+      type: object
+      additionalProperties: false
+      description: 员工提成的一行：一名后台账号（归属销售）一个交易月一个币种。
+      required:
+        - staff
+        - settleCurrency
+        - volumeAmount
+        - commissionAmount
+        - activeMerchantCount
+        - txnCount
+      properties:
+        staff:
+          $ref: '#/components/schemas/UserRef'
+          description: 员工（归属销售）。
+        partner:
+          $ref: '#/components/schemas/PartnerRef'
+          description: 所属机构；Platform 员工不返回本键。
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+        volumeAmount:
+          $ref: '#/components/schemas/Money'
+          description: 名下交易的流水净额合计。
+        commissionAmount:
+          $ref: '#/components/schemas/Money'
+          description: 提成金额：Platform 员工 = 其 BD 提成；机构员工 = 机构分润中归于其名下交易的部分（只作展示）。
+        activeMerchantCount:
+          type: integer
+          minimum: 0
+          description: 有交易商户数：名下当月有成交的去重商户数。
+        txnCount:
+          type: integer
+          minimum: 0
+          description: 名下成交笔数合计。
+    CommissionReportListFilter:
+      type: object
+      additionalProperties: false
+      description: 提成报表列表的筛选，与 `listCommissionReports` 的同名查询参数同义；不传的项不筛。
+      required:
+        - fromMonth
+        - toMonth
+      properties:
+        fromMonth:
+          $ref: '#/components/schemas/YearMonth'
+        toMonth:
+          $ref: '#/components/schemas/YearMonth'
+        subjectType:
+          $ref: '#/components/schemas/CommissionSubjectType'
+        subjectId:
+          type: string
+          minLength: 1
+          maxLength: 32
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+    CommissionReportKey:
+      type: object
+      additionalProperties: false
+      description: 一份提成报表：主体 × 交易月 × 币种。
+      required:
+        - subjectType
+        - subjectId
+        - reportMonth
+        - settleCurrency
+      properties:
+        subjectType:
+          $ref: '#/components/schemas/CommissionSubjectType'
+        subjectId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 主体：机构标识或后台用户标识。
+        reportMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 交易月。
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+    CommissionReportTransactionExportFilter:
+      type: object
+      additionalProperties: false
+      description: 逐笔明细导出：一份报表的四个键，可按商户缩小。
+      required:
+        - subjectType
+        - subjectId
+        - reportMonth
+        - settleCurrency
+      properties:
+        subjectType:
+          $ref: '#/components/schemas/CommissionSubjectType'
+        subjectId:
+          type: string
+          minLength: 1
+          maxLength: 32
+          description: 主体：机构标识或后台用户标识。
+        reportMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 交易月。
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+          description: 只导这家商户的明细；不传 = 全部。
+    StaffCommissionFilter:
+      type: object
+      additionalProperties: false
+      description: 员工提成的筛选，与 `listStaffCommissions` 的同名查询参数同义；不传的项不筛。
+      required:
+        - reportMonth
+      properties:
+        reportMonth:
+          $ref: '#/components/schemas/YearMonth'
+          description: 交易月。
+        settleCurrency:
+          $ref: '#/components/schemas/Currency'
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+    ReferralCode:
+      type: string
+      minLength: 8
+      maxLength: 16
+      pattern: ^[A-Z0-9]+$
+      description: 推荐码。
+      examples:
+        - K7MR2XTA
+    ReferralCodeStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - STOPPED
+      description: 推荐码状态：`ACTIVE` 生效 / `STOPPED` 已停用。
+    ReferralCodeItem:
+      type: object
+      x-parent: true
+      description: 一枚推荐码。
+      required:
+        - referralCode
+        - status
+        - openCount
+        - createdAt
+      properties:
+        referralCode:
+          $ref: '#/components/schemas/ReferralCode'
+        status:
+          $ref: '#/components/schemas/ReferralCodeStatus'
+        referralLink:
+          $ref: '#/components/schemas/WebUrl'
+          description: 商户后台注册页的推荐链接；生效码才返回本键。
+        openCount:
+          type: integer
+          minimum: 0
+          description: 链接在有效时被打开的次数。
+        issuedPartner:
+          $ref: '#/components/schemas/PartnerRef'
+          description: 码主人的所属机构；总部账号不返回本键。
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        statusChangedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 最近一次停用或重新启用的时刻；没变过不返回本键。
+    ReferralCodeList:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          description: 生效码在前，其余按创建时间从新到旧。
+          items:
+            $ref: '#/components/schemas/ReferralCodeItem'
+    ManagedReferralCode:
+      description: 推荐码管理的一行：推荐码加码主人。
+      allOf:
+        - $ref: '#/components/schemas/ReferralCodeItem'
+        - type: object
+          required:
+            - owner
+          properties:
+            owner:
+              $ref: '#/components/schemas/UserRef'
+              description: 码主人。
+      unevaluatedProperties: false
+    ReferralCodeStatusUpdate:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/ReferralCodeStatus'
+          description: 目标状态：`STOPPED` 停用（系统补发新码）/ `ACTIVE` 重新启用（原生效码转停用）。
+    PartnerId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 机构标识。
+    DiagnosticDetail:
+      type: string
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
+    ErrorEnvelope:
+      type: object
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
+      required:
+        - code
+        - detail
+      properties:
+        code:
+          type: integer
+          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+        detail:
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
+        links:
+          type: object
+          description: 可选:错误说明 / 后续恢复操作链接。
+          additionalProperties:
+            type: string
+        traceId:
+          type: string
+          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
+        details:
+          type: array
+          description: 可选:字段级校验错误。
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
+          properties:
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战验证码输错但还能重输时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            orderId:
+              $ref: '#/components/schemas/OrderId'
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
+            merchantMandateNo:
+              $ref: '#/components/schemas/MerchantMandateNo'
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
+            floorAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
+            minimumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的下限，分钟（范围由平台设定，前端不写死）。
+            maximumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            orderAmountCeiling:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时总应付超过单笔上限时，生效的单笔上限（各层取最严后的值），币种是商户结算币种，可能与页面标价币种不同（页面按本键把数额说出来；拼进 `detail` 前端取不出来）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
+    PartnerRef:
+      type: object
+      additionalProperties: false
+      description: 一个机构的标识与名称（列表与记录上展示「哪个机构」）。
+      required:
+        - partnerId
+        - partnerName
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
+    Timestamp:
+      type: string
+      format: date-time
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示由消费方按本地时区换算(浏览器端即浏览器时区)。
+
+        需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    PaymentMethod:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
+      examples:
+        - wechat_instore
+    FeeRateEntryPoint:
+      type: string
+      enum:
+        - plugin_shopify
+        - plugin_allvalue
+        - plugin_allvalue_xhs
+      description: 费率专用行所属的插件入口。
+    UserId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台用户标识；商户操作员的标识就是它。
+    UserRef:
+      type: object
+      additionalProperties: false
+      description: 一个平台用户的标识与显示名（列表与记录上展示「谁」）。
+      required:
+        - userId
+        - displayName
+      properties:
+        userId:
+          $ref: '#/components/schemas/UserId'
+        displayName:
+          type: string
+          minLength: 1
+    MerchantId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 商户标识（平台内部 id，不是对外商户码）。
+    LocalDate:
+      type: string
+      format: date
+      description: |
+        日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
+      examples:
+        - '2026-08-01'
+    MerchantBrief:
+      type: object
+      additionalProperties: false
+      description: 一个商户的标识与名称（列表与记录上展示「哪个商户」）。
+      required:
+        - merchantId
+        - merchantName
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        merchantName:
+          type: string
+          minLength: 1
+    MerchantCode:
+      type: string
+      minLength: 1
+      maxLength: 20
+      description: 对外商户码。
+    WebUrl:
+      type: string
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
+  responses:
+    AdminBffDefaultError:
+      description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见管理后台约定与 API 基础约定「错误响应体」。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    XlsxFile:
+      description: Excel 文件（xlsx）
+      headers:
+        Content-Disposition:
+          required: true
+          description: '`attachment; filename=...xlsx`（下载；filename 编码 RFC 5987）。'
+          schema:
+            type: string
+        Content-Language:
+          required: true
+          description: 文件实际用的语言（BCP-47）。
+          schema:
+            type: string
+      content:
+        application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+          schema:
+            type: string
+            format: binary

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 运维与审计 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -582,8 +582,8 @@ paths:
                       startedAt: '2026-10-15T07:00:00Z'
                       endedAt: '2026-10-15T07:12:40Z'
                       failureReason: Step settle-batch failed at chunk 37
-                  - jobKey: admin.stats.refresh
-                    displayName: 统计刷新
+                  - jobKey: admin.stat.qualified-merchant-report
+                    displayName: 达标商户月报
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
@@ -1387,10 +1387,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     Timestamp:
       type: string
       format: date-time

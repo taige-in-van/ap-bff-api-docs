@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"merchant","ops":{"account/changeRefundPin":"afc427a2be40ec58","account/confirmRefundPinReset":"41bbecc55dde35e6","account/createSettlementChangeRequest":"71f9c0cc37a0f3a5","account/deleteLogo":"eb29dde061658cb5","account/disableTerminalIntegration":"d48edccbf9f40c52","account/getAccountProfile":"2f4239d89d9d2be3","account/getAccountService":"a36a977e8c9d6544","account/getRefundPin":"1332552b55ee8873","account/requestRefundPinReset":"6f1efe33354d5272","account/requestSettlementOtp":"93bf1ba6ccec2a0b","account/updateAcceptanceMode":"28443a10eece06a9","account/updateBusinessInformation":"fe4b4177411cf6c5","account/updateEcommerceIntegration":"9676ce6308dd4791","account/updateLogo":"2822e57b94676142","account/updateOwnerContact":"e96e725a563164f6","account/updateTerminalIntegration":"595aed9a0f8c9649","account/uploadLogoFile":"52b05eb9744728b2","account/uploadSettlementVoidChequeFile":"1449bae0f30d03c4","account/uploadStorePhotoFile":"334f7b462dea5870","auth/acceptInvitation":"734ef64d48178a30","auth/completeMfaChallenge":"f4b905d0b1e574c0","auth/confirmMemberLoginEmail":"d648ad3883fc5005","auth/confirmPasswordReset":"e1ca2dbfb0c443ed","auth/disputeOnboardingConfirmation":"4398a38dfab1a755","auth/establishImpersonationSession":"e55dc59632cb47f8","auth/getCurrentSession":"99d70bb7af1588b2","auth/getOnboardingConfirmation":"108c549209844a9b","auth/initiateWechatLogin":"a6bc1053ca8d1979","auth/login":"1d9a83a05a8b5178","auth/logout":"fa5beaf80a8fb1bf","auth/pollWechatLogin":"ef598de7b961c1b5","auth/registerOwner":"23bcf43614bdda9c","auth/requestPasswordReset":"78ea360be0f303bb","auth/resendVerificationEmail":"ca4f8ca069373fa9","auth/resetRefundPinByLink":"5a7c25f95b47d1d5","auth/signOnboardingConfirmation":"76c2091f3cc8b9d4","auth/switchCurrentMerchant":"12990fecc43fba06","auth/verifyRegistrationEmail":"be5e45f66c8e7eaa","devices/createDevice":"ee8ad45ff1d1334e","devices/deleteDevice":"065492fc89fb9dc8","devices/exportDeviceLogs":"61826c3d6ea6ae31","devices/getDevice":"21b06ddd870b5a0c","devices/getDeviceCounts":"fcdbc7a3c668ab4b","devices/getDeviceLogCounts":"ff00f4fd9be7b95f","devices/listDeviceLogs":"ecd9758cf4eb49ee","devices/listDeviceStores":"813c35143462d20f","devices/listDevices":"8163896d481010c5","devices/updateDevice":"1fc4c15c37d1af31","funds/exportSettlementDetails":"0f475eefe1da32bf","funds/exportSettlements":"3af9098f97652e3b","funds/fundRefundReserve":"7b7341d533c44570","funds/getBalance":"fe566baf3ce0b834","funds/getStatement":"60bbcdb3e9eb4af5","funds/getStatementPdf":"29cbc0d3aa35b24e","funds/listSettlementDetails":"0e075487552ebbe2","funds/listSettlements":"ea8b0e083965224f","funds/listStatements":"e68a3e242d5e3051","funds/requestRefundReserveOtp":"8026b5d05178ef41","funds/withdrawRefundReserve":"4f5edb678e0bbfdb","me/changeMyPassword":"78750fe7616d6a49","me/confirmLoginEmailChange":"607fa428f0c14587","me/confirmMfa":"739c392e0f403ed7","me/disableMfa":"1b4294c6ef97b0c6","me/enrollMfa":"805d6dc6c7639759","me/getMySecurity":"d2a3b879f23fbc5f","me/requestLoginEmailChange":"d1f1dd72a5b8f5a7","me/resendLoginEmailChangeCode":"66307209365e4f65","me/submitNewLoginEmail":"44b51837b5000fd4","me/updateMyProfile":"5b40d7033505d63b","me/verifyLoginEmailChangeIdentity":"2de85307f1003efc","merchants/createMerchant":"8b444f94da70d94b","merchants/deleteMerchant":"4758ae5f96bc0169","merchants/getOnboardingApplication":"1a0beb3670027835","merchants/listMerchants":"8cf83d2920abc6dc","merchants/submitOnboardingApplication":"c026375e989e0fe3","merchants/updateOnboardingStep":"83cf6bb40628bcff","merchants/uploadOnboardingDocumentFile":"997d69ef40ae1cb8","notifications/addNotificationEmail":"265bfec06e1b3e33","notifications/deleteNotificationRecipient":"f497531bc4066aaa","notifications/getNotificationSettings":"21b49c9712608b8c","notifications/initiateNotificationWechatBinding":"41c310ab697b8330","notifications/pollNotificationWechatBinding":"4ffb63e47b06dce9","notifications/requestNotificationEmailOtp":"936741c33c08d22f","notifications/updateNotificationSettings":"003f1b195ae33090","orders/cancelRefund":"e53f310176340394","orders/createRefund":"c5c6fbb749016a29","orders/exportPayments":"7d12af2fc5f1884e","orders/exportRefunds":"721377a2e6b238a8","orders/getPayment":"9eea5ea2d72136a7","orders/getPaymentCounts":"2125cee8245630ff","orders/getPaymentReceipt":"134a96b7e8c2dad3","orders/getPaymentSummary":"c4a708dc748f6602","orders/getRefund":"5fae2a9f2fa7913c","orders/getRefundCounts":"8e4e65293a485cc9","orders/getRefundReceipt":"8970870292c1c5ab","orders/getStatisticsSummary":"69765b63109942bb","orders/getStatisticsTrend":"295512c7e00a5cd3","orders/listPayments":"572d66f5f47bd06e","orders/listRecentPayments":"47ca8efc042aa484","orders/listRefunds":"aa31eba28b14f2c5","orders/releasePreAuth":"173e486b2bb709eb","products/createInvoice":"a1cd4d2d12c115c2","products/createProductLink":"fc44ee9323b69fbb","products/deleteInvoice":"51fe0dcdd0c24c5f","products/deleteProductLink":"f920ce310b862915","products/disposeProductLinkOrderRisk":"ffa6a10a69a43490","products/getCheckoutSettings":"b6c4d042c7bb3af3","products/getInvoiceCounts":"e2643c7d95bdf236","products/getInvoiceSummary":"8bf25e065257a094","products/getPaymentPageSettings":"5a8711ce7f707848","products/getProductLink":"1f150777ca1391f8","products/getProductLinkCounts":"7451cb0c6bf251ba","products/getProductLinkDefaults":"c1d72f17713aa072","products/getProductLinkOrder":"940f2ea001d9b6d9","products/getProductLinkOrderCounts":"34dca3609fec2971","products/listCheckoutOptions":"0d4f92121e9c7b52","products/listInvoices":"7b4eee7dd0b6c3eb","products/listProductLinkOrders":"6aa97fcf9790f1c2","products/listProductLinks":"4d6d7d6300351bbb","products/listStoreQrcodes":"34213324300409de","products/resendProductLinkOrderCredential":"ce20d0f47d03774e","products/updateCheckoutSettings":"5b3618f0721587fa","products/updatePaymentPageSettings":"84d339d890371d53","products/updateProductLink":"5cf92d5232e4c2a4","products/updateProductLinkPolicies":"f1f0a326ce7f1d9c","products/uploadPaymentPageLogoFile":"b24bba5f58f3b29c","products/uploadProductLinkFile":"577314cec9781ef9","products/voidProductLinkOrderVoucher":"233a0f014eb8328a","system/getDeveloperSettings":"a54fc0e1fba0904a","system/getNotice":"1d07c5fd823e1fe3","system/getNoticeSummary":"79e57392dd46bdd6","system/getSettlementConfig":"be0180edc9237cd5","system/listCountryOptions":"97046bdfaaf3769a","system/listCurrencyOptions":"bc463efc1d90e374","system/listIndustryOptions":"d7205ed29fc1ec75","system/listNotices":"fe0765b9f20a5374","system/listPaymentMethodCatalog":"3337414af3e2e347","system/listPaymentMethodOptions":"c482d777639a3193","system/markAllNoticesRead":"d1083931e2b554ab","system/markNoticeRead":"63ff2a1e072421d1","system/replaceSigningKey":"cae6cfefcb4d1042","system/revealGatewayCredential":"51560611fe068a44","team/createTeamMember":"29f68656a8acf1d9","team/deleteMemberWechatBinding":"e4bae0b2a0eda3d6","team/deleteTeamMember":"b22d06dac0e12975","team/getTeamMemberCounts":"4db5d9c1ee440b48","team/initiateMemberWechatBinding":"661c5a310bbc296f","team/listAssignableRoles":"67f366b9bba29c0c","team/listTeamMembers":"54c3a276772d227f","team/pollMemberWechatBinding":"4c36a3b898149660","team/resendInvitation":"0f8014db42d7a7ef","team/updateTeamMember":"47dfc9350d031626"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"merchant","ops":{"account/changeRefundPin":"afc427a2be40ec58","account/confirmRefundPinReset":"41bbecc55dde35e6","account/createSettlementChangeRequest":"71f9c0cc37a0f3a5","account/deleteLogo":"eb29dde061658cb5","account/disableTerminalIntegration":"d48edccbf9f40c52","account/getAccountProfile":"2f4239d89d9d2be3","account/getAccountService":"a36a977e8c9d6544","account/getRefundPin":"1332552b55ee8873","account/requestRefundPinReset":"6f1efe33354d5272","account/requestSettlementOtp":"93bf1ba6ccec2a0b","account/updateAcceptanceMode":"28443a10eece06a9","account/updateBusinessInformation":"fe4b4177411cf6c5","account/updateEcommerceIntegration":"9676ce6308dd4791","account/updateLogo":"2822e57b94676142","account/updateOwnerContact":"e96e725a563164f6","account/updateTerminalIntegration":"595aed9a0f8c9649","account/uploadLogoFile":"52b05eb9744728b2","account/uploadSettlementVoidChequeFile":"1449bae0f30d03c4","account/uploadStorePhotoFile":"334f7b462dea5870","auth/acceptInvitation":"734ef64d48178a30","auth/completeMfaChallenge":"f4b905d0b1e574c0","auth/confirmMemberLoginEmail":"d648ad3883fc5005","auth/confirmPasswordReset":"e1ca2dbfb0c443ed","auth/createReferralLinkVisit":"c3959c089f19d1eb","auth/disputeOnboardingConfirmation":"4398a38dfab1a755","auth/establishImpersonationSession":"e55dc59632cb47f8","auth/getCurrentSession":"99d70bb7af1588b2","auth/getOnboardingConfirmation":"108c549209844a9b","auth/initiateWechatLogin":"a6bc1053ca8d1979","auth/login":"1d9a83a05a8b5178","auth/logout":"fa5beaf80a8fb1bf","auth/pollWechatLogin":"ef598de7b961c1b5","auth/registerOwner":"44882087b70b6f22","auth/requestPasswordReset":"78ea360be0f303bb","auth/resendVerificationEmail":"ca4f8ca069373fa9","auth/resetRefundPinByLink":"5a7c25f95b47d1d5","auth/signOnboardingConfirmation":"76c2091f3cc8b9d4","auth/switchCurrentMerchant":"12990fecc43fba06","auth/verifyRegistrationEmail":"be5e45f66c8e7eaa","devices/createDevice":"ee8ad45ff1d1334e","devices/deleteDevice":"065492fc89fb9dc8","devices/exportDeviceLogs":"61826c3d6ea6ae31","devices/getDevice":"21b06ddd870b5a0c","devices/getDeviceCounts":"fcdbc7a3c668ab4b","devices/getDeviceLogCounts":"ff00f4fd9be7b95f","devices/listDeviceLogs":"ecd9758cf4eb49ee","devices/listDeviceStores":"813c35143462d20f","devices/listDevices":"8163896d481010c5","devices/updateDevice":"1fc4c15c37d1af31","funds/exportSettlementDetails":"0f475eefe1da32bf","funds/exportSettlements":"3af9098f97652e3b","funds/fundRefundReserve":"7b7341d533c44570","funds/getBalance":"fe566baf3ce0b834","funds/getStatement":"60bbcdb3e9eb4af5","funds/getStatementPdf":"29cbc0d3aa35b24e","funds/listSettlementDetails":"0e075487552ebbe2","funds/listSettlements":"ea8b0e083965224f","funds/listStatements":"e68a3e242d5e3051","funds/requestRefundReserveOtp":"8026b5d05178ef41","funds/withdrawRefundReserve":"4f5edb678e0bbfdb","me/changeMyPassword":"78750fe7616d6a49","me/confirmLoginEmailChange":"607fa428f0c14587","me/confirmMfa":"739c392e0f403ed7","me/disableMfa":"1b4294c6ef97b0c6","me/enrollMfa":"805d6dc6c7639759","me/getMySecurity":"d2a3b879f23fbc5f","me/requestLoginEmailChange":"d1f1dd72a5b8f5a7","me/resendLoginEmailChangeCode":"66307209365e4f65","me/submitNewLoginEmail":"44b51837b5000fd4","me/updateMyProfile":"5b40d7033505d63b","me/verifyLoginEmailChangeIdentity":"2de85307f1003efc","merchants/createMerchant":"8b444f94da70d94b","merchants/deleteMerchant":"4758ae5f96bc0169","merchants/getOnboardingApplication":"1a0beb3670027835","merchants/listMerchants":"8cf83d2920abc6dc","merchants/submitOnboardingApplication":"c026375e989e0fe3","merchants/updateOnboardingStep":"83cf6bb40628bcff","merchants/uploadOnboardingDocumentFile":"997d69ef40ae1cb8","notifications/addNotificationEmail":"265bfec06e1b3e33","notifications/deleteNotificationRecipient":"f497531bc4066aaa","notifications/getNotificationSettings":"21b49c9712608b8c","notifications/initiateNotificationWechatBinding":"41c310ab697b8330","notifications/pollNotificationWechatBinding":"4ffb63e47b06dce9","notifications/requestNotificationEmailOtp":"936741c33c08d22f","notifications/updateNotificationSettings":"003f1b195ae33090","orders/cancelRefund":"e53f310176340394","orders/createRefund":"c5c6fbb749016a29","orders/exportPayments":"7d12af2fc5f1884e","orders/exportRefunds":"721377a2e6b238a8","orders/getPayment":"9eea5ea2d72136a7","orders/getPaymentCounts":"2125cee8245630ff","orders/getPaymentReceipt":"134a96b7e8c2dad3","orders/getPaymentSummary":"c4a708dc748f6602","orders/getRefund":"5fae2a9f2fa7913c","orders/getRefundCounts":"8e4e65293a485cc9","orders/getRefundReceipt":"8970870292c1c5ab","orders/getStatisticsSummary":"69765b63109942bb","orders/getStatisticsTrend":"295512c7e00a5cd3","orders/listPayments":"572d66f5f47bd06e","orders/listRecentPayments":"47ca8efc042aa484","orders/listRefunds":"aa31eba28b14f2c5","orders/releasePreAuth":"173e486b2bb709eb","products/createInvoice":"a1cd4d2d12c115c2","products/createProductLink":"fc44ee9323b69fbb","products/deleteInvoice":"51fe0dcdd0c24c5f","products/deleteProductLink":"f920ce310b862915","products/disposeProductLinkOrderRisk":"ffa6a10a69a43490","products/getCheckoutSettings":"b6c4d042c7bb3af3","products/getInvoiceCounts":"e2643c7d95bdf236","products/getInvoiceSummary":"8bf25e065257a094","products/getPaymentPageSettings":"5a8711ce7f707848","products/getProductLink":"1f150777ca1391f8","products/getProductLinkCounts":"7451cb0c6bf251ba","products/getProductLinkDefaults":"c1d72f17713aa072","products/getProductLinkOrder":"940f2ea001d9b6d9","products/getProductLinkOrderCounts":"34dca3609fec2971","products/listCheckoutOptions":"0d4f92121e9c7b52","products/listInvoices":"7b4eee7dd0b6c3eb","products/listProductLinkOrders":"6aa97fcf9790f1c2","products/listProductLinks":"4d6d7d6300351bbb","products/listStoreQrcodes":"34213324300409de","products/resendProductLinkOrderCredential":"ce20d0f47d03774e","products/updateCheckoutSettings":"5b3618f0721587fa","products/updatePaymentPageSettings":"84d339d890371d53","products/updateProductLink":"5cf92d5232e4c2a4","products/updateProductLinkPolicies":"f1f0a326ce7f1d9c","products/uploadPaymentPageLogoFile":"b24bba5f58f3b29c","products/uploadProductLinkFile":"577314cec9781ef9","products/voidProductLinkOrderVoucher":"233a0f014eb8328a","system/getDeveloperSettings":"a54fc0e1fba0904a","system/getNotice":"1d07c5fd823e1fe3","system/getNoticeSummary":"79e57392dd46bdd6","system/getSettlementConfig":"be0180edc9237cd5","system/listCountryOptions":"97046bdfaaf3769a","system/listCurrencyOptions":"bc463efc1d90e374","system/listIndustryOptions":"d7205ed29fc1ec75","system/listNotices":"fe0765b9f20a5374","system/listPaymentMethodCatalog":"3337414af3e2e347","system/listPaymentMethodOptions":"c482d777639a3193","system/markAllNoticesRead":"d1083931e2b554ab","system/markNoticeRead":"63ff2a1e072421d1","system/replaceSigningKey":"cae6cfefcb4d1042","system/revealGatewayCredential":"51560611fe068a44","team/createTeamMember":"29f68656a8acf1d9","team/deleteMemberWechatBinding":"e4bae0b2a0eda3d6","team/deleteTeamMember":"b22d06dac0e12975","team/getTeamMemberCounts":"4db5d9c1ee440b48","team/initiateMemberWechatBinding":"661c5a310bbc296f","team/listAssignableRoles":"67f366b9bba29c0c","team/listTeamMembers":"54c3a276772d227f","team/pollMemberWechatBinding":"4c36a3b898149660","team/resendInvitation":"0f8014db42d7a7ef","team/updateTeamMember":"47dfc9350d031626"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 设置 —— 调用时序
@@ -16,15 +16,14 @@
 
 | 页面 | 从哪进 | 本文章节 |
 |---|---|---|
-| General | 侧边栏 Setting › General | [页面：General](#页面：General) |
-| Security | 侧边栏 Setting › Security；头像菜单 Security | [页面：Security](#页面：Security)；[页面：Security · Refund PIN 区块](#页面：Security%20·%20Refund%20PIN%20区块) |
+| General | 侧边栏 Setting › General | [页面：General](#页面：General)；[页面：General · Refund PIN 卡](#页面：General%20·%20Refund%20PIN%20卡) |
+| Security | 侧边栏 Setting › Security；头像菜单 Security | [页面：Security](#页面：Security) |
 | Email Notification | 侧边栏 Setting › Email Notification | [页面：Email Notification](#页面：Email%20Notification)；[页面：Email Notification · Add Email 弹窗](#页面：Email%20Notification%20·%20Add%20Email%20弹窗)；[页面：Email Notification · Bind WeChat 弹窗](#页面：Email%20Notification%20·%20Bind%20WeChat%20弹窗) |
 | Developers | 侧边栏 Setting › Developer | [页面：Developers](#页面：Developers) |
 
-- 侧边栏的 General：页内至少一张卡可见（各卡按其接口的权限点判，见[页面：General](#页面：General)）、且没被 `visibleModules` 收窄掉才显示。
-- 侧边栏的 Security 归 `settings` 分区，跟设置组其他项一样：有任一 `settings:` 权限点、且没被 `visibleModules` 收窄掉才显示；没有设置分区的角色（如 Employee）侧边栏不显示这一项。
+- 侧边栏的 General、Security 归 `settings` 分区，跟设置组其他项一样：有任一 `settings:` 权限点、且没被 `visibleModules` 收窄掉才显示；没有设置分区的角色（如 Employee）侧边栏不显示这两项。
 - 头像菜单的 Security 对所有已登录用户显示，不受分区与 `visibleModules` 影响。
-- Security 页内：改密与 MFA 是本人的，恒显示；Refund PIN 区块要 `account:refund-pin:manage`，没有就不显示。
+- Security 页只有改登录密码与 MFA，都是本人的，恒显示。
 
 ## 接口
 
@@ -54,14 +53,14 @@
 | 22 | [`getDeveloperSettings`](../system/index.html#tag/developer/operation/getDeveloperSettings) | `GET /developer` | 开发者页：商户号、Gateway Credential 末 4 位、网关地址、商户公钥、平台公钥 |
 | 23 | [`revealGatewayCredential`](../system/index.html#tag/developer/operation/revealGatewayCredential) | `POST /developer/credential/disclosures` | Gateway Credential 完整值 |
 | 24 | [`replaceSigningKey`](../system/index.html#tag/developer/operation/replaceSigningKey) | `PUT /developer/signing-key` | 登记或替换商户公钥 |
-| 25 | [`listPaymentMethodOptions`](../system/index.html#tag/config/operation/listPaymentMethodOptions) | `GET /config/payment-methods/{currency}` | 支付方式的展示名，客户服务费一栏用 |
+| 25 | [`listPaymentMethodCatalog`](../system/index.html#tag/config/operation/listPaymentMethodCatalog) | `GET /config/payment-method-catalog` | 支付方式的图标与展示名，客户服务费一栏用 |
 | 26 | [`getRefundPin`](../account/index.html#tag/refund-pin/operation/getRefundPin) | `GET /account/refund-pin` | Refund PIN 是否已设置（决定展示首次设置还是修改表单） |
 
 ---
 
 ## 页面：General
 
-侧边栏 Settings › General。几栏各管一项商户级设置：收款页设置的入口、客户服务费、订单有效期、时区与语言、Refund Reserved。每栏各自保存，没有整页的保存按钮。
+侧边栏 Settings › General。几栏各管一项商户级设置：收款页设置的入口、客户服务费、订单有效期、时区与语言、Refund Reserved、Refund PIN。每栏各自保存，没有整页的保存按钮。
 
 ```mermaid
 sequenceDiagram
@@ -93,11 +92,13 @@ sequenceDiagram
     U->>S: 点 Edit，改好后 Save
     S->>A: #35;6 [updateBusinessInformation]<br/>PUT /account/profile/business { timeZone } 或 { language }
     A-->>S: 204
+
+    Note over U,A: 设置 / 改 / 忘记退款 PIN：见「页面：General · Refund PIN 卡」
 ```
 
 - 收款页设置一栏只是入口，进 Store QR Code 页，不调接口。
 - 客户服务费与订单有效期是同一组收款设置，页面上各自保存，改哪项就只传哪项。
-- 客户服务费一栏的费率取 #4，只在有 #4 的权限点时调；没有的只显示开关，不显示费率区间与明细。费率的取法：各受理模式下 `ACTIVE`、`enabled` 为 true 且带 `rate` 的支付方式各一行，卡终端（`terminals`）与电商集成的方式不计；明细只显示比例费率（固定单笔费不转嫁给付款人）。页面上的费率区间取这些行比例费率的最小值到最大值，一行都没有时不显示区间。展示名按码从前端多语言资源取，取不到的拿码去 #25 查，币种用当前商户的结算币种（商户切换器列表行的 `currency`）；都查不到的方式显示码。
+- 客户服务费一栏的费率取 #4，只在有 #4 的权限点时调；没有的只显示开关，不显示费率区间与明细。费率的取法：各受理模式下 `ACTIVE`、`enabled` 为 true 且带 `rate` 的支付方式各一行，卡终端（`terminals`）与电商集成的方式不计；明细只显示比例费率（固定单笔费不转嫁给付款人）。页面上的费率区间取这些行比例费率的最小值到最大值，一行都没有时不显示区间。图标按码查 #25；展示名按码从前端多语言资源取，取不到的用 #25 同码项的 `displayName`；都查不到的方式显示码。
 - 订单有效期的候选档是前端参考数据（分钟数，文案由前端格式化），服务端只校验取值范围。当前值不在候选档里时（比如平台代配的）照常按分钟数显示。
 - 时区与语言是商户资料里的字段，和 Business Profile 页的 Business Information 是同一份数据、同一个保存接口。这个接口只收要改的字段：改时区只提交 `timeZone`，改语言只提交 `language`，不要把读到的整组资料带回去（里面有不可改的字段，带了会被拒）；成功是 `204`，页面用提交的值更新显示。时区的候选与校验见 [flows 09-profile-users「页面：Business Profile」](09-profile-users.html#页面：Business%20Profile)。
 - Refund Reserved 取 #3 的 `refundReserve`；Top Up 与 Withdraw 两个弹窗见 [flows 05-settlement-statement](05-settlement-statement.html)，关闭后重调 #3。
@@ -114,77 +115,19 @@ sequenceDiagram
 |---|---|---|---|
 | 时区候选 | 五个北美时区的显示名 | 按商户所在省州的时区候选 | 与 Business Information 同一份数据、同一套候选 |
 | 语言 | 没有 | 与时区一起出现 | 商户语言是商户级设置，决定发给商户的通知与月对账单 PDF 的语言 |
-| 各卡的可见性 | 看得到 Setting 分区就看得到整页 | 每张卡按它自己接口的权限点显示；没有收款设置或商户资料权限的角色在本页看不到对应的卡；侧边栏入口也跟卡走，页内至少一张卡可见才显示 | 这两组数据归收款设置与商户资料，权限跟数据走；入口按卡显示，才不会把有这些数据权限的角色挡在外面 |
+| 各卡的可见性 | 看得到 Setting 分区就看得到整页 | 每张卡按它自己接口的权限点显示；没有收款设置、商户资料或退款 PIN 权限的角色在本页看不到对应的卡 | 这几组数据归收款设置、商户资料与退款 PIN，权限跟数据走 |
 | 未保存就离开 | 直接丢掉 | 切 tab、离开页面、关弹窗先确认 | 防止误丢修改 |
 
 ---
 
-## 页面：Security
+## 页面：General · Refund PIN 卡
 
-侧边栏 Settings › Security。三块：安全状态（MFA 开没开）、Authentication（改登录密码、改退款 PIN）、Multi-Factor Authentication（开 / 关验证器）。改密码与 My Profile 同一个表单、同一个接口。退款 PIN 是商户级的，时序见「页面：Security · Refund PIN 区块」。
-
-```mermaid
-sequenceDiagram
-    actor U as 用户
-    participant S as Security(SPA)
-    participant A as 商户后台 BFF
-
-    U->>S: 打开页面
-    S->>A: #35;7 [getMySecurity]<br/>GET /me/security
-    A-->>S: 200 { securityLevel, mfaEnabled, passwordUpdatedAt }
-    S->>S: LOW 时安全状态卡显示「请升级密码」提示与改密入口
-
-    Note over U,A: 开启 MFA（弹窗：输当前密码 → 扫码 → 输码）
-    U->>S: 点 Enable，输当前密码
-    S->>A: #35;8 [enrollMfa]<br/>POST /me/security/mfa
-    A-->>S: 200 { otpauthUri, secret }（未生效）
-    U->>S: 用验证器扫码（或手输 secret），输 6 位码
-    S->>A: #35;9 [confirmMfa]<br/>POST /me/security/mfa/confirmation
-    A-->>S: 204（已开启，下次登录要输验证器码）
-
-    Note over U,A: 关闭 MFA
-    U->>S: 点 Turn off，输验证器码
-    S->>A: #35;10 [disableMfa]<br/>POST /me/security/mfa/deactivation
-    A-->>S: 204
-
-    Note over U,A: 改登录密码（同 My Profile，含密码已修改通知）
-    S->>A: #35;11 [changeMyPassword]<br/>PUT /me/security/password
-    A-->>S: 204
-
-    Note over U,A: 改 / 忘记退款 PIN：见「页面：Security · Refund PIN 区块」
-```
-
-失败怎么处理：
-
-| 情形 | 响应 | 页面动作 |
-|---|---|---|
-| 开 MFA 时当前密码错；开 / 关 MFA 时验证器码错 | `403`·`206011` | 留在弹窗重输，不跳登录页 |
-| 开 MFA 第 2 步时没有待确认的密钥 | `410`·`206006` | 回第一步重新开启 |
-| 开 MFA 时已开启（另一个标签页已开，或第 2 步的响应丢了后重试） | `409`·`968004` | 重拉 `getMySecurity`，按已开启显示 |
-
-- `LOW` 只会出现在 v1 迁移来的旧密码上（v2 新设的密码都经过 5 条规则校验）。升级提示可在本次会话关掉，下次登录再出现，直到改成达标的密码。
-- 改密码卡上的「上次修改」取 `passwordUpdatedAt`，没有这个键就不显示这一句。
-- 改密码表单里的「Forgot your password?」与 My Profile 的同一个弹窗，见 [flows 09-profile-users「页面：My Profile」](09-profile-users.html#页面：My%20Profile)。
-- 改登录密码表单、开启 / 关闭 MFA 弹窗有未保存的修改时，点 Cancel / 关闭 / 离开页面先弹确认框，见公共约定「未保存的修改」。
-
-**相对 demo 的改动**
-
-| demo | 本契约 | 原因 |
-|---|---|---|
-| 开启 MFA 直接扫码 | 先输当前密码再扫码 | 会话被人拿到时，对方能绑上自己的验证器；而找回密码不动 MFA，Owner 就再也登不进来 |
-| 安全等级只看 MFA（Strong / Medium） | 服务端给 `LOW` / `MEDIUM` / `STRONG`，`LOW` 时显示「请升级密码」提示 | v1 迁移来的旧密码可能不满足现行规则，要引导用户改掉 |
-| 头像菜单的 Security 只在看得到设置分区时显示 | 对所有已登录用户显示，不受分区与 `visibleModules` 影响 | 改密与 MFA 是本人的；用户名账号的员工自助找回密码依赖 MFA |
-
----
-
-## 页面：Security · Refund PIN 区块
-
-Security 页 Authentication 块里的「改退款 PIN」与「Forgot your PIN?」弹窗。页面其余部分（安全状态、改登录密码、MFA）见「页面：Security」。退款 PIN 是商户级的，该商户全部操作员共用，放在个人的 Security 页是既定的页面安排；这一块按 `privileges` 里有没有 `account:refund-pin:manage` 显示。忘记 PIN 的码发到 Owner 邮箱，不是 Owner 本人发起时要向 Owner 要码。
+General 页的 Refund PIN 一栏（设置或修改退款 PIN）与「Forgot your PIN?」弹窗。页面其余各栏见「页面：General」。退款 PIN 是商户级的，该商户全部操作员共用；这一栏按 `privileges` 里有没有 `account:refund-pin:manage` 显示，没有就不显示，也不调 #26。忘记 PIN 的码发到 Owner 邮箱，不是 Owner 本人发起时要向 Owner 要码。
 
 ```mermaid
 sequenceDiagram
     actor U as 用户
-    participant S as Security(SPA)
+    participant S as General(SPA)
     participant A as 商户后台 BFF
     participant E as Owner 邮箱
 
@@ -233,6 +176,64 @@ sequenceDiagram
 | demo | 本契约 | 原因 |
 |---|---|---|
 | 只有修改表单（当前 PIN + 新 PIN） | 未设置时展示首次设置表单（新 PIN + 确认） | 工作人员代为建档的商户激活时还没有退款 PIN，由商户自己设，工作人员不经手 |
+| 在 Security 页的 Authentication 块里 | 在 General 页，是其中一栏 | 退款 PIN 是商户级的、该商户全部操作员共用，跟其他商户级设置放在一起 |
+
+---
+
+## 页面：Security
+
+侧边栏 Settings › Security。三块：安全状态（MFA 开没开）、Authentication（改登录密码）、Multi-Factor Authentication（开 / 关验证器）。改密码与 My Profile 同一个表单、同一个接口。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as Security(SPA)
+    participant A as 商户后台 BFF
+
+    U->>S: 打开页面
+    S->>A: #35;7 [getMySecurity]<br/>GET /me/security
+    A-->>S: 200 { securityLevel, mfaEnabled, passwordUpdatedAt }
+    S->>S: LOW 时安全状态卡显示「请升级密码」提示与改密入口
+
+    Note over U,A: 开启 MFA（弹窗：输当前密码 → 扫码 → 输码）
+    U->>S: 点 Enable，输当前密码
+    S->>A: #35;8 [enrollMfa]<br/>POST /me/security/mfa
+    A-->>S: 200 { otpauthUri, secret }（未生效）
+    U->>S: 用验证器扫码（或手输 secret），输 6 位码
+    S->>A: #35;9 [confirmMfa]<br/>POST /me/security/mfa/confirmation
+    A-->>S: 204（已开启，下次登录要输验证器码）
+
+    Note over U,A: 关闭 MFA
+    U->>S: 点 Turn off，输验证器码
+    S->>A: #35;10 [disableMfa]<br/>POST /me/security/mfa/deactivation
+    A-->>S: 204
+
+    Note over U,A: 改登录密码（同 My Profile，含密码已修改通知）
+    S->>A: #35;11 [changeMyPassword]<br/>PUT /me/security/password
+    A-->>S: 204
+```
+
+失败怎么处理：
+
+| 情形 | 响应 | 页面动作 |
+|---|---|---|
+| 开 MFA 时当前密码错；开 / 关 MFA 时验证器码错 | `403`·`206011` | 留在弹窗重输，不跳登录页 |
+| 开 MFA 第 2 步时没有待确认的密钥 | `410`·`206006` | 回第一步重新开启 |
+| 开 MFA 时已开启（另一个标签页已开，或第 2 步的响应丢了后重试） | `409`·`968004` | 重拉 `getMySecurity`，按已开启显示 |
+
+- `LOW` 只会出现在 v1 迁移来的旧密码上（v2 新设的密码都经过 5 条规则校验）。升级提示可在本次会话关掉，下次登录再出现，直到改成达标的密码。
+- 改密码卡上的「上次修改」取 `passwordUpdatedAt`，没有这个键就不显示这一句。
+- 改密码表单里的「Forgot your password?」与 My Profile 的同一个弹窗，见 [flows 09-profile-users「页面：My Profile」](09-profile-users.html#页面：My%20Profile)。
+- 改登录密码表单、开启 / 关闭 MFA 弹窗有未保存的修改时，点 Cancel / 关闭 / 离开页面先弹确认框，见公共约定「未保存的修改」。
+
+**相对 demo 的改动**
+
+| demo | 本契约 | 原因 |
+|---|---|---|
+| 开启 MFA 直接扫码 | 先输当前密码再扫码 | 会话被人拿到时，对方能绑上自己的验证器；而找回密码不动 MFA，Owner 就再也登不进来 |
+| 安全等级只看 MFA（Strong / Medium） | 服务端给 `LOW` / `MEDIUM` / `STRONG`，`LOW` 时显示「请升级密码」提示 | v1 迁移来的旧密码可能不满足现行规则，要引导用户改掉 |
+| 头像菜单的 Security 只在看得到设置分区时显示 | 对所有已登录用户显示，不受分区与 `visibleModules` 影响 | 改密与 MFA 是本人的；用户名账号的员工自助找回密码依赖 MFA |
+| Authentication 块里有改退款 PIN | 不放在本页，见「页面：General · Refund PIN 卡」 | 退款 PIN 是商户级的，不是本人的安全设置 |
 
 ---
 

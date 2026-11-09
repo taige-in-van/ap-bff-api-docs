@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.3.0
+  version: 2.3.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -279,7 +279,7 @@ paths:
         - `308415` H5 申请的档位与材料不齐：选了无限额而缺营业执照或业务说明（没传营业执照时先取商户入驻证照中的图片件，仍无才拒），或选了未上线而缺网站首页或业务页截图。`details` 指到缺的字段，不向通道提交。
         - `308416` 带的 `fileId` 不可用于这里（不存在、不是本商户上传的，或用途不是 `channel_application_material`）。`details` 指到该字段，重新上传后再带。
         - `308404` 该签约或共用子商户号的另一条签约上同类报备还在审，不能再提；刷新状态后再定。
-        - `308417` 商户资料缺这类报备的必填项（支付宝线上缺经营网址；微信缺注册证件号或国家、法定名与经营名皆空，或按经营形态缺营业地址或网址），不向通道提交。`details` 逐项指到缺的资料项，补齐商户资料后重提。
+        - `308417` 商户资料不合这类报备的要求（支付宝线上二级商户报备缺经营网址；微信缺注册证件号或国家、法定名与经营名皆空，或按经营形态缺营业地址或网址；微信 H5 缺经营网址、网址取不出主机或超出渠道长度上限），不向通道提交。`details` 逐项指到缺的或不合要求的资料项，改好商户资料后重提。
         - `308405` 通道当场拒绝，`context.channelErrorCode` / `context.channelErrorMessage` 是通道给的原因（通道给了才带）；改资料后重提。
         - 该签约的通道不适用这类报备 → `400`。
       parameters:
@@ -1992,7 +1992,7 @@ components:
             - retry_exhausted
             - channel_rejected
             - assembly_failed
-          description: 失败类别：`outcome_unknown` 已发出、未得到通道应答（先到渠道服务商平台核实）/ `retry_exhausted` 多次未能送达通道 / `channel_rejected` 通道当场拒绝 / `assembly_failed` 商户资料缺报备必填项、没有提交；只 `FAILED` 返回本键。
+          description: 失败类别：`outcome_unknown` 已发出、未得到通道应答（先到渠道服务商平台核实）/ `retry_exhausted` 多次未能送达通道 / `channel_rejected` 通道当场拒绝 / `assembly_failed` 商户资料不合报备要求（缺必填项或微信 H5 网址超出渠道长度上限）、没有提交；只 `FAILED` 返回本键。
         failureMessage:
           type: string
           minLength: 1
@@ -3055,10 +3055,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     PaymentMethod:
       type: string
       minLength: 1

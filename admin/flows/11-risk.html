@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>风控管理 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"8c48a2b3b0d04d9b","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"c2b1a19fa451410b","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"e85f368140ea912d","acquiring/listMerchantDeviceLogs":"304a773b53dc0109","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"dec5b45ad3493525","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"9e9b61944cfb8d58","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"e23f3bf0f63bf53b","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"8b426d433067f0a9","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"f53062d59c2d900f","applications/decideApplication":"53f4008c64bb3c66","applications/getApplication":"7b020eac84558b05","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"22131a8db674cbc0","applications/uploadAssistedApplicationFile":"601761f535191beb","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","clearing/acknowledgePayoutFile":"b73078d374870cfd","clearing/cancelPayoutFile":"5e341e421eb7820c","clearing/confirmChannelSettlementReceipt":"f2cecb274b8a8438","clearing/createChannelRemittance":"5856c7d2d1e764a8","clearing/createFeeCollection":"86963e2e39140aa5","clearing/createFeeCollectionExport":"f061c16bcce620ab","clearing/createMerchantFundAdjustment":"179dba2d044ae294","clearing/createPromotionEnrollment":"3fbb2293024c9a93","clearing/createPromotionProgram":"b89149bfda609931","clearing/createReconLossRecovery":"669e56a6ae442e69","clearing/createReconciliationRerun":"e02f271cc2f28bcc","clearing/createRoundingWriteOffs":"e12e3449cb6085b2","clearing/createSettlementExport":"fe2ea4d666c92383","clearing/createStatementExport":"b72331fcf0b9eaee","clearing/createStatementTaxSummaryExport":"895ccbbcba3992e3","clearing/decideRefundConfirmation":"6cc82c4b15408031","clearing/getChannelBillOriginal":"d88524c6a94528b2","clearing/getChannelSettlementSummary":"cc8b20da64cff158","clearing/getClearingOverview":"08cdb4e88bcf1f90","clearing/getMerchantFundOverview":"b3354398278f65c2","clearing/getMerchantReconFileOriginal":"08adcea892db2b71","clearing/getMerchantSettlementControls":"30cae0d786f80759","clearing/getMerchantStatement":"dd2d8543c38e63b4","clearing/getMerchantStatementFile":"c4914e5e7879c5d3","clearing/getPayoutFile":"5fba0836eea69f42","clearing/getPayoutFileOriginal":"cf7ea914a8f1da30","clearing/getReconDiscrepancy":"e3f7139271ccdd4b","clearing/getSettlementBatch":"cd8702eac4c78710","clearing/getSettlementCalendarMonth":"4d945ae77045f907","clearing/getSettlementDaySummary":"74cdde9e30ad0e23","clearing/getStatementTaxSummary":"09444e36ba257811","clearing/listChannelBills":"0b090bb0a9221f18","clearing/listChannelRemittances":"d02b58418f1a0fcd","clearing/listChannelSettlements":"3721e6c613eb9814","clearing/listClearingChannelOptions":"d7a43e4718ec6ead","clearing/listFeeCollections":"38b3f979a6eb7d1c","clearing/listMerchantReconFiles":"964bf3629a2fce1b","clearing/listMerchantStatements":"5e66f82756346f08","clearing/listPayoutFiles":"dba262e4394814b7","clearing/listPromotionAccountOperations":"172fba11afbbc83c","clearing/listPromotionEnrollments":"95e0ec2135708b36","clearing/listPromotionPrograms":"8e28d60d5ad7e371","clearing/listReconDiscrepancies":"5e80cf8d0a6777ba","clearing/listRefundConfirmations":"0c80733bb3ec9e08","clearing/listSettlementBatchLines":"4f0af2b26b24e6ea","clearing/listSettlementBatches":"7ad1a25bec51754b","clearing/listSettlementReports":"bc26ccf0bf250361","clearing/redeliverMerchantReconFile":"b47895ce42dc3753","clearing/redeliverSettlementReport":"da43d9c4b46a46e1","clearing/replaceSettlementCalendarMonth":"242a3368f81f0a10","clearing/resolveChannelRemittanceDiscrepancy":"0cacf3c025cd3076","clearing/resolveChannelSettlementDiscrepancy":"2455b3b0cb008790","clearing/resolveReconDiscrepancy":"24a5430e2ce6c172","clearing/retrySettlementBatchPayout":"24a7c4d27802faf0","clearing/returnFeeCollection":"4c55a99ad5bbbfff","clearing/returnPayoutLine":"5b958a641d2e2dc4","clearing/reverseChannelRemittance":"5abfec523719ecd6","clearing/revokeChannelSettlementReceipt":"767039d600189691","clearing/submitDiscrepancyDisposition":"4253cf56140f9057","clearing/submitPayoutFile":"c83c9b7ba4cd0cb7","clearing/terminatePromotionEnrollment":"6461388860a06c8f","clearing/terminatePromotionProgram":"93a14e077b23f7ce","clearing/updateMerchantCreditLimit":"306311f81d2fff2a","clearing/updateMerchantSettlementControls":"cf3985a23c60a031","clearing/writeOffReconDiscrepancy":"331e9b69b17177c3","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/createMerchantRefundPinReset":"6c7101c8c7c96357","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"a7116de20b5ef699","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"847babe797f671e5","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"1a59e520f0f14efa","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"c2be1b9a45104e46","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"1f3ad9182b6f0153","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"ef150131fb898c62","partners/createCommissionRateMatrixExport":"bfc7c2d1ec23ed9e","partners/createCommissionRateMatrixVersion":"99afc01d36f140a2","partners/createCommissionReportExport":"4f405108440ac216","partners/createCommissionReportLineExport":"3d0069be73d7c387","partners/createCommissionReportTransactionExport":"ff59555b86b96da9","partners/createPartner":"16e2e6b9dae59ec7","partners/createPartnerCommissionPlan":"d5e2593fef8d58e6","partners/createPartnerMerchantTransfer":"2878a1b3104c32b5","partners/createStaffCommissionExport":"1d296acd4f10181f","partners/getCommissionReportSummary":"3588a1b1c1a6c20a","partners/getPartner":"bfe7598344050a94","partners/listCommissionRateMatrix":"86262d83e47a5439","partners/listCommissionReportLines":"da758b861dcd8022","partners/listCommissionReports":"1e2991e19bf08bf2","partners/listMyReferralCodes":"8273c775504868cf","partners/listPartnerCommissionPlans":"fd2e69ff31ab37f2","partners/listPartnerOptions":"1f993a7c6f2a816c","partners/listPartners":"e48d4697d4240d14","partners/listReferralCodes":"1549511e3839d6c0","partners/listSalesOptions":"e58ea21bae90f2b3","partners/listStaffCommissions":"6721324a57489df3","partners/updateMerchantSalesAssignment":"8e0c187fb51d6eae","partners/updateMyReferralCodeStatus":"ed10faabe716fc60","partners/updatePartner":"73a379bc508dd200","partners/updatePartnerEnablement":"6b5496380c12230b","partners/updateReferralCodeStatus":"4b2f1838824aa5fd","risk/createMerchantBlocklistEntry":"fae26067d0cf7dbc","risk/createMerchantBlocklistEntryFromMerchant":"f844c24d781461f8","risk/createPayerBlocklistEntry":"80d1c122f2cb8791","risk/getMerchantBlocklistEntry":"3b0b7ed92f7e9085","risk/getRejectedOrder":"fc19aceed924eb43","risk/liftMerchantBlocklistEntry":"bd1424457e6146e9","risk/listGiftcardCustomers":"d71b1b80067571ca","risk/listMerchantBlocklistEntries":"f2b184cff5de2eb3","risk/listPayerBlocklistEntries":"20a18690bd0a88b7","risk/listRejectedOrderDailyCounts":"a146e5e4ad038a3d","risk/listRejectedOrders":"2a9d71a077ff7f65","risk/removePayerBlocklistEntry":"43f0799e1e38c9c0","risk/updateGiftcardCustomerWhitelist":"9b31c68f70502d42","risk/updateMerchantBlocklistEntry":"5cbd80e6c20424d1","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"65ce03cfbc336251","settings/listAnnouncements":"c002a9041c562754","settings/listClearingPlatformParameters":"cae0bf61e03f1089","settings/listPlatformParameters":"86915df0b44973c5","settings/listRefundPlatformParameters":"ce48c8eea2e35aff","settings/listRiskPaymentMethodParameters":"a62eb90e5bad42c6","settings/listRiskPlatformParameters":"be50b86cc7fb169e","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"91f7f1c85fe72678","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updateClearingPlatformParameter":"7fe0222e9fd02050","settings/updatePlatformParameter":"a728c57f05737504","settings/updateRefundPlatformParameter":"aaa8cc83d67ae11d","settings/updateRiskPaymentMethodParameter":"453fa7f42b0a3b95","settings/updateRiskPlatformParameter":"92a9c60d1d8a3f00","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"faf709b02f837503","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"bedf3db150ef68f3","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"365aadefcb179f3b","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"70dc692a3e5b6bb3","staff/updateStaffPassword":"51a57c95fcb8c174","staff/updateStaffStatus":"7c2834e413a97563","statistics/createDirectClearingMerchantExport":"b83dccf4b96801a4","statistics/createSalesRankingExport":"2b9c43c323d08c8d","statistics/createSettlementStatisticsDailyExport":"93b179e2166badb5","statistics/getDashboardMerchantCounts":"d5377aa0cd4f1d2f","statistics/getDashboardTradeOverview":"c668fc535820c097","statistics/getFinanceReportSummary":"21dca241b7ea38cc","statistics/getMerchantTradeOverview":"dcbe77f1278a9f15","statistics/getPartnerTradeTrend":"366ef89e86657482","statistics/getSettlementStatisticsSummary":"cf979d8e6c3e5610","statistics/getStatisticsFilterOptions":"548766afc18dcc9b","statistics/listChannelTraffic":"ba492a6a8e932644","statistics/listCreditRefundMerchants":"05d8e1d65082020e","statistics/listDashboardEntryPointDistribution":"40c074d96bb592b0","statistics/listDashboardMerchantRanking":"aca4e35c5b1adbdb","statistics/listDashboardPaymentMethodDistribution":"55388f5e9311392f","statistics/listDashboardTradeTrend":"c64cd5259eefeb17","statistics/listFinanceReportDaily":"d7b3f10776a53dda","statistics/listMonthlySettlementReports":"20429ace88c6e8e7","statistics/listPartnerMerchantSalesRanking":"755f05f23e953d4a","statistics/listPartnerSalesRankings":"5cf2a23dc0188a4b","statistics/listPlatformTradeDailyReports":"0764debb31c37c6f","statistics/listPlatformTradeMonthlyReports":"6183591f4d6ecbc5","statistics/listSalesRankings":"201b732c641c111d","statistics/listSettlementAmountTrend":"9a8dada8604b0caf","statistics/listSettlementStatisticsByMerchant":"d205b67519f4e952","statistics/listSettlementStatisticsDaily":"2565487d59d9208e","transactions/createPaymentExport":"69e338434281ac82","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"07ca6fb62ad272e8","transactions/getPaymentSummary":"88d7c670066219d0","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"1cb08b54dc821f4d","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 风控管理 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）。风控参数、付款人黑名单、商户禁入名单与礼卡客户白名单是平台级页面，只看功能权限；被拒订单按商户求数据可见范围，按标识打开范围外商户的被拒订单得到 `404`。本文的金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算；单笔上限与参与比较的金额是结算币种。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 风控参数 | 导航「平台设置 › 风控参数」 | [页面：风控参数](#页面：风控参数) |
+| 付款人黑名单 | 导航「风控 › 付款人黑名单」 | [页面：付款人黑名单](#页面：付款人黑名单) |
+| 被拒订单 | 导航「风控 › 被拒订单」 | [页面：被拒订单](#页面：被拒订单) |
+| 商户禁入名单 | 导航「风控 › 商户禁入名单」 | [页面：商户禁入名单](#页面：商户禁入名单) |
+| 礼卡客户白名单 | 导航「风控 › 礼卡客户白名单」 | [页面：礼卡客户白名单](#页面：礼卡客户白名单) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listRiskPlatformParameters`](../settings/index.html#tag/risk-parameters/operation/listRiskPlatformParameters) | `GET /settings/risk-parameters` | 平台层单笔上限 |
+| 2 | [`updateRiskPlatformParameter`](../settings/index.html#tag/risk-parameters/operation/updateRiskPlatformParameter) | `PUT /settings/risk-parameters/{key}` | 改值 / 恢复未设 |
+| 3 | [`listRiskPaymentMethodParameters`](../settings/index.html#tag/risk-payment-method-parameters/operation/listRiskPaymentMethodParameters) | `GET /settings/risk-payment-method-parameters` | 各支付方式的单笔上限 |
+| 4 | [`updateRiskPaymentMethodParameter`](../settings/index.html#tag/risk-payment-method-parameters/operation/updateRiskPaymentMethodParameter) | `PUT /settings/risk-payment-method-parameters/{paymentMethod}/{key}` | 改某支付方式的值 / 恢复未设 |
+| 5 | [`listPayerBlocklistEntries`](../risk/index.html#tag/payer-blocklist/operation/listPayerBlocklistEntries) | `GET /payer-blocklist-entries` | 付款人黑名单列表 |
+| 6 | [`createPayerBlocklistEntry`](../risk/index.html#tag/payer-blocklist/operation/createPayerBlocklistEntry) | `POST /payer-blocklist-entries` | 加入（含恢复已移除的原项） |
+| 7 | [`removePayerBlocklistEntry`](../risk/index.html#tag/payer-blocklist/operation/removePayerBlocklistEntry) | `POST /payer-blocklist-entries/{entryId}/removal` | 移除 |
+| 8 | [`listRejectedOrders`](../risk/index.html#tag/rejected-orders/operation/listRejectedOrders) | `GET /rejected-orders` | 被拒订单列表 |
+| 9 | [`getRejectedOrder`](../risk/index.html#tag/rejected-orders/operation/getRejectedOrder) | `GET /rejected-orders/{orderId}` | 被拒订单详情 |
+| 10 | [`listRejectedOrderDailyCounts`](../risk/index.html#tag/rejected-orders/operation/listRejectedOrderDailyCounts) | `GET /rejected-order-daily-counts` | 按日 × 拒绝原因计数 |
+| 11 | [`listMerchantBlocklistEntries`](../risk/index.html#tag/merchant-blocklist/operation/listMerchantBlocklistEntries) | `GET /merchant-blocklist-entries` | 禁入名单列表 |
+| 12 | [`createMerchantBlocklistEntry`](../risk/index.html#tag/merchant-blocklist/operation/createMerchantBlocklistEntry) | `POST /merchant-blocklist-entries` | 新增 |
+| 13 | [`getMerchantBlocklistEntry`](../risk/index.html#tag/merchant-blocklist/operation/getMerchantBlocklistEntry) | `GET /merchant-blocklist-entries/{entryId}` | 详情 |
+| 14 | [`updateMerchantBlocklistEntry`](../risk/index.html#tag/merchant-blocklist/operation/updateMerchantBlocklistEntry) | `PUT /merchant-blocklist-entries/{entryId}` | 编辑 |
+| 15 | [`liftMerchantBlocklistEntry`](../risk/index.html#tag/merchant-blocklist/operation/liftMerchantBlocklistEntry) | `POST /merchant-blocklist-entries/{entryId}/lifting` | 解除 |
+| 16 | [`createMerchantBlocklistEntryFromMerchant`](../risk/index.html#tag/merchant-blocklist/operation/createMerchantBlocklistEntryFromMerchant) | `POST /merchants/{merchantId}/blocklist-entries` | 冻结或设为高风险后把商户加入（调用见 06-merchant-ops、09-clearing-settlement） |
+| 17 | [`listGiftcardCustomers`](../risk/index.html#tag/giftcard-customers/operation/listGiftcardCustomers) | `GET /giftcard-customers` | 按身份查付款人、列白名单客户 |
+| 18 | [`updateGiftcardCustomerWhitelist`](../risk/index.html#tag/giftcard-customers/operation/updateGiftcardCustomerWhitelist) | `PUT /giftcard-customers/{payerId}/whitelist` | 设 / 取消白名单 |
+| 19 | [`getPayment`](../transactions/index.html#tag/payments/operation/getPayment) | `GET /payments/{orderId}` | 交易详情（被拒订单详情的跳转目标，见 08-transactions-refunds） |
+| 20 | [`getMerchant`](../merchants/index.html#tag/merchants/operation/getMerchant) | `GET /merchants/{merchantId}` | 商户详情（被拒订单详情的跳转目标，见 06-merchant-ops） |
+
+---
+
+## 页面：风控参数
+
+平台层一项（调 #1）与各支付方式一项（调 #3，按支付方式目录顺序）的单笔上限。每项显示展示名、值域说明与当前值；没有 `value` 即这一层未设、不限制。改值或恢复未设分别调 #2 / #4，带读到的 `version`。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开风控参数
+    S->>A: #35;1 [listRiskPlatformParameters]<br/>GET /settings/risk-parameters
+    A-->>S: 200 { items: [ { key, value, version } ] }
+    S->>A: #35;3 [listRiskPaymentMethodParameters]<br/>GET /settings/risk-payment-method-parameters
+    A-->>S: 200 { items: [ { paymentMethod, paymentMethodName, key, value, version } ] }
+    alt 改平台层
+        U->>S: 填新值或点「恢复未设」
+        S->>A: #35;2 [updateRiskPlatformParameter]<br/>PUT /settings/risk-parameters/{key}<br/>{ value 或 null, version }
+        A-->>S: 200 { key, value, version }
+    else 改某支付方式
+        U->>S: 在某支付方式那一行填新值或点「恢复未设」
+        S->>A: #35;4 [updateRiskPaymentMethodParameter]<br/>PUT /settings/risk-payment-method-parameters/{paymentMethod}/{key}<br/>{ value 或 null, version }
+        A-->>S: 200 { paymentMethod, value, version }
+    end
+```
+
+- 值是正整数，以结算币种的最小单位计，按各商户的结算币种解释；平台层、支付方式层与商户层（商户详情的商户级设置，见 06-merchant-ops）各自独立，建单时取最严。
+- 改动对此后的受理即时生效，已被拒的订单不改判；建单时没定支付方式的订单不受支付方式层约束。
+- 这两个写不带幂等键：上一次其实已成功、响应丢了再提交，会因版本已变得到 `308103`，重读即可看到。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 他人先改过 | #2 / #4 `409`·`308103` | 提示已被他人修改，重拉 #1 / #3 |
+| 值不是正整数 | #2 / #4 `400`，`details` 定位到 `value` | 输入框标红 |
+| 支付方式已不在启用中的目录，或参数不在本页 | #2 / #4 `404` | 提示找不到，重拉列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 风控配置页 | v1 整表回写 17 个阈值，只有平台与微信两个单笔限额生效，操作人记为系统、登录即可改、旧值不留 | 只留单笔上限，平台层一项加每个支付方式一项，逐项改、带版本，前后值与操作人进操作审计 | 只留生效的规则，改动可追溯 |
+
+---
+
+## 页面：付款人黑名单
+
+列表调 #5，默认只列在用项，可切「已移除」或「全部」；按标识类型与值检索（精确匹配，邮箱不分大小写）。各列取：类型 `identifierType`、范围 `identifierScope`（商户客户号另显示 `scopeMerchant` 的商户码与经营名称）、值 `identifierValue`、拉黑原因 `blockReason`、状态 `status`、加入时间与加入人 `createdAt` / `createdBy`、移除时间与移除人 `removedAt` / `removedBy`。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开付款人黑名单
+    S->>A: #35;5 [listPayerBlocklistEntries]<br/>GET /payer-blocklist-entries?status=ACTIVE
+    A-->>S: 200 { total, data: [ { entryId, identifierType, identifierValue, status } ] }
+    alt 加入
+        U->>S: 选类型、填范围与值、填拉黑原因，提交
+        S->>A: #35;6 [createPayerBlocklistEntry]<br/>POST /payer-blocklist-entries（Idempotency-Key）<br/>{ identifierType, identifierScope, identifierValue, blockReason }
+        A-->>S: 200 { entry, restored }
+    else 移除
+        U->>S: 在某行点「移除」并确认
+        S->>A: #35;7 [removePayerBlocklistEntry]<br/>POST /payer-blocklist-entries/{entryId}/removal
+        A-->>S: 204
+    end
+    S->>A: #35;5 [listPayerBlocklistEntries]<br/>GET /payer-blocklist-entries
+    A-->>S: 200 { total, data }
+```
+
+- 类型与范围：微信、支付宝填该标识所属的应用（appid）；商户客户号选所属商户，提交 `identifierScope` = 该商户的 `merchantId`；邮箱不填范围。
+- `restored = true` 时提示「已恢复原名单项」：同一类型、范围与值曾被移除，这次恢复为在用、拉黑原因改为本次所填，仍是同一名单项。
+- 加入与移除对此后的判定即时生效，已被拒的订单不改判；移除只标记、记录留存，已移除的再移除同样 `204`。
+- 加入的一次操作沿用同一个 `Idempotency-Key`，重复提交返回首次结果。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 同一类型、范围与值已有在用项 | #6 `409`·`308801`，`context.existingEntryId` | 提示已在名单，按 `existingEntryId` 在列表里定位并高亮既有项 |
+| 商户客户号所选商户不存在或已删除 | #6 `409`·`308802` | 商户选择框标红，重选 |
+| 邮箱格式不对、缺范围、原因为空白或超长 | #6 `400`，`details` 定位字段 | 对应输入框标红 |
+| 名单项不存在 | #7 `404` | 提示找不到，重拉 #5 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 维护方式 | v1 在通用参数页按逗号串整串编辑，500 字符封顶，只记新值 | 一行一项，加入、移除、列表分开；重复加入报错并指出既有项；移除只标记，再加入恢复原项 | 名单可查可追溯，不静默覆盖 |
+| 标识范围 | v1 名单不分应用与商户 | 微信、支付宝按应用，商户客户号按商户 | 同一标识值在不同应用或商户下不是同一人 |
+
+---
+
+## 页面：被拒订单
+
+列表调 #8、图表调 #10，两者同一组筛选、默认最近 30 天（建单日期）：日期范围两端必填，可选被拒订单号、商户、拒绝原因、付款人标识、买家邮箱。各列取：建单时间 `createdAt`、平台订单号 `orderId`、商户码与经营名称 `merchant`、付款人应付总额 `customerPaymentAmount`、拒绝原因 `rejectionReason`、被突破的层与当时上限 `ceiling` 或被命中名单项的类型与值 `matchedPayerBlocklistEntry`、归属销售 `bdUser`。点一行调 #9 看详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开被拒订单，或改筛选
+    S->>A: #35;8 [listRejectedOrders]<br/>GET /rejected-orders?from=&to=&rejectionReason=&payerIdentifier=
+    A-->>S: 200 { total, data: [ { orderId, merchant, rejectionReason, ceiling, matchedPayerBlocklistEntry } ] }
+    S->>A: #35;10 [listRejectedOrderDailyCounts]<br/>GET /rejected-order-daily-counts?from=&to=
+    A-->>S: 200 { items: [ { date, rejectionReason, count } ] }
+    U->>S: 点一行
+    S->>A: #35;9 [getRejectedOrder]<br/>GET /rejected-orders/{orderId}
+    A-->>S: 200 { orderId, rejectionReason, ceiling, matchedPayerBlocklistEntry,<br/>product, entryPoint, pinnedPaymentMethod, payerChannelUserId, customerIp }
+    opt 跳转
+        alt 点「交易详情」
+            S->>A: #35;19 [getPayment]<br/>GET /payments/{orderId}
+            A-->>S: 200
+        else 点「商户详情」
+            S->>A: #35;20 [getMerchant]<br/>GET /merchants/{merchantId}
+            A-->>S: 200
+        end
+    end
+```
+
+- 付款人标识对订单上的付款人通道侧标识或被命中名单项的值；买家邮箱只对被命中的邮箱类名单项，超单笔上限的被拒订单没有买家邮箱、按买家邮箱检不到。都是精确匹配，邮箱不分大小写。
+- 详情里的上限与比较金额是被拒当时的值；被命中的名单项之后移除了，`status` 显示为已移除。
+- 「交易详情」与「商户详情」按会话的 `privileges` 显示（交易查看 / 商户查看）。
+- 商户误伤申诉的处理：据此查到原因后，在风控参数页或商户详情调上限，或在付款人黑名单移除名单项，再请付款人重新发起。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 日期缺一端、`to` 早于 `from`、跨度超过允许的最大查询窗口 | #8 / #10 `400` | 日期选择器标红，提示缩小范围 |
+| 订单不存在、不是被拒订单或所属商户在本人数据范围外 | #9 `404` | 提示找不到，回到列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 警告监控 | v1 只列拦截流水，无被突破的层与阈值，「备注」列装的是付款人标识，按日期 / 类型 / 商户码前缀筛 | 被拒订单带拒绝原因、被突破的层与当时上限或被命中名单项；按订单号、商户、原因、付款人标识、买家邮箱检索 | 商户申诉时能查到原因再纠正 |
+
+---
+
+## 页面：商户禁入名单
+
+列表调 #11：只列生效项，按名称或标识值搜索（包含即命中、不分大小写）、按原因类别多选筛。各列取：商户码 `merchantCode`、主体名称 `subjectName`、原因类别 `reasonCategory`、录入人与时间 `createdBy` / `createdAt`。点一行调 #13 看详情；新增调 #12，编辑调 #14，解除调 #15。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开商户禁入名单
+    S->>A: #35;11 [listMerchantBlocklistEntries]<br/>GET /merchant-blocklist-entries?keyword=&reasonCategory=
+    A-->>S: 200 { total, data: [ { entryId, merchantCode, subjectName, reasonCategory } ] }
+    alt 新增
+        U->>S: 填名称、原因、备注与标识，提交
+        S->>A: #35;12 [createMerchantBlocklistEntry]<br/>POST /merchant-blocklist-entries（Idempotency-Key）<br/>{ subjectName, reasonCategory, note, identifiers }
+        A-->>S: 201 { entryId, identifiers, status: ACTIVE }
+    else 查看与编辑
+        U->>S: 点一行
+        S->>A: #35;13 [getMerchantBlocklistEntry]<br/>GET /merchant-blocklist-entries/{entryId}
+        A-->>S: 200 { subjectName, reasonCategory, source, sourceMerchant, identifiers, status }
+        U->>S: 改名称、原因、备注或标识，保存
+        S->>A: #35;14 [updateMerchantBlocklistEntry]<br/>PUT /merchant-blocklist-entries/{entryId}<br/>{ subjectName, reasonCategory, note, identifiers }
+        A-->>S: 200 { identifiers, status }
+    else 解除
+        U->>S: 在详情点「解除」，填原因
+        S->>A: #35;15 [liftMerchantBlocklistEntry]<br/>POST /merchant-blocklist-entries/{entryId}/lifting<br/>{ liftReason }
+        A-->>S: 200 { status: LIFTED, liftedAt, liftReason }
+    end
+```
+
+- 标识类别：法定名（公司名称按法定名录入）、注册号、联系人姓名、电话、邮箱、邮箱域名、商户码；至少一条、至多 30 条。同一名单项内同类别归一后相同的只留一条，不同名单项可含相同标识。
+- 入驻审核时，法定名、邮箱、邮箱域名或商户码命中才算命中；注册号、联系人姓名与电话只在同一名单项另有命中时一并列出（审核侧见 05-merchant-review）。
+- 编辑是整组替换，被移出的标识不再参与比对、记录留存；来源与来源商户不可改。
+- 解除须填原因；解除后不再参与比对、不出现在列表，按标识打开仍可看到解除人、时间与原因；不能恢复，需要时重新新增。入驻申请因误伤被拦时，解除该名单项后审核即可走普通通过。
+- 来源为「商户冻结或设为高风险时生成」的名单项，由商户详情冻结或设为高风险时勾选「同时加入禁入名单」生成（#16，见 06-merchant-ops、09-clearing-settlement）；详情里的来源商户可点进商户详情。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 名单项已解除（他人先解除了） | #14 / #15 `409`·`308803` | 提示已解除，重拉 #13 |
+| 名称缺失、没有标识或超过 30 条、某标识格式不对或归一后为空 | #12 / #14 `400`，`details` 定位到 `identifiers[i].value` 等 | 对应输入框标红 |
+| 解除原因为空白或超长 | #15 `400` | 原因输入框标红 |
+| 名单项不存在 | #13 / #14 / #15 `404` | 提示找不到，回到列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 维护入口 | v1 商户进件比对名单无界面、可匿名调用、不留痕 | 名单页维护，受权限点控制，新增、编辑、解除进操作审计 | 名单可维护、可追溯 |
+| 比对口径 | v1 公司名包含匹配，其余精确不归一 | 法定名、邮箱、邮箱域名、商户码归一后精确相等才算命中，其余类别只作佐证 | 减少同名误伤，口径一致 |
+| 解除 | Hub 只有超级管理员能解除 | 持名单维护权限即可，须填原因 | 权限由权限点表达 |
+
+---
+
+## 页面：礼卡客户白名单
+
+调 #17：按付款人身份查（选类型、填值，精确匹配、邮箱不分大小写），或勾「只看白名单」列出全部白名单客户，两者至少一个。每行是一位付款人：全部身份 `identities`、礼卡风险等级 `riskLevel`、累计风险分 `riskScore`、白名单标记 `whitelisted` 与备注 `remark`、最近处置时间与处置人 `updatedAt` / `updatedBy`。设或取消白名单调 #18。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 选身份类型、填值，查询
+    S->>A: #35;17 [listGiftcardCustomers]<br/>GET /giftcard-customers?identityType=&identityValue=
+    A-->>S: 200 { total, data: [ { payerId, identities, riskLevel, riskScore, whitelisted, remark } ] }
+    U->>S: 点「设为白名单」或「取消白名单」，可填备注
+    S->>A: #35;18 [updateGiftcardCustomerWhitelist]<br/>PUT /giftcard-customers/{payerId}/whitelist<br/>{ whitelisted, remark }
+    A-->>S: 200 { payerId, whitelisted, remark, updatedAt }
+```
+
+- 只改白名单标记与备注，不改礼卡风险等级与累计风险分；从未买过礼卡的付款人也可设，查到时风险等级为正常、风险分为 0。
+- 提交是全量覆盖：不带 `remark` 即清空备注。标记与备注都与当前相同时照常成功、不记审计。
+- 路径上的付款人已并入另一位付款人时，改的是合并后的那一位，响应的 `payerId` 是它，页面按它刷新该行。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 既没给身份、也没勾「只看白名单」，或身份只给了一半 | #17 `400` | 提示先填查询条件 |
+| 备注超过 256 字或全为空白 | #18 `400` | 备注框标红 |
+| 付款人不存在 | #18 `404` | 提示找不到，重新查询 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 礼卡客户白名单 | v1 管理后台无礼卡客户风险面 | 按付款人身份查看礼卡风险资料，设或取消白名单，前后值进操作审计 | 可信客户购买礼卡不被礼卡风控拦下 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

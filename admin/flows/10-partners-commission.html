@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>机构与分润 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"8c48a2b3b0d04d9b","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"c2b1a19fa451410b","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"e85f368140ea912d","acquiring/listMerchantDeviceLogs":"304a773b53dc0109","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"dec5b45ad3493525","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"9e9b61944cfb8d58","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"e23f3bf0f63bf53b","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"8b426d433067f0a9","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"f53062d59c2d900f","applications/decideApplication":"53f4008c64bb3c66","applications/getApplication":"7b020eac84558b05","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"22131a8db674cbc0","applications/uploadAssistedApplicationFile":"601761f535191beb","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","clearing/acknowledgePayoutFile":"b73078d374870cfd","clearing/cancelPayoutFile":"5e341e421eb7820c","clearing/confirmChannelSettlementReceipt":"f2cecb274b8a8438","clearing/createChannelRemittance":"5856c7d2d1e764a8","clearing/createFeeCollection":"86963e2e39140aa5","clearing/createFeeCollectionExport":"f061c16bcce620ab","clearing/createMerchantFundAdjustment":"179dba2d044ae294","clearing/createPromotionEnrollment":"3fbb2293024c9a93","clearing/createPromotionProgram":"b89149bfda609931","clearing/createReconLossRecovery":"669e56a6ae442e69","clearing/createReconciliationRerun":"e02f271cc2f28bcc","clearing/createRoundingWriteOffs":"e12e3449cb6085b2","clearing/createSettlementExport":"fe2ea4d666c92383","clearing/createStatementExport":"b72331fcf0b9eaee","clearing/createStatementTaxSummaryExport":"895ccbbcba3992e3","clearing/decideRefundConfirmation":"6cc82c4b15408031","clearing/getChannelBillOriginal":"d88524c6a94528b2","clearing/getChannelSettlementSummary":"cc8b20da64cff158","clearing/getClearingOverview":"08cdb4e88bcf1f90","clearing/getMerchantFundOverview":"b3354398278f65c2","clearing/getMerchantReconFileOriginal":"08adcea892db2b71","clearing/getMerchantSettlementControls":"30cae0d786f80759","clearing/getMerchantStatement":"dd2d8543c38e63b4","clearing/getMerchantStatementFile":"c4914e5e7879c5d3","clearing/getPayoutFile":"5fba0836eea69f42","clearing/getPayoutFileOriginal":"cf7ea914a8f1da30","clearing/getReconDiscrepancy":"e3f7139271ccdd4b","clearing/getSettlementBatch":"cd8702eac4c78710","clearing/getSettlementCalendarMonth":"4d945ae77045f907","clearing/getSettlementDaySummary":"74cdde9e30ad0e23","clearing/getStatementTaxSummary":"09444e36ba257811","clearing/listChannelBills":"0b090bb0a9221f18","clearing/listChannelRemittances":"d02b58418f1a0fcd","clearing/listChannelSettlements":"3721e6c613eb9814","clearing/listClearingChannelOptions":"d7a43e4718ec6ead","clearing/listFeeCollections":"38b3f979a6eb7d1c","clearing/listMerchantReconFiles":"964bf3629a2fce1b","clearing/listMerchantStatements":"5e66f82756346f08","clearing/listPayoutFiles":"dba262e4394814b7","clearing/listPromotionAccountOperations":"172fba11afbbc83c","clearing/listPromotionEnrollments":"95e0ec2135708b36","clearing/listPromotionPrograms":"8e28d60d5ad7e371","clearing/listReconDiscrepancies":"5e80cf8d0a6777ba","clearing/listRefundConfirmations":"0c80733bb3ec9e08","clearing/listSettlementBatchLines":"4f0af2b26b24e6ea","clearing/listSettlementBatches":"7ad1a25bec51754b","clearing/listSettlementReports":"bc26ccf0bf250361","clearing/redeliverMerchantReconFile":"b47895ce42dc3753","clearing/redeliverSettlementReport":"da43d9c4b46a46e1","clearing/replaceSettlementCalendarMonth":"242a3368f81f0a10","clearing/resolveChannelRemittanceDiscrepancy":"0cacf3c025cd3076","clearing/resolveChannelSettlementDiscrepancy":"2455b3b0cb008790","clearing/resolveReconDiscrepancy":"24a5430e2ce6c172","clearing/retrySettlementBatchPayout":"24a7c4d27802faf0","clearing/returnFeeCollection":"4c55a99ad5bbbfff","clearing/returnPayoutLine":"5b958a641d2e2dc4","clearing/reverseChannelRemittance":"5abfec523719ecd6","clearing/revokeChannelSettlementReceipt":"767039d600189691","clearing/submitDiscrepancyDisposition":"4253cf56140f9057","clearing/submitPayoutFile":"c83c9b7ba4cd0cb7","clearing/terminatePromotionEnrollment":"6461388860a06c8f","clearing/terminatePromotionProgram":"93a14e077b23f7ce","clearing/updateMerchantCreditLimit":"306311f81d2fff2a","clearing/updateMerchantSettlementControls":"cf3985a23c60a031","clearing/writeOffReconDiscrepancy":"331e9b69b17177c3","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/createMerchantRefundPinReset":"6c7101c8c7c96357","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"a7116de20b5ef699","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"847babe797f671e5","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"1a59e520f0f14efa","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"c2be1b9a45104e46","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"1f3ad9182b6f0153","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"ef150131fb898c62","partners/createCommissionRateMatrixExport":"bfc7c2d1ec23ed9e","partners/createCommissionRateMatrixVersion":"99afc01d36f140a2","partners/createCommissionReportExport":"4f405108440ac216","partners/createCommissionReportLineExport":"3d0069be73d7c387","partners/createCommissionReportTransactionExport":"ff59555b86b96da9","partners/createPartner":"16e2e6b9dae59ec7","partners/createPartnerCommissionPlan":"d5e2593fef8d58e6","partners/createPartnerMerchantTransfer":"2878a1b3104c32b5","partners/createStaffCommissionExport":"1d296acd4f10181f","partners/getCommissionReportSummary":"3588a1b1c1a6c20a","partners/getPartner":"bfe7598344050a94","partners/listCommissionRateMatrix":"86262d83e47a5439","partners/listCommissionReportLines":"da758b861dcd8022","partners/listCommissionReports":"1e2991e19bf08bf2","partners/listMyReferralCodes":"8273c775504868cf","partners/listPartnerCommissionPlans":"fd2e69ff31ab37f2","partners/listPartnerOptions":"1f993a7c6f2a816c","partners/listPartners":"e48d4697d4240d14","partners/listReferralCodes":"1549511e3839d6c0","partners/listSalesOptions":"e58ea21bae90f2b3","partners/listStaffCommissions":"6721324a57489df3","partners/updateMerchantSalesAssignment":"8e0c187fb51d6eae","partners/updateMyReferralCodeStatus":"ed10faabe716fc60","partners/updatePartner":"73a379bc508dd200","partners/updatePartnerEnablement":"6b5496380c12230b","partners/updateReferralCodeStatus":"4b2f1838824aa5fd","risk/createMerchantBlocklistEntry":"fae26067d0cf7dbc","risk/createMerchantBlocklistEntryFromMerchant":"f844c24d781461f8","risk/createPayerBlocklistEntry":"80d1c122f2cb8791","risk/getMerchantBlocklistEntry":"3b0b7ed92f7e9085","risk/getRejectedOrder":"fc19aceed924eb43","risk/liftMerchantBlocklistEntry":"bd1424457e6146e9","risk/listGiftcardCustomers":"d71b1b80067571ca","risk/listMerchantBlocklistEntries":"f2b184cff5de2eb3","risk/listPayerBlocklistEntries":"20a18690bd0a88b7","risk/listRejectedOrderDailyCounts":"a146e5e4ad038a3d","risk/listRejectedOrders":"2a9d71a077ff7f65","risk/removePayerBlocklistEntry":"43f0799e1e38c9c0","risk/updateGiftcardCustomerWhitelist":"9b31c68f70502d42","risk/updateMerchantBlocklistEntry":"5cbd80e6c20424d1","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"65ce03cfbc336251","settings/listAnnouncements":"c002a9041c562754","settings/listClearingPlatformParameters":"cae0bf61e03f1089","settings/listPlatformParameters":"86915df0b44973c5","settings/listRefundPlatformParameters":"ce48c8eea2e35aff","settings/listRiskPaymentMethodParameters":"a62eb90e5bad42c6","settings/listRiskPlatformParameters":"be50b86cc7fb169e","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"91f7f1c85fe72678","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updateClearingPlatformParameter":"7fe0222e9fd02050","settings/updatePlatformParameter":"a728c57f05737504","settings/updateRefundPlatformParameter":"aaa8cc83d67ae11d","settings/updateRiskPaymentMethodParameter":"453fa7f42b0a3b95","settings/updateRiskPlatformParameter":"92a9c60d1d8a3f00","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"faf709b02f837503","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"bedf3db150ef68f3","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"365aadefcb179f3b","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"70dc692a3e5b6bb3","staff/updateStaffPassword":"51a57c95fcb8c174","staff/updateStaffStatus":"7c2834e413a97563","statistics/createDirectClearingMerchantExport":"b83dccf4b96801a4","statistics/createSalesRankingExport":"2b9c43c323d08c8d","statistics/createSettlementStatisticsDailyExport":"93b179e2166badb5","statistics/getDashboardMerchantCounts":"d5377aa0cd4f1d2f","statistics/getDashboardTradeOverview":"c668fc535820c097","statistics/getFinanceReportSummary":"21dca241b7ea38cc","statistics/getMerchantTradeOverview":"dcbe77f1278a9f15","statistics/getPartnerTradeTrend":"366ef89e86657482","statistics/getSettlementStatisticsSummary":"cf979d8e6c3e5610","statistics/getStatisticsFilterOptions":"548766afc18dcc9b","statistics/listChannelTraffic":"ba492a6a8e932644","statistics/listCreditRefundMerchants":"05d8e1d65082020e","statistics/listDashboardEntryPointDistribution":"40c074d96bb592b0","statistics/listDashboardMerchantRanking":"aca4e35c5b1adbdb","statistics/listDashboardPaymentMethodDistribution":"55388f5e9311392f","statistics/listDashboardTradeTrend":"c64cd5259eefeb17","statistics/listFinanceReportDaily":"d7b3f10776a53dda","statistics/listMonthlySettlementReports":"20429ace88c6e8e7","statistics/listPartnerMerchantSalesRanking":"755f05f23e953d4a","statistics/listPartnerSalesRankings":"5cf2a23dc0188a4b","statistics/listPlatformTradeDailyReports":"0764debb31c37c6f","statistics/listPlatformTradeMonthlyReports":"6183591f4d6ecbc5","statistics/listSalesRankings":"201b732c641c111d","statistics/listSettlementAmountTrend":"9a8dada8604b0caf","statistics/listSettlementStatisticsByMerchant":"d205b67519f4e952","statistics/listSettlementStatisticsDaily":"2565487d59d9208e","transactions/createPaymentExport":"69e338434281ac82","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"07ca6fb62ad272e8","transactions/getPaymentSummary":"88d7c670066219d0","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"1cb08b54dc821f4d","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 机构与分润 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）。机构、提成矩阵与提成规则是平台级页面，只看功能权限；改派按商户（单户）或源机构（整机构）求数据可见范围；提成报表按主体收口（本人名下商户的只看本人的 BD 报表，所属机构的只看本机构与直接下级机构的机构报表，全部商户的看全部），员工提成按员工收口（本人名下商户的只看本人，所属机构的只看本机构与直接下级机构的员工，全部商户的看全部）；他人推荐码按账号的所属机构收口。按标识打开范围外的对象得到 `404`。本文的金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算；不同结算币种的金额分别显示，不相加。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 机构列表与详情 | 导航「机构与分润 › 机构」 | [页面：机构列表与详情](#页面：机构列表与详情) |
+| 新建机构 | 机构列表的「新建机构」 | [页面：新建机构](#页面：新建机构) |
+| 编辑与启停机构 | 机构详情的「编辑」「停用」「启用」 | [页面：编辑与启停机构](#页面：编辑与启停机构) |
+| 机构分润方案 | 机构详情的「分润方案」区块 | [页面：机构分润方案](#页面：机构分润方案) |
+| 提成矩阵与提成规则 | 导航「机构与分润 › 提成矩阵与提成规则」 | [页面：提成矩阵与提成规则](#页面：提成矩阵与提成规则) |
+| 改派归属销售 | 商户详情「机构与 BD」处的「改派」 | [页面：改派归属销售](#页面：改派归属销售) |
+| 商户划转 | 机构详情的「商户划转」 | [页面：商户划转](#页面：商户划转) |
+| 提成报表 | 导航「机构与分润 › 提成报表」；机构详情的「提成报表」 | [页面：提成报表](#页面：提成报表) |
+| 员工提成 | 导航「机构与分润 › 员工提成」 | [页面：员工提成](#页面：员工提成) |
+| 推荐码 | 本人设置的「我的推荐码」；导航「后台账号 › 推荐码管理」 | [页面：推荐码](#页面：推荐码) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`listPartners`](../partners/index.html#tag/partners/operation/listPartners) | `GET /partners` | 机构列表 |
+| 2 | [`createPartner`](../partners/index.html#tag/partners/operation/createPartner) | `POST /partners` | 新建机构 |
+| 3 | [`getPartner`](../partners/index.html#tag/partners/operation/getPartner) | `GET /partners/{partnerId}` | 机构详情 |
+| 4 | [`updatePartner`](../partners/index.html#tag/partners/operation/updatePartner) | `PUT /partners/{partnerId}` | 编辑机构 |
+| 5 | [`updatePartnerEnablement`](../partners/index.html#tag/partners/operation/updatePartnerEnablement) | `PUT /partners/{partnerId}/enablement` | 停用 / 启用机构 |
+| 6 | [`listPartnerCommissionPlans`](../partners/index.html#tag/commission-plans/operation/listPartnerCommissionPlans) | `GET /partners/{partnerId}/commission-plans` | 机构的分润方案时段 |
+| 7 | [`createPartnerCommissionPlan`](../partners/index.html#tag/commission-plans/operation/createPartnerCommissionPlan) | `POST /partners/{partnerId}/commission-plans` | 设分润方案 |
+| 8 | [`listPartnerOptions`](../partners/index.html#tag/options/operation/listPartnerOptions) | `GET /partner-options` | 机构候选 |
+| 9 | [`listCommissionRateMatrix`](../partners/index.html#tag/commission-rate-matrix/operation/listCommissionRateMatrix) | `GET /commission-rate-matrix` | 某月生效的提成矩阵 |
+| 10 | [`createCommissionRateMatrixVersion`](../partners/index.html#tag/commission-rate-matrix/operation/createCommissionRateMatrixVersion) | `POST /commission-rate-matrix-versions` | 提交矩阵新版 |
+| 11 | [`createCommissionRateMatrixExport`](../partners/index.html#tag/commission-rate-matrix/operation/createCommissionRateMatrixExport) | `POST /commission-rate-matrix-exports` | 导出矩阵 |
+| 12 | [`updateMerchantSalesAssignment`](../partners/index.html#tag/merchant-assignments/operation/updateMerchantSalesAssignment) | `PUT /merchants/{merchantId}/sales-assignment` | 改派单个商户的归属销售 |
+| 13 | [`createPartnerMerchantTransfer`](../partners/index.html#tag/merchant-assignments/operation/createPartnerMerchantTransfer) | `POST /partners/{partnerId}/merchant-transfers` | 整机构改派 |
+| 14 | [`listCommissionReports`](../partners/index.html#tag/commission-reports/operation/listCommissionReports) | `GET /commission-reports` | 提成报表列表 |
+| 15 | [`getCommissionReportSummary`](../partners/index.html#tag/commission-reports/operation/getCommissionReportSummary) | `GET /commission-reports/summary` | 按币种合计 |
+| 16 | [`listCommissionReportLines`](../partners/index.html#tag/commission-reports/operation/listCommissionReportLines) | `GET /commission-report-lines` | 报表的行 |
+| 17 | [`listStaffCommissions`](../partners/index.html#tag/commission-reports/operation/listStaffCommissions) | `GET /staff-commissions` | 员工提成 |
+| 18 | [`createCommissionReportExport`](../partners/index.html#tag/commission-reports/operation/createCommissionReportExport) | `POST /commission-report-exports` | 导出报表列表 |
+| 19 | [`createCommissionReportLineExport`](../partners/index.html#tag/commission-reports/operation/createCommissionReportLineExport) | `POST /commission-report-line-exports` | 导出报表的行 |
+| 20 | [`createCommissionReportTransactionExport`](../partners/index.html#tag/commission-reports/operation/createCommissionReportTransactionExport) | `POST /commission-report-transaction-exports` | 导出逐笔明细 |
+| 21 | [`createStaffCommissionExport`](../partners/index.html#tag/commission-reports/operation/createStaffCommissionExport) | `POST /staff-commission-exports` | 导出员工提成 |
+| 22 | [`listMyReferralCodes`](../partners/index.html#tag/referral-codes/operation/listMyReferralCodes) | `GET /me/referral-codes` | 本人的推荐码 |
+| 23 | [`updateMyReferralCodeStatus`](../partners/index.html#tag/referral-codes/operation/updateMyReferralCodeStatus) | `PUT /me/referral-codes/{referralCode}/status` | 停用 / 重新启用本人的码 |
+| 24 | [`listReferralCodes`](../partners/index.html#tag/referral-codes/operation/listReferralCodes) | `GET /referral-codes` | 推荐码管理 |
+| 25 | [`updateReferralCodeStatus`](../partners/index.html#tag/referral-codes/operation/updateReferralCodeStatus) | `PUT /referral-codes/{referralCode}/status` | 停用 / 重新启用他人的码 |
+| 26 | [`listSalesOptions`](../partners/index.html#tag/options/operation/listSalesOptions) | `GET /sales-options` | 销售候选 |
+| 27 | [`createStaff`](../staff/index.html#tag/staff/operation/createStaff) | `POST /staff` | 邀请首个机构账号（staff 契约） |
+
+---
+
+## 页面：机构列表与详情
+
+列表调 #1：按名称或联系人关键字 `keyword`、启用状态 `enabled`、上级机构 `parentPartnerId`（候选调 #8 带 `includeDisabled = true`）筛选，分页。各列取：名称 `partnerName`、上级 `parent`、联系人 `contactName`、电话 `contactPhone`、邮箱 `contactEmail`、是否计算分润 `commissionEnabled`、状态 `enabled`、当月分润方案的基数类型 `currentBasisType`、创建时间 `createdAt`。点一行进详情。
+
+详情调 #3：全部资料、上级与下级机构 `children`。分润方案区块另调 #6 （会话 `privileges` 含 `orgbd:commission-config:view` 才显示该区块并调用），当月生效的方案取 #6 里起始月不晚于当月、且没有截止月或截止月不早于当月的那一段（含成本率）。
+
+- 「名下商户」跳商户列表并带 `partnerId`（06-merchant-ops）；「机构账号」跳后台账号列表并带 `partnerId`（02-staff-roles）；「提成报表」跳提成报表并带 `subjectType = partner`、`subjectId` = 该机构。
+- 下级机构可点进其详情。
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开机构
+    S->>A: #35;1 [listPartners]<br/>GET /partners?keyword=&enabled=
+    A-->>S: 200 { total, data: [ { partnerId, partnerName, parent,<br/>enabled, currentBasisType } ] }
+    U->>S: 点一行
+    S->>A: #35;3 [getPartner]<br/>GET /partners/{partnerId}
+    A-->>S: 200 { partnerId, partnerName, children }
+    opt 有看分润配置的权限
+        S->>A: #35;6 [listPartnerCommissionPlans]<br/>GET /partners/{partnerId}/commission-plans
+        A-->>S: 200 { items }
+    end
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 机构不存在 | #3 `404` | 提示找不到，回到列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 机构列表 | Hub 带机构编码与根组织 | 不设机构编码，平台不是机构 | 机构以系统标识识别，直营 = 无所属机构 |
+
+---
+
+## 页面：新建机构
+
+只填名称即可建（是否计算分润默认是）；上级候选调 #8，只列启用中的，页面再滤掉已有上级的。建成后，会话 `privileges` 含 `opacc:user:manage` 时提示「邀请首个机构账号」：打开账号表单，预填数据范围「所属机构」与所属机构 = 新机构，提交调 #27；没有该权限只建机构。两次调用互相独立，邀请失败时机构保留，之后在后台账号列表以该机构为所属机构再邀请（02-staff-roles）。
+
+### 场景：新建机构并邀请首个账号
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 填名称、可选上级与联系人，提交
+    S->>A: #35;2 [createPartner]<br/>POST /partners<br/>Idempotency-Key<br/>{ partnerName, parentPartnerId }
+    A-->>S: 201 { partnerId }
+    U->>S: 点「邀请首个机构账号」，填邮箱、显示名、角色
+    S->>A: #35;27 [createStaff]<br/>POST /staff<br/>Idempotency-Key<br/>{ loginEmail, roleIds, dataScopeType = partner, partnerId }
+    A-->>S: 201 { userId, status = INVITED }
+```
+
+同一次新建的重试沿用同一个 `Idempotency-Key`，不会重复建。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 上级不可选（已停用、本身有上级） | #2 `409`·`308754` | 上级选择框标红，重取候选 |
+| 名称缺失、邮箱格式不对 | #2 `400` | 对应输入框标红 |
+| 邀请的邮箱已被在册账号使用 | #27 `409`·`968001` | 提示换邮箱；机构已建成，可到后台账号列表再邀请 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 新建机构 | v1 端点无权限控制；Hub 邀请失败回滚建档 | 按权限点；机构与邀请两次独立调用，邀请失败机构保留 | 机构建成不因账号问题丢失，可再邀请 |
+
+---
+
+## 页面：编辑与启停机构
+
+「编辑」调 #4，整体提交资料、上级与是否计算分润（不填的选填项即清空，不选上级即成为一级机构）；成功后用响应刷新详情。「停用」「启用」调 #5。
+
+- 改「是否计算分润」自改值当月起生效，之前的月份（含之后被重算的）仍按当时的值，改值本身不触发重算；页面在开关旁提示。
+- 停用后该机构不再出现在机构候选里（筛选用的候选除外）。
+
+### 场景：停用机构
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 机构详情点「停用」并确认
+    S->>A: #35;5 [updatePartnerEnablement]<br/>PUT /partners/{partnerId}/enablement<br/>{ enabled = false }
+    A-->>S: 200 { enabled = false }
+    S->>A: #35;3 [getPartner]<br/>GET /partners/{partnerId}
+    A-->>S: 200 { enabled = false }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 还有当前或尚未生效的归属落在该机构的未删除商户 | #5 `409`·`308703` | 提示「先改派名下商户」，给「商户划转」入口 |
+| 还有所属机构为它的在册账号 | #5 `409`·`308704` | 提示「先处理机构账号」，给「机构账号」入口 |
+| 上级不可选（设成自己、本机构已有下级、新选的上级已停用或本身有上级；上级未改时不判） | #4 `409`·`308754` | 上级选择框标红 |
+| 名称缺失、邮箱格式不对 | #4 `400` | 对应输入框标红 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 停用前置 | v1 拦名下商户；Hub 拦登录账户 | 两项都拦，分别给出处理入口 | 停用后不留挂靠在停用机构下的商户或账号 |
+| 编辑与启停 | v1 改动无审计 | 改动进操作审计，带前后值 | 改了谁的分润开关可追查 |
+
+---
+
+## 页面：机构分润方案
+
+机构详情的分润方案区块调 #6，列出全部方案时段（起止月、基数类型、保留比例、成本率、设置人）。「设新方案」选基数类型与起始月，差价方案另填保留比例与按支付方式 × 入口的成本率，提交调 #7；成功后重调 #6。
+
+- 起始月只能选月份；与最新方案同月即替换它。
+- 提成矩阵与上浮方案不显示保留比例与成本率输入。
+
+### 场景：设分润方案
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 选基数类型、起始月，填保留比例与成本率，提交
+    S->>A: #35;7 [createPartnerCommissionPlan]<br/>POST /partners/{partnerId}/commission-plans<br/>{ basisType, commissionPct, costRates, effectiveFromMonth }
+    A-->>S: 201 { planId }
+    S->>A: #35;6 [listPartnerCommissionPlans]<br/>GET /partners/{partnerId}/commission-plans
+    A-->>S: 200 { items }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 起始月不被允许（早于上一个月，或早于最新方案的起始月） | #7 `409`·`308755`（`context.earliestAllowedMonth`） | 提示「最早可从 X 月起」，把起始月回填为 `earliestAllowedMonth` |
+| 成本率的支付方式不在平台目录里 | #7 `409`·`308756` | 该行标红 |
+| 差价方案缺保留比例、比例越界、成本率重复 | #7 `400` | 对应输入框标红 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 机构分润配置 | v1 原地覆盖、无历史；Hub 新建弹窗录分成比例与底价 | 按月生效的方案时段，最早可从上一个月起 | 已算过的月份可以复现，改动可追溯 |
+
+---
+
+## 页面：提成矩阵与提成规则
+
+页面调 #9：默认当月，可切换月份、按支付方式与入口缩小；按支付方式 × 入口分组显示各行（商户费率区间、月流水档、提成比例、起止月），附计算说明（页面静态文案：BD 提成只计直营商户；机构按方案取三种基数之一）。「导出」调 #11 带当前月份。「提交新版」选一个支付方式 × 入口与起始月，整组编辑各行后调 #10；成功后重调 #9。
+
+- 流水档按商户结算币种最小单位填写，不带币种。
+- 至少一行；停发 = 提交覆盖全部区间与档位、比例为 0 的行。
+
+### 场景：提交矩阵新版
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开提成矩阵与提成规则
+    S->>A: #35;9 [listCommissionRateMatrix]<br/>GET /commission-rate-matrix?month=
+    A-->>S: 200 { items }
+    U->>S: 选支付方式 × 入口与起始月，编辑各行，提交
+    S->>A: #35;10 [createCommissionRateMatrixVersion]<br/>POST /commission-rate-matrix-versions<br/>{ paymentMethod, entryPoint, effectiveFromMonth, rows }
+    A-->>S: 201 { effectiveFromMonth, rowCount }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 起始月不被允许（早于上一个月，或早于该组最新版本的起始月） | #10 `409`·`308755`（`context.earliestAllowedMonth`） | 提示「最早可从 X 月起」并回填 |
+| 支付方式不在平台目录里 | #10 `409`·`308756` | 支付方式选择框标红 |
+| 行重叠、区间或档位止不大于起、比例越界 | #10 `400` | 对应行标红 |
+| 导出行数超过上限 | #11 `409`·`308503`（`context.maxRows`） | 提示「超过 N 行」，按支付方式缩小后重试 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| BD 提成费率档 | v1 只改三档比例、原地覆盖 | 平台矩阵按支付方式 × 入口 × 费率区间 × 流水档，按月出新版 | 机构与 BD 共用一套可复现的规则 |
+| 提成规则页 | Hub 演示页 | 按月查看任一版本、导出 | 核对历史月份按哪版算 |
+
+---
+
+## 页面：改派归属销售
+
+商户详情「机构与 BD」处点「改派」：先选机构或「Platform 总部」（候选调 #8），再选销售（候选调 #26 带所选 `partnerId`，总部不带），填生效日（默认当日；可选未来，可倒签到上一个月 1 日）与改派原因，提交调 #12；成功后用响应更新该处的机构与 BD，并提示「已同时改派 N 家子商户」（`affectedMerchantCount` 减 1，为 0 不提示）。子商户详情不给「改派」按钮，显示「随主商户」。
+
+- 生效日在未来时，生效日之前该处仍显示原归属，并逐笔显示待生效的改派（每笔的生效日与新归属，取自商户详情的 `pendingSalesAssignments`，按生效日从早到晚，见 06-merchant-ops）。要改待生效的改派就重新提交；要撤回就选回原销售、按同一生效日再提交一次（生效日晚于待生效那笔就不是撤回）。
+- 从生效日 0 点起建单的订单归新销售；倒签的部分在次日重算的提成报表里体现。
+- 尚无归属的商户同样从「改派」首次指定归属销售，生效日最早可选上一个月 1 日。
+- 数据范围为所属机构的用户：机构候选只给本人所属机构及其直接下级机构（选别的机构或总部时 #26 回空列表），生效日另不早于该商户当前归属的生效日，早于时 #12 回 `308705` 并带回该日。
+
+### 场景：改派单个商户
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 商户详情点「改派」，选机构
+    S->>A: #35;8 [listPartnerOptions]<br/>GET /partner-options
+    A-->>S: 200 { items }
+    S->>A: #35;26 [listSalesOptions]<br/>GET /sales-options?partnerId=
+    A-->>S: 200 { items: [ { userId, displayName, email } ] }
+    U->>S: 选销售，填生效日与原因，确认
+    S->>A: #35;12 [updateMerchantSalesAssignment]<br/>PUT /merchants/{merchantId}/sales-assignment<br/>{ salesUserId, effectiveDate, changeReason }
+    A-->>S: 200 { salesUser, partner, affectedMerchantCount }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 商户是子商户 | #12 `409`·`308757` | 提示「请在主商户上改派」 |
+| 所选销售不在册或已停用 | #12 `409`·`308702` | 提示「该销售已不可选」，重调 #26 |
+| 所选销售的所属机构已停用 | #12 `409`·`308701` | 提示「该机构已停用」，重调 #8 |
+| 生效日早于最早可选日（上一个月 1 日、该商户最早一段归属的生效日；所属机构档用户另有当前归属的生效日） | #12 `409`·`308705`（`context.earliestAllowedDate`） | 提示「最早可选 X 日」，把生效日回填为 `earliestAllowedDate` |
+| 未填生效日或原因、原因超长 | #12 `400` | 对应输入框标红 |
+| 商户不存在或不在数据范围内 | #12 `404` | 提示找不到，回到商户列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 指定 BD | v1 任一绑定机构的启用账号，机构随新 BD，改派即时；Hub 重新分配销售 | 先选机构再选销售，候选是该机构下在册未停用的账号；带生效日与原因，可设未来、可倒签到上一个月 1 日；主商户改、子商户随之；每家进审计 | 交易按切换点归给正确的人与机构，可追查 |
+
+---
+
+## 页面：商户划转
+
+机构详情点「商户划转」：选目标机构或「Platform 总部」（候选调 #8，不含源机构）与目标销售（候选调 #26），填生效日与原因（可选未来，可倒签到上一个月 1 日），二次确认后调 #13，成功后提示「已划转 N 家商户」并刷新详情。数据范围为所属机构的用户只能选本人所属机构或其直接下级机构作目标。
+
+- 划转把自生效日起属于源机构的归属全部改给目标销售（含已排好、改派到源机构的待生效改派）；改派到其他机构或总部的待生效改派保留、到期照常生效。划转后自生效日起源机构名下没有商户，划转户数只计被改写的商户。
+
+### 场景：整机构改派
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 机构详情点「商户划转」，选目标机构与销售，填生效日与原因，确认
+    S->>A: #35;13 [createPartnerMerchantTransfer]<br/>POST /partners/{partnerId}/merchant-transfers<br/>Idempotency-Key<br/>{ targetPartnerId, targetSalesUserId, effectiveDate, changeReason }
+    A-->>S: 200 { transferredMerchantCount }
+```
+
+同一次划转的重试沿用同一个 `Idempotency-Key`；全部成功或全部不变，没有部分划转。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 目标机构就是源机构 | #13 `400`·`304701` | 目标机构选择框标红 |
+| 目标机构已停用 | #13 `409`·`308701` | 提示「该机构已停用」，重调 #8 |
+| 目标销售不可选或不属于目标机构 | #13 `409`·`308702` | 提示「该销售已不可选」，重调 #26 |
+| 生效日早于上一个月 1 日 | #13 `409`·`308705`（`context.earliestAllowedDate`） | 提示「最早可选 X 日」，把生效日回填为 `earliestAllowedDate` |
+| 未填生效日或原因、原因超长 | #13 `400` | 对应输入框标红 |
+| 源机构不在本人可见范围 | #13 `404` | 提示找不到 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 整机构迁移 | v1 机构「继承」无审计；Hub 逐户循环、报前 5 个失败商户 | 一次改完、全成或全不变，带生效日与原因，每家商户进审计 | 不留半迁移状态，改派可追查 |
+
+---
+
+## 页面：提成报表
+
+列表调 #14 与 #15，两者用同一组筛选：交易月区间 `fromMonth` / `toMonth` 两端必填（默认上月；月份候选只含已结束的月份），可按主体类型 `subjectType`、主体 `subjectId`（机构候选调 #8；BD 用账号搜索）、币种 `settleCurrency` 筛选；按币种的合计取 #15。各列取：主体类型与名称、交易月、币种、流水、手续费、机构成本（差价方案才有）、提成、有效商户数、计算时刻 `computedAt`。点一行调 #16 取该报表的行（带该行的 `subjectType` / `subjectId` / `reportMonth` / `settleCurrency`，分页）。
+
+- 报表在月份结束后由系统计算，之后交易明细、归属或分润配置有变动时重算；页面只读、没有状态；付款在线下完成，页面不记付款。
+- 「导出」调 #18 带当前筛选；行页面「导出行」调 #19、「导出逐笔明细」调 #20，带报表四键、可选一家商户。
+- 逐笔明细按导出时的归属与配置取交易，入口与报表行同一口径（专用入口照记，其余入口记为默认），按商户 × 支付方式 × 入口 × 归属销售汇总后等于这四项都相同的报表行之和；报表计算之后若有改派、配置变更或交易明细变动，下一次计算之前两者可能对不上，下一次计算之后一致。
+
+### 场景：查看报表并导出
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开提成报表，选交易月
+    S->>A: #35;14 [listCommissionReports]<br/>GET /commission-reports?fromMonth=&toMonth=
+    A-->>S: 200 { total, data }
+    S->>A: #35;15 [getCommissionReportSummary]<br/>GET /commission-reports/summary?fromMonth=&toMonth=
+    A-->>S: 200 { items }
+    U->>S: 点一行
+    S->>A: #35;16 [listCommissionReportLines]<br/>GET /commission-report-lines?subjectType=&subjectId=&reportMonth=&settleCurrency=
+    A-->>S: 200 { total, data }
+    U->>S: 点「导出逐笔明细」，可选一家商户
+    S->>A: #35;20 [createCommissionReportTransactionExport]<br/>POST /commission-report-transaction-exports<br/>{ subjectType, subjectId, reportMonth, settleCurrency, merchantId }
+    A-->>S: 200 xlsx 文件流
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 交易月区间缺一端、倒置或超过最大查询窗口 | #14 / #15 / #18 `400` | 在月份选择器下提示 |
+| 导出行数超过上限 | #18 / #19 / #20 `409`·`308503`（`context.maxRows`） | 提示「超过 N 行」，缩小筛选或按商户导出 |
+| 报表不存在或不在本人可见范围 | #16 / #19 / #20 `404` | 提示找不到，回到列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 提成结果 | v1 按月列表与明细，无状态、无付款记录；Hub 为演示页 | 报表在月份结束后计算、有变动时重算，无状态，付款线下 | 配置或归属更正后报表随之重算，导出即当时的数 |
+| 补算 | v1 端点无权限控制 | 重算只经批运维面板 | 重算受控、可追查 |
+| BD 看提成 | v1 BD 只看自己的提成 | 按主体收口，机构账号看本机构与直接下级机构的机构报表 | 报表可见范围与主体一致 |
+
+---
+
+## 页面：员工提成
+
+调 #17：选一个交易月（默认上月；月份候选只含已结束的月份），可按币种 `settleCurrency`、所属机构 `partnerId`（候选调 #8）筛选，分页。各列取：员工 `staff`、所属组织 `partner`（Platform 员工不返回，显示「Platform」）、币种、流水、提成、有交易商户数、成交笔数。「导出」调 #21 带当前筛选。
+
+- 机构员工的提成只作展示：是所属机构的机构分润中归于其名下交易的部分，机构分润照常按机构计、不另计付。
+- 月内改派使一个商户同月分属两名员工时，两人各计各的交易，有交易商户数都含该商户。
+
+### 场景：查看员工提成并导出
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开员工提成，选交易月
+    S->>A: #35;17 [listStaffCommissions]<br/>GET /staff-commissions?reportMonth=
+    A-->>S: 200 { total, data: [ { staff, partner, settleCurrency, commissionAmount } ] }
+    U->>S: 点「导出」
+    S->>A: #35;21 [createStaffCommissionExport]<br/>POST /staff-commission-exports<br/>{ reportMonth, settleCurrency, partnerId }
+    A-->>S: 200 xlsx 文件流
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 交易月缺失或格式不对 | #17 / #21 `400` | 月份选择框标红 |
+| 导出行数超过上限 | #21 `409`·`308503`（`context.maxRows`） | 提示「超过 N 行」，按机构缩小后重试 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 员工提成 | Hub 演示页按归属人现算 | 同一份提成报表按归属销售汇总，机构员工只展示 | 员工提成与机构、BD 报表同一口径，合计对得上 |
+
+---
+
+## 页面：推荐码
+
+「我的推荐码」调 #22：生效码显示推荐链接 `referralLink`、二维码（前端由链接生成）、复制按钮与打开次数 `openCount`；下方列历史码（含已停用）。生效码给「停用」，历史码给「重新启用」，都调 #23，成功后用响应刷新。
+
+「推荐码管理」调 #24：按码主人、码主人所属机构（候选调 #8）、状态筛选，分页；各行带码主人 `owner`。「停用」「重新启用」调 #25。
+
+- 停用生效码后立即出现一枚新的生效码，旧链接随即无效；重新启用一枚历史码时原生效码同时停用。确认框里写明。
+- 码主人被停用或移除期间链接无效，码本身状态不变。
+
+### 场景：停用本人的生效码
+
+```mermaid
+sequenceDiagram
+    actor U as 用户
+    participant S as 管理后台 SPA
+    participant A as BFF
+
+    U->>S: 打开我的推荐码
+    S->>A: #35;22 [listMyReferralCodes]<br/>GET /me/referral-codes
+    A-->>S: 200 { items: [ { referralCode, status = ACTIVE, referralLink, openCount } ] }
+    U->>S: 点「停用」并确认
+    S->>A: #35;23 [updateMyReferralCodeStatus]<br/>PUT /me/referral-codes/{referralCode}/status<br/>{ status = STOPPED }
+    A-->>S: 200 { items: [ 新生效码, 已停用的旧码 ] }
+```
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 码不是本人的 | #23 `404` | 提示找不到，重调 #22 |
+| 码主人不在本人可管范围 | #25 `404` | 提示找不到，重调 #24 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 推荐码 | v1 无；Hub 推荐码与短链接 | 每个在册账号恰有一枚生效码，链接是商户后台注册页带推荐码，不用短链接；停用即补发 | 经链接注册的商户自动归到码主人名下，链接不会悬空 |
+| 管理他人推荐码 | Hub 机构管理员管本机构 | 按账号的所属机构收口，停用与重新启用进审计 | 谁停了谁的码可追查 |
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

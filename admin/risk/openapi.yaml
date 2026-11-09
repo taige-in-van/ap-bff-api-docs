@@ -1,0 +1,1892 @@
+openapi: 3.1.0
+info:
+  title: 管理后台 风控管理 — 前端契约面
+  version: 2.0.0
+  contact:
+    name: 管理后台 BFF
+  description: |
+    管理后台 React SPA 消费的风控管理契约：付款人黑名单的加入、移除与列表，被拒订单的检索、详情与按日计数，商户禁入名单的新增、编辑、解除、列表与详情（含冻结或设为高风险后把商户加入），礼卡客户风险资料的查看与白名单的设与取消。
+    浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
+
+    **金额口径**：金额是对应币种最小单位的整数串，带币种。单笔上限与参与比较的金额是结算币种。
+
+    **幂等 / CSRF 口径**：
+
+    - 加入付款人黑名单、新增禁入名单项、冻结或设为高风险后加入禁入名单带 `Idempotency-Key`：同一次操作的重试沿用同一个键，重复提交返回首次结果、不会重复执行。
+    - 其余写操作按目标值写或带状态前置，不挂幂等键。
+    - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
+
+    **可见范围**：付款人黑名单、商户禁入名单与礼卡客户是平台级页面，只看功能权限。被拒订单按商户求数据可见范围：范围外商户的被拒订单不出现在列表与计数里，按标识访问一律 `404`。冻结或设为高风险后加入禁入名单按该商户求数据可见范围。
+
+    **操作审计**：本面的写操作记入操作审计（带操作人、对象、前后状态或前后值）；查询、详情、计数不记。操作人恒为当前登录的后台用户，请求体里没有操作人字段。
+servers:
+  - url: /api/admin/v1
+    description: 管理后台 BFF（浏览器经边缘网关 admin.* 可达；cookieAuth 会话 + CSRF）
+security:
+  - cookieAuth: []
+tags:
+  - name: payer-blocklist
+    x-displayName: 付款人黑名单
+    description: 付款人标识的加入（含恢复已移除的原项）、移除与列表。
+  - name: rejected-orders
+    x-displayName: 被拒订单
+    description: 被准入拒绝的订单：检索、详情与按日 × 拒绝原因计数。
+  - name: merchant-blocklist
+    x-displayName: 商户禁入名单
+    description: 禁止入驻的主体与其标识：新增、编辑、解除、列表与详情，冻结或设为高风险后加入。
+  - name: giftcard-customers
+    x-displayName: 礼卡客户白名单
+    description: 按付款人身份查看礼卡风险资料，设或取消白名单。
+paths:
+  /payer-blocklist-entries:
+    get:
+      tags:
+        - payer-blocklist
+      operationId: listPayerBlocklistEntries
+      x-required-privilege: risk:payer-blocklist:view
+      summary: 付款人黑名单列表
+      description: |
+        列出付款人黑名单项，分页，按加入时间从新到旧。默认只列在用项，`status` 可改为只列已移除或全部。
+
+        按标识值检索为精确匹配，邮箱不分大小写。商户客户号类的项另带范围商户的商户码与经营名称；范围商户已删除的只带 `identifierScope`。
+      parameters:
+        - name: identifierType
+          in: query
+          required: false
+          description: 按标识类型。
+          schema:
+            $ref: '#/components/schemas/PayerBlocklistIdentifierType'
+        - name: identifierValue
+          in: query
+          required: false
+          description: 按标识值精确匹配；邮箱不分大小写。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 254
+        - name: status
+          in: query
+          required: false
+          description: '`ACTIVE` 只列在用（默认）/ `REMOVED` 只列已移除 / `ALL` 全部。'
+          schema:
+            type: string
+            enum:
+              - ACTIVE
+              - REMOVED
+              - ALL
+            default: ACTIVE
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PayerBlocklistEntry'
+              example:
+                total: 2
+                data:
+                  - entryId: PB0000000007
+                    identifierType: WECHAT
+                    identifierScope: wx3f2a9c0d1e5b7a44
+                    identifierValue: oAbC1dEfG2hIjK3lMnO4pQr5sTu6
+                    blockReason: 多次恶意拒付
+                    status: ACTIVE
+                    createdAt: '2026-06-02T08:40:00Z'
+                    createdBy:
+                      userId: usr_a91
+                      displayName: Alice Risk
+                  - entryId: PB0000000003
+                    identifierType: MERCHANT_CUSTOMER
+                    identifierScope: mch_8812
+                    scopeMerchant:
+                      merchantId: mch_8812
+                      merchantCode: C3BM68
+                      tradeName: Maple Coffee
+                    identifierValue: CUST-00912
+                    blockReason: 商户报告盗刷
+                    status: REMOVED
+                    createdAt: '2026-05-11T02:10:00Z'
+                    createdBy:
+                      userId: usr_a91
+                      displayName: Alice Risk
+                    removedAt: '2026-07-01T09:00:00Z'
+                    removedBy:
+                      userId: usr_b07
+                      displayName: Bob Risk
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    post:
+      tags:
+        - payer-blocklist
+      operationId: createPayerBlocklistEntry
+      x-required-privilege: risk:payer-blocklist:manage
+      summary: 加入付款人黑名单
+      description: |
+        把一个付款人标识加入黑名单，对此后的判定即时生效。同一「类型 + 范围 + 值」只有一项：
+
+        - 没有这一项 → 新建，`restored = false`。
+        - 有、但已移除 → 恢复原项为在用，拉黑原因改为本次所填，仍是同一名单项，`restored = true`。
+        - 有、且在用 → 拒绝（见下），名单不变。
+
+        标识的范围：`WECHAT` / `ALIPAY` 必填 `identifierScope` = 该标识所属的应用（appid）；`MERCHANT_CUSTOMER` 必填 `identifierScope` = 所选商户的 `merchantId`（商户客户号只在该商户内有意义，同一客户号在不同商户下是不同的项）；`EMAIL` 不带范围。邮箱去首尾空白、转小写后存。
+
+        标识值长度：邮箱 1–254（须为邮箱格式）、微信与支付宝 1–128、商户客户号 1–100。拉黑原因必填、不能为空白。
+
+        幂等基准：`Idempotency-Key`。同键重复提交返回首次结果、不再新建或恢复。
+
+        **什么时候拒绝**（名单不变）：
+
+        - `308801` 同一类型、范围与值已有在用项；`context.existingEntryId` 带既有项，页面据此定位。
+        - `308802` 以商户客户号加入时所选商户不存在或已删除。
+        - 类型不在枚举、缺范围或邮箱带了范围、邮箱格式不对、值或原因超长、原因为空白 → `400`，由 `details` 定位。
+
+        记入操作审计（新建带全部字段；恢复带改前原因与前后状态）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayerBlocklistEntryCreate'
+            examples:
+              wechat:
+                summary: 微信付款人
+                value:
+                  identifierType: WECHAT
+                  identifierScope: wx3f2a9c0d1e5b7a44
+                  identifierValue: oAbC1dEfG2hIjK3lMnO4pQr5sTu6
+                  blockReason: 多次恶意拒付
+              email:
+                summary: 礼卡买家邮箱
+                value:
+                  identifierType: EMAIL
+                  identifierValue: buyer@example.com
+                  blockReason: 盗卡购买礼卡
+              merchantCustomer:
+                summary: 商户客户号
+                value:
+                  identifierType: MERCHANT_CUSTOMER
+                  identifierScope: mch_8812
+                  identifierValue: CUST-00912
+                  blockReason: 商户报告盗刷
+      responses:
+        '200':
+          description: 已加入（新建或恢复原项）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayerBlocklistEntryCreated'
+              example:
+                restored: false
+                entry:
+                  entryId: PB0000000012
+                  identifierType: EMAIL
+                  identifierValue: buyer@example.com
+                  blockReason: 盗卡购买礼卡
+                  status: ACTIVE
+                  createdAt: '2026-11-08T03:12:45Z'
+                  createdBy:
+                    userId: usr_a91
+                    displayName: Alice Risk
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308801
+        - 308802
+  /payer-blocklist-entries/{entryId}/removal:
+    parameters:
+      - $ref: '#/components/parameters/PayerBlocklistEntryIdPath'
+    post:
+      tags:
+        - payer-blocklist
+      operationId: removePayerBlocklistEntry
+      x-required-privilege: risk:payer-blocklist:manage
+      summary: 移除付款人黑名单项
+      description: |
+        移除一个名单项：只标记为已移除、不删除，对此后的判定即时生效；已被它拒掉的订单仍为被拒。之后同一标识再加入时恢复这一项。
+
+        已移除的再移除同样返回 `204`、不改动、不记审计，重试不会被拒。按目标状态写，不挂幂等键。
+
+        **什么时候拒绝**：名单项不存在 → `404`。
+
+        移除在用项时记入操作审计（带前后状态与拉黑原因）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '204':
+          description: 已移除
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /rejected-orders:
+    get:
+      tags:
+        - rejected-orders
+      operationId: listRejectedOrders
+      x-required-privilege: risk:rejected-order:view
+      summary: 被拒订单列表
+      description: |
+        本人数据可见范围内商户的被拒订单，分页，按建单时间从新到旧。日期范围按建单日期，两端必填。
+
+        每行带拒绝原因：超单笔上限的带被突破的层、该层当时的上限与当时参与比较的金额（都是结算币种）；付款人在黑名单的带被命中名单项的类型、范围、值、拉黑原因与该项当前状态。归属销售是商户当前的归属销售。
+
+        检索都是精确匹配，邮箱不分大小写：付款人标识对订单上的付款人通道侧标识或被命中名单项的值；买家邮箱只对被命中的邮箱类名单项，超单笔上限的被拒订单没有买家邮箱、按买家邮箱检不到。
+
+        **什么时候拒绝**：日期范围缺一端、`to` 早于 `from`、跨度超过允许的最大查询窗口、字段格式不对 → `400`。
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/RejectedOrderIdFilter'
+        - $ref: '#/components/parameters/MerchantFilter'
+        - $ref: '#/components/parameters/RejectionReasonFilter'
+        - $ref: '#/components/parameters/PayerIdentifierFilter'
+        - $ref: '#/components/parameters/BuyerEmailFilter'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RejectedOrder'
+              example:
+                total: 2
+                data:
+                  - orderId: P100250031
+                    merchant:
+                      merchantId: mch_8812
+                      merchantCode: C3BM68
+                      tradeName: Maple Coffee
+                    customerPaymentAmount:
+                      amount: '6200000'
+                      currency: CNY
+                    rejectionReason: ORDER_AMOUNT_CEILING
+                    ceiling:
+                      scopeType: PLATFORM
+                      ceilingAmount:
+                        amount: '1000000'
+                        currency: CAD
+                      comparedAmount:
+                        amount: '1180000'
+                        currency: CAD
+                    bdUser:
+                      userId: usr_c12
+                      displayName: Carol BD
+                    createdAt: '2026-11-07T02:11:03Z'
+                  - orderId: P100250027
+                    merchant:
+                      merchantId: mch_8812
+                      merchantCode: C3BM68
+                      tradeName: Maple Coffee
+                    customerPaymentAmount:
+                      amount: '5000'
+                      currency: CAD
+                    rejectionReason: PAYER_BLOCKED
+                    matchedPayerBlocklistEntry:
+                      entryId: PB0000000007
+                      identifierType: WECHAT
+                      identifierScope: wx3f2a9c0d1e5b7a44
+                      identifierValue: oAbC1dEfG2hIjK3lMnO4pQr5sTu6
+                      blockReason: 多次恶意拒付
+                      status: ACTIVE
+                    bdUser:
+                      userId: usr_c12
+                      displayName: Carol BD
+                    createdAt: '2026-11-06T22:40:18Z'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /rejected-orders/{orderId}:
+    parameters:
+      - name: orderId
+        in: path
+        required: true
+        description: 平台订单号。订单不存在、不是被拒订单或所属商户在本人数据范围外 → `404`。
+        schema:
+          $ref: '#/components/schemas/OrderId'
+    get:
+      tags:
+        - rejected-orders
+      operationId: getRejectedOrder
+      x-required-privilege: risk:rejected-order:view
+      summary: 被拒订单详情
+      description: |
+        列表行的字段，加受理入口、产品形态、建单时指定的支付方式、商户订单号、付款人通道侧标识与所属应用、付款人 IP。被突破的上限与比较金额是被拒当时的值，之后调整上限不影响；被命中的名单项之后移除了，`status` 为 `REMOVED`。
+
+        订单与商户的完整详情分别在交易管理的订单详情与商户详情，按当前用户的权限显示入口。
+
+        **什么时候拒绝**：订单不存在、不是被拒订单或所属商户在本人数据范围外 → `404`。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RejectedOrderDetail'
+              example:
+                orderId: P100250027
+                merchant:
+                  merchantId: mch_8812
+                  merchantCode: C3BM68
+                  tradeName: Maple Coffee
+                customerPaymentAmount:
+                  amount: '5000'
+                  currency: CAD
+                rejectionReason: PAYER_BLOCKED
+                matchedPayerBlocklistEntry:
+                  entryId: PB0000000007
+                  identifierType: WECHAT
+                  identifierScope: wx3f2a9c0d1e5b7a44
+                  identifierValue: oAbC1dEfG2hIjK3lMnO4pQr5sTu6
+                  blockReason: 多次恶意拒付
+                  status: REMOVED
+                bdUser:
+                  userId: usr_c12
+                  displayName: Carol BD
+                createdAt: '2026-11-06T22:40:18Z'
+                merchantOrderNo: SO-20261106-0098
+                product: jsapi
+                entryPoint: checkout
+                pinnedPaymentMethod: wechat_online
+                payerChannelUserId: oAbC1dEfG2hIjK3lMnO4pQr5sTu6
+                payerAppId: wx3f2a9c0d1e5b7a44
+                customerIp: 203.0.113.7
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /rejected-order-daily-counts:
+    get:
+      tags:
+        - rejected-orders
+      operationId: listRejectedOrderDailyCounts
+      x-required-privilege: risk:rejected-order:view
+      summary: 被拒订单按日 × 拒绝原因计数
+      description: |
+        与被拒订单列表同一组筛选、同一数据范围，按建单日期 × 拒绝原因计数，不分页。日期范围内每一天两种原因各一项，当天没有被拒订单的计为 0；按日期从早到晚。
+
+        **什么时候拒绝**：同 `listRejectedOrders`。
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/RejectedOrderIdFilter'
+        - $ref: '#/components/parameters/MerchantFilter'
+        - $ref: '#/components/parameters/RejectionReasonFilter'
+        - $ref: '#/components/parameters/PayerIdentifierFilter'
+        - $ref: '#/components/parameters/BuyerEmailFilter'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/RejectedOrderDailyCount'
+              example:
+                items:
+                  - date: '2026-11-06'
+                    rejectionReason: ORDER_AMOUNT_CEILING
+                    count: 2
+                  - date: '2026-11-06'
+                    rejectionReason: PAYER_BLOCKED
+                    count: 1
+                  - date: '2026-11-07'
+                    rejectionReason: ORDER_AMOUNT_CEILING
+                    count: 1
+                  - date: '2026-11-07'
+                    rejectionReason: PAYER_BLOCKED
+                    count: 0
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /merchant-blocklist-entries:
+    get:
+      tags:
+        - merchant-blocklist
+      operationId: listMerchantBlocklistEntries
+      x-required-privilege: risk:merchant-blocklist:view
+      summary: 商户禁入名单列表
+      description: |
+        只列生效项，分页，按录入时间从新到旧。可按名称或标识值搜索（包含即命中、不分大小写），按原因类别多选筛。
+
+        每行的商户码取该项标识里的商户码，没有再取来源商户的商户码，都没有不返回。
+      parameters:
+        - name: keyword
+          in: query
+          required: false
+          description: 按主体名称或任一在册标识的值搜索，包含即命中、不分大小写。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 300
+        - name: reasonCategory
+          in: query
+          required: false
+          description: 按原因类别，可多选。
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/MerchantBlocklistReason'
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MerchantBlocklistEntrySummary'
+              example:
+                total: 1
+                data:
+                  - entryId: MB0000000021
+                    merchantCode: C3BM70
+                    subjectName: Northline Trading
+                    reasonCategory: FROZEN
+                    createdAt: '2026-11-02T06:30:00Z'
+                    createdBy:
+                      userId: usr_b07
+                      displayName: Bob Ops
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    post:
+      tags:
+        - merchant-blocklist
+      operationId: createMerchantBlocklistEntry
+      x-required-privilege: risk:merchant-blocklist:manage
+      summary: 新增禁入名单项
+      description: |
+        新增一个禁止入驻的主体：名称、原因类别、备注与至少一个标识。新增即时参与入驻审核的比对；来源记为手工录入。
+
+        每个标识按类别检查格式并归一（法定名不计大小写、标点、空白与常见公司后缀；联系人姓名不计大小写与标点；邮箱不计首尾空白与大小写；邮箱域名不计大小写与前导 `@`；电话只看数字、北美号码不计国家码 1；注册号与商户码不计大小写与非字母数字字符）。同一主体内同类别归一后相同的只留一条（留先出现的那条原值）；不同主体可含相同标识。公司名称按法定名录入。
+
+        幂等基准：`Idempotency-Key`。同键重复提交返回首次结果、不重复建。
+
+        **什么时候拒绝**（不建）：名称缺失、一个标识都没有或超过 30 条、某标识格式不对或归一后为空（如邮箱格式不对、电话不足 7 位数字）、字段超长 → `400`，由 `details` 定位到 `identifiers[i].value` 等字段。
+
+        记入操作审计（带全部内容与标识集）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantBlocklistEntryWrite'
+            example:
+              subjectName: Acme Trading
+              reasonCategory: FRAUD
+              note: 多家合作方报告盗刷
+              identifiers:
+                - category: legal_name
+                  value: Acme Trading Inc.
+                - category: email
+                  value: owner@acme-trading.example
+                - category: phone
+                  value: +1 604 555 0123
+      responses:
+        '201':
+          description: 已新增
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBlocklistEntry'
+              example:
+                entryId: MB0000000022
+                subjectName: Acme Trading
+                reasonCategory: FRAUD
+                note: 多家合作方报告盗刷
+                source: MANUAL
+                identifiers:
+                  - category: legal_name
+                    value: Acme Trading Inc.
+                  - category: email
+                    value: owner@acme-trading.example
+                  - category: phone
+                    value: +1 604 555 0123
+                status: ACTIVE
+                createdAt: '2026-11-08T03:20:00Z'
+                createdBy:
+                  userId: usr_a91
+                  displayName: Alice Risk
+                updatedAt: '2026-11-08T03:20:00Z'
+                updatedBy:
+                  userId: usr_a91
+                  displayName: Alice Risk
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /merchant-blocklist-entries/{entryId}:
+    parameters:
+      - $ref: '#/components/parameters/MerchantBlocklistEntryIdPath'
+    get:
+      tags:
+        - merchant-blocklist
+      operationId: getMerchantBlocklistEntry
+      x-required-privilege: risk:merchant-blocklist:view
+      summary: 禁入名单项详情
+      description: |
+        名称、原因类别、来源与来源商户、备注、全部在册标识、录入人与时间、最近编辑人与时间。已解除的名单项按标识打开时另带解除人、解除时间与原因。
+
+        **什么时候拒绝**：名单项不存在 → `404`。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBlocklistEntry'
+              example:
+                entryId: MB0000000021
+                subjectName: Northline Trading
+                reasonCategory: FROZEN
+                source: MERCHANT_STATUS
+                sourceMerchant:
+                  merchantId: mch_9031
+                  merchantCode: C3BM70
+                  tradeName: Northline Trading
+                identifiers:
+                  - category: merchant_code
+                    value: C3BM70
+                  - category: legal_name
+                    value: Northline Trading Ltd.
+                  - category: email
+                    value: ops@northline.example
+                status: ACTIVE
+                createdAt: '2026-11-02T06:30:00Z'
+                createdBy:
+                  userId: usr_b07
+                  displayName: Bob Ops
+                updatedAt: '2026-11-02T06:30:00Z'
+                updatedBy:
+                  userId: usr_b07
+                  displayName: Bob Ops
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+    put:
+      tags:
+        - merchant-blocklist
+      operationId: updateMerchantBlocklistEntry
+      x-required-privilege: risk:merchant-blocklist:manage
+      summary: 编辑禁入名单项
+      description: |
+        只对生效项。可改名称、原因类别、备注与标识；来源与来源商户不可改。改后即时按新标识集参与比对。
+
+        **全量覆盖**：请求体就是目标本身，标识整组替换（至少一条，规则同新增）；被移出的标识不再参与比对、记录留存。
+
+        内容与标识集都没变时返回当前项、不改动、不记审计。带状态前置，不挂幂等键。
+
+        **什么时候拒绝**（不变）：
+
+        - `308803` 名单项已解除，重读详情。
+        - 同新增的 `400`。
+        - 名单项不存在 → `404`。
+
+        记入操作审计（带改动字段的前后值与标识的前后集合）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantBlocklistEntryWrite'
+            example:
+              subjectName: Northline Trading
+              reasonCategory: FROZEN
+              note: 冻结时生成，补录邮箱域名
+              identifiers:
+                - category: merchant_code
+                  value: C3BM70
+                - category: legal_name
+                  value: Northline Trading Ltd.
+                - category: email
+                  value: ops@northline.example
+                - category: email_domain
+                  value: northline.example
+      responses:
+        '200':
+          description: 编辑后的名单项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBlocklistEntry'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308803
+  /merchant-blocklist-entries/{entryId}/lifting:
+    parameters:
+      - $ref: '#/components/parameters/MerchantBlocklistEntryIdPath'
+    post:
+      tags:
+        - merchant-blocklist
+      operationId: liftMerchantBlocklistEntry
+      x-required-privilege: risk:merchant-blocklist:manage
+      summary: 解除禁入名单项
+      description: |
+        按主体解除，须填原因。解除后其全部标识不再参与比对，名单项不再出现在列表里，记录留存可按标识查看；已通过的审核与已建的商户不受影响。已解除的不能恢复，需要时重新新增。入驻申请因误伤被拦时，解除该名单项后即可走普通通过。
+
+        带状态前置，不挂幂等键。
+
+        **什么时候拒绝**（不变）：
+
+        - `308803` 名单项已解除（他人先解除了，或自己上一次已成功），重读详情。
+        - 没填原因或只填空白、原因超长 → `400`。
+        - 名单项不存在 → `404`。
+
+        记入操作审计（带解除原因）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantBlocklistLifting'
+            example:
+              liftReason: 经核实为同名不同主体
+      responses:
+        '200':
+          description: 已解除的名单项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBlocklistEntry'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308803
+  /merchants/{merchantId}/blocklist-entries:
+    parameters:
+      - name: merchantId
+        in: path
+        required: true
+        description: 商户标识。商户不存在或在本人数据范围外 → `404`。
+        schema:
+          $ref: '#/components/schemas/MerchantId'
+    post:
+      tags:
+        - merchant-blocklist
+      operationId: createMerchantBlocklistEntryFromMerchant
+      x-required-privilege: risk:merchant-blocklist:manage
+      summary: 把商户加入禁入名单（冻结或设为高风险之后）
+      description: |
+        页面在冻结（`updateMerchantStatus`）或治理档位设「高风险」（`updateMerchantSettlementControls`）成功之后、确认框勾选了「同时加入禁入名单」时调用。本接口失败不影响已改的商户状态，页面提示「已冻结（或已设为高风险），但加入禁入名单失败」，可重试或到名单页手工新增。没有本接口的权限时，确认框不显示该勾选项。
+
+        以该商户此刻的资料生成一个生效名单项：名称取经营名称，没有则取法定名；原因 = 请求所给（冻结 / 高风险）；来源记为商户冻结或设为高风险时生成、来源商户为该商户；标识取商户码（含别名商户码）、法定名、经营名称、注册号、Owner 姓名、Owner 邮箱、Owner 电话、营业电话里有值的项（经营名称按法定名类），不生成邮箱域名。
+
+        该商户已有来源于它的生效名单项时不重复生成，返回既有项（`200`，`created = false`）。
+
+        幂等基准：`Idempotency-Key`。同键重复提交返回首次结果；换键重试也因上一条返回既有项。
+
+        **什么时候拒绝**：
+
+        - 商户不存在或在本人数据范围外 → `404`。
+        - `reasonCategory` 不是 `FROZEN` / `HIGH_RISK` → `400`。
+
+        新生成时记入操作审计，该商户详情的操作审计页签也能查到。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MerchantBlocklistFromMerchant'
+            example:
+              reasonCategory: FROZEN
+      responses:
+        '200':
+          description: 该商户已有来源于它的生效名单项，返回既有项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBlocklistFromMerchantResult'
+        '201':
+          description: 已生成名单项
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerchantBlocklistFromMerchantResult'
+              example:
+                created: true
+                entry:
+                  entryId: MB0000000021
+                  subjectName: Northline Trading
+                  reasonCategory: FROZEN
+                  source: MERCHANT_STATUS
+                  sourceMerchant:
+                    merchantId: mch_9031
+                    merchantCode: C3BM70
+                    tradeName: Northline Trading
+                  identifiers:
+                    - category: merchant_code
+                      value: C3BM70
+                    - category: legal_name
+                      value: Northline Trading Ltd.
+                    - category: legal_name
+                      value: Northline Trading
+                    - category: contact_name
+                      value: Dana Lee
+                    - category: email
+                      value: ops@northline.example
+                    - category: phone
+                      value: '+16045550177'
+                  status: ACTIVE
+                  createdAt: '2026-11-02T06:30:00Z'
+                  createdBy:
+                    userId: usr_b07
+                    displayName: Bob Ops
+                  updatedAt: '2026-11-02T06:30:00Z'
+                  updatedBy:
+                    userId: usr_b07
+                    displayName: Bob Ops
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /giftcard-customers:
+    get:
+      tags:
+        - giftcard-customers
+      operationId: listGiftcardCustomers
+      x-required-privilege: risk:giftcard-customer:view
+      summary: 礼卡客户列表（按身份查，或列白名单客户）
+      description: |
+        按付款人身份查付款人，或列出全部白名单客户，两者至少给一个；分页。每项是一位付款人：带其全部身份、礼卡风险等级、累计风险分、白名单标记与备注、最近处置时间与处置人。从未买过礼卡的付款人风险等级为 `NORMAL`、风险分为 0、不在白名单。
+
+        按身份查：`identityType` 与 `identityValue` 同给，值精确匹配、邮箱不分大小写，不区分所属应用。
+
+        **什么时候拒绝**：既没给身份、也没传 `whitelisted=true`，或身份只给了一半 → `400`。
+      parameters:
+        - name: identityType
+          in: query
+          required: false
+          description: 身份类型，与 `identityValue` 同给。
+          schema:
+            $ref: '#/components/schemas/GiftcardCustomerIdentityType'
+        - name: identityValue
+          in: query
+          required: false
+          description: 身份值（微信 openid、支付宝付款人标识或邮箱），与 `identityType` 同给；精确匹配、邮箱不分大小写。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 254
+        - name: whitelisted
+          in: query
+          required: false
+          description: '`true` 只列白名单客户；不传或传 `false` 不按白名单筛。'
+          schema:
+            type: boolean
+        - $ref: '#/components/parameters/PageNum'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - total
+                  - data
+                properties:
+                  total:
+                    type: integer
+                    minimum: 0
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/GiftcardCustomer'
+              example:
+                total: 1
+                data:
+                  - payerId: PY20261108000001
+                    identities:
+                      - identityType: EMAIL
+                        identityValue: a@example.com
+                      - identityType: WECHAT
+                        appId: wx3f2a9c0d1e5b7a44
+                        identityValue: oAbC1dEfG2hIjK3lMnO4pQr5sTu6
+                        nickname: Amy
+                    riskLevel: HIGH
+                    riskScore: 85
+                    whitelisted: true
+                    remark: 长期企业采购客户，已核实身份
+                    updatedAt: '2026-11-08T03:30:00Z'
+                    updatedBy:
+                      userId: usr_a91
+                      displayName: Alice Risk
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /giftcard-customers/{payerId}/whitelist:
+    parameters:
+      - name: payerId
+        in: path
+        required: true
+        description: 付款人标识，取列表里的 `payerId`。付款人不存在 → `404`。
+        schema:
+          $ref: '#/components/schemas/PayerId'
+    put:
+      tags:
+        - giftcard-customers
+      operationId: updateGiftcardCustomerWhitelist
+      x-required-privilege: risk:giftcard-customer:edit
+      summary: 设或取消礼卡客户白名单
+      description: |
+        把这位付款人的礼卡客户白名单标记设为 `whitelisted`、备注设为 `remark`。只改白名单标记与备注，不改礼卡风险等级与累计风险分；从未买过礼卡的付款人也可设。白名单的效果按礼卡风控规则，不在本页定义。
+
+        **全量覆盖**：请求体就是目标本身，`remark` 不给即清空备注。
+
+        **已合并的付款人**：路径给的付款人已并入另一位付款人时，改的是合并后的那一位，响应的 `payerId` 是它。
+
+        标记与备注都和当前相同时照常成功、不改动、不记审计。按目标值写，不挂幂等键。
+
+        **什么时候拒绝**：
+
+        - 付款人不存在 → `404`。
+        - `remark` 超过 256 字或全为空白 → `400`。
+
+        记入操作审计（带前后标记与备注）。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiftcardCustomerWhitelistWrite'
+            examples:
+              whitelist:
+                summary: 设为白名单
+                value:
+                  whitelisted: true
+                  remark: 长期企业采购客户，已核实身份
+              unwhitelist:
+                summary: 取消白名单、清空备注
+                value:
+                  whitelisted: false
+      responses:
+        '200':
+          description: 写入后（或本就如此）的礼卡客户资料
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftcardCustomer'
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-asession
+      description: |
+        管理后台 BFF 服务端会话 cookie（`httpOnly` + `Secure` + `SameSite=Lax`；`__Host-` 前缀强制 Secure + Path=/ + 无 Domain）。
+
+        浏览器只持此会话 cookie、不持后端 token。会话裁决操作者身份、权限点与数据可见范围。
+
+        - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读可读伴生 cookie `__Host-acsrf`、原样放进 `X-CSRF-Token`（详见管理后台约定）；
+        - 受信浏览器凭据在另一个 HttpOnly cookie 里，由服务端读写，前端不读、不写、不转发。
+  parameters:
+    PayerBlocklistEntryIdPath:
+      name: entryId
+      in: path
+      required: true
+      description: 付款人黑名单项标识。名单项不存在 → `404`。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+    MerchantBlocklistEntryIdPath:
+      name: entryId
+      in: path
+      required: true
+      description: 禁入名单项标识。名单项不存在 → `404`。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+    FromDate:
+      name: from
+      in: query
+      required: true
+      description: 起始日期（含当日），按建单日期。与 `to` 同为必填；跨度超过允许的最大查询窗口 → `400`。
+      schema:
+        $ref: '#/components/schemas/LocalDate'
+    ToDate:
+      name: to
+      in: query
+      required: true
+      description: 截止日期（含当日；与 `from` 成对必填）。
+      schema:
+        $ref: '#/components/schemas/LocalDate'
+    RejectedOrderIdFilter:
+      name: orderId
+      in: query
+      required: false
+      description: 按被拒订单的平台订单号精确匹配。
+      schema:
+        $ref: '#/components/schemas/OrderId'
+    MerchantFilter:
+      name: merchantId
+      in: query
+      required: false
+      description: 只看这个商户。商户在本人数据范围外时结果为空。
+      schema:
+        $ref: '#/components/schemas/MerchantId'
+    RejectionReasonFilter:
+      name: rejectionReason
+      in: query
+      required: false
+      description: 按拒绝原因。
+      schema:
+        $ref: '#/components/schemas/RejectionReason'
+    PayerIdentifierFilter:
+      name: payerIdentifier
+      in: query
+      required: false
+      description: 按付款人标识精确匹配：订单上的付款人通道侧标识，或被命中名单项的值（被命中的是邮箱类名单项时不分大小写）。
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 256
+    BuyerEmailFilter:
+      name: buyerEmail
+      in: query
+      required: false
+      description: 按买家邮箱精确匹配、不分大小写：只对被命中的邮箱类名单项。
+      schema:
+        type: string
+        format: email
+        minLength: 3
+        maxLength: 254
+    PageNum:
+      name: pageNum
+      in: query
+      description: 页码(从 1 计;分页)
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSize:
+      name: pageSize
+      in: query
+      description: 每页记录数(默认 20;契约上限 200,部署可把实际上限配得更低——超出即 400)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 20
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
+      schema:
+        type: string
+        minLength: 1
+        pattern: .*\S.*
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
+      schema:
+        type: string
+        minLength: 1
+        pattern: .*\S.*
+  schemas:
+    RiskMerchantRef:
+      type: object
+      additionalProperties: false
+      description: 一个商户的标识、商户码与经营名称。
+      required:
+        - merchantId
+        - merchantCode
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        merchantCode:
+          $ref: '#/components/schemas/MerchantCode'
+        tradeName:
+          type: string
+          minLength: 1
+          description: 经营名称；商户没有经营名称时不返回本键。
+    PayerBlocklistIdentifierType:
+      type: string
+      enum:
+        - WECHAT
+        - ALIPAY
+        - EMAIL
+        - MERCHANT_CUSTOMER
+      description: 付款人标识类型：`WECHAT` 微信 openid / `ALIPAY` 支付宝付款人标识 / `EMAIL` 买家邮箱 / `MERCHANT_CUSTOMER` 商户客户号。
+    PayerBlocklistEntryStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - REMOVED
+      description: '`ACTIVE` 在用 / `REMOVED` 已移除（不再命中，记录留存）。'
+    PayerBlocklistEntryCreate:
+      type: object
+      additionalProperties: false
+      required:
+        - identifierType
+        - identifierValue
+        - blockReason
+      properties:
+        identifierType:
+          $ref: '#/components/schemas/PayerBlocklistIdentifierType'
+        identifierScope:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 标识的范围：`WECHAT` / `ALIPAY` 必填，为该标识所属的 appid；`MERCHANT_CUSTOMER` 必填，为所选商户的 `merchantId`；`EMAIL` 不得带。
+        identifierValue:
+          type: string
+          minLength: 1
+          maxLength: 254
+          description: 标识值：邮箱 1–254 且须为邮箱格式（去首尾空白、转小写后存），微信与支付宝 1–128，商户客户号 1–100，按类型校验。
+        blockReason:
+          type: string
+          minLength: 1
+          maxLength: 512
+          pattern: ^.*\S.*$
+          description: 拉黑原因，不能为空白。
+    PayerBlocklistEntry:
+      type: object
+      additionalProperties: false
+      description: 一个付款人黑名单项。
+      required:
+        - entryId
+        - identifierType
+        - identifierValue
+        - status
+        - createdAt
+      properties:
+        entryId:
+          type: string
+          minLength: 1
+          description: 名单项标识。
+        identifierType:
+          $ref: '#/components/schemas/PayerBlocklistIdentifierType'
+        identifierScope:
+          type: string
+          minLength: 1
+          description: 标识的范围：appid，或商户客户号所属商户的 `merchantId`；邮箱不返回本键。
+        scopeMerchant:
+          allOf:
+            - $ref: '#/components/schemas/RiskMerchantRef'
+          description: 商户客户号所属的商户；不是商户客户号或该商户已删除时不返回本键。
+        identifierValue:
+          type: string
+          minLength: 1
+          description: 标识值（邮箱已转小写）。
+        blockReason:
+          type: string
+          minLength: 1
+          description: 拉黑原因；早期迁入的项可能没有，此时不返回本键。
+        status:
+          $ref: '#/components/schemas/PayerBlocklistEntryStatus'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 最初加入的时刻（恢复不改）。
+        createdBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 加入人；迁入的项没有时不返回本键。
+        removedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 移除时刻；在用时不返回本键。
+        removedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 移除人；在用时不返回本键。
+    PayerBlocklistEntryCreated:
+      type: object
+      additionalProperties: false
+      required:
+        - entry
+        - restored
+      properties:
+        entry:
+          $ref: '#/components/schemas/PayerBlocklistEntry'
+        restored:
+          type: boolean
+          description: '`true` = 恢复了已移除的原项（仍是同一名单项）；`false` = 新建。'
+    RejectionReason:
+      type: string
+      enum:
+        - ORDER_AMOUNT_CEILING
+        - PAYER_BLOCKED
+      description: 拒绝原因：`ORDER_AMOUNT_CEILING` 超单笔上限 / `PAYER_BLOCKED` 付款人在黑名单。
+    CeilingScopeType:
+      type: string
+      enum:
+        - PLATFORM
+        - PAYMENT_METHOD
+        - MERCHANT
+      description: 被突破的单笔上限所在层：`PLATFORM` 平台层 / `PAYMENT_METHOD` 支付方式层 / `MERCHANT` 商户层。
+    RejectedOrderCeiling:
+      type: object
+      additionalProperties: false
+      description: 超单笔上限时被突破的层、该层被拒当时的上限与当时参与比较的金额（都是结算币种）。
+      required:
+        - scopeType
+        - ceilingAmount
+        - comparedAmount
+      properties:
+        scopeType:
+          $ref: '#/components/schemas/CeilingScopeType'
+        ceilingAmount:
+          $ref: '#/components/schemas/Money'
+        comparedAmount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 付款人应付总额折到结算币种后的值。
+    MatchedPayerBlocklistEntry:
+      type: object
+      additionalProperties: false
+      description: 付款人在黑名单时被命中的名单项；`status` 是该项当前的状态。
+      required:
+        - entryId
+        - identifierType
+        - identifierValue
+        - status
+      properties:
+        entryId:
+          type: string
+          minLength: 1
+          description: 名单项标识。
+        identifierType:
+          $ref: '#/components/schemas/PayerBlocklistIdentifierType'
+        identifierScope:
+          type: string
+          minLength: 1
+          description: 标识的范围；邮箱不返回本键。
+        identifierValue:
+          type: string
+          minLength: 1
+        blockReason:
+          type: string
+          minLength: 1
+          description: 拉黑原因；没有时不返回本键。
+        status:
+          $ref: '#/components/schemas/PayerBlocklistEntryStatus'
+    RejectedOrderCore:
+      type: object
+      x-parent: true
+      description: 被拒订单的列表字段。
+      required:
+        - orderId
+        - merchant
+        - customerPaymentAmount
+        - rejectionReason
+        - createdAt
+      properties:
+        orderId:
+          $ref: '#/components/schemas/OrderId'
+        merchant:
+          $ref: '#/components/schemas/RiskMerchantRef'
+        customerPaymentAmount:
+          allOf:
+            - $ref: '#/components/schemas/Money'
+          description: 付款人应付总额，标价币种。
+        rejectionReason:
+          $ref: '#/components/schemas/RejectionReason'
+        ceiling:
+          allOf:
+            - $ref: '#/components/schemas/RejectedOrderCeiling'
+          description: 超单笔上限时返回；付款人在黑名单时不返回本键。
+        matchedPayerBlocklistEntry:
+          allOf:
+            - $ref: '#/components/schemas/MatchedPayerBlocklistEntry'
+          description: 付款人在黑名单时返回；超单笔上限时不返回本键。
+        bdUser:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 商户当前的归属销售；无归属时不返回本键。
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 建单（被拒）时刻。
+    RejectedOrder:
+      description: 被拒订单列表的一行。
+      allOf:
+        - $ref: '#/components/schemas/RejectedOrderCore'
+      unevaluatedProperties: false
+    PaymentProduct:
+      type: string
+      description: 订单的产品形态：店铺码、动态码、原生码（商户自行展示的钱包二维码）、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、原生 JSAPI（商户自有应用内调起）、小程序、App SDK、委托代扣。
+      enum:
+        - store_qr
+        - dynamic_qr
+        - native_qrcode
+        - barcode
+        - invoice
+        - product_code
+        - ticket
+        - giftcard
+        - web_pc
+        - web_mobile
+        - jsapi
+        - native_jsapi
+        - mini_program
+        - app_sdk
+        - auto_debit
+    RejectedOrderDetail:
+      description: 被拒订单详情：列表行的字段，加受理与付款人信息。
+      allOf:
+        - $ref: '#/components/schemas/RejectedOrderCore'
+        - type: object
+          required:
+            - product
+            - entryPoint
+          properties:
+            merchantOrderNo:
+              $ref: '#/components/schemas/MerchantOrderNo'
+              description: 商户自己的订单号；建单时没传就不返回本键。
+            product:
+              $ref: '#/components/schemas/PaymentProduct'
+            entryPoint:
+              $ref: '#/components/schemas/EntryPoint'
+            pinnedPaymentMethod:
+              $ref: '#/components/schemas/PaymentMethod'
+              description: 建单时指定的支付方式；建单时没指定的不返回本键。
+            payerChannelUserId:
+              type: string
+              minLength: 1
+              description: 付款人在通道侧的标识（如微信 openid、支付宝 buyer_id）；没有时不返回本键。
+            payerAppId:
+              type: string
+              minLength: 1
+              description: 付款人标识所属的应用（微信 / 支付宝 appid）；没有时不返回本键。
+            customerIp:
+              type: string
+              minLength: 1
+              description: 付款人 IP；没有时不返回本键。
+      unevaluatedProperties: false
+    RejectedOrderDailyCount:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - rejectionReason
+        - count
+      properties:
+        date:
+          $ref: '#/components/schemas/LocalDate'
+          description: 建单日期。
+        rejectionReason:
+          $ref: '#/components/schemas/RejectionReason'
+        count:
+          type: integer
+          minimum: 0
+    MerchantBlocklistReason:
+      type: string
+      enum:
+        - HIGH_RISK
+        - FROZEN
+        - PROHIBITED_RECORD
+        - FRAUD
+        - OTHER
+      description: 禁入原因类别：`HIGH_RISK` 高风险 / `FROZEN` 冻结 / `PROHIBITED_RECORD` 违禁记录 / `FRAUD` 欺诈 / `OTHER` 其他。
+    MerchantBlocklistSource:
+      type: string
+      enum:
+        - MANUAL
+        - MERCHANT_STATUS
+        - MIGRATION
+      description: 来源：`MANUAL` 手工录入 / `MERCHANT_STATUS` 商户冻结或设为高风险时生成 / `MIGRATION` 上线初始数据。
+    MerchantBlocklistEntryStatus:
+      type: string
+      enum:
+        - ACTIVE
+        - LIFTED
+      description: '`ACTIVE` 生效 / `LIFTED` 已解除（不再参与比对，记录留存，不能恢复）。'
+    MerchantBlocklistIdentifier:
+      type: object
+      additionalProperties: false
+      description: 名单项上的一个标识。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 300
+          description: 录入的原值。
+    MerchantBlocklistEntryWrite:
+      type: object
+      additionalProperties: false
+      required:
+        - subjectName
+        - reasonCategory
+        - identifiers
+      properties:
+        subjectName:
+          type: string
+          minLength: 1
+          maxLength: 200
+          pattern: ^.*\S.*$
+          description: 主体名称，不能为空白。
+        reasonCategory:
+          $ref: '#/components/schemas/MerchantBlocklistReason'
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: 备注；不给即没有备注。
+        identifiers:
+          type: array
+          minItems: 1
+          maxItems: 30
+          description: 标识，至少一条、至多 30 条；每条按类别检查格式并归一，同类别归一后相同的只留一条。
+          items:
+            $ref: '#/components/schemas/MerchantBlocklistIdentifier'
+    MerchantBlocklistEntrySummary:
+      type: object
+      additionalProperties: false
+      description: 禁入名单列表的一行（只列生效项）。
+      required:
+        - entryId
+        - subjectName
+        - reasonCategory
+        - createdAt
+      properties:
+        entryId:
+          type: string
+          minLength: 1
+          description: 名单项标识。
+        merchantCode:
+          type: string
+          minLength: 1
+          description: 该项标识里的商户码，没有再取来源商户的商户码；都没有时不返回本键。
+        subjectName:
+          type: string
+          minLength: 1
+        reasonCategory:
+          $ref: '#/components/schemas/MerchantBlocklistReason'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 录入时刻。
+        createdBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 录入人；上线初始数据没有，此时不返回本键。
+    MerchantBlocklistEntry:
+      type: object
+      additionalProperties: false
+      description: 一个禁入名单项。
+      required:
+        - entryId
+        - subjectName
+        - reasonCategory
+        - source
+        - identifiers
+        - status
+        - createdAt
+        - updatedAt
+      properties:
+        entryId:
+          type: string
+          minLength: 1
+          description: 名单项标识。
+        subjectName:
+          type: string
+          minLength: 1
+        reasonCategory:
+          $ref: '#/components/schemas/MerchantBlocklistReason'
+        note:
+          type: string
+          minLength: 1
+          description: 备注；没有时不返回本键。
+        source:
+          $ref: '#/components/schemas/MerchantBlocklistSource'
+        sourceMerchant:
+          allOf:
+            - $ref: '#/components/schemas/RiskMerchantRef'
+          description: 生成本项的商户；手工录入的，或该商户已删除时不返回本键。
+        identifiers:
+          type: array
+          minItems: 1
+          description: 在册标识（被编辑移出的不列）。
+          items:
+            $ref: '#/components/schemas/MerchantBlocklistIdentifier'
+        status:
+          $ref: '#/components/schemas/MerchantBlocklistEntryStatus'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 录入时刻。
+        createdBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 录入人；上线初始数据没有，此时不返回本键。
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 最近改动时刻。
+        updatedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 最近改动人；上线初始数据从未改过时不返回本键。
+        liftedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 解除时刻；生效时不返回本键。
+        liftedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 解除人；生效时不返回本键。
+        liftReason:
+          type: string
+          minLength: 1
+          description: 解除原因；生效时不返回本键。
+    MerchantBlocklistLifting:
+      type: object
+      additionalProperties: false
+      required:
+        - liftReason
+      properties:
+        liftReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          pattern: ^.*\S.*$
+          description: 解除原因，不能为空白。
+    MerchantBlocklistFromMerchant:
+      type: object
+      additionalProperties: false
+      required:
+        - reasonCategory
+      properties:
+        reasonCategory:
+          type: string
+          enum:
+            - FROZEN
+            - HIGH_RISK
+          description: 冻结后调用传 `FROZEN`，设为高风险后调用传 `HIGH_RISK`。
+    MerchantBlocklistFromMerchantResult:
+      type: object
+      additionalProperties: false
+      required:
+        - entry
+        - created
+      properties:
+        entry:
+          $ref: '#/components/schemas/MerchantBlocklistEntry'
+        created:
+          type: boolean
+          description: '`true` = 本次新生成；`false` = 该商户已有来源于它的生效名单项，返回的是既有项。'
+    PayerId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 付款人标识。
+    GiftcardCustomerIdentityType:
+      type: string
+      enum:
+        - WECHAT
+        - ALIPAY
+        - EMAIL
+      description: 付款人身份类型：`WECHAT` 微信 / `ALIPAY` 支付宝 / `EMAIL` 邮箱。
+    GiftcardCustomerIdentity:
+      type: object
+      additionalProperties: false
+      required:
+        - identityType
+        - identityValue
+      properties:
+        identityType:
+          $ref: '#/components/schemas/GiftcardCustomerIdentityType'
+        appId:
+          type: string
+          minLength: 1
+          description: 身份所属的应用（微信 / 支付宝 appid）；邮箱不返回本键。
+        identityValue:
+          type: string
+          minLength: 1
+          description: 身份值：微信 openid、支付宝付款人标识或邮箱（已转小写）。
+        nickname:
+          type: string
+          minLength: 1
+          description: 授权时返回的昵称；没有时不返回本键。
+    GiftcardCustomerRiskLevel:
+      type: string
+      enum:
+        - NORMAL
+        - MEDIUM
+        - HIGH
+      description: 礼卡客户风险等级：`NORMAL` 正常 / `MEDIUM` 中 / `HIGH` 高。
+    GiftcardCustomer:
+      type: object
+      additionalProperties: false
+      description: 一位付款人的礼卡风险资料与白名单标记。
+      required:
+        - payerId
+        - identities
+        - riskLevel
+        - riskScore
+        - whitelisted
+      properties:
+        payerId:
+          $ref: '#/components/schemas/PayerId'
+        identities:
+          type: array
+          minItems: 1
+          description: 该付款人的全部身份。
+          items:
+            $ref: '#/components/schemas/GiftcardCustomerIdentity'
+        riskLevel:
+          $ref: '#/components/schemas/GiftcardCustomerRiskLevel'
+        riskScore:
+          type: integer
+          minimum: 0
+          description: 累计风险分。
+        whitelisted:
+          type: boolean
+          description: 是否在礼卡客户白名单。
+        remark:
+          type: string
+          minLength: 1
+          description: 处置备注；没有时不返回本键。
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+          description: 最近处置时刻；从未处置、也没有风险资料时不返回本键。
+        updatedBy:
+          allOf:
+            - $ref: '#/components/schemas/UserRef'
+          description: 最近处置人；没有人工处置过时不返回本键。
+    GiftcardCustomerWhitelistWrite:
+      type: object
+      additionalProperties: false
+      required:
+        - whitelisted
+      properties:
+        whitelisted:
+          type: boolean
+          description: 是否设为白名单。
+        remark:
+          type: string
+          minLength: 1
+          maxLength: 256
+          pattern: \S
+          description: 备注，不能全为空白；不给即清空备注。
+    DiagnosticDetail:
+      type: string
+      description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
+    OrderId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台订单号。
+    MerchantMandateNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户协议号，同一商户内不可重复。
+    Currency:
+      type: string
+      description: ISO-4217 币种码。本期最小覆盖 CAD/USD/HKD/CNY(部署时可配置扩展)。
+      examples:
+        - CAD
+        - USD
+        - HKD
+        - CNY
+    Money:
+      type: object
+      description: 金额 = 最小币种单位整数(字符串) + 币种(禁裸数字流转;金额口径:字符串防 JSON number 精度丢失)。
+      required:
+        - amount
+        - currency
+      properties:
+        amount:
+          type: string
+          pattern: ^-?[0-9]+$
+          description: 最小币种单位整数的字符串(如 CAD 分 "1050";展示层按币种 minorUnit 换算)。
+        currency:
+          $ref: '#/components/schemas/Currency'
+    BlocklistCategory:
+      type: string
+      enum:
+        - legal_name
+        - registration_number
+        - contact_name
+        - phone
+        - email
+        - email_domain
+        - merchant_code
+      description: 禁入名单的类别：`legal_name` 法定名 / `registration_number` 注册号 / `contact_name` 联系人姓名 / `phone` 电话 / `email` 邮箱 / `email_domain` 邮箱域名 / `merchant_code` 商户码。
+    BlocklistHit:
+      type: object
+      additionalProperties: false
+      description: 禁入名单的一个命中项。
+      required:
+        - category
+        - value
+      properties:
+        category:
+          $ref: '#/components/schemas/BlocklistCategory'
+        value:
+          type: string
+          minLength: 1
+          description: 命中的那一项的值。
+    ErrorEnvelope:
+      type: object
+      description: 统一错误返回(错误响应体:结构化整数 code + detail + 可选 links;扩展 traceId/details/context)。
+      required:
+        - code
+        - detail
+      properties:
+        code:
+          type: integer
+          description: 结构化整数错误码(能力域段 + 责任方类别 + 域内末段;可解析责任方+来源域,与 HTTP 状态正交)。
+        detail:
+          allOf:
+            - $ref: '#/components/schemas/DiagnosticDetail'
+          description: 本次失败的诊断描述。用户可见文案由调用方按 `code` 查码表取 `name` 作 i18n key、从自己的多语言资源渲染。
+        links:
+          type: object
+          description: 可选:错误说明 / 后续恢复操作链接。
+          additionalProperties:
+            type: string
+        traceId:
+          type: string
+          description: 可选:关联 id,串联日志 / 分布式 trace(可观测)。
+        details:
+          type: array
+          description: 可选:字段级校验错误。
+          items:
+            type: object
+            required:
+              - field
+              - issue
+            properties:
+              field:
+                type: string
+              issue:
+                type: string
+        context:
+          type: object
+          description: 可选:该错误**专属的结构化上下文**(区别于 `details` —— 那只承载请求字段级校验错误)。 **必带与否取决于 `code`、不取决于 HTTP 状态**:某个码必带哪些 context 字段, 见该码在所属能力域错误码表里的 `requiredContextFields`(唯一出处,勿按状态码猜)。 下列属性是**跨面并集**(不同码用不同键),**在一处声明、各面不再另行覆盖** —— 用 `allOf` 二次声明同名嵌套对象会被拍平型 codegen 后者覆盖前者、静默丢字段。
+          properties:
+            attemptsRemaining:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战验证码输错但还能重输时的剩余尝试次数（**整数类型、走本结构化上下文**，非塞进 `details.issue` 字符串——`details` 只做请求字段级校验红框）。
+            cooldownSeconds:
+              type: integer
+              minimum: 0
+              description: OTP / 挑战 Resend 冷却剩余秒数（**整数类型、走本结构化上下文**——权威值、覆盖刷新 / 跨标签页，前端据此本地倒计时）。
+            orderId:
+              $ref: '#/components/schemas/OrderId'
+              description: 失败发生时**订单已建立**的场景下带出的平台订单号（如被扫同步扣款在通道应答阶段失败、建单时受理准入不予受理）——调用方据此查结果与对账。订单尚未建立就失败的码不返回本键。
+            channelErrorCode:
+              type: string
+              description: 渠道拒绝时渠道给出的原始结果码（如建单这一步向渠道下单被拒、被扫在渠道应答阶段被拒）；渠道给了就带、没给不带。对外面把它映射成冻结契约里的渠道结果码。
+            channelErrorMessage:
+              type: string
+              description: 与 `channelErrorCode` 配套的渠道原始说明；渠道给了就带。
+            reasonCode:
+              type: string
+              description: 受理拒绝的机读原因，取值见该码在所属域码表的说明。
+            merchantMandateNo:
+              $ref: '#/components/schemas/MerchantMandateNo'
+              description: 被拒的委托代扣请求所引用的商户侧协议号——**回显调用方自己传入的值**，供其定位是哪份协议被拒。不透出平台侧标识、也不透出协议内部状态（具体状态由合约查询给出）。
+            purchaseLimit:
+              $ref: '#/components/schemas/Money'
+              description: 命中限购时该限额的**取值与币种**（**结构化、走本上下文**——提示文案要把数额说出来，付款人才知道还能买多少；把它拼进 `detail` 字符串前端取不出来）。
+            committedQuantity:
+              type: integer
+              minimum: 0
+              description: 改可售上限被拒时，该项**已经卖掉 + 正被在途订单占着**的份数，即新上限的下界（**结构化、走本上下文**——提示要说出「不能低于 N」商户才知道该填什么，拼进 `detail` 前端取不出来）。
+            floorAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额低于平台规定的下限时，该下限的**取值与币种**（下限可由运营调整，前端不写死，按本键提示「不能低于 N」）。
+            maxAmount:
+              $ref: '#/components/schemas/Money'
+              description: 提交的金额超过平台规定的上限时，本次命令适用的单笔金额上限的**取值与币种**（上限可由运营调整，前端不写死，按本键提示「不能超过 N」）。
+            minimumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的下限，分钟（范围由平台设定，前端不写死）。
+            maximumMinutes:
+              type: integer
+              minimum: 1
+              description: 提交的时长超出允许范围时，当前允许的上限，分钟。
+            capPercentage:
+              type: string
+              pattern: ^[0-9]+(\.[0-9]{1,6})?$
+              description: 提交的比例费率超过平台上限时，当前的上限，小数（`0.05` = 5%；上限由运营调整，前端不写死，按本键提示「不能超过 N」）。
+            payable:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时提交的总应付与服务端此刻算出的不一致时，服务端此刻算出的总应付（页面按本键换成新数，付款人确认后重新发起）。
+            orderAmountCeiling:
+              $ref: '#/components/schemas/Money'
+              description: 发起支付时总应付超过单笔上限时，生效的单笔上限（各层取最严后的值），币种是商户结算币种，可能与页面标价币种不同（页面按本键把数额说出来；拼进 `detail` 前端取不出来）。
+            currentIp:
+              type: string
+              minLength: 1
+              maxLength: 45
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+            blocklistHits:
+              type: array
+              minItems: 1
+              description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
+              items:
+                $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
+            maxRows:
+              type: integer
+              minimum: 1
+              description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
+    MerchantId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 商户标识（平台内部 id，不是对外商户码）。
+    MerchantCode:
+      type: string
+      minLength: 1
+      maxLength: 20
+      description: 对外商户码。
+    Timestamp:
+      type: string
+      format: date-time
+      description: |
+        **瞬时时刻**(RFC 3339 date-time)。in/out 非对称:
+
+        - **响应 MUST UTC `Z`**(如 2026-05-19T14:30:00Z);
+        - **请求/query 入参 MAY 任意合法 offset**,服务端归一 UTC(format: date-time 同时接受 Z 与 offset,
+          「出参 Z」是约定、非 schema 可强制)。
+
+        展示由消费方按本地时区换算(浏览器端即浏览器时区)。
+
+        需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    UserId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 平台用户标识；商户操作员的标识就是它。
+    UserRef:
+      type: object
+      additionalProperties: false
+      description: 一个平台用户的标识与显示名（列表与记录上展示「谁」）。
+      required:
+        - userId
+        - displayName
+      properties:
+        userId:
+          $ref: '#/components/schemas/UserId'
+        displayName:
+          type: string
+          minLength: 1
+    LocalDate:
+      type: string
+      format: date
+      description: |
+        日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
+      examples:
+        - '2026-08-01'
+    MerchantOrderNo:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 商户单号，同一商户内不可重复。
+    EntryPoint:
+      type: string
+      description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `system` 系统发起。
+      enum:
+        - pos
+        - merchant_app
+        - merchant_portal
+        - open_api
+        - checkout
+        - channel_inbound
+        - plugin_shopify
+        - plugin_allvalue
+        - plugin_allvalue_xhs
+        - system
+    PaymentMethod:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
+      examples:
+        - wechat_instore
+  responses:
+    AdminBffDefaultError:
+      description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见管理后台约定与 API 基础约定「错误响应体」。
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'

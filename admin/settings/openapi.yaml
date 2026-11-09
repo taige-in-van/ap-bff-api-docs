@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: 管理后台 平台设置与公告 — 前端契约面
-  version: 2.0.4
+  version: 2.1.0
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的平台设置契约：平台参数（`/settings/parameters`）、平台级收单参数（`/settings/acquiring-parameters`）、平台退款参数（`/settings/refund-parameters`）、平台清结算参数（`/settings/clearing-parameters`）与发给全体商户的公告（`/announcements`）。
+    管理后台 React SPA 消费的平台设置契约：平台参数（`/settings/parameters`）、平台级收单参数（`/settings/acquiring-parameters`）、平台退款参数（`/settings/refund-parameters`）、平台清结算参数（`/settings/clearing-parameters`）、风控参数（平台层 `/settings/risk-parameters` 与支付方式层 `/settings/risk-payment-method-parameters` 的单笔上限）与发给全体商户的公告（`/announcements`）。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
@@ -28,6 +28,12 @@ tags:
   - name: clearing-parameters
     x-displayName: 平台清结算参数
     description: 清结算相关的平台级参数（各结算币种默认出款格式、出款文件头、T&T 商户组、T&T 线上商户清单、出款文件与对账文件收件人、三个金额参数）：可改值、可恢复默认。三个金额参数（准备金最低金额下限、单笔调账上限、授信额度上限）有默认值，恢复即回到默认值；其余项无默认值，恢复后无值。
+  - name: risk-parameters
+    x-displayName: 风控参数 · 平台层
+    description: 平台层单笔上限：可改值、可恢复未设。
+  - name: risk-payment-method-parameters
+    x-displayName: 风控参数 · 支付方式层
+    description: 各支付方式的单笔上限：逐个改值、可恢复未设。
   - name: announcements
     x-displayName: 公告
     description: 发给全体商户的公告：草稿、发布、撤回。
@@ -40,7 +46,7 @@ paths:
       x-required-privilege: syscfg:parameter:view
       summary: 平台参数列表（含生效值、默认值与写入用的版本）
       description: |
-        平台参数页上的全部参数，按分组给出。每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`，没有 `value` 即当前用的是默认值。收单相关的平台参数在平台收单参数页（`listAcquiringPlatformParameters`）；退款审核开关、审核金额阈值与最大退款期限在平台退款参数页（`listRefundPlatformParameters`）；清结算相关的在平台清结算参数页（`listClearingPlatformParameters`），都不在本列表。
+        平台参数页上的全部参数，按分组给出。每项带展示名、当前生效值、默认值与写入用的版本；平台设过值的另带 `value`，没有 `value` 即当前用的是默认值。收单相关的平台参数在平台收单参数页（`listAcquiringPlatformParameters`）；退款审核开关、审核金额阈值与最大退款期限在平台退款参数页（`listRefundPlatformParameters`）；清结算相关的在平台清结算参数页（`listClearingPlatformParameters`）；单笔上限在风控参数页（`listRiskPlatformParameters`），都不在本列表。
 
         顺序即展示顺序。
       responses:
@@ -573,6 +579,235 @@ paths:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 308103
+  /settings/risk-parameters:
+    get:
+      tags:
+        - risk-parameters
+      operationId: listRiskPlatformParameters
+      x-required-privilege: risk:parameter:view
+      summary: 平台层风控参数列表（单笔上限，含写入用的版本）
+      description: |
+        平台层的单笔上限。形态与平台参数相同：每项带展示名、值域说明与写入用的版本；平台设过值的另带 `value` 与 `effectiveValue`，没有 `value` 即平台层未设、不限制。
+
+        单笔上限是结算币种的最小单位整数，按各商户的结算币种解释，不带币种。订单应付总额折到结算币种后超过上限的，建单即被拒。平台层、支付方式层与商户层各自独立，建单时取最严。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PlatformParameter'
+              example:
+                items:
+                  - key: admission.order-amount-ceiling
+                    groupName: 风控
+                    displayName: 单笔上限
+                    valueType: number
+                    valueRangeNote: 正整数，结算币种的最小单位，按商户结算币种解释；不设 = 不限
+                    value:
+                      numberValue: 5000000
+                    effectiveValue:
+                      numberValue: 5000000
+                    version: 2
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /settings/risk-parameters/{key}:
+    parameters:
+      - name: key
+        in: path
+        required: true
+        description: 参数标识，取列表里的 `key`。
+        schema:
+          $ref: '#/components/schemas/ParameterKey'
+    put:
+      tags:
+        - risk-parameters
+      operationId: updateRiskPlatformParameter
+      x-required-privilege: risk:parameter:edit
+      summary: 改平台层单笔上限，或恢复未设
+      description: |
+        把平台层的单笔上限设为 `value`；`value` 传 `null` 即恢复未设，平台层不再限制。对此后的受理即时生效，已被拒的订单不改判。成功返回写入后的参数，每次成功都留下一条操作记录（带前后值）。
+
+        **全量覆盖**：请求体就是目标本身，`value` 与 `version` 都要传，缺省不代表保持原样。
+
+        **什么时候拒绝**：
+
+        - `version` 不是读到时的那个（别人已经改过）→ `409`·`308103`。重新调 `listRiskPlatformParameters` 读最新值，再决定是否重改。
+        - `value` 不是正整数 → `400`，由 `details` 定位到 `value`；参数不变。
+        - 参数不存在或不在本页 → `404`。
+
+        **重复提交**：不带幂等键。上一次其实已经成功、响应丢了再提交，会因版本已变得到 `308103`，重读即可看到上次写入的值。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformParameterWrite'
+            examples:
+              setValue:
+                summary: 改值
+                value:
+                  value:
+                    numberValue: 5000000
+                  version: 2
+              restoreUnset:
+                summary: 恢复未设
+                value:
+                  value: null
+                  version: 3
+      responses:
+        '200':
+          description: 写入后的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformParameter'
+              example:
+                key: admission.order-amount-ceiling
+                groupName: 风控
+                displayName: 单笔上限
+                valueType: number
+                valueRangeNote: 正整数，结算币种的最小单位，按商户结算币种解释；不设 = 不限
+                value:
+                  numberValue: 5000000
+                effectiveValue:
+                  numberValue: 5000000
+                version: 3
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308103
+  /settings/risk-payment-method-parameters:
+    get:
+      tags:
+        - risk-payment-method-parameters
+      operationId: listRiskPaymentMethodParameters
+      x-required-privilege: risk:parameter:view
+      summary: 支付方式层风控参数列表（各支付方式的单笔上限，含写入用的版本）
+      description: |
+        平台支付方式目录里启用中的支付方式，各带一项单笔上限，按目录顺序。每项带支付方式与其展示名、参数展示名、值域说明与写入用的版本；该支付方式设过值的另带 `value`，没有 `value` 即这一层未设、不限制。这一层从没写过时版本为 0。
+
+        值口径同平台层：结算币种的最小单位整数，按各商户的结算币种解释。这一层只约束建单时已定支付方式的订单，建单时没定支付方式的订单不受这一层约束。
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PaymentMethodParameter'
+              example:
+                items:
+                  - paymentMethod: wechat_instore
+                    paymentMethodName: 微信线下
+                    key: admission.order-amount-ceiling
+                    displayName: 单笔上限
+                    valueType: number
+                    valueRangeNote: 正整数，结算币种的最小单位，按商户结算币种解释；不设 = 不限
+                    value:
+                      numberValue: 500000
+                    version: 2
+                  - paymentMethod: alipay_instore
+                    paymentMethodName: 支付宝线下
+                    key: admission.order-amount-ceiling
+                    displayName: 单笔上限
+                    valueType: number
+                    valueRangeNote: 正整数，结算币种的最小单位，按商户结算币种解释；不设 = 不限
+                    version: 0
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes: []
+  /settings/risk-payment-method-parameters/{paymentMethod}/{key}:
+    parameters:
+      - name: paymentMethod
+        in: path
+        required: true
+        description: 支付方式，取列表里的 `paymentMethod`。
+        schema:
+          $ref: '#/components/schemas/PaymentMethod'
+      - name: key
+        in: path
+        required: true
+        description: 参数标识，取列表里的 `key`。
+        schema:
+          $ref: '#/components/schemas/ParameterKey'
+    put:
+      tags:
+        - risk-payment-method-parameters
+      operationId: updateRiskPaymentMethodParameter
+      x-required-privilege: risk:parameter:edit
+      summary: 改某支付方式的单笔上限，或恢复未设
+      description: |
+        把该支付方式这一层的单笔上限设为 `value`；`value` 传 `null` 即恢复未设，这一层对该支付方式不再限制。对此后的受理即时生效，已被拒的订单不改判；建单时没定支付方式的订单不受这一层约束。成功返回写入后的参数，每次成功都留下一条操作记录（带前后值）。
+
+        **全量覆盖**：请求体就是目标本身，`value` 与 `version` 都要传，缺省不代表保持原样。这一层从没写过时按版本 0 提交。
+
+        **什么时候拒绝**：
+
+        - `version` 不是读到时的那个（别人已经改过）→ `409`·`308103`。重新调 `listRiskPaymentMethodParameters` 读最新值，再决定是否重改。
+        - `value` 不是正整数 → `400`，由 `details` 定位到 `value`；参数不变。
+        - 支付方式不在启用中的目录里，或参数不存在、不在本页 → `404`。
+
+        **重复提交**：不带幂等键。上一次其实已经成功、响应丢了再提交，会因版本已变得到 `308103`，重读即可看到上次写入的值。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformParameterWrite'
+            examples:
+              setValue:
+                summary: 改值
+                value:
+                  value:
+                    numberValue: 500000
+                  version: 0
+              restoreUnset:
+                summary: 恢复未设
+                value:
+                  value: null
+                  version: 1
+      responses:
+        '200':
+          description: 写入后的参数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodParameter'
+              example:
+                paymentMethod: wechat_instore
+                paymentMethodName: 微信线下
+                key: admission.order-amount-ceiling
+                displayName: 单笔上限
+                valueType: number
+                valueRangeNote: 正整数，结算币种的最小单位，按商户结算币种解释；不设 = 不限
+                value:
+                  numberValue: 500000
+                version: 1
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308103
   /announcements:
     get:
       tags:
@@ -947,11 +1182,54 @@ components:
           oneOf:
             - $ref: '#/components/schemas/ParameterValue'
             - type: 'null'
-          description: 新值；传 `null` = 恢复默认。
+          description: 新值；传 `null` = 恢复默认（没有默认值的参数即恢复未设）。
         version:
           type: integer
           minimum: 0
           description: 读到时的 `version`。
+    PaymentMethodParameter:
+      type: object
+      additionalProperties: false
+      description: 某支付方式这一层的一个参数。各层独立、不回落到别的层，故没有默认值与生效值。
+      required:
+        - paymentMethod
+        - paymentMethodName
+        - key
+        - displayName
+        - valueType
+        - version
+      properties:
+        paymentMethod:
+          $ref: '#/components/schemas/PaymentMethod'
+        paymentMethodName:
+          type: string
+          minLength: 1
+          description: 支付方式的展示名。
+        key:
+          $ref: '#/components/schemas/ParameterKey'
+        displayName:
+          type: string
+          minLength: 1
+          description: 参数的展示名。
+        valueType:
+          type: string
+          enum:
+            - string
+            - number
+            - boolean
+          description: 值的类型，决定编辑控件与提交时用哪个槽位。
+        valueRangeNote:
+          type: string
+          minLength: 1
+          description: 值域说明。没有值域限制时不返回。
+        value:
+          allOf:
+            - $ref: '#/components/schemas/ParameterValue'
+          description: 该支付方式这一层设过的值。没设过时不返回本键，即这一层不限制。
+        version:
+          type: integer
+          minimum: 0
+          description: 写入用的版本，改值时原样带回；这一层从没写过时为 0。
     AnnouncementId:
       type: string
       minLength: 1
@@ -1195,10 +1473,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     ParameterValue:
       type: object
       additionalProperties: false
@@ -1219,6 +1509,13 @@ components:
           items:
             type: number
           description: 数值列表，按声明的顺序与个数给。
+    PaymentMethod:
+      type: string
+      minLength: 1
+      maxLength: 64
+      description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
+      examples:
+        - wechat_instore
     Timestamp:
       type: string
       format: date-time

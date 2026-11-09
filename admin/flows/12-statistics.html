@@ -1,0 +1,281 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>统计分析 — 调用时序</title>
+<style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
+<p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
+<p id="ready-note" hidden></p>
+<script type="application/json" id="contract-fp">{"consumer":"admin","ops":{"acquiring/createMerchantChannelApplication":"8c48a2b3b0d04d9b","acquiring/createMerchantChannelContract":"61560df4bc33cf1a","acquiring/createMerchantFeeRate":"d936b395ae43ba9d","acquiring/getMerchantCrossRefundPolicy":"e57a285689ac2d4b","acquiring/getMerchantDeveloperAccess":"996119e7ce6a7c65","acquiring/getMerchantPaymentPageSettings":"3f9af529df445986","acquiring/getMerchantReceiptSettings":"b91426d8c4fd05ba","acquiring/getMerchantSettlementTerms":"c2b1a19fa451410b","acquiring/getMerchantTipSettings":"bbc09a24ea07d37b","acquiring/listFeeRateIssues":"5c82a5f858a3e69b","acquiring/listMerchantAcquiringParameters":"a014141048131782","acquiring/listMerchantChannelContracts":"e85f368140ea912d","acquiring/listMerchantDeviceLogs":"304a773b53dc0109","acquiring/listMerchantDevices":"63e33766317018d1","acquiring/listMerchantEntryPoints":"a7c9cdee2679ada0","acquiring/listMerchantFeeRates":"10e01be42e3fe65e","acquiring/listMerchantInvoices":"fa5c0aa418a6ef1e","acquiring/listMerchantProductLinks":"a3dbcc337a5852aa","acquiring/listMerchantStoreQrcodes":"84dc61dc7af1708f","acquiring/registerMerchantChannelSubApp":"dec5b45ad3493525","acquiring/reissueMerchantApiCredential":"540e81fbb69d43f1","acquiring/releaseMerchantDevice":"298089baaa4c0096","acquiring/syncMerchantChannelApplication":"9e9b61944cfb8d58","acquiring/updateGiftcardAlipayPassTemplate":"9466fe5688db0b64","acquiring/updateMerchantAcquiringParameter":"51bb236cf5f8aa4d","acquiring/updateMerchantChannelContract":"1ffe3a551dc222ca","acquiring/updateMerchantCrossRefundPolicy":"9b2f3c47a5be1ccf","acquiring/updateMerchantCsfCoverage":"e23f3bf0f63bf53b","acquiring/updateMerchantDeviceEnablement":"e267470159620d04","acquiring/updateMerchantEntryPoint":"8b426d433067f0a9","acquiring/updateMerchantEntryPointEnablement":"03ff0709e02077b1","acquiring/updateMerchantPaymentPageSettings":"11bc27e0c5f07e25","acquiring/updateMerchantReceiptSettings":"50b848b847d517a0","acquiring/updateMerchantSettlementTerms":"60fd382dfbb46791","acquiring/updateMerchantTipSettings":"9572dc7b2ff3ee78","applications/checkAssistedOnboarding":"08761db9ca756a05","applications/createApplicationFileAccessUrl":"6164c77b89a72acc","applications/createApplicationSignatureRequest":"0fe1b8cf73e817b2","applications/createAssistedApplication":"f53062d59c2d900f","applications/decideApplication":"53f4008c64bb3c66","applications/getApplication":"7b020eac84558b05","applications/listApplications":"494192fa065d420c","applications/listMerchantAppIdTodos":"d3a718431ea91c26","applications/submitAssistedApplication":"088d9e74b53973b0","applications/updateAssistedApplicationStep":"22131a8db674cbc0","applications/uploadAssistedApplicationFile":"601761f535191beb","applications/withdrawAssistedApplication":"6f432bf52a1dcf39","auth/acceptInvitation":"facf605c4b1554ca","auth/changeMyPassword":"fd06b4973df6a858","auth/completeMfaChallenge":"62d2c5d9c3e96b2d","auth/confirmLoginEmailChange":"43737ebb60d8ed93","auth/confirmMfa":"faae69ad02d48d13","auth/confirmPasswordReset":"afdabb7ee3806d94","auth/deleteMyWechatBinding":"7be3a23fe4739374","auth/enrollMfa":"8983f2f0d9454e2d","auth/getCurrentSession":"d90088fe0c857f41","auth/getMyProfile":"f53730fb392a975b","auth/initiateMyWechatBinding":"ef0bae5250b41b1c","auth/initiateWechatLogin":"67ba0a7f82323056","auth/login":"fd7ca5bb7f02986a","auth/logout":"fa5beaf80a8fb1bf","auth/pollMyWechatBinding":"26687e4e3a726bc7","auth/pollWechatLogin":"6fa7977d69e5d5a9","auth/requestPasswordReset":"9ebc66a5832666e8","auth/updateMyLoginIpAllowlist":"2d8ffbd9dbefe35b","auth/updateMyProfile":"85a2f2fb5d2cfaba","clearing/acknowledgePayoutFile":"b73078d374870cfd","clearing/cancelPayoutFile":"5e341e421eb7820c","clearing/confirmChannelSettlementReceipt":"f2cecb274b8a8438","clearing/createChannelRemittance":"5856c7d2d1e764a8","clearing/createFeeCollection":"86963e2e39140aa5","clearing/createFeeCollectionExport":"f061c16bcce620ab","clearing/createMerchantFundAdjustment":"179dba2d044ae294","clearing/createPromotionEnrollment":"3fbb2293024c9a93","clearing/createPromotionProgram":"b89149bfda609931","clearing/createReconLossRecovery":"669e56a6ae442e69","clearing/createReconciliationRerun":"e02f271cc2f28bcc","clearing/createRoundingWriteOffs":"e12e3449cb6085b2","clearing/createSettlementExport":"fe2ea4d666c92383","clearing/createStatementExport":"b72331fcf0b9eaee","clearing/createStatementTaxSummaryExport":"895ccbbcba3992e3","clearing/decideRefundConfirmation":"6cc82c4b15408031","clearing/getChannelBillOriginal":"d88524c6a94528b2","clearing/getChannelSettlementSummary":"cc8b20da64cff158","clearing/getClearingOverview":"08cdb4e88bcf1f90","clearing/getMerchantFundOverview":"b3354398278f65c2","clearing/getMerchantReconFileOriginal":"08adcea892db2b71","clearing/getMerchantSettlementControls":"30cae0d786f80759","clearing/getMerchantStatement":"dd2d8543c38e63b4","clearing/getMerchantStatementFile":"c4914e5e7879c5d3","clearing/getPayoutFile":"5fba0836eea69f42","clearing/getPayoutFileOriginal":"cf7ea914a8f1da30","clearing/getReconDiscrepancy":"e3f7139271ccdd4b","clearing/getSettlementBatch":"cd8702eac4c78710","clearing/getSettlementCalendarMonth":"4d945ae77045f907","clearing/getSettlementDaySummary":"74cdde9e30ad0e23","clearing/getStatementTaxSummary":"09444e36ba257811","clearing/listChannelBills":"0b090bb0a9221f18","clearing/listChannelRemittances":"d02b58418f1a0fcd","clearing/listChannelSettlements":"3721e6c613eb9814","clearing/listClearingChannelOptions":"d7a43e4718ec6ead","clearing/listFeeCollections":"38b3f979a6eb7d1c","clearing/listMerchantReconFiles":"964bf3629a2fce1b","clearing/listMerchantStatements":"5e66f82756346f08","clearing/listPayoutFiles":"dba262e4394814b7","clearing/listPromotionAccountOperations":"172fba11afbbc83c","clearing/listPromotionEnrollments":"95e0ec2135708b36","clearing/listPromotionPrograms":"8e28d60d5ad7e371","clearing/listReconDiscrepancies":"5e80cf8d0a6777ba","clearing/listRefundConfirmations":"0c80733bb3ec9e08","clearing/listSettlementBatchLines":"4f0af2b26b24e6ea","clearing/listSettlementBatches":"7ad1a25bec51754b","clearing/listSettlementReports":"bc26ccf0bf250361","clearing/redeliverMerchantReconFile":"b47895ce42dc3753","clearing/redeliverSettlementReport":"da43d9c4b46a46e1","clearing/replaceSettlementCalendarMonth":"242a3368f81f0a10","clearing/resolveChannelRemittanceDiscrepancy":"0cacf3c025cd3076","clearing/resolveChannelSettlementDiscrepancy":"2455b3b0cb008790","clearing/resolveReconDiscrepancy":"24a5430e2ce6c172","clearing/retrySettlementBatchPayout":"24a7c4d27802faf0","clearing/returnFeeCollection":"4c55a99ad5bbbfff","clearing/returnPayoutLine":"5b958a641d2e2dc4","clearing/reverseChannelRemittance":"5abfec523719ecd6","clearing/revokeChannelSettlementReceipt":"767039d600189691","clearing/submitDiscrepancyDisposition":"4253cf56140f9057","clearing/submitPayoutFile":"c83c9b7ba4cd0cb7","clearing/terminatePromotionEnrollment":"6461388860a06c8f","clearing/terminatePromotionProgram":"93a14e077b23f7ce","clearing/updateMerchantCreditLimit":"306311f81d2fff2a","clearing/updateMerchantSettlementControls":"cf3985a23c60a031","clearing/writeOffReconDiscrepancy":"331e9b69b17177c3","merchants/closeMerchant":"3b1593980f12e003","merchants/createMerchantDocument":"d460397b22297370","merchants/createMerchantExport":"2f678fce95ad2784","merchants/createMerchantFileAccessUrl":"8364254f06373a61","merchants/createMerchantImpersonation":"56e513e4f7cac831","merchants/createMerchantMember":"ed000a3e44013b5e","merchants/createMerchantMemberPasswordReset":"cd4171ec5ee80c57","merchants/createMerchantRefundPinReset":"6c7101c8c7c96357","merchants/deleteMerchantDocument":"529d7b4c2c68182f","merchants/deleteMerchantMember":"dd20725bfce7bc86","merchants/deleteMerchantMemberLoginLock":"56143e6273143012","merchants/deleteMerchantMemberMfa":"c5c2039b37df3253","merchants/deleteMerchantMemberWechatBinding":"ca115f346e7c699e","merchants/getMerchant":"a7116de20b5ef699","merchants/listMerchantMemberRoleOptions":"c77f97a0bc547a83","merchants/listMerchantMembers":"1776f5da8162484f","merchants/listMerchantSettings":"6650ed7745a80961","merchants/listMerchants":"847babe797f671e5","merchants/updateMerchantDocument":"565a196828549935","merchants/updateMerchantMemberRoles":"c7531d3606ae4dca","merchants/updateMerchantMemberStatus":"514dcdd5937ddccc","merchants/updateMerchantOperatingAttributes":"946053a4775d7699","merchants/updateMerchantOwnerLoginEmail":"1a59e520f0f14efa","merchants/updateMerchantProfile":"d8210142aca000e4","merchants/updateMerchantSetting":"c5285ff974020a8d","merchants/updateMerchantSettlementInfo":"c2be1b9a45104e46","merchants/updateMerchantStatus":"2a6917f41749659e","merchants/uploadMerchantFile":"1f3ad9182b6f0153","ops/cancelBatchJobExecution":"eaeed6e9b5d95afc","ops/createBatchJobExecution":"f24789d8a5ae5c56","ops/getAuditEvent":"d6344ead015bf11a","ops/getOutboundDelivery":"d0236709b13ef95f","ops/listAuditEvents":"a20fa7298931860b","ops/listBatchJobExecutions":"4bf7c125a3f0b1bc","ops/listBatchJobs":"e376d32c786cd104","ops/listNotificationDeliveries":"f94542d81b3f46c2","ops/listOutboundDeliveries":"556b95f92382f184","ops/redeliverFailedNotifications":"dac10b169868452d","ops/redeliverNotification":"9be30cb4a359a85c","ops/redeliverOutboundDelivery":"b849023042428aca","ops/restartBatchJobExecution":"ef150131fb898c62","partners/createCommissionRateMatrixExport":"bfc7c2d1ec23ed9e","partners/createCommissionRateMatrixVersion":"99afc01d36f140a2","partners/createCommissionReportExport":"4f405108440ac216","partners/createCommissionReportLineExport":"3d0069be73d7c387","partners/createCommissionReportTransactionExport":"ff59555b86b96da9","partners/createPartner":"16e2e6b9dae59ec7","partners/createPartnerCommissionPlan":"d5e2593fef8d58e6","partners/createPartnerMerchantTransfer":"2878a1b3104c32b5","partners/createStaffCommissionExport":"1d296acd4f10181f","partners/getCommissionReportSummary":"3588a1b1c1a6c20a","partners/getPartner":"bfe7598344050a94","partners/listCommissionRateMatrix":"86262d83e47a5439","partners/listCommissionReportLines":"da758b861dcd8022","partners/listCommissionReports":"1e2991e19bf08bf2","partners/listMyReferralCodes":"8273c775504868cf","partners/listPartnerCommissionPlans":"fd2e69ff31ab37f2","partners/listPartnerOptions":"1f993a7c6f2a816c","partners/listPartners":"e48d4697d4240d14","partners/listReferralCodes":"1549511e3839d6c0","partners/listSalesOptions":"e58ea21bae90f2b3","partners/listStaffCommissions":"6721324a57489df3","partners/updateMerchantSalesAssignment":"8e0c187fb51d6eae","partners/updateMyReferralCodeStatus":"ed10faabe716fc60","partners/updatePartner":"73a379bc508dd200","partners/updatePartnerEnablement":"6b5496380c12230b","partners/updateReferralCodeStatus":"4b2f1838824aa5fd","risk/createMerchantBlocklistEntry":"fae26067d0cf7dbc","risk/createMerchantBlocklistEntryFromMerchant":"f844c24d781461f8","risk/createPayerBlocklistEntry":"80d1c122f2cb8791","risk/getMerchantBlocklistEntry":"3b0b7ed92f7e9085","risk/getRejectedOrder":"fc19aceed924eb43","risk/liftMerchantBlocklistEntry":"bd1424457e6146e9","risk/listGiftcardCustomers":"d71b1b80067571ca","risk/listMerchantBlocklistEntries":"f2b184cff5de2eb3","risk/listPayerBlocklistEntries":"20a18690bd0a88b7","risk/listRejectedOrderDailyCounts":"a146e5e4ad038a3d","risk/listRejectedOrders":"2a9d71a077ff7f65","risk/removePayerBlocklistEntry":"43f0799e1e38c9c0","risk/updateGiftcardCustomerWhitelist":"9b31c68f70502d42","risk/updateMerchantBlocklistEntry":"5cbd80e6c20424d1","settings/createAnnouncement":"598484bc6d664230","settings/deleteAnnouncement":"e074256e7a0be657","settings/getAnnouncement":"852b1ef04bec168c","settings/listAcquiringPlatformParameters":"65ce03cfbc336251","settings/listAnnouncements":"c002a9041c562754","settings/listClearingPlatformParameters":"cae0bf61e03f1089","settings/listPlatformParameters":"86915df0b44973c5","settings/listRefundPlatformParameters":"ce48c8eea2e35aff","settings/listRiskPaymentMethodParameters":"a62eb90e5bad42c6","settings/listRiskPlatformParameters":"be50b86cc7fb169e","settings/publishAnnouncement":"060fbb82ddd3d0a6","settings/updateAcquiringPlatformParameter":"91f7f1c85fe72678","settings/updateAnnouncement":"5e78e6449887ae3e","settings/updateClearingPlatformParameter":"7fe0222e9fd02050","settings/updatePlatformParameter":"a728c57f05737504","settings/updateRefundPlatformParameter":"aaa8cc83d67ae11d","settings/updateRiskPaymentMethodParameter":"453fa7f42b0a3b95","settings/updateRiskPlatformParameter":"92a9c60d1d8a3f00","settings/withdrawAnnouncement":"e567995acd12e5fd","staff/createAccessGrant":"ba3aafd99f55839a","staff/createRole":"c5fb1dc7f464cf18","staff/createStaff":"faf709b02f837503","staff/createStaffAccessGrant":"71e7564623e098b0","staff/deleteAccessGrant":"30384f6f63229833","staff/deleteRole":"bf1c1d0608828e93","staff/deleteSession":"511c3c5ad3e8a12a","staff/deleteStaff":"26a654a7162cbe1b","staff/deleteStaffLoginLock":"52a611212c8dc00f","staff/deleteStaffMfa":"bedf3db150ef68f3","staff/getStaff":"fe7722ace0f219d4","staff/listAccessGrantCandidates":"ce7909a80bd4bdd8","staff/listAccessGrants":"ca4edd3c0453a4cd","staff/listLoginLogs":"d9429c90822d3136","staff/listMerchantResources":"148fa2b89a9e84e7","staff/listMerchantRoles":"9671fcff1d5a93c2","staff/listResources":"dea1ad707214adaa","staff/listRoles":"35f48c71b2f7a7c2","staff/listSessions":"da318a63484bb868","staff/listStaff":"a1b94957a2824acb","staff/listStaffRoleOptions":"044fd1386f4dd4f8","staff/resendStaffInvitation":"fdc9e60aca433558","staff/restoreStaff":"365aadefcb179f3b","staff/updateMerchantRole":"abf32de22d92a3b1","staff/updateRole":"963d34a75313f7e3","staff/updateStaff":"70dc692a3e5b6bb3","staff/updateStaffPassword":"51a57c95fcb8c174","staff/updateStaffStatus":"7c2834e413a97563","statistics/createDirectClearingMerchantExport":"b83dccf4b96801a4","statistics/createSalesRankingExport":"2b9c43c323d08c8d","statistics/createSettlementStatisticsDailyExport":"93b179e2166badb5","statistics/getDashboardMerchantCounts":"d5377aa0cd4f1d2f","statistics/getDashboardTradeOverview":"c668fc535820c097","statistics/getFinanceReportSummary":"21dca241b7ea38cc","statistics/getMerchantTradeOverview":"dcbe77f1278a9f15","statistics/getPartnerTradeTrend":"366ef89e86657482","statistics/getSettlementStatisticsSummary":"cf979d8e6c3e5610","statistics/getStatisticsFilterOptions":"548766afc18dcc9b","statistics/listChannelTraffic":"ba492a6a8e932644","statistics/listCreditRefundMerchants":"05d8e1d65082020e","statistics/listDashboardEntryPointDistribution":"40c074d96bb592b0","statistics/listDashboardMerchantRanking":"aca4e35c5b1adbdb","statistics/listDashboardPaymentMethodDistribution":"55388f5e9311392f","statistics/listDashboardTradeTrend":"c64cd5259eefeb17","statistics/listFinanceReportDaily":"d7b3f10776a53dda","statistics/listMonthlySettlementReports":"20429ace88c6e8e7","statistics/listPartnerMerchantSalesRanking":"755f05f23e953d4a","statistics/listPartnerSalesRankings":"5cf2a23dc0188a4b","statistics/listPlatformTradeDailyReports":"0764debb31c37c6f","statistics/listPlatformTradeMonthlyReports":"6183591f4d6ecbc5","statistics/listSalesRankings":"201b732c641c111d","statistics/listSettlementAmountTrend":"9a8dada8604b0caf","statistics/listSettlementStatisticsByMerchant":"d205b67519f4e952","statistics/listSettlementStatisticsDaily":"2565487d59d9208e","transactions/createPaymentExport":"69e338434281ac82","transactions/createRefundExport":"fb787ca994e55099","transactions/decideRefundReview":"a874e31e972437fc","transactions/getPayment":"07ca6fb62ad272e8","transactions/getPaymentSummary":"88d7c670066219d0","transactions/getRefund":"7bba4f6151c45794","transactions/listMandates":"e20654354c8bc06e","transactions/listPayments":"1cb08b54dc821f4d","transactions/listRefundReviews":"193bf70d00e3edba","transactions/listRefunds":"f6c8ed7fe14d2405"}}</script>
+<div id="content"></div>
+<script type="text/plain" id="src">
+# 统计分析 —— 调用时序
+
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」；管理后台与商户后台不同的约定见 [管理后台约定](../conventions.html)。本文各页面的入口与按钮按会话的 `privileges` 显隐（`getCurrentSession`，见 01-login-profile）。本文的页面都是只读：每个页面（或页面上的一块）调一个接口，没有跨接口的先后，不画时序图。金额一律是对应币种最小单位的整数串，页面展示时由前端按币种换算；不同结算币种分组展示，不跨币种相加。
+
+## 本文的页面
+
+| 页面 | 从哪进 | 本文章节 |
+|---|---|---|
+| 运营首页 | 导航「统计 › 运营首页」 | [页面：运营首页](#页面：运营首页) |
+| 商户概览 | 商户列表行上的「交易概览」；商户详情顶部的「交易概览」 | [页面：商户概览](#页面：商户概览) |
+| 平台交易报表 | 导航「统计 › 平台交易报表」 | [页面：平台交易报表](#页面：平台交易报表) |
+| 财务报表 | 导航「统计 › 财务报表」 | [页面：财务报表](#页面：财务报表) |
+| 通道流量 | 导航「统计 › 通道流量」 | [页面：通道流量](#页面：通道流量) |
+| 清算统计 | 导航「统计 › 清算统计」 | [页面：清算统计](#页面：清算统计) |
+| 清算金额趋势 | 导航「统计 › 清算金额趋势」 | [页面：清算金额趋势](#页面：清算金额趋势) |
+| 月度清算报表 | 导航「统计 › 月度清算报表」 | [页面：月度清算报表](#页面：月度清算报表) |
+| 授信退款商户 | 导航「统计 › 授信退款商户」 | [页面：授信退款商户](#页面：授信退款商户) |
+| 机构销售排行 | 导航「统计 › 机构销售排行」；机构详情的「交易统计」页签 | [页面：机构销售排行](#页面：机构销售排行) |
+| BD 销售排行 | 导航「统计 › BD 销售排行」 | [页面：BD 销售排行](#页面：BD%20销售排行) |
+| 直清商户按月导出 | 导航「统计 › 直清商户按月导出」 | [页面：直清商户按月导出](#页面：直清商户按月导出) |
+
+## 接口
+
+| op# | operationId | method + path | 用途 |
+|---|---|---|---|
+| 1 | [`getDashboardTradeOverview`](../statistics/index.html#tag/dashboard/operation/getDashboardTradeOverview) | `GET /dashboard/trade-overview` | 交易总览与对比 |
+| 2 | [`listDashboardTradeTrend`](../statistics/index.html#tag/dashboard/operation/listDashboardTradeTrend) | `GET /dashboard/trade-trend` | 交易趋势 |
+| 3 | [`getDashboardMerchantCounts`](../statistics/index.html#tag/dashboard/operation/getDashboardMerchantCounts) | `GET /dashboard/merchant-counts` | 商户数 |
+| 4 | [`listDashboardEntryPointDistribution`](../statistics/index.html#tag/dashboard/operation/listDashboardEntryPointDistribution) | `GET /dashboard/entry-point-distribution` | 支付来源分布 |
+| 5 | [`listDashboardPaymentMethodDistribution`](../statistics/index.html#tag/dashboard/operation/listDashboardPaymentMethodDistribution) | `GET /dashboard/payment-method-distribution` | 支付方式族分布 |
+| 6 | [`listDashboardMerchantRanking`](../statistics/index.html#tag/dashboard/operation/listDashboardMerchantRanking) | `GET /dashboard/merchant-ranking` | 交易排行 |
+| 7 | [`getMerchantTradeOverview`](../statistics/index.html#tag/merchant-trade-overview/operation/getMerchantTradeOverview) | `GET /merchants/{merchantId}/trade-overview` | 商户概览 |
+| 8 | [`listPartnerOptions`](../partners/index.html#tag/options/operation/listPartnerOptions) | `GET /partner-options` | 机构筛选候选 |
+| 9 | [`listPlatformTradeMonthlyReports`](../statistics/index.html#tag/platform-trade-reports/operation/listPlatformTradeMonthlyReports) | `GET /platform-trade-reports/monthly` | 平台交易报表按月 |
+| 10 | [`listPlatformTradeDailyReports`](../statistics/index.html#tag/platform-trade-reports/operation/listPlatformTradeDailyReports) | `GET /platform-trade-reports/daily` | 平台交易报表月内按日 |
+| 11 | [`getStatisticsFilterOptions`](../statistics/index.html#tag/statistics-filter-options/operation/getStatisticsFilterOptions) | `GET /statistics-filter-options` | 支付方式与通道筛选候选 |
+| 12 | [`getFinanceReportSummary`](../statistics/index.html#tag/finance-reports/operation/getFinanceReportSummary) | `GET /finance-reports/summary` | 财务报表合计与按通道分组 |
+| 13 | [`listFinanceReportDaily`](../statistics/index.html#tag/finance-reports/operation/listFinanceReportDaily) | `GET /finance-reports/daily` | 财务报表按日明细 |
+| 14 | [`listChannelTraffic`](../statistics/index.html#tag/channel-traffic/operation/listChannelTraffic) | `GET /channel-traffic` | 通道流量 |
+| 15 | [`getSettlementStatisticsSummary`](../statistics/index.html#tag/settlement-statistics/operation/getSettlementStatisticsSummary) | `GET /settlement-statistics/summary` | 清算统计汇总 |
+| 16 | [`listSettlementStatisticsByMerchant`](../statistics/index.html#tag/settlement-statistics/operation/listSettlementStatisticsByMerchant) | `GET /settlement-statistics/merchants` | 清算统计按商户 |
+| 17 | [`listSettlementStatisticsDaily`](../statistics/index.html#tag/settlement-statistics/operation/listSettlementStatisticsDaily) | `GET /settlement-statistics/daily` | 清算记录逐日序列 |
+| 18 | [`createSettlementStatisticsDailyExport`](../statistics/index.html#tag/settlement-statistics/operation/createSettlementStatisticsDailyExport) | `POST /settlement-statistics/daily-exports` | 清算统计按日导出 |
+| 19 | [`listSettlementAmountTrend`](../statistics/index.html#tag/settlement-amount-trend/operation/listSettlementAmountTrend) | `GET /settlement-amount-trend` | 清算金额趋势与月历 |
+| 20 | [`listMonthlySettlementReports`](../statistics/index.html#tag/monthly-settlement-reports/operation/listMonthlySettlementReports) | `GET /monthly-settlement-reports` | 月度清算报表 |
+| 21 | [`listCreditRefundMerchants`](../statistics/index.html#tag/credit-refund-merchants/operation/listCreditRefundMerchants) | `GET /credit-refund-merchants` | 授信退款商户 |
+| 22 | [`listPartnerSalesRankings`](../statistics/index.html#tag/partner-sales-rankings/operation/listPartnerSalesRankings) | `GET /partner-sales-rankings` | 机构销售排行 |
+| 23 | [`listPartnerMerchantSalesRanking`](../statistics/index.html#tag/partner-sales-rankings/operation/listPartnerMerchantSalesRanking) | `GET /partner-sales-rankings/{partnerId}/merchants` | 机构下商户排行 |
+| 24 | [`getPartnerTradeTrend`](../statistics/index.html#tag/partner-sales-rankings/operation/getPartnerTradeTrend) | `GET /partners/{partnerId}/trade-trend` | 机构详情交易统计 |
+| 25 | [`listSalesRankings`](../statistics/index.html#tag/sales-rankings/operation/listSalesRankings) | `GET /sales-rankings` | BD 销售排行 |
+| 26 | [`createSalesRankingExport`](../statistics/index.html#tag/sales-rankings/operation/createSalesRankingExport) | `POST /sales-ranking-exports` | BD 销售导出 |
+| 27 | [`createDirectClearingMerchantExport`](../statistics/index.html#tag/direct-clearing-merchant-exports/operation/createDirectClearingMerchantExport) | `POST /direct-clearing-merchant-exports` | 直清商户按月导出 |
+
+通用的几条，各页面不再重复：
+
+- 商户手续费、通道成本、平台留存、渠道手续费、平台手续费、清算总额不返回时，该格显示「未配置」，其余列照常；导出文件里这些格已写好「未配置」。当天刚成交、手续费还没算出的交易会让当天的格短暂显示「未配置」；清算类页面的商户手续费恒有值。直清通道的交易这些列为 0，不是「未配置」。
+- 新增商户与新增达标商户按平台的日界，数据范围不是全部商户时也一样。
+- 日期或月份区间两端必填的，缺一端或 `to` 早于 `from` 得到 `400`，在日期选择器下提示；区间跨度不设上限。
+- 导出带当前筛选，同步下载 xlsx；不记操作审计。
+
+---
+
+## 页面：运营首页
+
+顶部选区间：今天 / 昨天 / 本月 / 上月 / 选月 / 自选日期区间，默认今天；选好后 #1、#3、#4、#5、#6 带同一组 `period`（选月带 `month`，自选带 `from` / `to`）一起重调。#2 不随区间变。
+
+- **交易块**（要 `stat:dashboard-trade:view`）：
+  - 总览调 #1，每个结算币种一行：成功收款金额与笔数、退款金额与笔数、净额、有交易商户数；每项旁显示上期值与变化率。变化率由前端按 `current` 与 `previous` 算，上期为 0 时不显示。对比文案按 `comparisonBasis`：`same_time_yesterday`「较昨日同时段」、`last_month_same_period`「较上月同期」、`preceding_period`「较上期」。
+  - 趋势调 #2：近 30 天（截至昨天）每天的收款金额与笔数，每个币种一条线。
+  - 支付来源分布调 #4：没有 `items` 时整块不显示（数据范围不是全部商户）。
+  - 支付方式族分布调 #5。
+  - 交易排行调 #6：每个币种一份前 N 名，点一行进该商户详情（见 06-merchant-ops）。
+- **商户数块**（要 `stat:dashboard:view`）调 #3：商户总数、已激活商户数、所选区间新增、本月新增达标商户。所选区间只作用于「新增」。
+- 页面口径说明写明：数据范围不是全部商户时，交易类数字按各商户自己的日界计，「今天」按各商户各自的今天，不显示支付来源分布；商户数块的两项新增仍按平台的日界。
+- 退款笔数已扣除受理后失败的回冲。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 统计按谁算 | v1 看板缓存不分查看者 | 按查看者的数据范围算 | 不同范围的人看到的是各自范围内的数 |
+| 交易块谁能看 | Hub 总部非超管、非销售的账号隐藏 | 按权限点 | 权限由角色配置，不按身份写死 |
+| 「今天」的对比 | Hub 靠自存的快照 | 昨日同时段由服务端现算 | 不依赖页面曾经打开过 |
+| 交易排行条数 | v1 前 20 | 默认前 10（平台可调） | 取 Hub 口径 |
+| 商户控制台 | v1 机构 / 销售另有一页 | 并入运营首页，按查看者范围算 | 同一批数字只有一个页面 |
+
+---
+
+## 页面：商户概览
+
+在商户列表或商户详情点「交易概览」打开，调 #7，带该商户的 `merchantId`。
+
+- 指标卡取 #7：近 `windowDays` 天的收款金额、笔数、退款金额、最大单笔、日均收款；趋势取 `trend`（近 `trendDays` 天）；支付方式族分布按笔数取 `familyDistribution`；首次 / 最近交易日期取 `firstTradeDate` / `lastTradeDate`，不返回时显示「—」。
+- 未清算金额取 #7 的 `unsettledAmount`（与清算结算页商户资金概览的「待结算」同一个数），有商户概览的权限即可看。
+- 窗口含今天，今天的交易已计入。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 商户不存在或不在数据范围内 | #7 `404` | 提示找不到，关闭弹窗并刷新来源列表 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 统计窗口 | v1 全时段累计 | 近 30 天指标、近 14 天趋势（平台可调） | 取 Hub 口径 |
+| 登录记录 | v1 弹窗里有 | 不在概览里 | Hub 已取消 |
+
+---
+
+## 页面：平台交易报表
+
+选月份区间（`fromMonth` / `toMonth` 两端必填），调 #9 列出每月一行；点月行展开调 #10，带该月 `month` 与同一组筛选，月内每天一行。筛选：支付方式 `paymentMethod`、通道 `channelId`（候选都取 #11）、受理入口 `entryPoint`（可多选）。
+
+- 各列：成功收款金额与笔数、退款金额与笔数、净额、商户手续费、通道成本、平台留存、有交易商户数；按币种分行。
+- 「插件订单汇总」是受理入口的预置项（`plugin_shopify`、`plugin_allvalue`、`plugin_allvalue_xhs`），不另设页面。
+- 按通道或受理入口筛选时 `tradingMerchantCount` 不返回，该列显示「—」并在列头提示「按通道或入口筛选时不统计」。口径说明写明有交易商户数按各商户自己的日界计。
+- 当月行含今天的交易。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 生成报表 | v1 有「生成报表」按钮 | 没有，统计随交易变化自动更新 | 不需要手工重算 |
+| 插件订单汇总 | Hub 插件管理卡片另显示交易量（恒为 0） | 平台交易报表的入口预置项 | 同一批交易按入口看 |
+
+---
+
+## 页面：财务报表
+
+选区间：快捷今天 / 近 7 天 / 本月 / 上月传对应的 `period`（服务端求出日期；近 7 天 = 截至昨天的 7 个完整日），自选日期区间传 `period = custom` 并带 `from` / `to` 两端；可按通道多选筛选（候选取 #11）。#12 给区间合计（每个币种一行）与按通道 × 支付方式分组，#13 给按日明细（分页）；两者带同一组筛选、一起重调。
+
+- 各块列：商户手续费收入、通道成本、平台留存。退款退回的手续费已计为收入的减项。
+- 通道声明的手续费不在本页，看清算结算的通道结算单（见 09-clearing-settlement）。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 平台收入 | v1 收入列恒为 0 | 按费率估算通道成本，给出平台留存 | 财务能看到平台实际留下多少 |
+
+---
+
+## 页面：通道流量
+
+选日期区间（两端必填），可按支付方式筛选（候选取 #11），调 #14。每天 × 支付方式 × 通道一行：成功收款笔数与金额、占比。
+
+- 占比 `amountShareBasisPoints` 是万分比，显示为百分比（`6000` → 60%）；同一天同一支付方式同一币种的各行之和为 100%。
+- 用它观察切量期间各通道的分摊；不另设「迁移进度」页。
+
+---
+
+## 页面：清算统计
+
+选清算日区间（两端必填），可按机构 `partnerId`（候选调 #8）与商户 `merchantId` 筛选。汇总调 #15，按商户分组调 #16 并分页，清算记录逐日序列调 #17；三者带同一组筛选、一起重调。
+
+- 汇总与按商户列：销售净额、出款额、商户手续费、渠道手续费、平台手续费；逐日序列另有结算单数与清算总额。
+- 机构筛选按商户此刻的所属机构。
+- 「导出」调 #18，请求体带当前筛选：每个清算日一行，每个支付方式一列商户手续费、一列通道成本，再加销售净额、通道结算到账与出款额；「通道结算到账」列只在数据范围为全部商户、且没带机构与商户筛选时有，数据范围不是全部商户或带了机构 / 商户筛选时没有。
+- 结算单的渠道手续费在建批时定下，之后补配成本率不会改已有结算单；口径说明里写明。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 筛选的商户不在数据范围内 | #15 / #16 / #17 返回空 | 显示无数据 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 按日导出 | v1 财务日报只在 CAD 部署有 | 所有部署都有，支付方式全列 | 各币种同样要核对 |
+| 渠道与平台手续费 | v1 无 | 结算单上落定的通道成本，算出平台手续费与清算总额 | 财务核对平台收入 |
+
+---
+
+## 页面：清算金额趋势
+
+选清算日区间（两端必填），调 #19：每个结算周期档位一条出款额折线。月历视图传所选月的首末日，一格显示当日总额与各档金额。
+
+- 档位名取 `settlementCycleDisplayName`；不返回 `settlementCycle` 的行归「无档位」。
+- 口径说明写明：商户换过档的，其历史结算单按当前档位归组。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 月历 | v1 一次取全量 | 按所选月取 | 只取看得到的那个月 |
+
+---
+
+## 页面：月度清算报表
+
+选一个月，调 #20：该月每个清算日一行（按币种），列：销售净额、清算总额、出款额、平台手续费。
+
+---
+
+## 页面：授信退款商户
+
+调 #21，分页，可按商户码精确查。各列：商户、商户码、状态、授信额度、应收商户款、剩余授信。授信额度为 0 的商户不在列表里。点一行进该商户详情。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 圈哪些商户 | v1 按「启用授信退款」开关 | 授信额度大于 0 | 额度为 0 即不授信，不另设开关 |
+| 余额口径 | v1 混入未清算、挂起与卡直清流水 | 与商户资金概览同口径 | 同一个数只有一个算法 |
+
+---
+
+## 页面：机构销售排行
+
+选日期区间（两端必填），调 #22：每个币种一份机构排行（机构、上级机构、交易净额、成功收款笔数）。点一行调 #23，带该机构与同一区间、分页，看其下商户排行。
+
+- 机构详情的「交易统计」页签调 #24，带该机构与所选区间：按日交易净额与笔数趋势、按日新增商户数。
+- 只出本人可见的机构；数据范围为本人名下商户的账号看不到机构行。
+
+| 情形 | 响应 | 页面 |
+|---|---|---|
+| 机构不存在或不在可见范围内 | #23 / #24 `404` | 提示找不到，回到排行并刷新 |
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 机构账号能看到的机构 | v1 只看本级 | 本级与直接下级 | 与分润报表的收口一致 |
+| 机构详情「交易额趋势」 | v1 实际画的是笔数 | 金额与笔数分开 | 名实相符 |
+
+---
+
+## 页面：BD 销售排行
+
+选日期区间（两端必填），可按所属机构筛选（候选调 #8），调 #25：每个币种一份排行，表格与柱图两种视图用同一份数据。各列：排名、销售、所属组织（不返回时显示「Platform」）、交易净额、退款金额、新增商户数。「导出」调 #26，请求体带当前筛选。
+
+**相对 v1 / Hub 的改动**
+
+| 位置 | v1 / Hub | 改后 | 为什么 |
+|---|---|---|---|
+| 一个商户多名销售 | v1 按比例分摊流水、退款与新增商户 | 一个商户同一时刻只归一名销售 | 与分润同口径 |
+| 导出范围 | v1 导出与列表的范围不一致 | 导出与列表同范围、同列 | 导出就是列表 |
+
+---
+
+## 页面：直清商户按月导出
+
+选月份区间（两端必填），点「导出」调 #27，同步下载 xlsx：每商户 × 月 × 支付方式一行，只出该支付方式当前签约在直清通道上的组合，笔数与金额是该支付方式当月的全部成功收款。直清按当前签约判，过去的月份也按现签约出。没有列表页。
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+document.getElementById('content').innerHTML = marked.parse(document.getElementById('src').textContent);
+document.querySelectorAll('#content h1,#content h2,#content h3,#content h4').forEach(h=>{if(!h.id)h.id=h.textContent.trim();});
+const jump=()=>{if(location.hash){const t=document.getElementById(decodeURIComponent(location.hash.slice(1)));if(t)t.scrollIntoView();}};
+const fpEl=document.getElementById('contract-fp');
+if(fpEl){const fp=JSON.parse(fpEl.textContent);
+fetch('../../ready.json',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(rd=>{
+if(!rd||!rd.ops)return;
+const re=/^\.\.\/([\w-]+)\/index\.html#tag\/[^/]+\/operation\/([\w-]+)$/;
+document.querySelectorAll('#content table a[href]').forEach(a=>{
+const m=a.getAttribute('href').match(re);if(!m)return;
+const k=m[1]+'/'+m[2],got=rd.ops[fp.consumer+'/'+k];if(!got)return;
+const s=document.createElement('span');s.className='rd';
+if(got===fp.ops[k]){s.textContent=' ✅';s.title='已部署到联调环境，可对接调试';}
+else{s.textContent=' ⚠️';s.title='契约在实现之后有改动，待后端按新契约重验';}
+a.after(s);});
+const n=document.getElementById('ready-note'),c=document.createElement('code');c.textContent=rd.environment||'';
+n.append('联调就绪（环境 ',c,'，生成于 '+(rd.generatedAt||'')+'）：✅ 已部署、可对接调试 · ⚠️ 契约在实现之后有改动、待后端重验 · 无标识 = 尚未部署到联调环境。清单更新后页面缓存可能延迟几分钟。');
+n.hidden=false;}).catch(()=>{});}
+document.querySelectorAll('code.language-mermaid').forEach(c=>{const d=document.createElement('div');d.className='mermaid';d.textContent=c.textContent;c.closest('pre').replaceWith(d);});
+mermaid.initialize({startOnLoad:false,theme:'neutral',sequence:{useMaxWidth:true}});
+mermaid.run({querySelector:'.mermaid'}).then(jump,jump);
+</script>
+</body></html>

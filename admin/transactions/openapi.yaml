@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 交易与退款 — 前端契约面
-  version: 2.1.0
+  version: 2.2.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -93,7 +93,9 @@ paths:
                       merchantId: mch_8812
                       merchantName: Maple Coffee
                     merchantCode: C3BM68
-                    partnerId: ptn_0031
+                    partner:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
                     amount:
                       amount: '3836'
                       currency: CAD
@@ -224,7 +226,9 @@ paths:
                   merchantId: mch_8812
                   merchantName: Maple Coffee
                 merchantCode: C3BM68
-                partnerId: ptn_0031
+                partner:
+                  partnerId: ptn_0031
+                  partnerName: Maple Partners
                 amount:
                   amount: '3836'
                   currency: CAD
@@ -1234,9 +1238,9 @@ components:
           description: 订单所属商户。
         merchantCode:
           $ref: '#/components/schemas/MerchantCode'
-        partnerId:
-          $ref: '#/components/schemas/PartnerId'
-          description: 商户所属机构；不属任何机构不返回本键。
+        partner:
+          $ref: '#/components/schemas/PartnerRef'
+          description: 商户当前的所属机构；不属任何机构不返回本键。
         amount:
           description: '订单金额。已成交且结算额已到的订单是结算币种的成交金额；已成交而结算额待定的订单是付款人应付总额（标价币种），并带 `settleAmountPending: true`；没成交的（`FAILED` / `REJECTED` / `CLOSED` / `EXPIRED`）是付款人应付总额（标价币种）。'
           allOf:
@@ -1927,10 +1931,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     MerchantOrderNo:
       type: string
       minLength: 1
@@ -1959,6 +1975,19 @@ components:
       minLength: 1
       maxLength: 32
       description: 机构标识。
+    PartnerRef:
+      type: object
+      additionalProperties: false
+      description: 一个机构的标识与名称（列表与记录上展示「哪个机构」）。
+      required:
+        - partnerId
+        - partnerName
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
     Timestamp:
       type: string
       format: date-time

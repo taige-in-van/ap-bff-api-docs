@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 后台账号与角色权限 — 前端契约面
-  version: 2.3.0
+  version: 2.4.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -142,7 +142,7 @@ paths:
       x-required-privilege: opacc:user:manage
       summary: 邀请新建后台账号（发邀请邮件，对方设密后激活）
       description: |
-        录入登录邮箱、显示名、角色与数据范围，系统向该邮箱发邀请邮件；对方在邀请链接落地页设密后账号才可登录，此前状态为 `INVITED`。邀请链接的有效期由平台设定。BD 与机构账号走同一入口，差别只在角色与数据范围。
+        录入登录邮箱、显示名、角色、数据范围与所属机构（可选；数据范围为 `partner` 时必填），系统向该邮箱发邀请邮件；对方在邀请链接落地页设密后账号才可登录，此前状态为 `INVITED`。邀请链接的有效期由平台设定。BD 与机构账号走同一入口，差别只在角色、数据范围与所属机构；所属机构建号后不可改。建号成功即为该账号发一枚推荐码。
 
         登录邮箱属于已激活、邮箱已验证、未停用且尚无管理后台身份的已有用户时，不新建用户，而是为该用户加上管理后台身份，同样返回 `201`：不发邀请邮件、不改其密码（对方已有密码），授予所给角色与数据范围后即可登录管理后台，状态为 `ACTIVE`；还没绑定验证器的，登录时先绑定。之后停用对两边同时生效；移除、加回只作用于管理后台身份。
 
@@ -154,7 +154,8 @@ paths:
         - `308003` 登录邮箱属于已移除的后台账号，改为在列表里找到它加回（`restoreStaff`）。
         - `308007` 登录邮箱属于邀请中、待验证或已停用的已有用户，不能直接授予后台身份；先完成激活 / 验证或由运营启用。不发邀请，该用户状态不变。
         - `306007` 所给角色里有超出操作者权限边界的；`306009` 数据范围宽于操作者自己的。
-        - 数据范围为 `partner` 却没给 `partnerId`、或给了 `partnerId` 而范围不是 `partner`、白名单格式不对 → `400`，不建账号。
+        - `308701` 所给 `partnerId` 不存在或已停用，不建账号。
+        - 数据范围为 `partner` 却没给 `partnerId`、白名单格式不对 → `400`，不建账号。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -200,6 +201,7 @@ paths:
         - 306009
         - 308003
         - 308007
+        - 308701
         - 968001
   /role-options:
     get:
@@ -282,12 +284,12 @@ paths:
         - staff
       operationId: updateStaff
       x-required-privilege: opacc:user:manage
-      summary: 编辑后台账号（资料、角色、数据范围与机构、登录 IP 白名单、登录邮箱）
+      summary: 编辑后台账号（资料、角色、数据范围、登录 IP 白名单、登录邮箱）
       description: |
         只提交要改的字段，一次提交全部生效或全部不生效。各字段的效果：
 
         - `roleIds`：整组换成所给的这组；角色与数据范围的改动对该账号已有会话的下一次请求即时生效。
-        - `dataScopeType` / `partnerId`：范围改为 `partner` 时须同时给 `partnerId`；改为其他范围时机构随之清空。
+        - `dataScopeType`：所属机构不可改；范围改为 `partner` 只允许有所属机构的账号。
         - `loginIpAllowlist`：整组置换；为他人保存不要求包含操作者当前 IP。
         - `loginEmail`：已激活账号不直接生效，向新邮箱发确认链接，当事人确认后才切换，确认前旧邮箱照常可登录、新邮箱不占用；再改会顶掉上一笔未确认的；该账号冷却内 → `966006`（`context.cooldownSeconds`）、不发链接、在途一笔不顶掉。邀请中的账号改邮箱 = 向新邮箱重发邀请、旧链接作废，受邀请重发冷却 → `966006`。
 
@@ -301,7 +303,7 @@ paths:
         - `308004` 账号已移除（先加回）。
         - `968001` 新登录邮箱已被别的账号使用。
         - `966006` 改登录邮箱发确认链接或重发邀请时冷却未过，按 `context.cooldownSeconds` 倒计时。
-        - 范围与机构不配、白名单格式不对 → `400`，不改动。
+        - 范围为 `partner` 而没有所属机构、白名单格式不对 → `400`，不改动。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -389,7 +391,7 @@ paths:
       x-required-privilege: opacc:user:manage
       summary: 加回已移除的后台账号（重新指定角色与数据范围）
       description: |
-        恢复已移除账号的管理后台身份，须重新指定角色与数据范围；登录密码与验证器绑定沿用。账号此前被停用的，加回后仍是停用。
+        恢复已移除账号的管理后台身份，须重新指定角色与数据范围，所属机构沿用建号时的值；登录密码与验证器绑定沿用。账号此前被停用的，加回后仍是停用。加回时该账号没有生效推荐码则发一枚。
 
         幂等基准：`Idempotency-Key`。
 
@@ -397,7 +399,8 @@ paths:
 
         - `308004` 账号未被移除。
         - `306007` 所给角色里有超出操作者权限边界的；`306009` 数据范围宽于操作者自己的。
-        - 范围与机构不配 → `400`。
+        - `308701` 沿用的所属机构已停用，先启用机构。
+        - 账号没有所属机构却选 `partner` → `400`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -436,6 +439,7 @@ paths:
         - 306007
         - 306009
         - 308004
+        - 308701
   /staff/{userId}/status:
     parameters:
       - $ref: '#/components/parameters/StaffUserId'
@@ -1495,18 +1499,6 @@ components:
         - `partner`：所属机构及其直接下级机构的商户；须有所属机构。
 
         范围宽窄：`all` 最宽；`own_merchants` 与 `partner` 都窄于 `all`、彼此不可比。
-    PartnerRef:
-      type: object
-      additionalProperties: false
-      required:
-        - partnerId
-        - partnerName
-      properties:
-        partnerId:
-          $ref: '#/components/schemas/PartnerId'
-        partnerName:
-          type: string
-          minLength: 1
     RoleRef:
       type: object
       additionalProperties: false
@@ -1569,7 +1561,7 @@ components:
           $ref: '#/components/schemas/DataScopeType'
         partner:
           $ref: '#/components/schemas/PartnerRef'
-          description: 所属机构；仅 `dataScopeType = partner` 时返回。
+          description: 所属机构；没有所属机构（总部账号）不返回本键。
         lastLoginAt:
           $ref: '#/components/schemas/Timestamp'
           readOnly: true
@@ -1649,7 +1641,7 @@ components:
           $ref: '#/components/schemas/DataScopeType'
         partnerId:
           $ref: '#/components/schemas/PartnerId'
-          description: 所属机构：`dataScopeType = partner` 时必填，其余范围不传。候选取自机构管理。
+          description: 所属机构：`dataScopeType = partner` 时必填；其他范围可选，不传 = 总部账号。候选取自机构候选接口（`listPartnerOptions`）。
         loginIpAllowlist:
           $ref: '#/components/schemas/LoginIpAllowlist'
           description: 登录 IP 白名单；不传 = 不限。
@@ -1698,9 +1690,6 @@ components:
             $ref: '#/components/schemas/RoleId'
         dataScopeType:
           $ref: '#/components/schemas/DataScopeType'
-        partnerId:
-          $ref: '#/components/schemas/PartnerId'
-          description: 所属机构：范围（改后）为 `partner` 时必有；范围改为其他时不传，机构随之清空。
         loginIpAllowlist:
           $ref: '#/components/schemas/LoginIpAllowlist'
           description: 整组置换；空数组 = 不限。
@@ -1719,9 +1708,6 @@ components:
             $ref: '#/components/schemas/RoleId'
         dataScopeType:
           $ref: '#/components/schemas/DataScopeType'
-        partnerId:
-          $ref: '#/components/schemas/PartnerId'
-          description: 所属机构：`dataScopeType = partner` 时必填，其余范围不传。
     StaffRoleOption:
       type: object
       additionalProperties: false
@@ -2203,10 +2189,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     UserId:
       type: string
       minLength: 1
@@ -2217,6 +2215,19 @@ components:
       minLength: 1
       maxLength: 254
       description: 登录名：用户名或邮箱。新建或修改登录名时：符合邮箱格式的按邮箱处理；其余为用户名，须为去首尾空白后 1–64 个字符、不含空白与 `@`，比较不区分大小写、按输入的大小写保存。登录时按已保存的登录名匹配，不套这条形状规则（早期账号的用户名可能不满足它）。
+    PartnerRef:
+      type: object
+      additionalProperties: false
+      description: 一个机构的标识与名称（列表与记录上展示「哪个机构」）。
+      required:
+        - partnerId
+        - partnerName
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
     Timestamp:
       type: string
       format: date-time

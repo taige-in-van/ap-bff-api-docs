@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.2.4
+  version: 2.2.5
   contact:
     name: 商户后台 BFF
   description: |
@@ -428,7 +428,7 @@ paths:
 
         - 不对 → `403`·206003；
         - 连续输错被锁 → `423`·206004；
-        - 商户还没设置退款 PIN → `409`·208052，提示先在 Settings › Security 设置。
+        - 商户还没设置退款 PIN → `409`·208052，提示先在 Settings › General 设置。
 
         `201` 只表示退款单已建，结果看 `status`：
 
@@ -1758,10 +1758,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     Timestamp:
       type: string
       format: date-time

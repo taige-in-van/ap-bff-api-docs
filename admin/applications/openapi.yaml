@@ -1,17 +1,17 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.3.1
+  version: 2.5.0
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的审核中心与代客建档契约：四类申请（入驻、受理模式开通、插件入口开通、结算信息变更）的审核队列、详情、文件取用与决定，通过入驻申请前的禁入名单比对与持权限跳过；代客建档的检查、建档、逐步填资料（含议价条款）、上传、生成合同并发确认链接、代补料后代提交、撤回；线上平台标识补录待办。
+    管理后台 React SPA 消费的审核中心与代客建档契约：四类申请（入驻、受理模式开通、插件入口开通、结算信息变更）的审核队列、详情、文件取用与决定，通过入驻申请前的禁入名单比对；代客建档的检查、建档、逐步填资料（含议价条款）、上传、生成合同并发确认链接、代补料后代提交、撤回；线上平台标识补录待办。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     **幂等 / CSRF 口径**：
 
     - 代客建档、发起确认挂 `Idempotency-Key`：同键同请求体重发返回首次结果；同键改请求体 → `409`·`908003`；首次请求仍在处理 → `409`·`908002`，稍后同键同请求体重发。
-    - 决定、跳过通过、代提交、撤回带状态前置，同一申请重复提交时后到者按状态不符拒绝，不挂幂等键；逐步保存是置值写，不挂；上传每次产生新文件，不挂。
+    - 决定、代提交、撤回带状态前置，同一申请重复提交时后到者按状态不符拒绝，不挂幂等键；逐步保存是置值写，不挂；上传每次产生新文件，不挂。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
 
     **数据可见范围**：按商户组织，同管理后台约定「数据可见范围」：列表只含范围内商户的申请，按标识访问范围外商户的申请返回 `404`。
@@ -25,7 +25,7 @@ security:
 tags:
   - name: applications
     x-displayName: 审核中心
-    description: 四类申请的审核队列、详情、文件取用、决定与跳过禁入名单通过。
+    description: 四类申请的审核队列、详情、文件取用与决定。
   - name: assisted-onboarding
     x-displayName: 代客建档
     description: 代客建档：检查、建档、逐步填资料、上传、发起确认、代提交、撤回（按使用顺序排列）。
@@ -141,7 +141,7 @@ paths:
       x-required-privilege: mrev:assisted-onboarding:manage
       summary: 代客建档（建出待激活商户与草稿申请）
       description: |
-        录入 Owner 联系人、所属机构、归属 BD 与商户语言，建出一个待激活的商户与一张入驻申请草稿（`DRAFT`），开户来源为管理后台。之后逐步填资料（`updateAssistedApplicationStep`）、上传文件、发起确认。
+        录入 Owner 联系人、归属 BD 与商户语言，建出一个待激活的商户与一张入驻申请草稿（`DRAFT`），开户来源为管理后台。商户的所属机构随归属 BD 此刻的所属机构（总部 BD 或不选 BD 则无所属机构）。之后逐步填资料（`updateAssistedApplicationStep`）、上传文件、发起确认。
 
         - Owner 邮箱不属任何平台用户：同时建出该 Owner 的账号，此时还没有密码；审核通过后 Owner 凭开户邮件设密。
         - Owner 邮箱已属平台用户，且该用户是某家商户的 Owner、或在商户后台没有身份：新商户挂在该用户名下，不另建账号、不动其密码，响应 `ownerIdentity = existing`。
@@ -153,7 +153,8 @@ paths:
         **什么时候拒绝**：
 
         - `308205` Owner 邮箱的已有账号不能成为 Owner：是其他商户的员工，或待验证、已停用；不建任何记录。
-        - 机构或 BD 不存在、字段格式不对 → `400`。
+        - `308702` 所选归属 BD 不可选：不在册或已停用；重取 BD 候选再选，不建任何记录。
+        - 字段格式不对 → `400`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -170,7 +171,6 @@ paths:
                 lastName: Merchant
                 phone: '+16045550123'
                 jobTitle: Manager
-              partnerId: ptn_0031
               bdUserId: usr_b07
               language: en
       responses:
@@ -189,6 +189,7 @@ paths:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 308205
+        - 308702
   /applications/{applicationId}:
     parameters:
       - $ref: '#/components/parameters/ApplicationIdPath'
@@ -389,7 +390,7 @@ paths:
 
         - `308201` 申请已不在审核中（他人先决定过，或已撤回），重读详情；已通过但新周期尚未同步的结算信息变更再次「通过」不算，见上。
         - `308207` 结算信息变更申请已通过、新周期尚未同步，不能拒绝；重发「通过」即补做同步。
-        - `308202` 入驻申请禁入名单命中，`context.blocklistHits` 列出命中项；持跳过权限的改走 `approveApplicationOverridingBlocklist`。
+        - `308202` 入驻申请禁入名单命中，`context.blocklistHits` 列出命中项（法定名、邮箱、邮箱域名或商户码命中的名单项，同一名单项上相同的注册号、联系人或电话一并列出）；不能通过。确属误伤时，先在风控的商户禁入名单里解除该名单项，再通过。
         - `304201` 对非入驻申请要求补料。
         - 拒绝没填说明、要求补料没给待补项 → `400`。
       parameters:
@@ -433,48 +434,6 @@ paths:
         - 308201
         - 308202
         - 308207
-  /applications/{applicationId}/blocklist-override-approval:
-    parameters:
-      - $ref: '#/components/parameters/ApplicationIdPath'
-    post:
-      tags:
-        - applications
-      operationId: approveApplicationOverridingBlocklist
-      x-required-privilege: mrev:blocklist-override:create
-      summary: 跳过禁入名单通过入驻申请
-      description: |
-        禁入名单命中时，填写跳过理由后通过入驻申请：效果与 `decideApplication` 的通过相同，只是比对命中也照常通过。除跳过禁入名单的权限外，另须持通过申请的权限。跳过理由与命中项记入操作审计。带状态前置，不挂幂等键。
-
-        **什么时候拒绝**：
-
-        - `308201` 申请已不在审核中，重读详情。
-        - `304201` 不是入驻申请。
-        - 没填理由 → `400`。
-        - 当前比对没有命中 → `400`，改走普通通过（`decideApplication`）。
-      parameters:
-        - $ref: '#/components/parameters/CsrfToken'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BlocklistOverrideApproval'
-            example:
-              remark: Name match is a different entity; verified registration number.
-      responses:
-        '200':
-          description: 已通过
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApplicationStatusResult'
-              example:
-                status: APPROVED
-        default:
-          $ref: '#/components/responses/AdminBffDefaultError'
-      x-error-codes:
-        - 304201
-        - 308201
   /assisted-onboarding-checks:
     post:
       tags:
@@ -487,7 +446,7 @@ paths:
 
         - `ownerIdentity`：`new` 该邮箱不属任何平台用户，建档会同时建出 Owner 账号；`existing` 已属平台用户，且该用户是某家商户的 Owner、或在商户后台没有身份，新商户会挂在该用户名下；`unusable` 已属其他商户的员工，或待验证、已停用的账号，不能建档。
         - `sameNameMerchants`：法定名相同或注册号相同的存量商户（只给商户码与名称，可能在本人数据范围外），供核对，不拦建档。
-        - `blocklistHits`：与禁入名单比对的命中项，只提示，不拦建档。
+        - `blocklistHits`：与禁入名单比对的命中项（`legalName` 与邮箱及其域名命中才算命中，`registrationNumber` / `ownerPhone` 只在同一名单项另有命中时一并列出），只提示，不拦建档。
 
         不挂幂等键。
       parameters:
@@ -964,7 +923,7 @@ components:
                 $ref: '#/components/schemas/SignatureRequest'
             blocklistHits:
               type: array
-              description: 与禁入名单比对的命中项；仅入驻申请比对，其余类型与无命中均为空数组。
+              description: 与禁入名单比对的命中项；仅入驻申请比对，其余类型与无命中均为空数组。只列法定名、邮箱、邮箱域名或商户码命中的名单项，同一名单项上的其他相同项一并列出。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
             history:
@@ -1179,7 +1138,7 @@ components:
           type: string
           minLength: 1
           maxLength: 512
-          description: 拒绝说明、跳过禁入名单的理由或 Owner 的异议理由；没有时不返回本键。
+          description: 拒绝说明或 Owner 的异议理由；没有时不返回本键。
     ApplicationDecision:
       type: object
       additionalProperties: false
@@ -1206,18 +1165,6 @@ components:
           items:
             type: string
             minLength: 1
-    BlocklistOverrideApproval:
-      type: object
-      additionalProperties: false
-      required:
-        - remark
-      properties:
-        remark:
-          type: string
-          minLength: 1
-          maxLength: 512
-          pattern: ^.*\S.*$
-          description: 跳过禁入名单的理由，不能为空白。
     ApplicationStatusResult:
       type: object
       additionalProperties: false
@@ -1283,7 +1230,7 @@ components:
             $ref: '#/components/schemas/SameNameMerchant'
         blocklistHits:
           type: array
-          description: 禁入名单命中项；无命中为空数组。
+          description: 禁入名单命中项；无命中为空数组。只列法定名、邮箱、邮箱域名或商户码命中的名单项，同一名单项上的其他相同项一并列出。
           items:
             $ref: '#/components/schemas/BlocklistHit'
     AssistedOwnerContact:
@@ -1325,12 +1272,9 @@ components:
       properties:
         owner:
           $ref: '#/components/schemas/AssistedOwnerContact'
-        partnerId:
-          $ref: '#/components/schemas/PartnerId'
-          description: 所属机构；不属任何机构不传。候选取自机构管理。
         bdUserId:
           $ref: '#/components/schemas/UserId'
-          description: 归属 BD（后台用户）；不传 = 暂无归属 BD。
+          description: 归属 BD（后台用户）；候选取自 BD 候选接口（`listSalesOptions`）；不传 = 暂无归属 BD。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
@@ -1599,10 +1543,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     MerchantBrief:
       type: object
       additionalProperties: false
@@ -1639,11 +1595,6 @@ components:
       pattern: ^\+[1-9]\d{1,14}$
       maxLength: 16
       description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
-    PartnerId:
-      type: string
-      minLength: 1
-      maxLength: 32
-      description: 机构标识。
     UserId:
       type: string
       minLength: 1

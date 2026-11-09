@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户运营管理 — 前端契约面
-  version: 2.2.3
+  version: 2.4.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -103,7 +103,9 @@ paths:
                     status: ACTIVE
                     governanceTier: normal
                     keyAccountLevel: 0
-                    partnerId: ptn_0031
+                    partner:
+                      partnerId: ptn_0031
+                      partnerName: Maple Partners
                     bdUser:
                       userId: usr_b07
                       displayName: Bob BD
@@ -122,6 +124,16 @@ paths:
       summary: 导出商户列表（xlsx）
       description: |
         按所给筛选导出命中的全部商户，不只是当前页；筛选字段与 `listMerchants` 相同，只含本人数据范围内的商户。同步返回文件流。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+
+        文件除档案列外另带十二列交易与清算统计，金额按该商户结算币种、带币种列：
+
+        - 累计成功收款金额、累计退款金额（受理成功的退款减受理后失败的回冲）、累计成功收款笔数、累计净额、首次与最近交易日期（按各商户自己的日界），以上截至昨天；
+        - 累计已清算销售净额（该商户全部结算单）、最近清算日期、当前待结算余额（导出时的现值）；
+        - 累计商户手续费、累计通道成本（按费率估算）、累计平台留存（手续费减通道成本），以上截至昨天。
+
+        - 有商户手续费尚未算出（含未配费率）时，累计商户手续费与累计平台留存写「未配置」；缺通道成本（未配成本率）时，累计通道成本与累计平台留存写「未配置」；其余列照常。
+        - 直清通道交易的手续费与通道成本计 0，不写「未配置」。
+        - 从未交易的商户金额与笔数为 0、两个交易日期为空；从未清算的商户累计已清算销售净额为 0、最近清算日期为空。
 
         按读处理：不记操作审计，不挂幂等键。
       parameters:
@@ -153,7 +165,7 @@ paths:
       x-required-privilege: mops:merchant:view
       summary: 商户详情
       description: |
-        商户的档案、Owner 联系人、结算信息、资料文件、主子关系、机构与 BD、开户来源与激活时间、不活跃月数。资料文件只给类型、文件名与到期日，要看文件调 `createMerchantFileAccessUrl`；结算账号只给末 4 位掩码。成员与商户级设置各有接口；操作记录页签用操作审计接口按商户筛。
+        商户的档案、Owner 联系人、结算信息、资料文件、主子关系、机构与 BD（此刻生效的归属；尚未生效的改派在 `pendingSalesAssignments`）、开户来源与激活时间、不活跃月数。资料文件只给类型、文件名与到期日，要看文件调 `createMerchantFileAccessUrl`；结算账号只给末 4 位掩码。成员与商户级设置各有接口；操作记录页签用操作审计接口按商户筛。
       responses:
         '200':
           description: OK
@@ -169,7 +181,9 @@ paths:
                 status: ACTIVE
                 governanceTier: normal
                 keyAccountLevel: 0
-                partnerId: ptn_0031
+                partner:
+                  partnerId: ptn_0031
+                  partnerName: Maple Partners
                 bdUser:
                   userId: usr_b07
                   displayName: Bob BD
@@ -226,6 +240,11 @@ paths:
                     relationType: BRANCH
                     status: ACTIVE
                 inactiveMonths: 0
+                pendingSalesAssignments:
+                  - sales:
+                      userId: usr_b09
+                      displayName: Carol BD
+                    effectiveDate: '2026-12-01'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
@@ -243,6 +262,8 @@ paths:
 
         - `FROZEN`：冻结，只对已激活的商户。冻结后的效果由商户状态决定，不逐个改通道开关。
         - `ACTIVE`：解冻，只对已冻结的商户；通道开关不因解冻改变。
+
+        冻结确认框里勾选了「同时加入禁入名单」时，本接口成功后页面再调风控的 `createMerchantBlocklistEntryFromMerchant`（`reasonCategory = FROZEN`）；那一步失败只提示，商户状态不回滚。
 
         天然幂等的置值写，不挂幂等键：商户已是目标状态时同样返回 `204`、不改动、不记审计，重试不会被拒。
 
@@ -1125,6 +1146,8 @@ paths:
       description: |
         允许运营代该商户配置的参数。每项带展示名、默认值、当前生效值与写入用的版本；该商户设过值的另带 `value`，没有 `value` 即当前用的是默认值。
 
+        含单笔上限（`admission.order-amount-ceiling`）：以该商户结算币种的最小单位计，不设 = 不限。单笔上限后写覆盖先写，`version` 恒为 0。
+
         顺序即展示顺序。
       responses:
         '200':
@@ -1152,6 +1175,11 @@ paths:
                     effectiveValue:
                       numberValue: 7
                     version: 2
+                  - key: admission.order-amount-ceiling
+                    displayName: 单笔上限
+                    valueType: number
+                    valueRangeNote: 正整数，该商户结算币种的最小单位；不设 = 不限
+                    version: 0
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
@@ -1175,9 +1203,11 @@ paths:
 
         **全量覆盖**：请求体就是目标本身，`value` 与 `version` 都要传，缺省不代表保持原样。
 
+        改单笔上限对此后的受理生效，已被拒的订单不改判。
+
         **什么时候拒绝**：
 
-        - `308311` `version` 不是读到时的那个（别人已经改过），重读列表再决定是否重改。
+        - `308311` `version` 不是读到时的那个（别人已经改过），重读列表再决定是否重改；单笔上限不比对 `version`。
         - `value` 的类型或取值不合该参数的值域 → `400`，由 `details` 定位到 `value`。
         - 参数不存在或不允许代配 → `404`。
 
@@ -1430,8 +1460,8 @@ components:
           type: integer
           minimum: 0
           description: KA 等级；`0` = 普通。
-        partnerId:
-          $ref: '#/components/schemas/PartnerId'
+        partner:
+          $ref: '#/components/schemas/PartnerRef'
           description: 所属机构；不属任何机构不返回本键。
         bdUser:
           $ref: '#/components/schemas/UserRef'
@@ -1456,6 +1486,7 @@ components:
             - owner
             - documents
             - children
+            - pendingSalesAssignments
           properties:
             profile:
               $ref: '#/components/schemas/MerchantProfile'
@@ -1481,6 +1512,29 @@ components:
               type: integer
               minimum: 0
               description: 距最后一笔交易的整月数；从未有过交易不返回本键。
+            pendingSalesAssignments:
+              type: array
+              description: 尚未生效的改派（子商户显示其主商户的），按生效日从早到晚；没有则为空数组。
+              items:
+                $ref: '#/components/schemas/PendingSalesAssignment'
+    PendingSalesAssignment:
+      type: object
+      additionalProperties: false
+      description: 一笔尚未生效的归属改派：到生效日 0 点起，新建单的订单归新销售，负责人与数据可见随之切换。
+      required:
+        - sales
+        - effectiveDate
+      properties:
+        sales:
+          $ref: '#/components/schemas/UserRef'
+          description: 新的归属销售。
+        partner:
+          $ref: '#/components/schemas/PartnerRef'
+          description: 新归属销售的所属机构；Platform 总部销售不返回本键。
+        effectiveDate:
+          type: string
+          format: date
+          description: 生效日（系统运营日）。
     MerchantProfile:
       type: object
       additionalProperties: false
@@ -2162,10 +2216,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     MerchantId:
       type: string
       minLength: 1
@@ -2176,6 +2242,19 @@ components:
       minLength: 1
       maxLength: 20
       description: 对外商户码。
+    PartnerRef:
+      type: object
+      additionalProperties: false
+      description: 一个机构的标识与名称（列表与记录上展示「哪个机构」）。
+      required:
+        - partnerId
+        - partnerName
+      properties:
+        partnerId:
+          $ref: '#/components/schemas/PartnerId'
+        partnerName:
+          type: string
+          minLength: 1
     UserRef:
       type: object
       additionalProperties: false

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.3.10
+  version: 2.4.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -29,7 +29,7 @@ tags:
     description: 忘记密码自助重置：邮箱登录名收邮件验证码、用户名登录名用验证器码；重置不改 MFA。
   - name: registrations
     x-displayName: 账号开通
-    description: 账号开通（公开、无会话）：自助注册与邮箱激活（提交注册建待验证账号并发验证邮件，邮件链接落地页输注册密码后激活，含重发验证邮件）；受邀员工在邀请链接落地页设密激活；员工在确认链接落地页确认 Owner 改的新登录邮箱。都不建会话。
+    description: 账号开通（公开、无会话）：自助注册与邮箱激活（提交注册建待验证账号并发验证邮件，邮件链接落地页输注册密码后激活，含重发验证邮件；经推荐链接进入时先判推荐码）；受邀员工在邀请链接落地页设密激活；员工在确认链接落地页确认 Owner 改的新登录邮箱。都不建会话。
   - name: onboarding-confirmation
     x-displayName: 代客建档确认页
     description: 工作人员代为建档后，Owner 凭确认邮件里的链接免登录核对资料与合同，签署提交或提异议。不建会话。
@@ -511,9 +511,12 @@ paths:
 
         本次请求 `Accept-Language` 对应的语言记为新账号的 `locale`，验证邮件也用它。
 
+        经推荐链接进入时带 `referralCode`（取自注册页链接的 `referralCode` 参数，与来源参数 `ref` 互不影响）：推荐码有效，注册建出的商户归属码主人（归属 BD = 码主人，所属机构 = 码主人此刻的所属机构）；无效则整次不建账号与商户。该邮箱已有待验证账号时沿用已建的商户，归属不改写。不带 `referralCode` 的注册，商户没有归属 BD 与所属机构。推荐码与 `referredBy` 互不影响。
+
         错误码：
 
         - `968001` 该邮箱已被其他账号使用（含邀请中、已停用的账号；别人改登录邮箱时尚未确认的新邮箱不算占用）。
+        - `208058` 推荐链接无效（推荐码不存在、已停用，或推荐人已不可用，不区分原因）：提示「推荐链接无效」，不建任何记录；去掉 `referralCode` 重新提交即按无推荐来源注册。
       security: []
       parameters:
         - $ref: '#/components/parameters/PreLoginAcceptLanguage'
@@ -545,6 +548,7 @@ paths:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
         - 968001
+        - 208058
   /auth/registrations/verification-email:
     post:
       tags:
@@ -576,6 +580,36 @@ paths:
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
+  /auth/referral-link-visits:
+    post:
+      tags:
+        - registrations
+      operationId: createReferralLinkVisit
+      summary: 推荐链接打开（注册页判推荐码是否有效并计一次打开）
+      description: |
+        经推荐链接打开注册页时调一次，`referralCode` 取自注册页链接的 `referralCode` 参数（与来源参数 `ref` 互不影响，可同时出现）：推荐码有效回 `204` 并给该码的打开次数加 1，注册提交时带上 `referralCode`；无效回 `410`·`208058`，页面提示「推荐链接无效」，用户可不带推荐码继续注册。无效的打开不计数。响应不回推荐人信息。
+
+        限流按来源 IP，命中返回 `429`·`906004`。
+
+        错误码：
+
+        - `208058` 推荐链接无效（推荐码不存在、已停用，或推荐人已不可用，不区分原因）。
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReferralLinkVisitRequest'
+            example:
+              referralCode: K7MR2XTA
+      responses:
+        '204':
+          description: 推荐码有效，已计一次打开
+        default:
+          $ref: '#/components/responses/MerchantBffDefaultError'
+      x-error-codes:
+        - 208058
   /auth/registrations/verification:
     post:
       tags:
@@ -1066,6 +1100,23 @@ components:
         referredBy:
           type: string
           description: 推荐来源，自由文本。注册链接带来源参数（如 `?ref=MONERIS`）时前端预填并锁定，服务端不区分来源方式
+        referralCode:
+          allOf:
+            - $ref: '#/components/schemas/ReferralCode'
+          description: 推荐码，取自注册页链接的 `referralCode` 参数（推荐链接），与来源参数 `ref` 互不影响、可同时出现；页面不展示、不可编辑。打开链接时 `createReferralLinkVisit` 判为无效的不带
+    ReferralLinkVisitRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - referralCode
+      properties:
+        referralCode:
+          $ref: '#/components/schemas/ReferralCode'
+    ReferralCode:
+      type: string
+      minLength: 8
+      maxLength: 16
+      description: 推荐码，取自推荐链接
     LoginRequest:
       type: object
       required:
@@ -1354,10 +1405,22 @@ components:
               description: 禁入名单比对被拒时的命中项（页面据此列出命中了哪些项）。
               items:
                 $ref: '#/components/schemas/BlocklistHit'
+            existingEntryId:
+              type: string
+              minLength: 1
+              description: 加入名单时已有在用项被拒时，既有名单项的标识（页面据此定位既有项）。
             maxRows:
               type: integer
               minimum: 1
               description: 导出命中行数超过上限时，当时的上限行数（上限由平台设定，前端不写死，按本键提示超过 N 行）。
+            earliestAllowedMonth:
+              type: string
+              pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+              description: 生效月不被允许时最早可用的生效月（`YYYY-MM`）。
+            earliestAllowedDate:
+              type: string
+              format: date
+              description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
     OtpCode:
       type: string
       pattern: ^[0-9]{6}$

@@ -371,6 +371,11 @@
       "name": "OWNER_ACCOUNT_UNAVAILABLE",
       "retryable": false
     },
+    "208058": {
+      "httpStatus": 410,
+      "name": "REFERRAL_LINK_INVALID",
+      "retryable": false
+    },
     "304001": {
       "httpStatus": 400,
       "name": "ADMIN_OTP_RETRYABLE",
@@ -417,6 +422,11 @@
     "304301": {
       "httpStatus": 400,
       "name": "MERCHANT_MEMBER_ROLE_NOT_ASSIGNABLE",
+      "retryable": false
+    },
+    "304701": {
+      "httpStatus": 400,
+      "name": "ADMIN_PARTNER_TRANSFER_TARGET_SAME",
       "retryable": false
     },
     "306001": {
@@ -895,6 +905,75 @@
     "308658": {
       "httpStatus": 409,
       "name": "ADMIN_PROMOTION_ENROLLMENT_TERMINATED",
+      "retryable": false
+    },
+    "308701": {
+      "httpStatus": 409,
+      "name": "ADMIN_PARTNER_NOT_SELECTABLE",
+      "retryable": false
+    },
+    "308702": {
+      "httpStatus": 409,
+      "name": "ADMIN_SALES_NOT_ASSIGNABLE",
+      "retryable": false
+    },
+    "308703": {
+      "httpStatus": 409,
+      "name": "ADMIN_PARTNER_HAS_MERCHANTS",
+      "retryable": false
+    },
+    "308704": {
+      "httpStatus": 409,
+      "name": "ADMIN_PARTNER_HAS_ACCOUNTS",
+      "retryable": false
+    },
+    "308705": {
+      "httpStatus": 409,
+      "name": "ADMIN_ATTRIBUTION_EFFECTIVE_DATE_NOT_ALLOWED",
+      "requiredContextFields": [
+        "earliestAllowedDate"
+      ],
+      "retryable": false
+    },
+    "308754": {
+      "httpStatus": 409,
+      "name": "ADMIN_PARTNER_PARENT_INVALID",
+      "retryable": false
+    },
+    "308755": {
+      "httpStatus": 409,
+      "name": "ADMIN_COMMISSION_EFFECTIVE_MONTH_NOT_ALLOWED",
+      "requiredContextFields": [
+        "earliestAllowedMonth"
+      ],
+      "retryable": false
+    },
+    "308756": {
+      "httpStatus": 409,
+      "name": "ADMIN_COMMISSION_RATE_KEY_INVALID",
+      "retryable": false
+    },
+    "308757": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_NOT_MAIN",
+      "retryable": false
+    },
+    "308801": {
+      "httpStatus": 409,
+      "name": "ADMIN_PAYER_BLOCKLIST_ENTRY_EXISTS",
+      "requiredContextFields": [
+        "existingEntryId"
+      ],
+      "retryable": false
+    },
+    "308802": {
+      "httpStatus": 409,
+      "name": "PAYER_BLOCKLIST_SCOPE_MERCHANT_NOT_FOUND",
+      "retryable": false
+    },
+    "308803": {
+      "httpStatus": 409,
+      "name": "MERCHANT_BLOCKLIST_ENTRY_LIFTED",
       "retryable": false
     },
     "904001": {
