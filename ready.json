@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-09T07:40:33Z",
-  "implCommit": "a6732956",
+  "generatedAt": "2026-11-09T22:05:01Z",
+  "implCommit": "2b92c378",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -157,6 +157,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "f392824c31c2f0e079c1a15edf9a53f0c9525248",
-  "prdStage": "stage/261108-prd-pin-7fbe8f4"
+  "prdSha": "ce89d1ac1285e077120cf7aa10dc7c0f97b65dc8",
+  "prdStage": "stage/261109-cny-convert-eligibility"
 }
