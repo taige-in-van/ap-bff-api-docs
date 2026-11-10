@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-09T23:45:41Z",
-  "implCommit": "0d3fa158",
+  "generatedAt": "2026-11-10T00:11:44Z",
+  "implCommit": "420cdc42",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -91,7 +91,7 @@
     "merchant/orders/createRefund": "c5c6fbb749016a29",
     "merchant/orders/exportPayments": "7d12af2fc5f1884e",
     "merchant/orders/exportRefunds": "721377a2e6b238a8",
-    "merchant/orders/getPayment": "9eea5ea2d72136a7",
+    "merchant/orders/getPayment": "01c479cc7f351f01",
     "merchant/orders/getPaymentCounts": "2125cee8245630ff",
     "merchant/orders/getPaymentReceipt": "134a96b7e8c2dad3",
     "merchant/orders/getPaymentSummary": "c4a708dc748f6602",
@@ -100,8 +100,8 @@
     "merchant/orders/getRefundReceipt": "8970870292c1c5ab",
     "merchant/orders/getStatisticsSummary": "69765b63109942bb",
     "merchant/orders/getStatisticsTrend": "295512c7e00a5cd3",
-    "merchant/orders/listPayments": "572d66f5f47bd06e",
-    "merchant/orders/listRecentPayments": "47ca8efc042aa484",
+    "merchant/orders/listPayments": "cb60071b24b8b912",
+    "merchant/orders/listRecentPayments": "4de91f3c7c01ca09",
     "merchant/orders/listRefunds": "aa31eba28b14f2c5",
     "merchant/orders/releasePreAuth": "173e486b2bb709eb",
     "merchant/products/createInvoice": "a1cd4d2d12c115c2",
@@ -157,6 +157,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "95f42791f48126bc95b5bcb04773a7c3af159e37",
-  "prdStage": "stage/261109-unionpay-upop-host"
+  "prdSha": "a3cd163a8b2d837be20af03f277388d678fd1c4a",
+  "prdStage": "stage/261109-repin-a3cd163"
 }
