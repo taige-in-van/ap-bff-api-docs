@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.3.0
+  version: 2.4.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -471,12 +471,14 @@ paths:
                   value:
                     refundId: R100240002-2
                     status: REVIEWING
+                    createdAt: '2026-07-19T05:20:00Z'
                 insufficientFunds:
                   summary: 已建单，但账户资金不足
                   value:
                     refundId: R100240002-4
                     status: FAILED
                     failureReason: INSUFFICIENT_FUNDS
+                    createdAt: '2026-07-19T05:30:00Z'
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes:
@@ -1487,6 +1489,7 @@ components:
       required:
         - refundId
         - status
+        - createdAt
       properties:
         refundId:
           $ref: '#/components/schemas/RefundId'
@@ -1494,6 +1497,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/RefundStatus'
           description: 首次受理是 `REVIEWING`、`CHANNEL_PROCESSING`、`SUCCESS` 或 `FAILED` 之一。同键重发返回这笔退款此刻的状态，可以是任一退款状态。
+        createdAt:
+          allOf:
+            - $ref: '#/components/schemas/Timestamp'
+          description: 退款单的创建时刻。同键重发返回的仍是这笔退款建单时的值。
         failureReason:
           description: '`status = FAILED` 时必返。首次受理时只会是 `INSUFFICIENT_FUNDS` 或 `CHANNEL_REJECTED`，同键重发时可能是任一失败原因；其余状态不返回本键。'
           allOf:
