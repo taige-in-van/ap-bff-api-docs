@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-10T07:45:23Z",
-  "implCommit": "dc3252e2",
+  "generatedAt": "2026-11-10T17:03:30Z",
+  "implCommit": "c3961d08",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -157,6 +157,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "cfe05dc614cfd81bd4a4650d9737d00d7b9f3f12",
-  "prdStage": "stage/261109-mapi-online-cny-accepted-amount"
+  "prdSha": "f54db759cb71a2d8addf35e3a79c3b9c601dd565",
+  "prdStage": "stage/261110-settle-fx-rate-record"
 }
