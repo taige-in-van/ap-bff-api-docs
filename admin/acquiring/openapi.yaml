@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.3.1
+  version: 2.4.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1710,12 +1710,22 @@ paths:
       x-required-privilege: chcfg:credential:create
       summary: 重置商户 API 凭证
       description: |
-        为该商户签发新的 API 凭证。旧凭证在宽限期内仍可用，之后失效；商户在商户后台开发者页查看新凭证，运营看不到全文。前端须先弹二次确认，提示「旧凭证将在宽限期后失效」，确认后再调。
+        为该商户签发新的 API 凭证。旧凭证在宽限期内仍可用，之后失效；商户在商户后台开发者页查看新凭证，运营看不到全文。前端须先弹二次确认，提示「旧凭证将在宽限期后失效」，并提供「旧凭证立即失效」勾选（凭证泄露时用，默认不勾），确认后再调。
+
+        勾选了就带 `expirePrevious: true`：重置前仍有效的凭证随重置同时失效，只剩新凭证可用。
 
         商户还没有签发过凭证（未激活）→ `404`。幂等基准：`Idempotency-Key`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialReissueRequest'
+            example:
+              expirePrevious: false
       responses:
         '204':
           description: 已签发新凭证
@@ -3265,6 +3275,14 @@ components:
       minLength: 1
       maxLength: 20
       description: 对外商户码。
+    CredentialReissueRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        expirePrevious:
+          type: boolean
+          default: false
+          description: 让旧凭证随重置立即失效（凭证泄露时用）：为 `true` 时重置前仍有效的凭证（现用的与宽限期内的上一份）同时失效，只剩新凭证可用；为 `false` 时原现用凭证进入宽限期。
   responses:
     AdminBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见管理后台约定与 API 基础约定「错误响应体」。

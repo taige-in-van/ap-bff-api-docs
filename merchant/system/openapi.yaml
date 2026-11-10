@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.3.1
+  version: 2.4.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -550,7 +550,8 @@ paths:
 
         - 公钥为空、不是 PEM、不是 RSA 公钥，或密钥长度不在 2048–4096 位 → `400`·`204011`，不产生任何变更。
         - 替换后新公钥立即可用，被换下的那把在宽限期内仍然有效（默认 24 小时，由平台设定）。宽限期内再次替换，最早的那把立即失效。
-        - 提交的公钥与当前这把相同：什么都不变，照常返回当前这把。
+        - 替换时带 `expirePrevious: true`（公钥泄露时用）：被换下的那把与宽限期内的上一把同时立即失效，只剩新公钥可用。
+        - 提交的公钥与当前这把相同：什么都不变，照常返回当前这把（不看 `expirePrevious`）。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -1226,6 +1227,10 @@ components:
         publicKeyPem:
           type: string
           description: 商户的 RSA 公钥，PEM 格式（X.509 SubjectPublicKeyInfo，`-----BEGIN PUBLIC KEY-----` 头尾齐全），密钥长度 2048–4096 位。
+        expirePrevious:
+          type: boolean
+          default: false
+          description: 替换时让被换下的公钥立即失效（公钥泄露时用）：为 `true` 时被换下的那把与宽限期内的上一把（如有）随替换同时失效，只剩新公钥可用；为 `false` 时被换下的那把进入宽限期。首次登记或提交的公钥与当前这把相同时不起作用。
   responses:
     MerchantBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见 API 基础约定「错误响应体」。
