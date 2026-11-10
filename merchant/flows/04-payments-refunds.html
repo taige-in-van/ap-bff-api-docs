@@ -233,12 +233,13 @@ sequenceDiagram
 - `201` 只表示退款单已建，要再看 `status`。审核中或处理中显示「已提交」而不是「已成功」，最终成功或失败要之后刷新才看得到；通道当场退成的直接是 `SUCCESS`。`FAILED` 是账户资金不足或通道当场拒绝，退款没有执行，这笔失败的退款会留在退款列表里；商户处理后重新发起，是一笔新的退款、用新的幂等键。
 - `createRefund` 带 `Idempotency-Key`：点一次 Refund 生成一个键。超时或 `908002` 后重发用原键；被拒后改了内容再提交换新键。PIN 不参与幂等比对。
 - Forgot PIN 按 `privileges` 里有没有 `account:refund-pin:manage` 显示；没有时不显示，提示找能管理退款 PIN 的人。
+- 已填了金额、备注、PIN 或重置 PIN 的验证码又要关掉弹窗（点 X、点遮罩、Cancel）时，先弹确认框，见公共约定「未保存的修改」；结果出来后关弹窗不用确认。
 
 **相对 demo 的改动**
 
 | 位置 | demo | 改后 | 为什么 |
 |---|---|---|---|
-| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多两种：Rejected（平台未受理）、Pre-auth holding（预授权挂起） | 被风控拒掉的订单和预授权单都要能查到 |
+| 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多两种：Rejected（平台未受理）、Pre-auth holding（预授权挂起） | 平台未受理的订单和预授权单都要能查到 |
 | 来源 | 八种：Terminal、Store QR、Product QR、Mini Program、Web Checkout、App、Payment Link、API Integration | 十二种，与现网商户后台的来源一致（见上表）；Mini Program、Web Checkout 这类归到产品形态 | 来源沿用现网商户已经在用的分类；小程序、网页是收款方式，不是入口 |
 | 详情的 Product | 四种（账单、商品码、礼卡、票务），其余订单没有 | 每张订单都有，取值见 `PaymentProduct` | 产品形态是订单的固有属性 |
 | 搜索 | 订单号、金额、备注 | 另可搜商户订单号、通道交易号 | 现网可按商户订单号找单；顾客手里只有钱包账单上的通道交易号 |
@@ -254,7 +255,7 @@ sequenceDiagram
 
 ## 页面：Refunds
 
-侧边栏 Order › Refund。工具栏：搜索（退款号、商户退款单号、通道退款号、订单号、商户订单号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：退款号、订单号（可点开原订单）、支付方式与来源、退款金额与结算金额、原订单金额、全额还是部分、状态、时间、备注、操作（View、Receipt、Cancel）。日期默认近 30 天。Filters 里的设备候选与权限条件同 Payments 页（#18）。本页没有汇总卡，也没有发起退款的入口（退款从订单发起）。
+侧边栏 Order › Refund。工具栏：搜索（退款号、商户退款单号、通道退款号、订单号、商户订单号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：退款号、订单号（可点开原订单）、支付方式与来源、金额、状态、时间、备注、操作（View、Receipt、Cancel）。日期默认近 30 天。Filters 里的设备候选与权限条件同 Payments 页（#18）。本页没有汇总卡，也没有发起退款的入口（退款从订单发起）。
 
 ```mermaid
 sequenceDiagram
@@ -302,6 +303,7 @@ sequenceDiagram
 - 列表里是从商户账上出钱的退款：后台、App、终端、API、插件发起的；平台自动退回的多付款项不在这里，在原订单详情的关联退款里能看到。
 - 行上有两个金额：`amount` 是标价币种的退款金额（发起时填的数），`settleAmount` 是折合的结算币种金额。`settleAmount` 要通道受理后才有，审核中、被拒、已撤销的行没有；标价币种就是结算币种时两个数相同。
 - `amount` 小于 `customerPaymentAmount`（原订单的付款人应付总额）的是部分退款，否则是全额退款。
+- 金额列：先显示 `amount`；部分退款注「部分退款 · 原订单」加 `customerPaymentAmount`，全额退款注「全额退款」、不另显示原订单金额；有 `settleAmount` 时再带上结算金额。
 - 状态六种：审核中、处理中、成功、失败、已拒绝、已撤销。退款提交后没有推送，状态靠重新取列表更新。
 - Receipt 只在已受理的退款（`CHANNEL_PROCESSING` 处理中或 `SUCCESS` 成功）的行显示，Cancel 只在 `REVIEWING` 的行显示，另按 `privileges` 里有没有 `orders:refund:create` 显示，没有时不显示。
 
