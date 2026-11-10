@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.2.5
+  version: 2.3.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -82,9 +82,6 @@ paths:
                         status: PAID
                         createdAt: '2026-07-19T03:12:00Z'
                         refundable: true
-                        remainingRefundable:
-                          amount: '10500'
-                          currency: CAD
                       - orderId: P100240002
                         paymentMethodFamily: alipay
                         source: invoice
@@ -95,9 +92,6 @@ paths:
                         createdAt: '2026-07-19T02:40:00Z'
                         note: 门店订单
                         refundable: true
-                        remainingRefundable:
-                          amount: '15000'
-                          currency: CNY
                       - orderId: P100240003
                         source: product_link
                         amount:
@@ -122,6 +116,8 @@ paths:
         只算收到钱的四种状态：`PAID` / `PARTIALLY_REFUNDED` / `REFUNDED` / `PREAUTH_HOLDING`。列表还会列出 `FAILED` / `REJECTED`，所以 `transactions` 可能小于列表行数。`grossSales` 就是这四种状态、结算额已到的行金额之和；结算额待定的笔不计入金额合计、计入笔数。
 
         `refundAmount` 是这批订单至今已退的金额（随订单计入，不按退款发生日），`netSales` = `grossSales` − `refundAmount`。
+
+        可查天数对起始日的收窄同 `listPayments`。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -205,9 +201,6 @@ paths:
                     status: PAID
                     createdAt: '2026-07-19T03:12:00Z'
                     refundable: true
-                    remainingRefundable:
-                      amount: '10500'
-                      currency: CAD
                   - orderId: P100240000
                     paymentMethodFamily: alipay
                     source: product_link
@@ -229,6 +222,8 @@ paths:
       summary: 订单状态快捷筛选的各项与计数
       description: |
         形状与用法见 `QuickFilterCounts`。`value` 原样回传给 `listPayments` 的 `status`；本端点不收 `status`，其余筛选与列表传同一组。
+
+        可查天数对起始日的收窄同 `listPayments`。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -275,6 +270,8 @@ paths:
       summary: 导出支付订单（xlsx）
       description: |
         按当前筛选、搜索与排序命中的全部订单导出 Excel，不只是当前页；同步返回文件流，不设行数上限。列是列表行的字段。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+
+        可查天数对起始日的收窄同 `listPayments`。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -428,7 +425,7 @@ paths:
 
         - 不对 → `403`·206003；
         - 连续输错被锁 → `423`·206004；
-        - 商户还没设置退款 PIN → `409`·208052，提示先在 Settings › General 设置。
+        - 商户还没设置退款 PIN → `409`·208052，提示先在 Setting › General 设置。
 
         `201` 只表示退款单已建，结果看 `status`：
 
@@ -643,7 +640,7 @@ paths:
       x-required-privilege: orders:refund:view
       summary: 导出退款（xlsx）
       description: |
-        按当前筛选、搜索与排序命中的全部退款导出 Excel，不只是当前页；同步返回文件流。统计范围与 `listRefunds` 相同。列是列表行的字段，加完成时间与商户退款单号。同步返回文件流，不设行数上限。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
+        按当前筛选、搜索与排序命中的全部退款导出 Excel，不只是当前页；同步返回文件流，不设行数上限。统计范围与 `listRefunds` 相同。列是列表行的字段，加完成时间与商户退款单号。表头与枚举文案按 `Accept-Language`，实际用的语言经 `Content-Language` 回。
       parameters:
         - $ref: '#/components/parameters/FromDate'
         - $ref: '#/components/parameters/ToDate'
@@ -1195,10 +1192,6 @@ components:
         refundable:
           type: boolean
           description: '能否发起退款，服务端的判定结果。结算额待定（`settleAmountPending: true`）的订单为 false，成交折算金额到达后按剩余可退额恢复。关联的商品、票或礼卡已核销或已作废的订单也为 false。'
-        remainingRefundable:
-          description: 还可以退的金额，**标价币种**（退款按标价币种发起）：成交额减已退、减在途的退款。`refundable` 为真时必返，否则不返回本键。
-          allOf:
-            - $ref: '#/components/schemas/Money'
     PaymentList:
       type: object
       required:
@@ -1300,6 +1293,10 @@ components:
                 - $ref: '#/components/schemas/Money'
             refundedSettleAmount:
               description: 已退金额折合的结算币种金额，与 `refundedAmount` 同有同无。
+              allOf:
+                - $ref: '#/components/schemas/Money'
+            remainingRefundable:
+              description: 还可以退的金额，**标价币种**（退款按标价币种发起）：成交额减已退、减在途的退款。`refundable` 为真时必返，否则不返回本键。
               allOf:
                 - $ref: '#/components/schemas/Money'
             confirmedAt:

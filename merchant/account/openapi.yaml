@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.7.1
+  version: 2.7.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -716,7 +716,7 @@ paths:
       operationId: getRefundPin
       x-required-privilege: account:refund-pin:manage
       summary: 读退款 PIN 是否已设置
-      description: 当前商户是否已设置退款 PIN。未设置时 Refund PIN 区块展示首次设置表单（新 PIN + 确认），已设置时展示修改表单（当前 PIN + 新 PIN + 确认）。
+      description: 当前商户是否已设置退款 PIN。未设置时 Refund PIN 卡展示首次设置表单（新 PIN + 确认），已设置时展示修改表单（当前 PIN + 新 PIN + 确认）。
       responses:
         '200':
           description: OK
@@ -796,7 +796,7 @@ paths:
       x-required-privilege: account:refund-pin:manage
       summary: 忘记退款 PIN 第 1 步（发码到 Owner 邮箱）
       description: |
-        生成 6 位码发到 Owner 的登录邮箱（不论谁发起），返回 `challengeId`、脱敏邮箱与冷却秒数，不需要当前 PIN。重新调用得到新 `challengeId`，旧码作废。
+        生成 6 位码发到 Owner 的登录邮箱（不论谁发起），返回 `challengeId`、脱敏邮箱与冷却秒数，不需要当前 PIN。重新调用得到新 `challengeId`，旧码作废。商户还没设置过退款 PIN 时同样可用，完成即等于设置。
 
         不挂幂等键（挑战类，每次发新码）。冷却内重复调用返回 `429`·`208013`。Owner 账号不可用（已停用、已删除或没有已验证邮箱）→ `409`·`208056`。
       parameters:

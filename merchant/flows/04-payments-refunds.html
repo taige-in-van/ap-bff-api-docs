@@ -5,19 +5,19 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a> · <a href="../../conventions.html">API 基础约定</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"merchant","ops":{"account/changeRefundPin":"afc427a2be40ec58","account/confirmRefundPinReset":"41bbecc55dde35e6","account/createSettlementChangeRequest":"71f9c0cc37a0f3a5","account/deleteLogo":"eb29dde061658cb5","account/disableTerminalIntegration":"d48edccbf9f40c52","account/getAccountProfile":"2f4239d89d9d2be3","account/getAccountService":"a36a977e8c9d6544","account/getRefundPin":"1332552b55ee8873","account/requestRefundPinReset":"6f1efe33354d5272","account/requestSettlementOtp":"93bf1ba6ccec2a0b","account/updateAcceptanceMode":"28443a10eece06a9","account/updateBusinessInformation":"fe4b4177411cf6c5","account/updateEcommerceIntegration":"9676ce6308dd4791","account/updateLogo":"2822e57b94676142","account/updateOwnerContact":"e96e725a563164f6","account/updateTerminalIntegration":"595aed9a0f8c9649","account/uploadLogoFile":"52b05eb9744728b2","account/uploadSettlementVoidChequeFile":"1449bae0f30d03c4","account/uploadStorePhotoFile":"334f7b462dea5870","auth/acceptInvitation":"734ef64d48178a30","auth/completeMfaChallenge":"f4b905d0b1e574c0","auth/confirmMemberLoginEmail":"d648ad3883fc5005","auth/confirmPasswordReset":"e1ca2dbfb0c443ed","auth/createReferralLinkVisit":"c3959c089f19d1eb","auth/disputeOnboardingConfirmation":"4398a38dfab1a755","auth/establishImpersonationSession":"e55dc59632cb47f8","auth/getCurrentSession":"99d70bb7af1588b2","auth/getOnboardingConfirmation":"108c549209844a9b","auth/initiateWechatLogin":"a6bc1053ca8d1979","auth/login":"1d9a83a05a8b5178","auth/logout":"fa5beaf80a8fb1bf","auth/pollWechatLogin":"ef598de7b961c1b5","auth/registerOwner":"44882087b70b6f22","auth/requestPasswordReset":"78ea360be0f303bb","auth/resendVerificationEmail":"ca4f8ca069373fa9","auth/resetRefundPinByLink":"5a7c25f95b47d1d5","auth/signOnboardingConfirmation":"76c2091f3cc8b9d4","auth/switchCurrentMerchant":"12990fecc43fba06","auth/verifyRegistrationEmail":"be5e45f66c8e7eaa","devices/createDevice":"ee8ad45ff1d1334e","devices/deleteDevice":"065492fc89fb9dc8","devices/exportDeviceLogs":"61826c3d6ea6ae31","devices/getDevice":"21b06ddd870b5a0c","devices/getDeviceCounts":"fcdbc7a3c668ab4b","devices/getDeviceLogCounts":"ff00f4fd9be7b95f","devices/listDeviceLogs":"ecd9758cf4eb49ee","devices/listDeviceStores":"813c35143462d20f","devices/listDevices":"8163896d481010c5","devices/updateDevice":"1fc4c15c37d1af31","funds/exportSettlementDetails":"0f475eefe1da32bf","funds/exportSettlements":"3af9098f97652e3b","funds/fundRefundReserve":"7b7341d533c44570","funds/getBalance":"fe566baf3ce0b834","funds/getStatement":"60bbcdb3e9eb4af5","funds/getStatementPdf":"29cbc0d3aa35b24e","funds/listSettlementDetails":"0e075487552ebbe2","funds/listSettlements":"ea8b0e083965224f","funds/listStatements":"e68a3e242d5e3051","funds/requestRefundReserveOtp":"8026b5d05178ef41","funds/withdrawRefundReserve":"4f5edb678e0bbfdb","me/changeMyPassword":"78750fe7616d6a49","me/confirmLoginEmailChange":"607fa428f0c14587","me/confirmMfa":"739c392e0f403ed7","me/disableMfa":"1b4294c6ef97b0c6","me/enrollMfa":"805d6dc6c7639759","me/getMySecurity":"d2a3b879f23fbc5f","me/requestLoginEmailChange":"d1f1dd72a5b8f5a7","me/resendLoginEmailChangeCode":"66307209365e4f65","me/submitNewLoginEmail":"44b51837b5000fd4","me/updateMyProfile":"5b40d7033505d63b","me/verifyLoginEmailChangeIdentity":"2de85307f1003efc","merchants/createMerchant":"8b444f94da70d94b","merchants/deleteMerchant":"4758ae5f96bc0169","merchants/getOnboardingApplication":"1a0beb3670027835","merchants/listMerchants":"8cf83d2920abc6dc","merchants/submitOnboardingApplication":"c026375e989e0fe3","merchants/updateOnboardingStep":"83cf6bb40628bcff","merchants/uploadOnboardingDocumentFile":"997d69ef40ae1cb8","notifications/addNotificationEmail":"265bfec06e1b3e33","notifications/deleteNotificationRecipient":"f497531bc4066aaa","notifications/getNotificationSettings":"21b49c9712608b8c","notifications/initiateNotificationWechatBinding":"41c310ab697b8330","notifications/pollNotificationWechatBinding":"4ffb63e47b06dce9","notifications/requestNotificationEmailOtp":"936741c33c08d22f","notifications/updateNotificationSettings":"003f1b195ae33090","orders/cancelRefund":"e53f310176340394","orders/createRefund":"c5c6fbb749016a29","orders/exportPayments":"7d12af2fc5f1884e","orders/exportRefunds":"721377a2e6b238a8","orders/getPayment":"9eea5ea2d72136a7","orders/getPaymentCounts":"2125cee8245630ff","orders/getPaymentReceipt":"134a96b7e8c2dad3","orders/getPaymentSummary":"c4a708dc748f6602","orders/getRefund":"5fae2a9f2fa7913c","orders/getRefundCounts":"8e4e65293a485cc9","orders/getRefundReceipt":"8970870292c1c5ab","orders/getStatisticsSummary":"69765b63109942bb","orders/getStatisticsTrend":"295512c7e00a5cd3","orders/listPayments":"572d66f5f47bd06e","orders/listRecentPayments":"47ca8efc042aa484","orders/listRefunds":"aa31eba28b14f2c5","orders/releasePreAuth":"173e486b2bb709eb","products/createInvoice":"a1cd4d2d12c115c2","products/createProductLink":"fc44ee9323b69fbb","products/deleteInvoice":"51fe0dcdd0c24c5f","products/deleteProductLink":"f920ce310b862915","products/disposeProductLinkOrderRisk":"ffa6a10a69a43490","products/getCheckoutSettings":"b6c4d042c7bb3af3","products/getInvoiceCounts":"e2643c7d95bdf236","products/getInvoiceSummary":"8bf25e065257a094","products/getPaymentPageSettings":"5a8711ce7f707848","products/getProductLink":"1f150777ca1391f8","products/getProductLinkCounts":"7451cb0c6bf251ba","products/getProductLinkDefaults":"c1d72f17713aa072","products/getProductLinkOrder":"940f2ea001d9b6d9","products/getProductLinkOrderCounts":"34dca3609fec2971","products/listCheckoutOptions":"0d4f92121e9c7b52","products/listInvoices":"7b4eee7dd0b6c3eb","products/listProductLinkOrders":"6aa97fcf9790f1c2","products/listProductLinks":"4d6d7d6300351bbb","products/listStoreQrcodes":"34213324300409de","products/resendProductLinkOrderCredential":"ce20d0f47d03774e","products/updateCheckoutSettings":"5b3618f0721587fa","products/updatePaymentPageSettings":"84d339d890371d53","products/updateProductLink":"5cf92d5232e4c2a4","products/updateProductLinkPolicies":"f1f0a326ce7f1d9c","products/uploadPaymentPageLogoFile":"b24bba5f58f3b29c","products/uploadProductLinkFile":"577314cec9781ef9","products/voidProductLinkOrderVoucher":"233a0f014eb8328a","system/getDeveloperSettings":"a54fc0e1fba0904a","system/getNotice":"1d07c5fd823e1fe3","system/getNoticeSummary":"79e57392dd46bdd6","system/getSettlementConfig":"be0180edc9237cd5","system/listCountryOptions":"97046bdfaaf3769a","system/listCurrencyOptions":"bc463efc1d90e374","system/listIndustryOptions":"d7205ed29fc1ec75","system/listNotices":"fe0765b9f20a5374","system/listPaymentMethodCatalog":"3337414af3e2e347","system/listPaymentMethodOptions":"c482d777639a3193","system/markAllNoticesRead":"d1083931e2b554ab","system/markNoticeRead":"63ff2a1e072421d1","system/replaceSigningKey":"cae6cfefcb4d1042","system/revealGatewayCredential":"51560611fe068a44","team/createTeamMember":"29f68656a8acf1d9","team/deleteMemberWechatBinding":"e4bae0b2a0eda3d6","team/deleteTeamMember":"b22d06dac0e12975","team/getTeamMemberCounts":"4db5d9c1ee440b48","team/initiateMemberWechatBinding":"661c5a310bbc296f","team/listAssignableRoles":"67f366b9bba29c0c","team/listTeamMembers":"54c3a276772d227f","team/pollMemberWechatBinding":"4c36a3b898149660","team/resendInvitation":"0f8014db42d7a7ef","team/updateTeamMember":"47dfc9350d031626"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"merchant","ops":{"account/changeRefundPin":"afc427a2be40ec58","account/confirmRefundPinReset":"41bbecc55dde35e6","account/createSettlementChangeRequest":"71f9c0cc37a0f3a5","account/deleteLogo":"eb29dde061658cb5","account/disableTerminalIntegration":"d48edccbf9f40c52","account/getAccountProfile":"2f4239d89d9d2be3","account/getAccountService":"a36a977e8c9d6544","account/getRefundPin":"1332552b55ee8873","account/requestRefundPinReset":"6f1efe33354d5272","account/requestSettlementOtp":"93bf1ba6ccec2a0b","account/updateAcceptanceMode":"28443a10eece06a9","account/updateBusinessInformation":"fe4b4177411cf6c5","account/updateEcommerceIntegration":"9676ce6308dd4791","account/updateLogo":"2822e57b94676142","account/updateOwnerContact":"e96e725a563164f6","account/updateTerminalIntegration":"595aed9a0f8c9649","account/uploadLogoFile":"52b05eb9744728b2","account/uploadSettlementVoidChequeFile":"1449bae0f30d03c4","account/uploadStorePhotoFile":"334f7b462dea5870","auth/acceptInvitation":"734ef64d48178a30","auth/completeMfaChallenge":"f4b905d0b1e574c0","auth/confirmMemberLoginEmail":"d648ad3883fc5005","auth/confirmPasswordReset":"e1ca2dbfb0c443ed","auth/createReferralLinkVisit":"c3959c089f19d1eb","auth/disputeOnboardingConfirmation":"4398a38dfab1a755","auth/establishImpersonationSession":"e55dc59632cb47f8","auth/getCurrentSession":"99d70bb7af1588b2","auth/getOnboardingConfirmation":"108c549209844a9b","auth/initiateWechatLogin":"a6bc1053ca8d1979","auth/login":"1d9a83a05a8b5178","auth/logout":"fa5beaf80a8fb1bf","auth/pollWechatLogin":"ef598de7b961c1b5","auth/registerOwner":"44882087b70b6f22","auth/requestPasswordReset":"78ea360be0f303bb","auth/resendVerificationEmail":"ca4f8ca069373fa9","auth/resetRefundPinByLink":"5a7c25f95b47d1d5","auth/signOnboardingConfirmation":"76c2091f3cc8b9d4","auth/switchCurrentMerchant":"12990fecc43fba06","auth/verifyRegistrationEmail":"be5e45f66c8e7eaa","devices/createDevice":"ee8ad45ff1d1334e","devices/deleteDevice":"065492fc89fb9dc8","devices/exportDeviceLogs":"61826c3d6ea6ae31","devices/getDevice":"21b06ddd870b5a0c","devices/getDeviceCounts":"fcdbc7a3c668ab4b","devices/getDeviceLogCounts":"ff00f4fd9be7b95f","devices/listDeviceLogs":"ecd9758cf4eb49ee","devices/listDeviceStores":"813c35143462d20f","devices/listDevices":"8163896d481010c5","devices/updateDevice":"1fc4c15c37d1af31","funds/exportSettlementDetails":"0f475eefe1da32bf","funds/exportSettlements":"3af9098f97652e3b","funds/fundRefundReserve":"7b7341d533c44570","funds/getBalance":"fe566baf3ce0b834","funds/getStatement":"60bbcdb3e9eb4af5","funds/getStatementPdf":"29cbc0d3aa35b24e","funds/listSettlementDetails":"0e075487552ebbe2","funds/listSettlements":"ea8b0e083965224f","funds/listStatements":"e68a3e242d5e3051","funds/requestRefundReserveOtp":"8026b5d05178ef41","funds/withdrawRefundReserve":"4f5edb678e0bbfdb","me/changeMyPassword":"78750fe7616d6a49","me/confirmLoginEmailChange":"607fa428f0c14587","me/confirmMfa":"739c392e0f403ed7","me/disableMfa":"1b4294c6ef97b0c6","me/enrollMfa":"805d6dc6c7639759","me/getMySecurity":"d2a3b879f23fbc5f","me/requestLoginEmailChange":"d1f1dd72a5b8f5a7","me/resendLoginEmailChangeCode":"66307209365e4f65","me/submitNewLoginEmail":"44b51837b5000fd4","me/updateMyProfile":"5b40d7033505d63b","me/verifyLoginEmailChangeIdentity":"2de85307f1003efc","merchants/createMerchant":"8b444f94da70d94b","merchants/deleteMerchant":"4758ae5f96bc0169","merchants/getOnboardingApplication":"1a0beb3670027835","merchants/listMerchants":"8cf83d2920abc6dc","merchants/submitOnboardingApplication":"c026375e989e0fe3","merchants/updateOnboardingStep":"83cf6bb40628bcff","merchants/uploadOnboardingDocumentFile":"997d69ef40ae1cb8","notifications/addNotificationEmail":"265bfec06e1b3e33","notifications/deleteNotificationRecipient":"f497531bc4066aaa","notifications/getNotificationSettings":"21b49c9712608b8c","notifications/initiateNotificationWechatBinding":"41c310ab697b8330","notifications/pollNotificationWechatBinding":"4ffb63e47b06dce9","notifications/requestNotificationEmailOtp":"936741c33c08d22f","notifications/updateNotificationSettings":"003f1b195ae33090","orders/cancelRefund":"e53f310176340394","orders/createRefund":"c5c6fbb749016a29","orders/exportPayments":"7d12af2fc5f1884e","orders/exportRefunds":"721377a2e6b238a8","orders/getPayment":"01c479cc7f351f01","orders/getPaymentCounts":"2125cee8245630ff","orders/getPaymentReceipt":"134a96b7e8c2dad3","orders/getPaymentSummary":"c4a708dc748f6602","orders/getRefund":"5fae2a9f2fa7913c","orders/getRefundCounts":"8e4e65293a485cc9","orders/getRefundReceipt":"8970870292c1c5ab","orders/getStatisticsSummary":"69765b63109942bb","orders/getStatisticsTrend":"295512c7e00a5cd3","orders/listPayments":"cb60071b24b8b912","orders/listRecentPayments":"4de91f3c7c01ca09","orders/listRefunds":"aa31eba28b14f2c5","orders/releasePreAuth":"173e486b2bb709eb","products/createInvoice":"a1cd4d2d12c115c2","products/createProductLink":"fc44ee9323b69fbb","products/deleteInvoice":"51fe0dcdd0c24c5f","products/deleteProductLink":"f920ce310b862915","products/disposeProductLinkOrderRisk":"ffa6a10a69a43490","products/getCheckoutSettings":"b6c4d042c7bb3af3","products/getInvoiceCounts":"e2643c7d95bdf236","products/getInvoiceSummary":"8bf25e065257a094","products/getPaymentPageSettings":"5a8711ce7f707848","products/getProductLink":"1f150777ca1391f8","products/getProductLinkCounts":"7451cb0c6bf251ba","products/getProductLinkDefaults":"c1d72f17713aa072","products/getProductLinkOrder":"940f2ea001d9b6d9","products/getProductLinkOrderCounts":"34dca3609fec2971","products/listCheckoutOptions":"0d4f92121e9c7b52","products/listInvoices":"7b4eee7dd0b6c3eb","products/listProductLinkOrders":"6aa97fcf9790f1c2","products/listProductLinks":"4d6d7d6300351bbb","products/listStoreQrcodes":"34213324300409de","products/resendProductLinkOrderCredential":"ce20d0f47d03774e","products/updateCheckoutSettings":"5b3618f0721587fa","products/updatePaymentPageSettings":"84d339d890371d53","products/updateProductLink":"5cf92d5232e4c2a4","products/updateProductLinkPolicies":"f1f0a326ce7f1d9c","products/uploadPaymentPageLogoFile":"b24bba5f58f3b29c","products/uploadProductLinkFile":"577314cec9781ef9","products/voidProductLinkOrderVoucher":"233a0f014eb8328a","system/getDeveloperSettings":"a54fc0e1fba0904a","system/getNotice":"1d07c5fd823e1fe3","system/getNoticeSummary":"79e57392dd46bdd6","system/getSettlementConfig":"be0180edc9237cd5","system/listCountryOptions":"97046bdfaaf3769a","system/listCurrencyOptions":"bc463efc1d90e374","system/listIndustryOptions":"d7205ed29fc1ec75","system/listNotices":"fe0765b9f20a5374","system/listPaymentMethodCatalog":"3337414af3e2e347","system/listPaymentMethodOptions":"c482d777639a3193","system/markAllNoticesRead":"d1083931e2b554ab","system/markNoticeRead":"63ff2a1e072421d1","system/replaceSigningKey":"cae6cfefcb4d1042","system/revealGatewayCredential":"51560611fe068a44","team/createTeamMember":"29f68656a8acf1d9","team/deleteMemberWechatBinding":"e4bae0b2a0eda3d6","team/deleteTeamMember":"b22d06dac0e12975","team/getTeamMemberCounts":"4db5d9c1ee440b48","team/initiateMemberWechatBinding":"661c5a310bbc296f","team/listAssignableRoles":"67f366b9bba29c0c","team/listTeamMembers":"54c3a276772d227f","team/pollMemberWechatBinding":"4c36a3b898149660","team/resendInvitation":"0f8014db42d7a7ef","team/updateTeamMember":"47dfc9350d031626"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 订单与退款 —— 调用时序
 
-> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。本文另有两条前提：读接口后端查询超时 → `504`（整份失败、不返半截数据，前端展示「暂不可用」）；支付方式、来源、产品形态、状态在接口里都是码，展示名与图标由前端按码取，这几项都是固定枚举，筛选项不另取候选。
+> 怎么读本文、各份 flows 共用的约定，见 [API 基础约定](../../conventions.html)「flows 怎么读」。本文另有两条前提：读接口失败（含后端查询超时）整份失败、不返半截数据，前端按基础约定整块显示「暂不可用」；支付方式、来源、产品形态、状态在接口里都是码，展示名与图标由前端按码取，这几项都是固定枚举，筛选项不另取候选。
 
 ## 本文的页面
 
 | 页面 | 从哪进 | 本文章节 |
 |---|---|---|
-| Payments | 侧边栏 Order › Payment；收款成功、商品码收款邮件里的 View in dashboard（链接带 `orderId`，进页即打开该订单的 Payment detail 弹窗） | [页面：Payments](#页面：Payments)；[页面：Payments · Payment detail 弹窗](#页面：Payments%20·%20Payment%20detail%20弹窗)；[页面：Payments · Refund payment 弹窗](#页面：Payments%20·%20Refund%20payment%20弹窗) |
-| Refunds | 侧边栏 Order › Refund；退款成功邮件里的 View in dashboard（链接带 `refundId`，进页即打开该退款的 Refund detail 弹窗） | [页面：Refunds](#页面：Refunds)；[页面：Refunds · Refund detail 弹窗](#页面：Refunds%20·%20Refund%20detail%20弹窗) |
+| Payments | 侧边栏 Order › Payment；收款成功、商品码收款邮件里的 View in dashboard 与 Download receipt（同一链接，形如 `/orders/payment?orderId=<orderId>`，进页即打开该订单的 Payment detail 弹窗，收据在弹窗里取） | [页面：Payments](#页面：Payments)；[页面：Payments · Payment detail 弹窗](#页面：Payments%20·%20Payment%20detail%20弹窗)；[页面：Payments · Refund payment 弹窗](#页面：Payments%20·%20Refund%20payment%20弹窗) |
+| Refunds | 侧边栏 Order › Refund；退款成功邮件里的 View in dashboard（链接形如 `/orders/refund?refundId=<refundId>`，进页即打开该退款的 Refund detail 弹窗） | [页面：Refunds](#页面：Refunds)；[页面：Refunds · Refund detail 弹窗](#页面：Refunds%20·%20Refund%20detail%20弹窗) |
 
 ## 接口
 
@@ -46,7 +46,7 @@
 
 ## 页面：Payments
 
-侧边栏 Orders › Payments。页头五张汇总卡（Gross Sales、Refund Amount、Net Sales、To Settle、Transactions）。工具栏：搜索（订单号、商户订单号、通道交易号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：订单号、支付方式（下面带来源）、金额、状态、时间、备注、操作（Refund、View、Receipt）。日期默认今天。Filters 里的设备是一个输入后搜索的下拉：输入时带 `keyword` 调 #18，不预先取全量；已停用的设备也能选到。候选项显示 `deviceName`，没有名字的显示型号与序列号。选中后把它的 `deviceId` 带进筛选。
+侧边栏 Order › Payment。页头五张汇总卡（Gross Sales、Refund Amount、Net Sales、To Settle、Transactions）。工具栏：搜索（订单号、商户订单号、通道交易号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：订单号、支付方式（下面带来源）、金额、状态、时间、备注、操作（Refund、View、Receipt）。日期默认今天。Filters 里的设备是一个输入后搜索的下拉：输入时带 `keyword` 调 #18，不预先取全量；已停用的设备也能选到。候选项显示 `deviceName`，没有名字的显示型号与序列号。选中后把它的 `deviceId` 带进筛选。`privileges` 里没有 `products:device:view` 时 Filters 不出设备项，也不调 #18。
 
 ```mermaid
 sequenceDiagram
@@ -57,7 +57,7 @@ sequenceDiagram
     U->>S: 打开页面
     par
         S->>A: #35;1 [listPayments]<br/>GET /orders/payments?from&to&sortField=createdAt&sortOrder=descend
-        A-->>S: 200 { total, data: [{ orderId, paymentMethodFamily, source,<br/>amount, status, createdAt, note,<br/>refundable, remainingRefundable }] }
+        A-->>S: 200 { total, data: [{ orderId, paymentMethodFamily, source,<br/>amount, status, createdAt, note,<br/>refundable }] }
     and
         S->>A: #35;2 [getPaymentSummary]<br/>GET /orders/payments/summary?from&to
         A-->>S: 200 { grossSales, refundAmount, netSales, transactions }
@@ -93,9 +93,10 @@ sequenceDiagram
 |---|---|---|
 | 汇总卡或余额取不到 | `5xx` | 对应的卡显示暂不可用，列表照常 |
 
-- To Settle 卡取 #17 的 `toSettle`，是下一次结算大约会打出的金额，不含预授权挂起中的款项，不随筛选变；其余四张卡取 #2。
-- 导出不设行数上限，范围就是当前筛选的日期。
+- To Settle 卡取 #17 的 `toSettle`，是下一次结算大约会打出的金额，不含预授权挂起中的款项，不随筛选变；可能为负（商户欠平台），按有符号金额原样显示，不要截成 0 或取绝对值。其余四张卡取 #2。
+- 导出不设行数上限，范围就是当前筛选的日期。筛选结果为空时也能导出，文件只有表头。
 - 日期筛选必填，按订单创建日；页面默认今天，由前端算出日期传过去。
+- 受可查天数限制的成员，起始日早于可查下限时服务端按下限起算、不报错；列表、汇总、计数与导出同此。日期框照用户所选显示，不另提示。
 - 支付方式、来源、状态的展示名与图标由前端按码取，Filters 里这三项是固定选项、不另取候选。
 - 来源的文案与现网商户后台一致（账单与商品码按新菜单名）：
 
@@ -115,14 +116,14 @@ sequenceDiagram
   | `allvalue` | AllValue |
 - 金额列显示行上的 `amount`，带币种。CNY 标价的订单已成交后显示的是结算币种的数，人民币金额在详情看。
 - 汇总卡不算 `FAILED` 与 `REJECTED` 的行，所以 Transactions 可能小于列表行数；Gross Sales 等于其余各行金额之和。与 Dashboard 的同名卡口径不同，两边不要互相核对。
-- Refund 按行上的 `refundable` 显示，按钮提示用 `remainingRefundable`（还可退多少）；Receipt 在已收款的三种状态下显示。
+- Refund 按行上的 `refundable` 显示，另按 `privileges` 里有没有 `orders:refund:create` 显示，没有时不显示；Receipt 在已收款的三种状态下显示。
 - `REJECTED` 的行没有支付方式，显示「—」。
 
 ---
 
 ## 页面：Payments · Payment detail 弹窗
 
-从列表行的 View 打开，也可以带订单号直接打开（如从 Product Link 的销售单跳过来）。分四块：概要（金额、状态、时间、订单号、Refund 与 Receipt 按钮、已退金额、汇率）、关联退款、订单信息、技术细节（默认折叠）。从邮件链接进来时，页面按链接里的 `orderId` 直接调 `getPayment` 打开本弹窗；返回 `404` 时提示该订单不存在或不属于当前商户。
+从列表行的 View 打开，也可以带订单号直接打开（如从 Product Link 的销售单跳过来）。分四块：概要（金额、状态、时间、订单号、Refund 与 Receipt 按钮、已退金额、汇率）、关联退款、订单信息、技术细节（默认折叠）。从邮件链接进来时，页面按链接里的 `orderId` 直接调 `getPayment` 打开本弹窗；返回 `404` 时提示订单不存在。
 
 ```mermaid
 sequenceDiagram
@@ -159,18 +160,21 @@ sequenceDiagram
 | Release 时订单已不是挂起状态 | `409`·`208010` | 重调 #5，按钮随之消失 |
 | 上一次同键的提交还在处理 | `409`·`908002` | 用同一个键重发，直到有结果 |
 | 同一个幂等键用到了别的订单 | `409`·`908003` | 换订单就换新键 |
+| Release 超时或网关错误 | `502` / `504` | 用原来的幂等键重发，不会重复完成 |
 
 - Product 一栏显示 `product`（产品形态），每张订单都有；展示名由前端按码取。
 - 详情带了 `invoiceNo` 时可跳到 Invoice Payment 页、把账单号填进搜索框（账单没有单张读取的接口）；带了 `linkId` + `salesOrderId` 时可跳到 Product Link 的销售单详情。礼卡的凭证、风控与重发、作废、处置都在销售单详情里做，这里不重复。
 - 关联退款里 `type` 为 `system_auto` 的行是平台自动退回的多付款项（付款人付了两次，或订单关闭后才到账的那笔）。这一行要标明「重复付款，已由平台退回」，不算进已退金额；已退金额只用 `refundedAmount`，不要把关联退款加总。
-- 点关联退款的行可以打开退款详情（#14），自动退款也能打开。
+- 点关联退款的行可以打开退款详情（#14），自动退款也能打开。`privileges` 里没有 `orders:refund:view` 时不显示打开退款详情的入口，也不调 #14。
 - Trade name 一栏取当前商户的名称，不在订单接口里。
 - 响应里没有的可选项（客户、付款账户、商户订单号、通道交易号、小费、回调、汇率等），对应的栏不显示或显示「—」。技术细节里没有 `callback` 时不显示回调一块。
+- `REJECTED` 的订单只显示状态和一句固定说明（被平台风控拒绝），接口不返回原因细节。
 - 金额：概要的大数字是 `amount`。标价币种与结算币种不同时另显示付款人应付总额 `customerPaymentAmount`（标价币种）。
 - 汇率显示为 1 结算币种 = x CNY。
 - demo 的「Platform Txn ID」一栏显示 `channelTxnNo`，标签改成 Channel Txn ID。
 - 收据与商户 App 里看到的是同一份 PDF。请求带 `Accept-Language`（当前界面语言）。Receipt 只在已收款的三种状态下显示。
 - `releasePreAuth` 带 `Idempotency-Key`，点一次生成一个键。
+- Refund 另按 `privileges` 里有没有 `orders:refund:create` 显示，Release 另按有没有 `orders:preauth:create` 显示；没有时不显示。
 
 ---
 
@@ -197,7 +201,7 @@ sequenceDiagram
     S->>S: status 为 REVIEWING / CHANNEL_PROCESSING：显示「退款已提交」<br/>status 为 SUCCESS：显示「退款成功」<br/>status 为 FAILED：按 failureReason 显示「退款失败：账户资金不足」或「退款失败：通道拒绝」
     S->>A: 重调 #35;1、#35;2、#35;3（详情开着就重调 #35;5）
 
-    Note over U,M: 忘记 PIN（弹窗内切到重置视图）
+    Note over U,M: 忘记 PIN（不离开退款弹窗，流程同 General 页的 Forgot your PIN?）
     U->>S: 点 Forgot PIN，点 Send code
     S->>A: #35;9 [requestRefundPinReset]<br/>POST /account/refund-pin/resets
     A->>M: 发 6 位码
@@ -212,11 +216,11 @@ sequenceDiagram
 
 | 情形 | 响应 | 页面动作 |
 |---|---|---|
-| 金额不大于 0 或格式不对 | `400`（`details` 指到字段） | 金额红框；正确页面下已拦住 |
+| 金额不大于 0 或格式不对、备注超过 300 字符 | `400`（`details` 指到字段） | 字段红框；正确页面下已拦住 |
 | 超过可退余额、订单已不可退 | `400`·`204008` | 提示本次不能退，重调 #5 看最新可退额 |
 | PIN 不对 | `403`·`206003` | 提示重输 |
 | PIN 连续输错被锁 | `423`·`206004` | 提示稍后再试 |
-| 商户还没设置退款 PIN | `409`·`208052` | 提示先到 Settings › General 设置退款 PIN |
+| 商户还没设置退款 PIN | `409`·`208052` | 提示先到 Setting › General 设置退款 PIN |
 | 短时间内对同一订单重复提交退款 | `409`·`208003` | 不当成功；重调 #5 看最新状态，再决定是否重提 |
 | 上一次同键的提交还在处理 | `409`·`908002` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | `409`·`908003` | 改过内容就换新键 |
@@ -225,7 +229,7 @@ sequenceDiagram
 
 - 退款按订单的标价币种发起，摘要与输入框都用标价币种。CNY 标价的订单在列表里显示的是结算币种金额，弹窗里要把付款人应付总额（`customerPaymentAmount`，标价币种）显示清楚，免得商户按加元的数去填人民币。
 - `remainingRefundable` 只拿来做输入上限；提交时服务端会重新校验，可能已经变了。
-- 订单有没有 Refund 入口只看 `refundable`，不按状态自己判。
+- 业务上订单有没有 Refund 入口只看 `refundable`，不按状态自己判；另按权限点 `orders:refund:create` 显示。
 - `201` 只表示退款单已建，要再看 `status`。审核中或处理中显示「已提交」而不是「已成功」，最终成功或失败要之后刷新才看得到；通道当场退成的直接是 `SUCCESS`。`FAILED` 是账户资金不足或通道当场拒绝，退款没有执行，这笔失败的退款会留在退款列表里；商户处理后重新发起，是一笔新的退款、用新的幂等键。
 - `createRefund` 带 `Idempotency-Key`：点一次 Refund 生成一个键。超时或 `908002` 后重发用原键；被拒后改了内容再提交换新键。PIN 不参与幂等比对。
 - Forgot PIN 按 `privileges` 里有没有 `account:refund-pin:manage` 显示；没有时不显示，提示找能管理退款 PIN 的人。
@@ -236,7 +240,7 @@ sequenceDiagram
 |---|---|---|---|
 | 状态 chip 与筛选 | 四种：Paid、Partially refunded、Failed、Refunded | 多两种：Rejected（平台未受理）、Pre-auth holding（预授权挂起） | 被风控拒掉的订单和预授权单都要能查到 |
 | 来源 | 八种：Terminal、Store QR、Product QR、Mini Program、Web Checkout、App、Payment Link、API Integration | 十二种，与现网商户后台的来源一致（见上表）；Mini Program、Web Checkout 这类归到产品形态 | 来源沿用现网商户已经在用的分类；小程序、网页是收款方式，不是入口 |
-| 详情的 Product | 四种（账单、商品码、礼卡、票务），其余订单没有 | 每张订单都有，十三种产品形态 | 产品形态是订单的固有属性 |
+| 详情的 Product | 四种（账单、商品码、礼卡、票务），其余订单没有 | 每张订单都有，取值见 `PaymentProduct` | 产品形态是订单的固有属性 |
 | 搜索 | 订单号、金额、备注 | 另可搜商户订单号、通道交易号 | 现网可按商户订单号找单；顾客手里只有钱包账单上的通道交易号 |
 | Filters 面板 | 日期、支付方式、来源、状态 | 多一项设备 | 现网交易页可按设备筛 |
 | 金额列 | 标价金额（CAD 或 CNY） | 已成交的显示结算币种的成交金额（结算额待定的暂显示付款人应付总额（标价币种），行上带 `settleAmountPending`），没成交的显示付款人应付总额（标价币种） | 商户关心的是实际结算的数，行与页头汇总同一个币种、可以对上；现网商户后台的列表也显示结算币种金额 |
@@ -250,7 +254,7 @@ sequenceDiagram
 
 ## 页面：Refunds
 
-侧边栏 Orders › Refunds。工具栏：搜索（退款号、商户退款单号、通道退款号、订单号、商户订单号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：退款号、订单号（可点开原订单）、支付方式与来源、退款金额与结算金额、全额还是部分、状态、时间、备注、操作（View、Receipt、Cancel）。日期默认近 30 天。Filters 里的设备候选同 Payments 页（#18）。本页没有汇总卡，也没有发起退款的入口（退款从订单发起）。
+侧边栏 Order › Refund。工具栏：搜索（退款号、商户退款单号、通道退款号、订单号、商户订单号、金额、备注）、状态 chip、Filters 面板（日期、支付方式、来源、设备、状态）、排序（时间、金额）、导出。表格列：退款号、订单号（可点开原订单）、支付方式与来源、退款金额与结算金额、原订单金额、全额还是部分、状态、时间、备注、操作（View、Receipt、Cancel）。日期默认近 30 天。Filters 里的设备候选与权限条件同 Payments 页（#18）。本页没有汇总卡，也没有发起退款的入口（退款从订单发起）。
 
 ```mermaid
 sequenceDiagram
@@ -291,20 +295,21 @@ sequenceDiagram
     S->>S: 开退款详情弹窗 / 退款收据弹窗 / 撤销确认
 ```
 
-- 导出不设行数上限，范围就是当前筛选的日期。
+- 导出不设行数上限，范围就是当前筛选的日期。筛选结果为空时也能导出，文件只有表头。
+- `privileges` 里没有 `orders:payment:view` 时，行上的订单号不提供点开原订单的入口，也不调 #5。
 - 日期筛选必填，按退款创建日；页面默认近 30 天，由前端算出日期传过去。
 - 支付方式与来源的码、文案、固定选项都与 Payments 页相同；列表里的退款，这两项与原订单的一致。
 - 列表里是从商户账上出钱的退款：后台、App、终端、API、插件发起的；平台自动退回的多付款项不在这里，在原订单详情的关联退款里能看到。
 - 行上有两个金额：`amount` 是标价币种的退款金额（发起时填的数），`settleAmount` 是折合的结算币种金额。`settleAmount` 要通道受理后才有，审核中、被拒、已撤销的行没有；标价币种就是结算币种时两个数相同。
 - `amount` 小于 `customerPaymentAmount`（原订单的付款人应付总额）的是部分退款，否则是全额退款。
 - 状态六种：审核中、处理中、成功、失败、已拒绝、已撤销。退款提交后没有推送，状态靠重新取列表更新。
-- Receipt 只在已受理的退款（`CHANNEL_PROCESSING` 处理中或 `SUCCESS` 成功）的行显示，Cancel 只在 `REVIEWING` 的行显示。
+- Receipt 只在已受理的退款（`CHANNEL_PROCESSING` 处理中或 `SUCCESS` 成功）的行显示，Cancel 只在 `REVIEWING` 的行显示，另按 `privileges` 里有没有 `orders:refund:create` 显示，没有时不显示。
 
 ---
 
 ## 页面：Refunds · Refund detail 弹窗
 
-退款详情弹窗从列表行的 View 打开，也可以从订单详情的关联退款打开。显示：退款金额与结算金额、状态、时间、全额还是部分、退款号；支付方式、来源、客户、邮箱、发起入口与操作员、申请时间、完成时间、原订单号、原订单金额、商户退款单号、通道退款号、备注；失败时加失败原因。从邮件链接进来时，页面按链接里的 `refundId` 直接调 `getRefund` 打开本弹窗；返回 `404` 时提示该退款不存在或不属于当前商户。
+退款详情弹窗从列表行的 View 打开，也可以从订单详情的关联退款打开。显示：退款金额与结算金额、状态、时间、全额还是部分、退款号；支付方式、来源、客户、邮箱、发起入口与操作员、申请时间、完成时间、原订单号、原订单金额、商户退款单号、通道退款号、备注；失败时加失败原因。从邮件链接进来时，页面按链接里的 `refundId` 直接调 `getRefund` 打开本弹窗；返回 `404` 时提示退款不存在。
 
 ```mermaid
 sequenceDiagram
@@ -372,6 +377,7 @@ sequenceDiagram
 - 响应里没有的可选项（结算金额、客户、商户退款单号、通道退款号、完成时间等），对应的栏不显示或显示「—」。
 - 撤销成功后这笔退款占用的可退额度放回，原订单又可以发起退款；对已撤销的退款再撤一次也返回 204。
 - `cancelRefund` 带 `Idempotency-Key`，点一次生成一个键。
+- Cancel 另按 `privileges` 里有没有 `orders:refund:create` 显示，没有时不显示。
 - 退款收据与商户 App 里看到的是同一份 PDF。请求带 `Accept-Language`（当前界面语言）。
 
 **相对 demo 的改动**
