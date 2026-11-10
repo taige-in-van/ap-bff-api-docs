@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-10T05:42:14Z",
-  "implCommit": "e6e6fb2f",
+  "generatedAt": "2026-11-10T07:45:23Z",
+  "implCommit": "dc3252e2",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -157,6 +157,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "1e65dd7eba121345052d6ccd8fe61c2029e80a36",
-  "prdStage": "stage/261109-repin-1e65dd7"
+  "prdSha": "cfe05dc614cfd81bd4a4650d9737d00d7b9f3f12",
+  "prdStage": "stage/261109-mapi-online-cny-accepted-amount"
 }
