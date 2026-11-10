@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-10T04:42:13Z",
-  "implCommit": "6679dc1c",
+  "generatedAt": "2026-11-10T05:42:14Z",
+  "implCommit": "e6e6fb2f",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -140,7 +140,7 @@
     "merchant/system/listPaymentMethodOptions": "c482d777639a3193",
     "merchant/system/markAllNoticesRead": "d1083931e2b554ab",
     "merchant/system/markNoticeRead": "63ff2a1e072421d1",
-    "merchant/system/replaceSigningKey": "cae6cfefcb4d1042",
+    "merchant/system/replaceSigningKey": "3bc1604efbc224e9",
     "merchant/system/revealGatewayCredential": "51560611fe068a44",
     "merchant/team/createTeamMember": "29f68656a8acf1d9",
     "merchant/team/deleteMemberWechatBinding": "e4bae0b2a0eda3d6",
@@ -157,6 +157,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "2d98e65ff7f59f21d927c6c9d962e77d22527f63",
-  "prdStage": "stage/261109-repin-2d98e65"
+  "prdSha": "1e65dd7eba121345052d6ccd8fe61c2029e80a36",
+  "prdStage": "stage/261109-repin-1e65dd7"
 }
