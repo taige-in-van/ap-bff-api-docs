@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 认证 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -755,7 +755,7 @@ paths:
       operationId: resetRefundPinByLink
       summary: 凭邮件里的退款 PIN 设置链接设新 PIN（落地页提交；不建会话）
       description: |
-        工作人员向商户 Owner 的登录邮箱发出设置链接后，Owner 在落地页输入新的 6 位退款 PIN 提交，校验链接里的一次性令牌后写入新 PIN。成功即旧 PIN 失效、退款 PIN 的失败锁定解除、未完成的忘记 PIN 作废，并给 Owner 登录邮箱发 PIN 已修改通知。不建会话。
+        工作人员向商户 Owner 的登录邮箱发出设置链接后，Owner 在落地页输入新的 6 位退款 PIN 提交，校验链接里的一次性令牌后写入新 PIN。成功即旧 PIN 失效、退款 PIN 的失败锁定解除、未完成的忘记 PIN 作废，并给 Owner 登录邮箱发 PIN 已修改通知；商户此前未设过退款 PIN 时，成功即完成设置。不建会话。
 
         链接形如 `/set-refund-pin#token=…&merchant=…`：页面从地址的 fragment 取令牌和商户经营名，经营名只供页面展示，提交以令牌为准。打开页面不消费令牌；提交通过校验后先一次性消费令牌、再写入新 PIN，同一链接只能生效一次。校验没通过（如新 PIN 格式不符）的不消费，可用同一链接重试；令牌已消费而新 PIN 没写上（系统出错）时链接同样作废，需联系客服重新发送。链接默认 30 分钟有效，工作人员再发一次即作废之前的链接；设好新 PIN 之前旧 PIN 照常可用。
 

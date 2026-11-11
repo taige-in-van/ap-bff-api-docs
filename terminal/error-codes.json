@@ -88,7 +88,7 @@
       "retryable": false
     },
     "108502": {
-      "name": "PF4_BARCODE_BRAND_NOT_ENABLED",
+      "name": "PF4_BARCODE_BRAND_UNAVAILABLE",
       "retryable": false
     },
     "204010": {
