@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-11T01:52:11Z",
-  "implCommit": "4a1d3099",
+  "generatedAt": "2026-11-11T05:22:14Z",
+  "implCommit": "a9b9fc48",
   "ops": {
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
@@ -157,6 +157,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "f54db759cb71a2d8addf35e3a79c3b9c601dd565",
-  "prdStage": "stage/261110-settle-fx-rate-record"
+  "prdSha": "90c994c7f9580473571c89061704ee3932d3d981",
+  "prdStage": "stage/261110-refund-notify-unify"
 }
