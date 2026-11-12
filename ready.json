@@ -1,8 +1,13 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-12T06:05:55Z",
-  "implCommit": "fb39c015",
+  "generatedAt": "2026-11-12T11:02:16Z",
+  "implCommit": "8ce586da",
   "ops": {
+    "admin/applications/createApplicationFileAccessUrl": "6164c77b89a72acc",
+    "admin/applications/decideApplication": "53f4008c64bb3c66",
+    "admin/applications/getApplication": "7b020eac84558b05",
+    "admin/applications/listApplications": "494192fa065d420c",
+    "admin/applications/listMerchantAppIdTodos": "d3a718431ea91c26",
     "admin/auth/acceptInvitation": "facf605c4b1554ca",
     "admin/auth/changeMyPassword": "fd06b4973df6a858",
     "admin/auth/completeMfaChallenge": "62d2c5d9c3e96b2d",
@@ -11,12 +16,12 @@
     "admin/auth/confirmPasswordReset": "afdabb7ee3806d94",
     "admin/auth/enrollMfa": "8983f2f0d9454e2d",
     "admin/auth/getCurrentSession": "d90088fe0c857f41",
-    "admin/auth/getMyProfile": "dd7cfb65ee8a321f",
+    "admin/auth/getMyProfile": "507f5706cd95db60",
     "admin/auth/login": "293c34d7237fdc6a",
     "admin/auth/logout": "fa5beaf80a8fb1bf",
     "admin/auth/requestPasswordReset": "9ebc66a5832666e8",
-    "admin/auth/updateMyLoginIpAllowlist": "2d8ffbd9dbefe35b",
-    "admin/auth/updateMyProfile": "85a2f2fb5d2cfaba",
+    "admin/auth/updateMyLoginIpAllowlist": "3bb2163272470e55",
+    "admin/auth/updateMyProfile": "e6f9dd26c948d383",
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
     "checkout/checkout/getCheckoutOrder": "4ab1df466903e462",
@@ -47,7 +52,7 @@
     "merchant/auth/confirmPasswordReset": "e1ca2dbfb0c443ed",
     "merchant/auth/getCurrentSession": "99d70bb7af1588b2",
     "merchant/auth/initiateWechatLogin": "a6bc1053ca8d1979",
-    "merchant/auth/login": "1d9a83a05a8b5178",
+    "merchant/auth/login": "3b9ef1bebf8b234c",
     "merchant/auth/logout": "fa5beaf80a8fb1bf",
     "merchant/auth/pollWechatLogin": "ef598de7b961c1b5",
     "merchant/auth/registerOwner": "44882087b70b6f22",
@@ -171,6 +176,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "c503c12712fd15ff2e26bc8cf12bb8ef55c99982",
-  "prdStage": "stage/261111-admin-01"
+  "prdSha": "22fc960b44b49b88a860f21a598d794ce9db4375",
+  "prdStage": "stage/261112-admin-05"
 }
