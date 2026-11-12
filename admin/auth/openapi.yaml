@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.2.4
+  version: 2.3.0
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的登录与个人设置契约：登录与会话（密码 + 人机校验 + 动态码、首次登录内绑定验证器、受信浏览器、企业微信扫码、当前会话、登出）、忘记密码、邮件链接落地页（受邀设密、确认新登录邮箱），以及本人资料、改密、重绑验证器、企业微信绑定与本人登录 IP 白名单。
+    管理后台 React SPA 消费的登录与个人设置契约：登录与会话（密码 + 动态码、首次登录内绑定验证器、受信浏览器、企业微信扫码、当前会话、登出）、忘记密码、邮件链接落地页（受邀设密、确认新登录邮箱），以及本人资料、改密、重绑验证器、企业微信绑定与本人登录 IP 白名单。
     浏览器持 httpOnly 会话 cookie（登录后 set-cookie），字段类型与校验规则以本 spec 各字段为准。
 
     **幂等 / CSRF 口径**：
@@ -45,9 +45,9 @@ paths:
       tags:
         - sessions
       operationId: login
-      summary: 密码登录（登录名 + 密码 + 人机校验；转动态码步，受信浏览器直接建会话）
+      summary: 密码登录（登录名 + 密码；转动态码步，受信浏览器直接建会话）
       description: |
-        登录名 + 密码，人机校验开启时另带人机校验结果。管理后台账号每次登录都要过动态码步，结果按 `status` 分：
+        登录名 + 密码。管理后台账号每次登录都要过动态码步，结果按 `status` 分：
 
         - `ESTABLISHED`：本浏览器在受信有效期内，免动态码，已 set-cookie 建会话。
         - `MFA_REQUIRED`：去动态码步，把 `mfaChallenge` 与验证器上的 6 位码提交到 `completeMfaChallenge`。
@@ -57,7 +57,6 @@ paths:
 
         **什么时候拒绝**：
 
-        - `304002` 人机校验开启而没带结果，或校验未通过；不校验密码。
         - `306001` 登录失败：登录名不存在、密码错、账号停用、没有管理后台访问资格，一律此码、不区分。
         - `306010` 密码对了但来源 IP 不在本人登录 IP 白名单：明确提示当前网络不允许登录，回第一步；不进动态码步。
         - `966001` 账号因连续登录失败被锁，等冷却。
@@ -73,9 +72,6 @@ paths:
             example:
               loginId: alice@example.com
               password: Str0ng!Pass
-              captcha:
-                ticket: t03Xk9aZ
-                randstr: '@Ab1'
       responses:
         '200':
           description: '`ESTABLISHED` 已 set-cookie；另两种状态待动态码步、未建会话'
@@ -104,7 +100,6 @@ paths:
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
-        - 304002
         - 306001
         - 306010
         - 966001
@@ -781,27 +776,6 @@ components:
           type: string
           format: password
           minLength: 1
-        captcha:
-          $ref: '#/components/schemas/CaptchaResult'
-          description: 人机校验结果。人机校验开启时必带，没带或未通过 → `304002`；登录页始终展示人机校验并带上结果即可。
-    CaptchaResult:
-      type: object
-      additionalProperties: false
-      description: 登录页人机校验组件通过后给出的结果，原样提交。
-      required:
-        - ticket
-        - randstr
-      properties:
-        ticket:
-          type: string
-          minLength: 1
-          maxLength: 2048
-          description: 校验通过的票据
-        randstr:
-          type: string
-          minLength: 1
-          maxLength: 128
-          description: 与票据配对的随机串
     MfaStepRequest:
       type: object
       additionalProperties: false

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户运营管理 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1360,25 +1360,12 @@ components:
       minLength: 1
       maxLength: 128
       description: 参数标识，按所属业务分前缀（如 `transaction.cashier-query-days`）。
-    MerchantStatus:
-      type: string
-      enum:
-        - PENDING_ACTIVATION
-        - ACTIVE
-        - FROZEN
-      description: 商户状态：`PENDING_ACTIVATION` 待激活（入驻尚未通过审核）/ `ACTIVE` 已激活 / `FROZEN` 已冻结。已关户的商户不出现。
     GovernanceTier:
       type: string
       enum:
         - normal
         - frozen
       description: 治理档位（界面档位名，由商户状态派生）：`normal` 正常（已激活）/ `frozen` 冻结。待激活的商户没有档位。
-    SignupSource:
-      type: string
-      enum:
-        - self_service
-        - admin_portal
-      description: 开户来源：`self_service` 商户自助注册 / `admin_portal` 管理后台代客建档。
     MerchantDocumentType:
       type: string
       enum:
@@ -2043,6 +2030,13 @@ components:
           type: integer
           minimum: 0
           description: 读到时的 `version`。
+    MerchantStatus:
+      type: string
+      enum:
+        - PENDING_ACTIVATION
+        - ACTIVE
+        - FROZEN
+      description: 商户状态：`PENDING_ACTIVATION` 待激活（入驻尚未通过审核）/ `ACTIVE` 已激活 / `FROZEN` 已冻结。已关户的商户不出现。
     PartnerId:
       type: string
       minLength: 1
@@ -2268,6 +2262,12 @@ components:
         displayName:
           type: string
           minLength: 1
+    SignupSource:
+      type: string
+      enum:
+        - self_service
+        - admin_portal
+      description: 开户来源：`self_service` 商户自助注册 / `admin_portal` 管理后台代客建档。
     Timestamp:
       type: string
       format: date-time

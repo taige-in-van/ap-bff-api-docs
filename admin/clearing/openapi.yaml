@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.4.3
+  version: 2.4.4
   contact:
     name: 管理后台 BFF
   description: |
@@ -3623,30 +3623,6 @@ components:
         minLength: 2
         maxLength: 256
   schemas:
-    ChannelId:
-      type: string
-      minLength: 1
-      maxLength: 32
-      description: 通道标识。
-    ChannelBrief:
-      type: object
-      additionalProperties: false
-      description: 一个通道的标识、名称与收单主体号（列表与记录上展示「哪个通道」）。
-      required:
-        - channelId
-        - channelName
-        - channelMerchantId
-      properties:
-        channelId:
-          $ref: '#/components/schemas/ChannelId'
-        channelName:
-          type: string
-          minLength: 1
-          description: 通道名称。
-        channelMerchantId:
-          type: string
-          minLength: 1
-          description: 通道侧的收单主体号（如服务商商户号）。
     PayoutExecutionMode:
       type: string
       enum:
@@ -4255,17 +4231,6 @@ components:
           minLength: 1
           maxLength: 256
           description: 确认说明；没填时不返回本键。
-    ChannelError:
-      type: object
-      additionalProperties: false
-      description: 通道返回的原始错误，各通道的码与文字不统一、不翻译，原样给出。
-      properties:
-        code:
-          type: string
-          description: 通道错误码；通道没给时不返回本键。
-        message:
-          type: string
-          description: 通道错误描述；通道没给时不返回本键。
     RefundConfirmationDecision:
       type: object
       additionalProperties: false
@@ -6174,6 +6139,11 @@ components:
         日期,`YYYY-MM-DD`。按字面值收发:展示直接用这个字符串,不要塞进 `Date` 再按浏览器时区渲染(负偏移时区会显示成前一天)。
       examples:
         - '2026-08-01'
+    ChannelId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 通道标识。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
@@ -6353,6 +6323,25 @@ components:
               type: string
               format: date
               description: 生效日不被允许时最早可选的生效日（`YYYY-MM-DD`）。
+    ChannelBrief:
+      type: object
+      additionalProperties: false
+      description: 一个通道的标识、名称与收单主体号（列表与记录上展示「哪个通道」）。
+      required:
+        - channelId
+        - channelName
+        - channelMerchantId
+      properties:
+        channelId:
+          $ref: '#/components/schemas/ChannelId'
+        channelName:
+          type: string
+          minLength: 1
+          description: 通道名称。
+        channelMerchantId:
+          type: string
+          minLength: 1
+          description: 通道侧的收单主体号（如服务商商户号）。
     Timestamp:
       type: string
       format: date-time
@@ -6470,6 +6459,17 @@ components:
         | `UNCONFIRMED` | 通道一直没有明确结果，经运营人工核对确认没有退成 |
 
         请求已发出而超时、应答丢失、查单查无此单都不算失败，退款留在 `CHANNEL_PROCESSING`，由平台查单与对账收敛。
+    ChannelError:
+      type: object
+      additionalProperties: false
+      description: 通道返回的原始错误，各通道的码与文字不统一、不翻译，原样给出。
+      properties:
+        code:
+          type: string
+          description: 通道错误码；通道没给时不返回本键。
+        message:
+          type: string
+          description: 通道错误描述；通道没给时不返回本键。
     SettlementCycleCode:
       type: string
       minLength: 1

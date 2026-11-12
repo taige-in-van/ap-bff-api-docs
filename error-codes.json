@@ -384,11 +384,6 @@
       ],
       "retryable": false
     },
-    "304002": {
-      "httpStatus": 400,
-      "name": "ADMIN_CAPTCHA_FAILED",
-      "retryable": false
-    },
     "304003": {
       "httpStatus": 400,
       "name": "ADMIN_LOGIN_IP_ALLOWLIST_EXCLUDES_CURRENT_IP",

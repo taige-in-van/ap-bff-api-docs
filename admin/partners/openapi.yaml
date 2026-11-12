@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 机构与分润 — 前端契约面
-  version: 2.0.0
+  version: 2.0.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1504,12 +1504,6 @@ components:
       schema:
         $ref: '#/components/schemas/MerchantId'
   schemas:
-    YearMonth:
-      type: string
-      pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
-      description: 年月 `YYYY-MM`，按字面值收发。
-      examples:
-        - 2026-10
     Ratio:
       type: string
       pattern: ^0(\.[0-9]{1,6})?$
@@ -2516,6 +2510,12 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
+    YearMonth:
+      type: string
+      pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      description: 年月 `YYYY-MM`，按字面值收发。
+      examples:
+        - 2026-10
     PaymentMethod:
       type: string
       minLength: 1

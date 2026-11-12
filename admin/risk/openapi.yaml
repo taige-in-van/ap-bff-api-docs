@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 风控管理 — 前端契约面
-  version: 2.0.0
+  version: 2.0.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1272,25 +1272,6 @@ components:
       allOf:
         - $ref: '#/components/schemas/RejectedOrderCore'
       unevaluatedProperties: false
-    PaymentProduct:
-      type: string
-      description: 订单的产品形态：店铺码、动态码、原生码（商户自行展示的钱包二维码）、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、原生 JSAPI（商户自有应用内调起）、小程序、App SDK、委托代扣。
-      enum:
-        - store_qr
-        - dynamic_qr
-        - native_qrcode
-        - barcode
-        - invoice
-        - product_code
-        - ticket
-        - giftcard
-        - web_pc
-        - web_mobile
-        - jsapi
-        - native_jsapi
-        - mini_program
-        - app_sdk
-        - auto_debit
     RejectedOrderDetail:
       description: 被拒订单详情：列表行的字段，加受理与付款人信息。
       allOf:
@@ -1862,6 +1843,25 @@ components:
       minLength: 1
       maxLength: 64
       description: 商户单号，同一商户内不可重复。
+    PaymentProduct:
+      type: string
+      description: 订单的产品形态：店铺码、动态码、原生码（商户自行展示的钱包二维码）、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、原生 JSAPI（商户自有应用内调起）、小程序、App SDK、委托代扣。
+      enum:
+        - store_qr
+        - dynamic_qr
+        - native_qrcode
+        - barcode
+        - invoice
+        - product_code
+        - ticket
+        - giftcard
+        - web_pc
+        - web_mobile
+        - jsapi
+        - native_jsapi
+        - mini_program
+        - app_sdk
+        - auto_debit
     EntryPoint:
       type: string
       description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `system` 系统发起。

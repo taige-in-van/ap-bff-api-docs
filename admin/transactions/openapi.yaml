@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 交易与退款 — 前端契约面
-  version: 2.2.0
+  version: 2.2.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1021,25 +1021,6 @@ components:
         - auto_debit
         - shopify
         - allvalue
-    PaymentProduct:
-      type: string
-      description: 订单的产品形态：店铺码、动态码、原生码（商户自行展示的钱包二维码）、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、原生 JSAPI（商户自有应用内调起）、小程序、App SDK、委托代扣。
-      enum:
-        - store_qr
-        - dynamic_qr
-        - native_qrcode
-        - barcode
-        - invoice
-        - product_code
-        - ticket
-        - giftcard
-        - web_pc
-        - web_mobile
-        - jsapi
-        - native_jsapi
-        - mini_program
-        - app_sdk
-        - auto_debit
     RefundType:
       type: string
       description: 退款类型：`merchant` 退已生效订单的退款，从商户账上出钱；`system_auto` 平台自动退回的多付款项（重复支付、关单后才到的成功支付），不动商户的账，不计入订单的已退金额。
@@ -1093,17 +1074,6 @@ components:
           type: string
           minLength: 1
           description: 设备型号；未上报不返回本键。
-    ChannelError:
-      type: object
-      additionalProperties: false
-      description: 通道返回的原始错误，各通道的码与文字不统一、不翻译，原样给出。
-      properties:
-        code:
-          type: string
-          description: 通道错误码；通道没给时不返回本键。
-        message:
-          type: string
-          description: 通道错误描述；通道没给时不返回本键。
     CollectedField:
       type: object
       additionalProperties: false
@@ -2008,12 +1978,42 @@ components:
       description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
+    PaymentProduct:
+      type: string
+      description: 订单的产品形态：店铺码、动态码、原生码（商户自行展示的钱包二维码）、付款码、账单、商品、票务、礼卡、PC 网页、移动网页、JSAPI、原生 JSAPI（商户自有应用内调起）、小程序、App SDK、委托代扣。
+      enum:
+        - store_qr
+        - dynamic_qr
+        - native_qrcode
+        - barcode
+        - invoice
+        - product_code
+        - ticket
+        - giftcard
+        - web_pc
+        - web_mobile
+        - jsapi
+        - native_jsapi
+        - mini_program
+        - app_sdk
+        - auto_debit
     AcceptanceMode:
       type: string
       enum:
         - in_store
         - online
       description: 受理模式：`in_store` 线下 / `online` 线上。
+    ChannelError:
+      type: object
+      additionalProperties: false
+      description: 通道返回的原始错误，各通道的码与文字不统一、不翻译，原样给出。
+      properties:
+        code:
+          type: string
+          description: 通道错误码；通道没给时不返回本键。
+        message:
+          type: string
+          description: 通道错误描述；通道没给时不返回本键。
     DeviceId:
       type: string
       minLength: 1

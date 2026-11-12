@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 统计分析 — 前端契约面
-  version: 2.0.0
+  version: 2.0.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1418,12 +1418,6 @@ components:
         minLength: 2
         maxLength: 256
   schemas:
-    YearMonth:
-      type: string
-      pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
-      description: 年月 `YYYY-MM`，按字面值收发。
-      examples:
-        - 2026-10
     StatPeriod:
       type: string
       enum:
@@ -1451,11 +1445,6 @@ components:
         - last_month_same_period
         - preceding_period
       description: 对比基准：`same_time_yesterday` 昨日同时段（选今天时）· `last_month_same_period` 上月同期（选本月时）· `preceding_period` 紧邻的等长上期（其余；整自然月区间为前一个自然月）。
-    ChannelId:
-      type: string
-      minLength: 1
-      maxLength: 32
-      description: 通道标识。
     ChannelRef:
       type: object
       additionalProperties: false
@@ -1469,13 +1458,6 @@ components:
         channelName:
           type: string
           minLength: 1
-    MerchantStatus:
-      type: string
-      enum:
-        - PENDING_ACTIVATION
-        - ACTIVE
-        - FROZEN
-      description: 商户状态：`PENDING_ACTIVATION` 待激活 / `ACTIVE` 已激活 / `FROZEN` 已冻结。已关户的商户不出现。
     TradeTotals:
       type: object
       additionalProperties: false
@@ -2464,6 +2446,12 @@ components:
               enabled:
                 type: boolean
                 description: 是否启用。
+    YearMonth:
+      type: string
+      pattern: ^[0-9]{4}-(0[1-9]|1[0-2])$
+      description: 年月 `YYYY-MM`，按字面值收发。
+      examples:
+        - 2026-10
     LocalDate:
       type: string
       format: date
@@ -2697,6 +2685,11 @@ components:
       description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
+    ChannelId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 通道标识。
     PartnerId:
       type: string
       minLength: 1
@@ -2711,6 +2704,13 @@ components:
       minLength: 1
       maxLength: 20
       description: 对外商户码。
+    MerchantStatus:
+      type: string
+      enum:
+        - PENDING_ACTIVATION
+        - ACTIVE
+        - FROZEN
+      description: 商户状态：`PENDING_ACTIVATION` 待激活（入驻尚未通过审核）/ `ACTIVE` 已激活 / `FROZEN` 已冻结。已关户的商户不出现。
     PartnerRef:
       type: object
       additionalProperties: false

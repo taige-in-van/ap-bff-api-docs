@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.4.0
+  version: 2.4.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -1275,11 +1275,11 @@ paths:
       x-required-privilege: chcfg:config:view
       summary: 店铺码
       description: |
-        该商户的店铺码，第 1 项是主码；空数组表示一个码都没有。码牌与海报物料由前端按 `qrContent` 生成，同商户后台。本面不提供增改，代操作经代登。
+        该商户的店铺码，第 1 项是主码（结算币种的标准码）。收银台收款入口关闭不影响出码。码牌与海报物料由前端按 `qrContent` 生成，同商户后台。本面不提供增改，代操作经代登。
 
         **什么时候拒绝**：
 
-        - `308413` 店铺码对该商户未开通或已停用，页面显示未开通、不出码。
+        - `308413` 商户未激活或已冻结，不出码。
       responses:
         '200':
           description: OK
@@ -1815,11 +1815,6 @@ components:
       minLength: 1
       maxLength: 32
       description: 签约标识。
-    ChannelId:
-      type: string
-      minLength: 1
-      maxLength: 32
-      description: 通道标识。
     ChannelApplicationId:
       type: string
       minLength: 1
@@ -1846,25 +1841,6 @@ components:
       description: 固定单笔费，商户结算币种的最小单位整数串（`"30"` = 0.30），不带币种；没有固定费为 `"0"`。
       examples:
         - '30'
-    ChannelBrief:
-      type: object
-      additionalProperties: false
-      description: 一个通道的标识与展示信息。
-      required:
-        - channelId
-        - channelName
-        - channelMerchantId
-      properties:
-        channelId:
-          $ref: '#/components/schemas/ChannelId'
-        channelName:
-          type: string
-          minLength: 1
-          description: 通道名。
-        channelMerchantId:
-          type: string
-          minLength: 1
-          description: 通道商户号（服务商号）。
     SignableChannel:
       type: object
       additionalProperties: false
@@ -3088,6 +3064,30 @@ components:
       description: 支付方式目录标识（商户开通与定价的粒度，受理模式是它的属性，如 `wechat_instore` / `wechat_online`）。取值由后端目录决定，调用方从候选集取来原样回传，按未知值安全处理。
       examples:
         - wechat_instore
+    ChannelId:
+      type: string
+      minLength: 1
+      maxLength: 32
+      description: 通道标识。
+    ChannelBrief:
+      type: object
+      additionalProperties: false
+      description: 一个通道的标识、名称与收单主体号（列表与记录上展示「哪个通道」）。
+      required:
+        - channelId
+        - channelName
+        - channelMerchantId
+      properties:
+        channelId:
+          $ref: '#/components/schemas/ChannelId'
+        channelName:
+          type: string
+          minLength: 1
+          description: 通道名称。
+        channelMerchantId:
+          type: string
+          minLength: 1
+          description: 通道侧的收单主体号（如服务商商户号）。
     Timestamp:
       type: string
       format: date-time
