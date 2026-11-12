@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.5.1
+  version: 2.6.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -975,6 +975,9 @@ components:
           allOf:
             - $ref: '#/components/schemas/BankAccountIdentification'
           description: 结算银行账户，账号只给 `accountNumberMasked`；结算由通道方执行的商户不返回本键。
+        storeId:
+          $ref: '#/components/schemas/StoreId'
+          description: 结算账户上的 Store ID；未设时不返回本键。
         settlementCycle:
           allOf:
             - $ref: '#/components/schemas/SettlementCycleCode'
@@ -982,7 +985,7 @@ components:
         settlementCycleDisplayName:
           type: string
           minLength: 1
-          description: 结算周期的展示名；与 `settlementCycle` 同进退。
+          description: 结算周期的展示名；随 `settlementCycle` 返回，档位已下线、解析不出展示名时只返回 `settlementCycle`、不返回本键。
     ApplicationSettlementRead:
       type: object
       additionalProperties: false
@@ -1030,7 +1033,7 @@ components:
     SettlementChange:
       type: object
       additionalProperties: false
-      description: 结算信息变更的新旧对比。`after` 只含申请要改的项，没改的项不返回。
+      description: 结算信息变更的新旧对比。`before` 是提交申请时的结算信息，申请决定后仍是提交时的值、不随商户现值变；`after` 只含申请要改的项，没改的项不返回：改了结算账户（含只改 Store ID）时给新账户的银行名、账户与 Store ID，改了周期时给新周期。
       required:
         - before
         - after

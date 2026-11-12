@@ -882,14 +882,14 @@ components:
     WechatBindingSummary:
       type: object
       additionalProperties: false
-      description: 微信登录绑定的摘要。
+      description: 外部账号登录绑定的摘要，公众号微信与企业微信共用。
       required:
         - nickname
       properties:
         nickname:
           type: string
           minLength: 1
-          description: 绑定微信的昵称展示快照（拿不到昵称时为通用展示名，故恒非空；微信用户授权微信资料后会更新）。
+          description: 绑定账号的展示名快照，恒非空；取值与何时刷新随提供方：公众号微信为微信昵称（拿不到时为通用展示名），用户授权微信资料后会更新；企业微信为成员姓名（取不到时为成员账号），绑定时写入、之后不刷新。
     Timestamp:
       type: string
       format: date-time

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 机构与分润 — 前端契约面
-  version: 2.0.1
+  version: 2.0.3
   contact:
     name: 管理后台 BFF
   description: |
@@ -402,7 +402,7 @@ paths:
       description: |
         从 `effectiveFromMonth` 的月初起生效一份新方案，截止当前最新方案。与最新方案同月即替换它。
 
-        - 差价方案（`SPREAD`）必带保留比例 `commissionPct`（大于 0、不大于 1），可带按支付方式 × 入口的成本率（不小于 0、小于 1，同一支付方式 × 入口只一条；未配的支付方式不计提）。
+        - 差价方案（`SPREAD`）必带保留比例 `commissionPct`（大于 0、不大于 1），可带按支付方式 × 入口的成本率（不小于 0、小于 1，同一支付方式 × 入口只一条；交易入口没有单列成本率时用该支付方式的默认成本率（不带入口的那条），默认也没有即该支付方式未配、不计提）。
         - 提成矩阵（`MATRIX`）与上浮（`UPLIFT`）方案不带保留比例与成本率。
         - 支付方式与入口只能取平台目录里的值。
 
@@ -512,6 +512,7 @@ paths:
         - 同组各行的区间 × 档位不得重叠，可以有空档（空档不计提）。
         - 至少一行；要让该组自该月起不再计提，提交一行覆盖全部区间与档位（起 0、止不传）、提成比例为 0。
         - 落档按商户当月净流水；净流水不大于 0（退款多于收款）时按 0 落档，0 落在空档则不计提。
+        - 交易入口没有单列的组时用该支付方式的默认组，默认组也没有即不计提；落档用的商户签约比例费率取该笔收款成交时的商户比例费率，退款与退款回冲随原收款。
 
         **什么时候拒绝**（不生效）：
 
@@ -880,7 +881,9 @@ paths:
 
         - 每行带商户、归属销售、支付方式、入口、成交笔数、流水净额、手续费净额、机构成本（差价方案才有）、计提基数、所用比例与提成金额。
         - 一个商户同月因改派分属两名销售、或因费率区间 / 方案版本不同，分成多行；流水档按商户该月全部流水落档，不因月内改派拆开。
-        - 提成金额：BD 与提成矩阵型机构的行 = 行净流水 × 所用比例，上浮型的行 = 行净流水 × 费率差（入口费率不高于基础费率时费率差为 0、提成为 0），净流水为负的行提成为负；差价方案按机构 × 支付方式 × 入口汇总价差，该组汇总价差小于 0 时组内各行提成为 0（计提基数照常显示各行价差），否则各行 = 行价差 × 保留比例，个别行可为负。
+        - 提成金额：BD 与提成矩阵型机构的行按行净流水 × 所用比例，上浮型的行按行净流水 × 费率差（入口费率不高于基础费率时费率差为 0、提成为 0），净流水为负的行提成为负；差价方案的机构成本逐笔四舍五入到最小币种单位，按机构 × 交易月 × 币种 × 支付方式汇总价差，该组汇总价差小于 0 时组内各行提成为 0（计提基数照常显示各行价差），否则各行按行价差 × 保留比例，个别行可为负。
+        - 提成金额按同一主体、交易月、币种、支付方式与归属销售的一组舍入一次：组合计四舍五入到最小币种单位，再逐行累计分回各行，各行之和等于组合计，每行与按上述公式算出的值相差不超过一个最小币种单位。
+        - 入口照记交易的入口（专用入口照记，其余入口记为默认）。尚未算出手续费的交易暂不计入任何行，算出后由下一次计算补入。
 
         报表不存在（该主体该月该币种无行）或在本人可见范围外 → `404`。
       parameters:
@@ -1109,7 +1112,7 @@ paths:
       x-required-privilege: orgbd:commission-export:create
       summary: 导出提成报表的逐笔明细（xlsx）
       description: |
-        导出一份报表的行背后的每笔收款、退款与退款回冲：商户（商户码、经营名）、归属销售、类型、订单号 / 退款号、日期、支付方式、入口、结算金额、手续费；可按 `merchantId` 缩小到一家商户。入口与报表行同一口径：专用入口照记，其余入口记为默认，不写实际受理入口。只含按计提判据计入某一行的交易，落在空档等未计提的交易不列出。
+        导出一份报表的行背后的每笔收款、退款与退款回冲：商户（商户码、经营名）、归属销售、类型、订单号 / 退款号、日期、支付方式、入口、结算金额、手续费；可按 `merchantId` 缩小到一家商户。入口与报表行同一口径：专用入口照记，其余入口记为默认，不写实际受理入口。只含按当前计提判据会计入某一行的交易，落在空档、尚未算出手续费等未计提的交易不列出。
 
         逐笔明细按导出时的归属与配置取交易：按商户 × 支付方式 × 入口 × 归属销售汇总后的流水与手续费，等于这四项都相同的报表行之和（同一组可因费率区间或方案版本不同分成多行）。报表计算之后若有改派、配置变更或交易明细变动，下一次计算之前两者可能对不上，下一次计算之后一致；报表的计算时刻见 `computedAt`。
 
@@ -1522,10 +1525,6 @@ components:
       description: 商户月流水档的金额，不带币种，按商户结算币种最小单位的非负整数串。
       examples:
         - '10000000'
-    CommissionEntryPoint:
-      description: 专用入口；不返回 / 不传 = 默认（未单列的入口都算默认）。
-      allOf:
-        - $ref: '#/components/schemas/FeeRateEntryPoint'
     PartnerCore:
       type: object
       x-parent: true
@@ -1721,7 +1720,8 @@ components:
         paymentMethod:
           $ref: '#/components/schemas/PaymentMethod'
         entryPoint:
-          $ref: '#/components/schemas/CommissionEntryPoint'
+          $ref: '#/components/schemas/FeeRateEntryPoint'
+          description: 专用入口；不返回 / 不传 = 默认（未单列的入口都算默认）。
         costRate:
           $ref: '#/components/schemas/Ratio'
           description: 机构成本率。
@@ -1838,7 +1838,8 @@ components:
             paymentMethod:
               $ref: '#/components/schemas/PaymentMethod'
             entryPoint:
-              $ref: '#/components/schemas/CommissionEntryPoint'
+              $ref: '#/components/schemas/FeeRateEntryPoint'
+              description: 专用入口；不返回 = 默认（未单列的入口都算默认）。
             effectiveFromMonth:
               $ref: '#/components/schemas/YearMonth'
               description: 该行所在版本的起始月（含）。
@@ -1857,7 +1858,8 @@ components:
         paymentMethod:
           $ref: '#/components/schemas/PaymentMethod'
         entryPoint:
-          $ref: '#/components/schemas/CommissionEntryPoint'
+          $ref: '#/components/schemas/FeeRateEntryPoint'
+          description: 专用入口；不传 = 默认（未单列的入口都算默认）。
         effectiveFromMonth:
           $ref: '#/components/schemas/YearMonth'
           description: 从这个月的月初起生效。
@@ -2086,7 +2088,8 @@ components:
           $ref: '#/components/schemas/PaymentMethod'
           description: 支付方式；迁入的无支付方式粒度记录不返回本键。
         entryPoint:
-          $ref: '#/components/schemas/CommissionEntryPoint'
+          $ref: '#/components/schemas/FeeRateEntryPoint'
+          description: 专用入口；不返回 = 默认（未单列的入口都算默认）。
         txnCount:
           type: integer
           minimum: 0
@@ -2109,7 +2112,7 @@ components:
           description: 所用比例（保留比例、提成比例或上浮费率差），小数串；上浮费率差不小于 0，入口费率不高于基础费率时为 0；迁入且原记录无此值的不返回本键。
         commissionAmount:
           $ref: '#/components/schemas/Money'
-          description: 提成金额，可负；差价方案所在组（机构 × 支付方式 × 入口）汇总价差小于 0 时为 0。
+          description: 提成金额，可负；差价方案所在组（机构 × 交易月 × 币种 × 支付方式）汇总价差小于 0 时为 0。
     StaffCommission:
       type: object
       additionalProperties: false

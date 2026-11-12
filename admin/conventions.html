@@ -8,7 +8,7 @@
 <script type="text/plain" id="src">
 # 管理后台 API 约定（与商户后台的差异）
 
-> 管理后台前端面（`/api/admin/v1`）的跨接口约定。编码与内容类型、HTTP 状态语义、错误响应体与怎么读 `code`、分页、排序、快捷筛选、幂等、未保存的修改、更新语义（PUT）、`null` 只出现在请求里、验证码与扫码与文件下载、时间与金额，全部同 [API 基础约定](../conventions.html)，本文不复述；下面只写管理后台不一样的地方。
+> 管理后台前端面（`/api/admin/v1`）的跨接口约定。编码与内容类型、HTTP 状态语义、错误响应体与怎么读 `code`、分页、排序、快捷筛选、幂等、未保存的修改、更新语义（PUT）、`null` 只出现在请求里、验证码与文件下载、时间与金额，全部同 [API 基础约定](../conventions.html)，本文不复述；下面只写管理后台不一样的地方。
 >
 > ⚠️ **design / review 阶段**约定 —— 实现前可能调整，可据此并行开发，勿当冻结契约。
 
@@ -17,6 +17,15 @@
 - 会话 cookie 是 `__Host-asession`，可读的 CSRF 伴生 cookie 是 `__Host-acsrf`；用法同基础约定「鉴权与 CSRF」（非安全方法从伴生 cookie 现读、原样放进 `X-CSRF-Token`）。与商户后台的 cookie 互不相干，同一浏览器可同时登录两边。
 - 登录一律要过动态码步（`login` → `completeMfaChallenge`），首次登录或验证器被重置后在登录内绑定验证器；企业微信扫码确认后同样进动态码步。没有记住登录（Keep me signed in）选项。
 - **受信浏览器**：动态码步勾「信任本浏览器」后，服务端把受信凭据写进另一个 HttpOnly cookie；有效期内在本浏览器登录，`login` / `completeWecomLogin` 直接返回 `ESTABLISHED`。前端不读、不写、不转发这个 cookie，也不必判断它是否还有效——失效时接口照常返回动态码步。有效期由平台设定，页面不显示具体天数；本人改密、被重置密码、被重置验证器时失效；登出不影响它。
+
+## 企业微信扫码
+
+管理后台的扫码是企业微信官方扫码组件 + 浏览器回跳，不走基础约定的「发起 + 轮询」：
+
+- 发起（`initiateWecomLogin` / `initiateMyWecomBinding`）返回 `{ appId, agentId, redirectUri, state, expiresAt }`，前端拿它渲染企业微信官方扫码组件；没有 `qrTicket` / `qrContent`，也没有轮询接口。
+- 二维码的刷新与过期重取由官方组件自己处理；到 `expiresAt` 还没扫完的，重新调发起接口换参数并重建组件。
+- 用户在企业微信 App 里扫码确认后，浏览器被带到 `redirectUri` 回跳落地页，地址上带 `code` 与 `state`；落地页把二者原样提交到完成接口（`completeWecomLogin` / `completeMyWecomBinding`），结果在这一次请求里同步返回。
+- 发起与完成须在同一浏览器会话里：登录发起时本浏览器还没有会话 cookie 的，服务端先建一个未登录会话并 set-cookie。`state` 只能用一次，已用过、已过期或不是本浏览器 / 本次会话发起的回 `306002`，回登录页重新扫码或重新发起绑定。
 
 ## 启动链路
 

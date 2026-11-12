@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.4.3
+  version: 2.4.4
   contact:
     name: 管理后台 BFF
   description: |
@@ -1766,7 +1766,7 @@ components:
       required: true
       description: 受理入口，取列表里的 `entryPoint`。
       schema:
-        $ref: '#/components/schemas/AcquiringEntryPoint'
+        $ref: '#/components/schemas/ConfigurableEntryPoint'
     DeviceIdPath:
       name: deviceId
       in: path
@@ -2170,18 +2170,6 @@ components:
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
           description: 读到的 `updatedAt`，原样带回（含微秒）。
-    AcquiringEntryPoint:
-      allOf:
-        - $ref: '#/components/schemas/EntryPoint'
-      enum:
-        - checkout
-        - open_api
-        - pos
-        - merchant_app
-        - plugin_shopify
-        - plugin_allvalue
-        - plugin_allvalue_xhs
-      description: 可开关的受理入口：`checkout` 店铺码与收银台页面 / `open_api` 开放 API / `pos` 终端 / `merchant_app` 商户 App / `plugin_shopify` Shopify / `plugin_allvalue` AllValue / `plugin_allvalue_xhs` AllValue 小红书。
     MerchantEntryPoint:
       type: object
       additionalProperties: false
@@ -2190,7 +2178,7 @@ components:
         - enabled
       properties:
         entryPoint:
-          $ref: '#/components/schemas/AcquiringEntryPoint'
+          $ref: '#/components/schemas/ConfigurableEntryPoint'
         enabled:
           type: boolean
           description: 是否开通。
@@ -3137,20 +3125,17 @@ components:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
           description: 固定单笔费免收截止日（含）；不带 = 不免。
-    EntryPoint:
+    ConfigurableEntryPoint:
       type: string
-      description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `system` 系统发起。
+      description: 可配置、可开关的受理入口，取值与订单的受理入口（`EntryPoint`）同名同义，本处只收可配置的入口：`checkout` 店铺码与收银台页面 / `open_api` 开放 API / `pos` 终端 / `merchant_app` 商户 App / `plugin_shopify` Shopify / `plugin_allvalue` AllValue / `plugin_allvalue_xhs` AllValue 小红书。
       enum:
         - pos
         - merchant_app
-        - merchant_portal
         - open_api
         - checkout
-        - channel_inbound
         - plugin_shopify
         - plugin_allvalue
         - plugin_allvalue_xhs
-        - system
     PaymentMethodFamily:
       type: string
       description: 支付方式族（品牌）。

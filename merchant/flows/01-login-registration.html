@@ -172,7 +172,7 @@ sequenceDiagram
     U->>S: 输邮箱或用户名，点 Send Code
     S->>A: #35;5 [requestPasswordReset]<br/>POST /auth/password-resets
     A-->>S: 202 { challengeId, cooldownSeconds }（恒 202，不暴露账号是否存在）
-    opt 邮箱账号、账号存在且有商户后台的角色
+    opt 邮箱账号、账号存在、未停用且有商户后台的角色
         A->>E: 发 6 位验证码到该邮箱
     end
 

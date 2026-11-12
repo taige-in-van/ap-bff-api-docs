@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 清算结算 — 前端契约面
-  version: 2.4.4
+  version: 2.4.5
   contact:
     name: 管理后台 BFF
   description: |
@@ -3078,7 +3078,7 @@ paths:
       x-required-privilege: clr:promotion:manage
       summary: 建立返利活动
       description: |
-        建一个返利活动：参加的商户自累计起算日起、窗口天数内累计的已清算净额达到门槛时，按达标时的累计额乘以返利比例一次性发放到营销账户，每个参加至多发放一次。条款建后不改，要改就终止本活动、另建新活动。
+        建一个返利活动：参加的商户自累计起算日起、窗口天数个自然日内（含起算日）按清算日累计的已清算净额首次达到门槛时，按累计到首次达标那一清算日的累计额乘以返利比例一次性发放到营销账户，每个参加至多发放一次。条款建后不改，要改就终止本活动、另建新活动。
 
         - `programCode` 全平台唯一。
         - `threshold` 的币种即活动币种，只有结算币种相同的商户能参加。
@@ -6111,7 +6111,7 @@ components:
           maxLength: 64
           description: 返利所属活动码；只对返利入账返回。
         basisAmount:
-          description: 返利基数（达标时的累计已清算净额）；只对返利入账返回。
+          description: 返利基数（累计到首次达标那一清算日的已清算净额）；只对返利入账返回。
           allOf:
             - $ref: '#/components/schemas/Money'
         reason:
