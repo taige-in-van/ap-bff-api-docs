@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.4.4
+  version: 2.5.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1898,7 +1898,6 @@ components:
         - applicationType
         - status
         - channelStatus
-        - submittedAt
       properties:
         channelApplicationId:
           $ref: '#/components/schemas/ChannelApplicationId'
@@ -1916,7 +1915,7 @@ components:
           description: 通道给的拒绝原因；没有不返回本键。
         submittedAt:
           $ref: '#/components/schemas/Timestamp'
-          description: 提交时刻。
+          description: 最近一次提交给通道的时刻；从通道查询补建的记录不返回本键。
         decidedAt:
           $ref: '#/components/schemas/Timestamp'
           description: 通道给出结果的时刻；审核中不返回本键。

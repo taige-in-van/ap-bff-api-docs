@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.3.2
+  version: 2.4.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -85,6 +85,12 @@ paths:
 
         采集项里的系统项是商户激活时按当时的系统目录固化的，此后系统目录变化不追溯。商户还没激活时，采集项按当时的系统目录给出。
         小费还没保存过时，按平台默认档位给出且未开启。
+      parameters:
+        - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）。
+
+            采集项里系统项的标题按它给出；取不中时按英文。
       responses:
         '200':
           description: 收款页设置
@@ -815,6 +821,11 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/ProductLinkType'
+        - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）。
+
+            采集项里系统项的标题按它给出；取不中时按英文。
       responses:
         '200':
           description: 初始值
@@ -866,6 +877,11 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/LinkId'
+        - $ref: '#/components/parameters/AcceptLanguage'
+          description: |
+            页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）。
+
+            采集项里系统项的标题按它给出；取不中时按英文。
       responses:
         '200':
           description: 链接详情
@@ -973,7 +989,7 @@ paths:
       description: |
         部分更新：没带的字段不变。只带 `enabled` 即启停；`bannerFileId: null` 移除 Banner。内容段只能带与链接类型一致的那个（`giftcard` / `product` / `ticket`），否则 `400`；不收 `fulfillmentMode`。
 
-        - 条目（商品 / 票档 / 面值档）：带回 `itemId` = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。`quantityLimit` 不能低于该项的 `committedQuantity`，否则 `409`·`208031`（`context.committedQuantity` 是那个数）；带了不属于本链接的 `itemId` → `409`·`208032`。
+        - 条目（商品 / 票档 / 面值档）：带回 `itemId` = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。`quantityLimit` 不能低于该项的 `committedQuantity`，否则 `409`·`208031`（`details` 指到出错那一项的上限字段，如 `ticket.tiers[1].quantityLimit`，`context.committedQuantity` 是该项的下界；只报第一处）；带了不属于本链接的 `itemId` → `409`·`208032`。
         - 支付方式与采集项的校验同 `createProductLink`（`208007` / `208030`）；只改 `currency` 时按新币种复核已选的方式。已选着、后来停用的项可以原样带回，但带了 `checkoutOptions` 时整组里至少要有一项已开通，否则 → `409`·`208007`。
         - 礼卡：切换 `enabled` 会让该活动的限购计数重新开始。
         - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
@@ -1371,7 +1387,7 @@ paths:
       description: |
         列表行的全部字段，加付款人填写值、订单行、凭证（含 PIN 明文，只在这里返回）、礼卡段与动作日志。支付侧的通道交易号、收据用 `orderId` 到订单与退款契约的 `getPayment`（支付订单详情）看。
 
-        链接已删除时照常返回该销售单；链接不存在或不属当前商户仍 `404`。
+        凭链接编号与销售单编号即可单独打开，不依赖链接详情；链接已删除时照常返回该销售单；链接不存在或不属当前商户仍 `404`。
       parameters:
         - name: linkId
           in: path
@@ -1393,6 +1409,7 @@ paths:
               example:
                 salesOrderId: SO2026071000012
                 orderId: P100240001
+                linkType: giftcard
                 buyer:
                   name: Emily Chen
                   email: echen@example.com
@@ -1443,6 +1460,7 @@ paths:
                   brandName: lululemon
                   campaignName: 2026 Christmas Promotion
                   promotionType: discount
+                  fulfillmentMode: inventory
                   purchaseType: GIFT
                   cardValue:
                     amount: '2500'
@@ -1819,7 +1837,7 @@ components:
           type: string
           minLength: 1
           maxLength: 40
-          description: '展示标题。`system: true` 时由系统按界面语言给出、商户改不了；商户自撰项即商户所填标题（上限见 `InfoFieldKey`）。'
+          description: '展示标题。`system: true` 时由系统按请求的 `Accept-Language` 取最接近的语言给出（如 `fr-CA` → `fr`，都不中按英文）、商户改不了；商户自撰项即商户所填标题（上限见 `InfoFieldKey`）。'
         system:
           type: boolean
           description: '`true` = 系统给出的项（文案不可改，后台据其 `key` 取值）；`false` = 商户自撰项。'
@@ -2048,7 +2066,7 @@ components:
       properties:
         itemId:
           $ref: '#/components/schemas/SalesItemId'
-          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
+          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。带回 `itemId` 改这一项时整项给出，没带的可选字段按未设处理（如没带 `quantityLimit` = 不限）。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
         cardValue:
           $ref: '#/components/schemas/PositiveMoney'
         price:
@@ -2230,7 +2248,7 @@ components:
       properties:
         itemId:
           $ref: '#/components/schemas/SalesItemId'
-          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
+          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。带回 `itemId` 改这一项时整项给出，没带的可选字段按未设处理（如没带 `description` = 无描述、没带 `quantityLimit` = 不限）；商品图例外：不带 `imageFileId` = 不换图，`null` = 移除。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
         name:
           type: string
           minLength: 1
@@ -2315,7 +2333,7 @@ components:
       properties:
         itemId:
           $ref: '#/components/schemas/SalesItemId'
-          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
+          description: 修改时它决定改还是新增：把详情里读到的 `itemId` 原样带回 = 改这一项，不带 = 新增一项；这次没带回的既有项视为下架，之后不再出现在详情与收款页里。带回 `itemId` 改这一项时整项给出，没带的可选字段按未设处理（如没带 `quantityLimit` = 不限、没带 `saleWindow` = 不设窗口）。下架不是删除：已卖出的份数、在途订单仍算在它头上，退款也照常回补到它。创建时不带；带了不属于本链接的值 → `409`·`208032`。
         name:
           type: string
           minLength: 1
@@ -2928,6 +2946,7 @@ components:
         - brandName
         - campaignName
         - promotionType
+        - fulfillmentMode
         - purchaseType
         - cardValue
         - issuanceStatus
@@ -2940,6 +2959,10 @@ components:
           type: string
         promotionType:
           $ref: '#/components/schemas/GiftcardPromotionType'
+        fulfillmentMode:
+          description: 所属活动的履约模式。
+          allOf:
+            - $ref: '#/components/schemas/GiftcardFulfillmentMode'
         purchaseType:
           type: string
           enum:
@@ -3019,12 +3042,17 @@ components:
         - $ref: '#/components/schemas/ProductLinkOrderRow'
         - type: object
           required:
+            - linkType
             - refundable
             - buyerInputs
             - lines
             - vouchers
             - log
           properties:
+            linkType:
+              description: 所属链接的类型。
+              allOf:
+                - $ref: '#/components/schemas/ProductLinkType'
             paymentMethodFamily:
               description: 支付方式（品牌）；已付才有。
               allOf:
@@ -3579,6 +3607,18 @@ components:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
   parameters:
+    AcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      description: |
+        页面当前的语言（BCP-47 语言标记，可带权重列表，如 `zh-CN,zh;q=0.9,en;q=0.8`）。服务端在本接口支持的语言里取最接近的一种（如 `fr-CA` → `fr`）；按它渲染什么、取不中时退到哪种语言，见所在面的说明。
+
+        响应带 `Content-Language` 的接口，实际用的语言以该头为准。
+      schema:
+        type: string
+        minLength: 2
+        maxLength: 256
     CsrfToken:
       name: X-CSRF-Token
       in: header

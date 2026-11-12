@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.5.3
+  version: 2.6.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -61,8 +61,12 @@ paths:
         - `306010` 密码对了但来源 IP 不在本人登录 IP 白名单：明确提示当前网络不允许登录，回第一步；不进动态码步。
         - `966001` 账号因连续登录失败被锁，等冷却。
 
+        界面语言：建会话时这个账号还没有 `locale`，就把本次请求 `Accept-Language` 对应的语言记为它的 `locale`；已有的不动。企业微信扫码登录同此规则。
+
         不挂幂等键（认证类）。各情形的页面处理见 flows。
       security: []
+      parameters:
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       requestBody:
         required: true
         content:
@@ -160,8 +164,12 @@ paths:
 
         这次扫码登录记在本浏览器的会话里：本浏览器还没有会话 cookie 时，服务端先建一个未登录会话并 set-cookie，前端不读不写。`state` 只对本浏览器有效、只能用一次；到 `expiresAt` 还没扫完的，重新调本接口换参数并重建组件。
 
+        界面语言：扫码登录建会话时这个账号还没有 `locale` 的，按本次请求 `Accept-Language` 对应的语言记下；已有的不动。
+
         不挂幂等键（认证类），重试即换新参数。
       security: []
+      parameters:
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       responses:
         '200':
           description: 官方扫码组件的参数
@@ -252,6 +260,7 @@ paths:
                 userId: usr_a91
                 loginId: alice@example.com
                 displayName: Alice Ops
+                locale: zh
                 privileges:
                   - opacc:user:view
                   - opacc:user:manage
@@ -286,8 +295,12 @@ paths:
         - 是合法邮箱格式的按邮箱账号：账号存在、未停用、且有管理后台的角色则往该邮箱发 6 位验证码。
         - 否则按用户名账号：用验证器里的 6 位码，不发邮件。账号已停用、没有管理后台的角色或未启用动态码的，确认永远不会成功。
 
-        恒返 `202`，账号存在与否、是否停用、有无管理后台的角色，响应都一致。重发 = 冷却结束后再调本接口，得到新 `challengeId`，旧码作废。`429` 为端点 / IP 级限流。
+        恒返 `202`，账号存在与否、是否停用、有无管理后台的角色，响应都一致。重发 = 冷却结束后再调本接口，得到新 `challengeId`，旧码作废。`429`·`906004` 为端点 / IP 级限流。
+
+        验证码邮件按该账号的界面语言发；账号还没有语言偏好时，用本次请求 `Accept-Language` 对应的语言。
       security: []
+      parameters:
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       requestBody:
         required: true
         content:
@@ -379,12 +392,16 @@ paths:
 
         邀请链接形如 `/invite/set-password#token=…&email=…`：页面从地址的 fragment 取令牌和被邀请的邮箱，邮箱只供页面展示，提交以令牌为准。令牌只在设密成功时消费，之前失败的可用同一令牌重试。
 
+        本次请求 `Accept-Language` 对应的语言记为该账号的 `locale`（已设过语言的不改）。
+
         **什么时候拒绝**：
 
         - `306005` 令牌无效或已过期（含被重发作废），请管理员重发邀请。
         - `306006` 令牌已用过、账号已激活，去登录页登录；本次提交的新密码未生效。
         - 新密码不满足密码规则 → `400`。
       security: []
+      parameters:
+        - $ref: '#/components/parameters/PreLoginAcceptLanguage'
       requestBody:
         required: true
         content:
@@ -495,7 +512,7 @@ paths:
         - me
       operationId: updateMyProfile
       x-required-privilege: session
-      summary: 改本人资料（显示名、姓名、电话、职务）
+      summary: 改本人资料（显示名、姓名、电话、职务、界面语言）
       description: |
         只提交要改的，直接生效。只认资料字段：请求体里的其他字段（角色、数据范围、账号状态、登录邮箱等）一律忽略，不生效、不报错。
 
@@ -780,6 +797,32 @@ components:
 
         - 写接口（非安全方法，含 `PATCH`）另需 CSRF 防护：读可读伴生 cookie `__Host-acsrf`、原样放进 `X-CSRF-Token`（详见管理后台约定）；
         - 受信浏览器凭据在另一个 HttpOnly cookie 里，由服务端读写，前端不读、不写、不转发。
+  parameters:
+    PreLoginAcceptLanguage:
+      name: Accept-Language
+      in: header
+      required: false
+      schema:
+        type: string
+      description: 页面当前的语言（BCP-47，如 `zh-Hans` / `fr-CA`），服务端归到 `en` / `fr` / `zh` 之一，认不出按 `en`。
+    CsrfToken:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
+      schema:
+        type: string
+        minLength: 1
+        pattern: .*\S.*
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
+      schema:
+        type: string
+        minLength: 1
+        pattern: .*\S.*
   schemas:
     NewPassword:
       type: string
@@ -922,6 +965,7 @@ components:
         - userId
         - loginId
         - displayName
+        - locale
         - privileges
       properties:
         userId:
@@ -935,6 +979,11 @@ components:
           type: string
           minLength: 1
           readOnly: true
+        locale:
+          allOf:
+            - $ref: '#/components/schemas/Language'
+          readOnly: true
+          description: 账号的界面语言偏好：登录后页面按它显示，发给这个人本人的邮件（验证码、改密码等）也用它。必返（建会话时没有就已经补上），改走 `updateMyProfile`。
         privileges:
           type: array
           readOnly: true
@@ -1041,6 +1090,10 @@ components:
             - 'null'
           minLength: 1
           maxLength: 64
+        locale:
+          allOf:
+            - $ref: '#/components/schemas/Language'
+          description: 账号的界面语言偏好：登录后页面按它显示，发给这个人本人的邮件也用它。改后 `getCurrentSession` 即返回新值。
     LoginIpAllowlistWrite:
       type: object
       additionalProperties: false
@@ -1279,6 +1332,13 @@ components:
       minLength: 1
       maxLength: 32
       description: 平台用户标识；商户操作员的标识就是它。
+    Language:
+      type: string
+      enum:
+        - en
+        - fr
+        - zh
+      description: 平台支持的语言。
     ChallengeId:
       type: string
       minLength: 1
@@ -1331,22 +1391,3 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorEnvelope'
-  parameters:
-    CsrfToken:
-      name: X-CSRF-Token
-      in: header
-      required: true
-      description: CSRF 令牌(double-submit;cookie 会话鉴权的非安全方法[POST/PUT/PATCH/DELETE]必带;缺失/不匹配 → 403 fail-closed)。**取值 = 本 BFF 可读伴生 CSRF cookie 的当前值**(cookie 名 per-BFF、见该面 cookieAuth 说明;建会话时随会话 cookie 一起下发、同生命周期),每次请求现读、不要缓存。
-      schema:
-        type: string
-        minLength: 1
-        pattern: .*\S.*
-    IdempotencyKey:
-      name: Idempotency-Key
-      in: header
-      required: true
-      description: 幂等键(写接口;两段命中语义——同键同 payload → 返首次结果 / 同键异 payload → 拒 409·908003;同键首次请求还在处理 → 409·908002。缺键 → 400·904002)
-      schema:
-        type: string
-        minLength: 1
-        pattern: .*\S.*
