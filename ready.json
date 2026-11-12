@@ -1,8 +1,22 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-12T05:48:36Z",
-  "implCommit": "ee682a10",
+  "generatedAt": "2026-11-12T06:05:55Z",
+  "implCommit": "fb39c015",
   "ops": {
+    "admin/auth/acceptInvitation": "facf605c4b1554ca",
+    "admin/auth/changeMyPassword": "fd06b4973df6a858",
+    "admin/auth/completeMfaChallenge": "62d2c5d9c3e96b2d",
+    "admin/auth/confirmLoginEmailChange": "43737ebb60d8ed93",
+    "admin/auth/confirmMfa": "faae69ad02d48d13",
+    "admin/auth/confirmPasswordReset": "afdabb7ee3806d94",
+    "admin/auth/enrollMfa": "8983f2f0d9454e2d",
+    "admin/auth/getCurrentSession": "d90088fe0c857f41",
+    "admin/auth/getMyProfile": "dd7cfb65ee8a321f",
+    "admin/auth/login": "293c34d7237fdc6a",
+    "admin/auth/logout": "fa5beaf80a8fb1bf",
+    "admin/auth/requestPasswordReset": "9ebc66a5832666e8",
+    "admin/auth/updateMyLoginIpAllowlist": "2d8ffbd9dbefe35b",
+    "admin/auth/updateMyProfile": "85a2f2fb5d2cfaba",
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
     "checkout/checkout/getCheckoutOrder": "4ab1df466903e462",
@@ -157,6 +171,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "82a24e06ebda7b0baee360dc39a50d16e79fcaab",
-  "prdStage": "stage/261111-open-api-v1-base"
+  "prdSha": "c503c12712fd15ff2e26bc8cf12bb8ef55c99982",
+  "prdStage": "stage/261111-admin-01"
 }
