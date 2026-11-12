@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 后台账号与角色权限 — 前端契约面
-  version: 2.4.0
+  version: 2.5.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -272,7 +272,7 @@ paths:
                 lastLoginAt: '2026-10-15T09:12:00Z'
                 createdAt: '2026-03-02T10:00:00Z'
                 mfaEnrolled: true
-                wechat:
+                wecom:
                   nickname: Bob
                 loginIpAllowlist:
                   - 203.0.113.0/24
@@ -1591,10 +1591,10 @@ components:
               type: boolean
               readOnly: true
               description: 验证器是否已绑定。
-            wechat:
+            wecom:
               $ref: '#/components/schemas/WechatBindingSummary'
               readOnly: true
-              description: 已绑定的企业微信；未绑定不返回本键。
+              description: 已绑定的企业微信；`nickname` 为该企业微信成员姓名（取不到时为成员账号）。未绑定不返回本键。
             loginIpAllowlist:
               $ref: '#/components/schemas/LoginIpAllowlist'
               description: 登录 IP 白名单；空数组 = 不限。

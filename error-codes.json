@@ -474,6 +474,11 @@
       "name": "ADMIN_LOGIN_IP_NOT_ALLOWED",
       "retryable": false
     },
+    "306011": {
+      "httpStatus": 400,
+      "name": "ADMIN_WECOM_LOGIN_UNAVAILABLE",
+      "retryable": false
+    },
     "308001": {
       "httpStatus": 403,
       "name": "STAFF_SELF_OPERATION_FORBIDDEN",
@@ -507,6 +512,11 @@
     "308007": {
       "httpStatus": 409,
       "name": "STAFF_IDENTITY_NOT_ACTIVE",
+      "retryable": false
+    },
+    "308008": {
+      "httpStatus": 409,
+      "name": "WECOM_ACCOUNT_BOUND_TO_OTHER",
       "retryable": false
     },
     "308103": {
@@ -1097,6 +1107,11 @@
       "name": "LOGIN_IP_NOT_ALLOWED",
       "retryable": false
     },
+    "966015": {
+      "httpStatus": 403,
+      "name": "WECOM_LOGIN_UNAVAILABLE",
+      "retryable": false
+    },
     "968001": {
       "httpStatus": 409,
       "name": "LOGIN_ID_TAKEN",
@@ -1150,6 +1165,11 @@
     "968019": {
       "httpStatus": 409,
       "name": "LOGIN_NAME_HELD_BY_UNAVAILABLE_IDENTITY",
+      "retryable": false
+    },
+    "968020": {
+      "httpStatus": 409,
+      "name": "WECOM_ACCOUNT_OCCUPIED",
       "retryable": false
     }
   }

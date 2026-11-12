@@ -16,7 +16,7 @@
 
 - 会话 cookie 是 `__Host-asession`，可读的 CSRF 伴生 cookie 是 `__Host-acsrf`；用法同基础约定「鉴权与 CSRF」（非安全方法从伴生 cookie 现读、原样放进 `X-CSRF-Token`）。与商户后台的 cookie 互不相干，同一浏览器可同时登录两边。
 - 登录一律要过动态码步（`login` → `completeMfaChallenge`），首次登录或验证器被重置后在登录内绑定验证器；企业微信扫码确认后同样进动态码步。没有记住登录（Keep me signed in）选项。
-- **受信浏览器**：动态码步勾「信任本浏览器」后，服务端把受信凭据写进另一个 HttpOnly cookie；有效期内在本浏览器登录，`login` / `pollWechatLogin` 直接返回 `ESTABLISHED`。前端不读、不写、不转发这个 cookie，也不必判断它是否还有效——失效时接口照常返回动态码步。有效期由平台设定，页面不显示具体天数；本人改密、被重置密码、被重置验证器时失效；登出不影响它。
+- **受信浏览器**：动态码步勾「信任本浏览器」后，服务端把受信凭据写进另一个 HttpOnly cookie；有效期内在本浏览器登录，`login` / `completeWecomLogin` 直接返回 `ESTABLISHED`。前端不读、不写、不转发这个 cookie，也不必判断它是否还有效——失效时接口照常返回动态码步。有效期由平台设定，页面不显示具体天数；本人改密、被重置密码、被重置验证器时失效；登出不影响它。
 
 ## 启动链路
 

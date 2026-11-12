@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.3.0
+  version: 2.4.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -36,7 +36,7 @@ tags:
   - name: security
     x-displayName: 账户安全
     description: 改密与重绑验证器。管理后台账号必须启用验证器，没有关闭入口。
-  - name: wechat
+  - name: wecom
     x-displayName: 企业微信绑定
     description: 本人企业微信的绑定与解绑；绑定后可扫码登录。
 paths:
@@ -110,7 +110,7 @@ paths:
       operationId: completeMfaChallenge
       summary: 动态码步（含首次绑定验证器；通过即建会话）
       description: |
-        提交 `login` 或 `pollWechatLogin` 给出的 `mfaChallenge` 与验证器上的 6 位码，通过即建会话，`status` 恒为 `ESTABLISHED`。挑战是首次绑定时，码对即完成绑定。
+        提交 `login` 或 `completeWecomLogin` 给出的 `mfaChallenge` 与验证器上的 6 位码，通过即建会话，`status` 恒为 `ESTABLISHED`。挑战是首次绑定时，码对即完成绑定。
 
         勾选 `trustBrowser` 时本浏览器同时成为受信浏览器：有效期内在本浏览器登录免动态码，其余校验照常。本人改密、被重置密码、被重置验证器时，该账号的受信浏览器全部失效。
 
@@ -147,78 +147,89 @@ paths:
         - 306001
         - 306002
         - 966001
-  /auth/sessions/wechat:
+  /auth/sessions/wecom:
     post:
       tags:
         - sessions
-      operationId: initiateWechatLogin
-      summary: 企业微信扫码登录 — 发起（返回二维码内容与轮询票据）
-      description: 发起企业微信扫码登录，返回二维码内容与轮询票据。只认已绑定企业微信的后台用户。
+      operationId: initiateWecomLogin
+      summary: 企业微信扫码登录 — 发起（返回官方扫码组件的参数）
+      description: |
+        发起企业微信扫码登录，返回渲染企业微信官方扫码登录组件要的参数。前端用 `@wecom/jssdk` 的 `ww.createWWLoginPanel`（`login_type = CorpApp`）以 `appId` / `agentId` / `redirectUri` / `state` 内嵌二维码；二维码的刷新与过期重取由官方组件自己处理，登录页不另做「重新扫码」。
+
+        用户在企业微信 App 里扫码并确认后，浏览器被带到 `redirectUri`（登录回跳落地页），地址上带 `code` 与 `state`，落地页把二者提交到 `completeWecomLogin`。
+
+        这次扫码登录记在本浏览器的会话里：本浏览器还没有会话 cookie 时，服务端先建一个未登录会话并 set-cookie，前端不读不写。`state` 只对本浏览器有效、只能用一次；到 `expiresAt` 还没扫完的，重新调本接口换参数并重建组件。
+
+        不挂幂等键（认证类），重试即换新参数。
       security: []
       responses:
         '200':
-          description: 二维码票据（用 `qrTicket` 轮询 `pollWechatLogin`）
+          description: 官方扫码组件的参数
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WechatQrChallenge'
+                $ref: '#/components/schemas/WecomLoginPanel'
               example:
-                qrTicket: wxq_3f8a1c0d92b47e5f1a
-                qrContent: https://wechat.example.com/identity/wechat/v1/wechat/challenges/8f3Kd0pQzR2vLxA7nB1cYw
-                expiresAt: '2026-10-16T14:10:00Z'
+                appId: ww1a2b3c4d5e6f7a8b
+                agentId: '1000002'
+                redirectUri: https://admin.example.com/auth/wecom-callback
+                state: Qm7vLx2Pa9cR4nYwT8sK
+                expiresAt: '2026-11-11T06:12:00Z'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
-  /auth/sessions/wechat/{qrTicket}:
-    get:
+  /auth/sessions/wecom/completion:
+    post:
       tags:
         - sessions
-      operationId: pollWechatLogin
-      summary: 企业微信扫码登录 — 轮询（确认后进动态码步）
+      operationId: completeWecomLogin
+      summary: 企业微信扫码登录 — 回跳后提交（转动态码步，受信浏览器直接建会话）
       description: |
-        轮询扫码登录结果，恒返回 `200`。扫码后先检查能否登录，不通过的在企业微信里直接告知扫码人原因、不出确认按钮；确认后再过动态码步（受信浏览器免动态码）：
+        登录回跳落地页把地址上的 `code` 与 `state` 原样提交。服务端核过本浏览器发起的这次扫码，找到企业微信绑定的后台账号，再核访问资格与本人登录 IP 白名单，结果按 `status` 分，形状与处理同 `login`：
 
-        - `WAITING`：二维码还没被扫，继续轮询。扫码人那边临时出错、提示稍后再试时也回到它，同一张二维码可以直接重扫。
-        - `SCANNED`：已扫码、等用户在手机上确认，继续轮询；页面显示「扫码成功，请在手机上确认」。扫码后检查未通过也表现为它，不返回原因，直到二维码过期。页面同时给「重新扫码」：停止轮询这张票据、重新调 `initiateWechatLogin` 换码；旧票据不用取消、任其过期，之后在企业微信里确认也不会登录。
-        - `EXPIRED`：终态，重新发起。含二维码过期、票据非法、扫码人在企业微信里取消。
-        - `REJECTED`：终态，登录失败（确认后访问资格已失效）；提示与密码登录失败相同的文案，重新发起。
-        - `MFA_REQUIRED` / `MFA_ENROLLMENT_REQUIRED`：确认成功，去动态码步，形状与处理同 `login` 的同名状态；动态码步完成前再轮询，返回同一个 `mfaChallenge`。
-        - `ESTABLISHED`：本浏览器受信，免动态码，已 set-cookie。
+        - `MFA_REQUIRED` / `MFA_ENROLLMENT_REQUIRED`：去动态码步，提交到 `completeMfaChallenge`。
+        - `ESTABLISHED`：本浏览器在受信有效期内，免动态码，已 set-cookie 建会话。
 
-        未知值按 `WAITING` 处理。
+        **什么时候拒绝**：
+
+        - `306011` 无法使用该企业微信账号登录：未绑定后台账号、账号停用或被锁定、没有管理后台身份，一律此码、不区分。回登录页，可重新扫码或改用密码登录。
+        - `306010` 来源 IP 不在本人登录 IP 白名单：明确提示当前网络不允许登录，回登录页；不进动态码步。
+        - `306002` 这次扫码已用过、已过期，或不是本浏览器发起的：回登录页重新扫码。
+
+        不挂幂等键（认证类）：`state` 只能用一次，重复提交回 `306002`。
       security: []
-      parameters:
-        - name: qrTicket
-          in: path
-          required: true
-          description: '`initiateWechatLogin` 返回的票据。'
-          schema:
-            type: string
-            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WecomCallbackSubmission'
+            example:
+              code: CODE_FROM_WECOM_7f3c9a
+              state: Qm7vLx2Pa9cR4nYwT8sK
       responses:
         '200':
-          description: 轮询结果
+          description: '`ESTABLISHED` 已 set-cookie；另两种状态待动态码步、未建会话'
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WechatLoginPollResult'
+                $ref: '#/components/schemas/LoginResult'
               examples:
-                waiting:
-                  summary: 等待扫码
-                  value:
-                    status: WAITING
-                scanned:
-                  summary: 已扫码，等手机上确认
-                  value:
-                    status: SCANNED
                 mfaRequired:
-                  summary: 已确认，去动态码步
+                  summary: 去动态码步
                   value:
                     status: MFA_REQUIRED
                     mfaChallenge: chl_77a0e3b9c1
+                trusted:
+                  summary: 受信浏览器，已建会话
+                  value:
+                    status: ESTABLISHED
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
-      x-error-codes: []
+      x-error-codes:
+        - 306002
+        - 306010
+        - 306011
   /auth/sessions/current:
     get:
       tags:
@@ -471,7 +482,7 @@ paths:
                 roleNames:
                   - 运营
                 mfaEnrolled: true
-                wechat:
+                wecom:
                   nickname: Alice
                 loginIpAllowlist:
                   - 203.0.113.0/24
@@ -670,40 +681,44 @@ paths:
       x-error-codes:
         - 306002
         - 306004
-  /me/wechat:
+  /me/wecom:
     post:
       tags:
-        - wechat
-      operationId: initiateMyWechatBinding
+        - wecom
+      operationId: initiateMyWecomBinding
       x-required-privilege: session
-      summary: 绑定企业微信 — 发起（返回二维码）
+      summary: 绑定企业微信 — 发起（返回官方扫码组件的参数）
       description: |
-        为当前登录的本人发起企业微信绑定，返回二维码内容与轮询票据；用企业微信扫码并确认后即绑定到本人，此后可扫码登录。绑定对象只能是本人。
+        为当前登录的本人发起企业微信绑定，返回渲染企业微信官方扫码登录组件的参数，用法同 `initiateWecomLogin`；`redirectUri` 是个人设置里的绑定回跳落地页。用户在企业微信 App 里扫码并确认后回到落地页，落地页把地址上的 `code` 与 `state` 提交到 `completeMyWecomBinding`。绑定对象只能是当前会话的本人，`state` 只对本次会话有效、只能用一次；到 `expiresAt` 还没扫完的，重新调本接口。
 
         **什么时候拒绝**：
 
         - `968003` 本人已绑定企业微信，先解绑再绑定。
+
+        不挂幂等键，重试即换新参数。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       responses:
         '200':
-          description: 二维码票据（用 `qrTicket` 轮询 `pollMyWechatBinding`）
+          description: 官方扫码组件的参数
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WechatQrChallenge'
+                $ref: '#/components/schemas/WecomLoginPanel'
               example:
-                qrTicket: wxb_6c1e0a9d72f4
-                qrContent: https://wechat.example.com/identity/wechat/v1/wechat/challenges/Zq8Lw3nR0pXa1cVb7yTe
-                expiresAt: '2026-10-16T14:10:00Z'
+                appId: ww1a2b3c4d5e6f7a8b
+                agentId: '1000002'
+                redirectUri: https://admin.example.com/me/wecom-callback
+                state: Hb6Wc2Lr9Xk4Mz7Ds1Fq
+                expiresAt: '2026-11-11T06:12:00Z'
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 968003
     delete:
       tags:
-        - wechat
-      operationId: deleteMyWechatBinding
+        - wecom
+      operationId: deleteMyWecomBinding
       x-required-privilege: session
       summary: 解绑企业微信
       description: 解除本人的企业微信绑定，此后不能扫码登录；已有会话不受影响。本无绑定同样返回 `204`。天然幂等，不挂幂等键。
@@ -715,34 +730,43 @@ paths:
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
-  /me/wechat/{qrTicket}:
-    get:
+  /me/wecom/completion:
+    post:
       tags:
-        - wechat
-      operationId: pollMyWechatBinding
+        - wecom
+      operationId: completeMyWecomBinding
       x-required-privilege: session
-      summary: 绑定企业微信 — 轮询结果
-      description: 轮询绑定结果，恒返回 `200`：`WAITING` 继续轮询，`BOUND` 已绑定（重读 `getMyProfile` 刷新），`EXPIRED` 重新发起。该企业微信已绑定其他账号时，原因只在扫码人的企业微信里说明，本接口一直 `WAITING` 到过期。
+      summary: 绑定企业微信 — 回跳后提交
+      description: |
+        绑定回跳落地页把地址上的 `code` 与 `state` 原样提交，绑定到当前会话的本人，返回 `204`；之后重读 `getMyProfile` 刷新绑定状态。
+
+        **什么时候拒绝**：
+
+        - `308008` 扫码的企业微信已绑定其他账号：本人与对方的绑定都不变，换一个企业微信或请对方先解绑。
+        - `968003` 本人此时已绑定企业微信（如另一窗口刚绑过）：先解绑再绑定。
+        - `306002` 这次扫码已用过、已过期，或不是本次会话发起的：重新发起绑定。
+
+        不挂幂等键：`state` 只能用一次，重复提交回 `306002`。
       parameters:
-        - name: qrTicket
-          in: path
-          required: true
-          description: '`initiateMyWechatBinding` 返回的票据。'
-          schema:
-            type: string
-            minLength: 1
+        - $ref: '#/components/parameters/CsrfToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WecomCallbackSubmission'
+            example:
+              code: CODE_FROM_WECOM_9a1e5d
+              state: Hb6Wc2Lr9Xk4Mz7Ds1Fq
       responses:
-        '200':
-          description: 轮询结果
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WechatBindingPollResult'
-              example:
-                status: BOUND
+        '204':
+          description: 已绑定
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
-      x-error-codes: []
+      x-error-codes:
+        - 306002
+        - 308008
+        - 968003
 components:
   securitySchemes:
     cookieAuth:
@@ -787,7 +811,7 @@ components:
         mfaChallenge:
           type: string
           minLength: 1
-          description: '`login` 或 `pollWechatLogin` 给出的挑战句柄。'
+          description: '`login` 或 `completeWecomLogin` 给出的挑战句柄。'
         code:
           $ref: '#/components/schemas/OtpCode'
         trustBrowser:
@@ -824,34 +848,58 @@ components:
           $ref: '#/components/schemas/MfaEnrollment'
           readOnly: true
           description: 仅 `MFA_ENROLLMENT_REQUIRED` 时返回：待绑定的验证器密钥，据 `otpauthUri` 渲染二维码，或让用户手输 `secret`。
-    WechatLoginPollResult:
+    WecomLoginPanel:
       type: object
       additionalProperties: false
-      description: 企业微信扫码登录的轮询结果；各状态含义见 `pollWechatLogin`。
+      description: 渲染企业微信官方扫码登录组件（`ww.createWWLoginPanel`，`login_type = CorpApp`）要的参数，原样传给组件。
       required:
-        - status
+        - appId
+        - agentId
+        - redirectUri
+        - state
+        - expiresAt
       properties:
-        status:
-          type: string
-          enum:
-            - WAITING
-            - SCANNED
-            - EXPIRED
-            - REJECTED
-            - MFA_REQUIRED
-            - MFA_ENROLLMENT_REQUIRED
-            - ESTABLISHED
-          readOnly: true
-          description: 未列出的取值按 `WAITING` 处理，继续轮询。
-        mfaChallenge:
+        appId:
           type: string
           minLength: 1
+          maxLength: 64
           readOnly: true
-          description: 仅 `MFA_REQUIRED` / `MFA_ENROLLMENT_REQUIRED` 时返回，提交到 `completeMfaChallenge`。
-        mfaEnrollment:
-          $ref: '#/components/schemas/MfaEnrollment'
+          description: 组件参数 `appid`（企业 ID）。
+        agentId:
+          type: string
+          minLength: 1
+          maxLength: 32
           readOnly: true
-          description: 仅 `MFA_ENROLLMENT_REQUIRED` 时返回：待绑定的验证器密钥。
+          description: 组件参数 `agentid`（应用 ID）。
+        redirectUri:
+          $ref: '#/components/schemas/WebUrl'
+          readOnly: true
+          description: 组件参数 `redirect_uri`：扫码确认后浏览器被带回的落地页地址。
+        state:
+          $ref: '#/components/schemas/WecomState'
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+          readOnly: true
+          description: 这组参数的失效时刻；到时还没扫完的，重新发起。
+    WecomState:
+      type: string
+      pattern: ^[A-Za-z0-9]{16,128}$
+      description: 组件参数 `state`：一次性回跳凭据，企业微信回跳时原样带回地址上。
+    WecomCallbackSubmission:
+      type: object
+      additionalProperties: false
+      description: 回跳落地页地址上的 `code` 与 `state`，原样提交。
+      required:
+        - code
+        - state
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 企业微信回跳带回的一次性授权码。
+        state:
+          $ref: '#/components/schemas/WecomState'
     PasswordResetChallenge:
       type: object
       additionalProperties: false
@@ -952,10 +1000,10 @@ components:
           type: boolean
           readOnly: true
           description: 验证器是否已绑定。重绑第 1 步之后、第 2 步之前为 `false`。
-        wechat:
+        wecom:
           $ref: '#/components/schemas/WechatBindingSummary'
           readOnly: true
-          description: 已绑定的企业微信；未绑定不返回本键。
+          description: 已绑定的企业微信；`nickname` 为该企业微信成员姓名（取不到时为成员账号）。未绑定不返回本键。
         loginIpAllowlist:
           $ref: '#/components/schemas/LoginIpAllowlist'
           readOnly: true
@@ -1213,10 +1261,10 @@ components:
         **邮箱验证码与 authenticator 动态码同形状**,故接受二者之一的字段共用本类型;具体某个端点收哪一种,看该端点自己的说明。
 
         本形状只约束**码本身**;有效期、重发冷却、错误尝试上限是各端点自己的业务参数(取值随部署),由对应端点的响应与错误上下文告知,不在这里表达。
-    WechatQrContent:
+    WebUrl:
       type: string
-      description: |
-        微信二维码的**待编码内容**（短时、不透明串）——前端据此**自行渲染二维码图片**。 **不是图片 URL**，不要当 `<img src>` 用；内容对前端不透明，不要解析、拼接或复用。 各扫码入口（扫码登录与各类扫码绑定）共用同一形状与渲染方式。
+      pattern: ^https?://\S+$
+      description: http 或 https 绝对地址。平台产出的文件 / 图片 / 付款链接地址与渠道给出的跳转地址共用。
     Timestamp:
       type: string
       format: date-time
@@ -1230,27 +1278,6 @@ components:
         展示由消费方按本地时区换算(浏览器端即浏览器时区)。
 
         需要「哪一天」的地方有单独的日期字段(`YYYY-MM-DD`),别拿本类型截出日期来用。
-    WechatQrChallenge:
-      type: object
-      additionalProperties: false
-      description: |
-        微信扫码类入口「发起」的统一响应：客户端用 `qrContent` 渲染二维码，再拿 `qrTicket` 轮询该入口的结果端点。
-
-        各入口的轮询状态用同一套词，见 `WechatPollStatus`。
-      required:
-        - qrTicket
-        - qrContent
-        - expiresAt
-      properties:
-        qrTicket:
-          type: string
-          description: 本次扫码的短时票据，只用于轮询结果，可重复轮询；过期后重新发起得到新票据。与 `qrContent` 不可互推
-        qrContent:
-          $ref: '#/components/schemas/WechatQrContent'
-        expiresAt:
-          $ref: '#/components/schemas/Timestamp'
-          description: |
-            二维码有效期截止。**到期只表示这张二维码不能再扫**，**不必然**表示本次交互已有定论—— 到期后结果是否还可能变化，**各入口不同、由各入口的轮询状态说明，不由本字段推断**。
     UserId:
       type: string
       minLength: 1
@@ -1299,30 +1326,6 @@ components:
         code:
           $ref: '#/components/schemas/OtpCode'
           description: 6 位验证码；收哪一种码（邮箱码、验证器码）见各接口。
-    WechatPollStatus:
-      type: string
-      description: |
-        微信扫码轮询（扫码登录与各类扫码绑定）共用的状态词：`WAITING` 继续轮询、`EXPIRED` 终态需重新发起、各入口一个成功态（登录 `ESTABLISHED` / 绑定 `BOUND`）。各入口实际取值见各自 `enum`。
-
-        未列出的取值按仍在进行中处理，继续轮询。
-
-        状态查询恒返回 `200` + 状态：票据不存在 / 非法 / 已过期一律归为 `EXPIRED`，不用 `4xx` 表达；
-        `4xx` 只表示调用方自身问题（未登录 / 无权限 / 请求过频 / 会话上下文已变 / 本浏览器已登录（登录轮询））。
-    WechatBindingPollResult:
-      type: object
-      description: 微信扫码绑定类入口轮询的统一响应。
-      required:
-        - status
-      properties:
-        status:
-          allOf:
-            - $ref: '#/components/schemas/WechatPollStatus'
-          enum:
-            - WAITING
-            - BOUND
-            - EXPIRED
-          readOnly: true
-          description: '`WAITING` = 继续轮询；`BOUND` = 用户已在微信内确认、绑定已生效（绑定生效后在哪里呈现见各入口）；`EXPIRED` 是终态，需重新发起（含二维码过期、票据非法）。未知值按 `WAITING` 继续轮询。'
   responses:
     AdminBffDefaultError:
       description: 失败。原因看响应体的 `code`，本接口会返回的业务码见接口说明；怎么读见管理后台约定与 API 基础约定「错误响应体」。
