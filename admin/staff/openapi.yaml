@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 后台账号与角色权限 — 前端契约面
-  version: 2.5.0
+  version: 2.6.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1649,22 +1649,18 @@ components:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: 编辑账号，只传要改的；能清空的字段传 `null` 即清空。
+      description: 编辑账号，只传要改的；电话与职务传 `null` 即清空。
       properties:
         displayName:
           type: string
           minLength: 1
           maxLength: 128
         firstName:
-          type:
-            - string
-            - 'null'
+          type: string
           minLength: 1
           maxLength: 128
         lastName:
-          type:
-            - string
-            - 'null'
+          type: string
           minLength: 1
           maxLength: 128
         phone:
@@ -2248,16 +2244,18 @@ components:
       description: 电话号码，**国际格式整串**（`+` + 国家码 + 正文号，如 `+16045550123`）——**一个字段装完，没有独立的区号字段**。 上界 16 = `+` 加最多 15 位数字（国际号码总长上限）；**服务端只校验这一条通用规则 + 区号在白名单内**， **不按区号分别限长**。前端按所选区号收窄输入位数属输入体验、不是契约约束。 渲染「区号下拉 + 号码框」两个控件时，用前端参考数据里的区号表做**最长前缀匹配**拆分本串。
     LoginIpAllowlist:
       type: array
-      maxItems: 64
+      maxItems: 171
       description: |
-        登录 IP 白名单：每项是一个 IPv4 地址或 CIDR（如 `10.0.0.8`、`10.0.0.0/24`）；空数组 = 不限来源 IP。
+        登录 IP 白名单：每项是一个 IPv4 或 IPv6 地址，或带前缀长度的 CIDR（IPv4 /0–32，IPv6 /0–128；如 `10.0.0.8`、`10.0.0.0/24`、`2001:db8::/32`）；空数组 = 不限来源 IP。格式由服务端解析校验，不合法 → `400`，`details` 定位到该项。
 
-        各项以英文逗号连接后总长不超过 512 字符（超出 → `400`）。条数上限 64 = 512 字符按最短一项 `1.1.1.1` 加分隔逗号 8 字符推得。顺序即展示顺序；重复项保存时合并。
+        各项以英文逗号连接后总长不超过 512 字符（超出 → `400`）。条数上限 171 = 512 字符按最短一项 `::` 加分隔逗号 3 字符推得；单项长度上限 49 = IPv6 文本最长 45 字符（含内嵌 IPv4 的写法）加 `/128`。顺序即展示顺序；重复项保存时合并。
       items:
         type: string
-        pattern: ^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}(/(3[0-2]|[12]?[0-9]))?$
+        minLength: 2
+        maxLength: 49
         examples:
           - 10.0.0.0/24
+          - 2001:db8::/32
     WechatBindingSummary:
       type: object
       additionalProperties: false

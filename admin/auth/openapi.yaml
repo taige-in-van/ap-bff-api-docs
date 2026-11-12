@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 登录与个人设置 — 前端契约面
-  version: 2.4.0
+  version: 2.5.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -283,7 +283,7 @@ paths:
       description: |
         按 `loginId` 的形态选验证方式：
 
-        - 是合法邮箱格式的按邮箱账号：账号存在则往该邮箱发 6 位验证码。
+        - 是合法邮箱格式的按邮箱账号：账号存在、且有管理后台的角色则往该邮箱发 6 位验证码。
         - 否则按用户名账号：用验证器里的 6 位码，不发邮件。
 
         恒返 `202`，账号存在与否响应一致。重发 = 冷却结束后再调本接口，得到新 `challengeId`，旧码作废。`429` 为端点 / IP 级限流。
@@ -532,7 +532,7 @@ paths:
         **什么时候拒绝**：
 
         - `304003` 白名单非空却不含本次来源 IP；白名单不变。
-        - 某项不是 IPv4 地址或 CIDR、掩码越界、总长超限 → `400`，`details` 定位到该项；白名单不变。
+        - 某项不是 IPv4 / IPv6 地址或 CIDR、前缀长度越界、总长超限 → `400`，`details` 定位到该项；白名单不变。
 
         幂等基准：置值写，天然幂等，不挂 `Idempotency-Key`。
       parameters:
@@ -1017,22 +1017,18 @@ components:
     MyProfileUpdate:
       type: object
       minProperties: 1
-      description: 本人可改的资料，只传要改的；能清空的字段传 `null` 即清空。资料以外的字段忽略。
+      description: 本人可改的资料，只传要改的；电话与职务传 `null` 即清空。资料以外的字段忽略。
       properties:
         displayName:
           type: string
           minLength: 1
           maxLength: 128
         firstName:
-          type:
-            - string
-            - 'null'
+          type: string
           minLength: 1
           maxLength: 128
         lastName:
-          type:
-            - string
-            - 'null'
+          type: string
           minLength: 1
           maxLength: 128
         phone:
@@ -1306,16 +1302,18 @@ components:
           description: 绑定微信的昵称展示快照（拿不到昵称时为通用展示名，故恒非空；微信用户授权微信资料后会更新）。
     LoginIpAllowlist:
       type: array
-      maxItems: 64
+      maxItems: 171
       description: |
-        登录 IP 白名单：每项是一个 IPv4 地址或 CIDR（如 `10.0.0.8`、`10.0.0.0/24`）；空数组 = 不限来源 IP。
+        登录 IP 白名单：每项是一个 IPv4 或 IPv6 地址，或带前缀长度的 CIDR（IPv4 /0–32，IPv6 /0–128；如 `10.0.0.8`、`10.0.0.0/24`、`2001:db8::/32`）；空数组 = 不限来源 IP。格式由服务端解析校验，不合法 → `400`，`details` 定位到该项。
 
-        各项以英文逗号连接后总长不超过 512 字符（超出 → `400`）。条数上限 64 = 512 字符按最短一项 `1.1.1.1` 加分隔逗号 8 字符推得。顺序即展示顺序；重复项保存时合并。
+        各项以英文逗号连接后总长不超过 512 字符（超出 → `400`）。条数上限 171 = 512 字符按最短一项 `::` 加分隔逗号 3 字符推得；单项长度上限 49 = IPv6 文本最长 45 字符（含内嵌 IPv4 的写法）加 `/128`。顺序即展示顺序；重复项保存时合并。
       items:
         type: string
-        pattern: ^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}(/(3[0-2]|[12]?[0-9]))?$
+        minLength: 2
+        maxLength: 49
         examples:
           - 10.0.0.0/24
+          - 2001:db8::/32
     OtpCodeSubmission:
       type: object
       additionalProperties: false

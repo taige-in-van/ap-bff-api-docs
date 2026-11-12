@@ -146,6 +146,10 @@
       "name": "TERMINAL_DEVICE_TYPE_UNKNOWN",
       "retryable": false
     },
+    "206020": {
+      "name": "MERCHANT_LOGIN_IP_NOT_ALLOWED",
+      "retryable": false
+    },
     "208027": {
       "name": "LOGIN_ACCOUNT_DISABLED",
       "retryable": false

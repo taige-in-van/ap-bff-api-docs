@@ -235,6 +235,11 @@
       "name": "IMPERSONATION_HANDOFF_INVALID",
       "retryable": false
     },
+    "206020": {
+      "httpStatus": 400,
+      "name": "MERCHANT_LOGIN_IP_NOT_ALLOWED",
+      "retryable": false
+    },
     "208002": {
       "httpStatus": 409,
       "name": "PENDING_REQUEST_EXISTS",
