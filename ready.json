@@ -1,11 +1,11 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-12T18:25:14Z",
-  "implCommit": "194b2ba5",
+  "generatedAt": "2026-11-12T21:12:36Z",
+  "implCommit": "18d19d69",
   "ops": {
     "admin/applications/createApplicationFileAccessUrl": "6164c77b89a72acc",
     "admin/applications/decideApplication": "53f4008c64bb3c66",
-    "admin/applications/getApplication": "7b020eac84558b05",
+    "admin/applications/getApplication": "c96a6f235123023e",
     "admin/applications/listApplications": "494192fa065d420c",
     "admin/applications/listMerchantAppIdTodos": "d3a718431ea91c26",
     "admin/auth/acceptInvitation": "facf605c4b1554ca",
@@ -176,6 +176,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "22fc960b44b49b88a860f21a598d794ce9db4375",
-  "prdStage": "stage/261112-admin-05"
+  "prdSha": "34bbac596cc128319e12aad83a17690e12866f75",
+  "prdStage": "stage/261112-fee-commission-b"
 }
