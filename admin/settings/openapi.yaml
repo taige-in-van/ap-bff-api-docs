@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 平台设置与公告 — 前端契约面
-  version: 2.1.0
+  version: 2.1.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -183,11 +183,11 @@ paths:
                     groupName: APP 订阅
                     displayName: 单台月费
                     valueType: number
-                    valueRangeNote: 非负金额，按商户结算币种解释
+                    valueRangeNote: 正整数，结算币种的最小单位，按商户结算币种解释
                     defaultValue:
-                      numberValue: 10
+                      numberValue: 1000
                     effectiveValue:
-                      numberValue: 10
+                      numberValue: 1000
                     version: 0
                   - key: fee.allvalue-xhs.default-uplift
                     groupName: 费率

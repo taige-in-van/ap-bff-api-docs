@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.4.0
+  version: 2.5.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -193,9 +193,9 @@ paths:
         - checkout
       operationId: listCheckoutOptions
       x-required-privilege: session
-      summary: 收银台支付方式候选（展示名、图标、是否已开通、可标价币种）
+      summary: 收银台支付方式候选（展示名、图标、所属族、是否已开通、可标价币种）
       description: |
-        付款人在收银台上能选的支付方式，每项带展示名、图标、当前商户是否已开通（该项下至少一个支付方式已开通），以及该商户用这一项时能标价的币种。店铺码收款页设置、账单、Product Links 共用。顺序即展示顺序。
+        付款人在收银台上能选的支付方式，每项带展示名、图标、所属支付方式族、当前商户是否已开通（该项下至少一个支付方式已开通），以及该商户用这一项时能标价的币种。店铺码收款页设置、账单、Product Links 共用。顺序即展示顺序。
 
         礼卡链接只能用 `linkType=giftcard` 返回的项。
       parameters:
@@ -223,6 +223,7 @@ paths:
               example:
                 items:
                   - checkoutOption: wechat
+                    paymentMethodFamily: wechat
                     displayName: WeChat Pay
                     logoUrl: https://cdn.example.com/core/payment-method-logo/wechat.png
                     opened: true
@@ -230,6 +231,7 @@ paths:
                       - CAD
                       - CNY
                   - checkoutOption: alipay
+                    paymentMethodFamily: alipay
                     displayName: Alipay
                     logoUrl: https://cdn.example.com/core/payment-method-logo/alipay.png
                     opened: true
@@ -237,6 +239,7 @@ paths:
                       - CAD
                       - CNY
                   - checkoutOption: alipay_online
+                    paymentMethodFamily: alipay
                     displayName: Alipay Online
                     logoUrl: https://cdn.example.com/core/payment-method-logo/alipay.png
                     opened: false
@@ -244,12 +247,14 @@ paths:
                       - CAD
                       - CNY
                   - checkoutOption: unionpay_online
+                    paymentMethodFamily: unionpay
                     displayName: UnionPay
                     logoUrl: https://cdn.example.com/core/payment-method-logo/unionpay.png
                     opened: false
                     pricingCurrencies:
                       - CAD
                   - checkoutOption: card
+                    paymentMethodFamily: credit_card
                     displayName: Credit Card
                     logoUrl: https://cdn.example.com/core/payment-method-logo/card.png
                     opened: true
@@ -1755,12 +1760,16 @@ components:
       description: 收银台上的一个支付方式选项。
       required:
         - checkoutOption
+        - paymentMethodFamily
         - displayName
         - opened
         - pricingCurrencies
       properties:
         checkoutOption:
           $ref: '#/components/schemas/CheckoutOption'
+        paymentMethodFamily:
+          $ref: '#/components/schemas/PaymentMethodFamily'
+          description: 该选项所属的支付方式族。付款人看到的支付方式标识（账单海报、店铺码码卡）按族去重，每族一个。
         displayName:
           type: string
           minLength: 1
@@ -3328,6 +3337,14 @@ components:
         - ticket
         - giftcard
       description: '`product` 商品 / `ticket` 票务 / `giftcard` 礼卡。'
+    PaymentMethodFamily:
+      type: string
+      description: 支付方式族（品牌）。
+      enum:
+        - wechat
+        - alipay
+        - unionpay
+        - credit_card
     FileUploadForm:
       type: object
       additionalProperties: false
@@ -3540,14 +3557,6 @@ components:
       minLength: 1
       maxLength: 32
       description: 销售订单号。
-    PaymentMethodFamily:
-      type: string
-      description: 支付方式族（品牌）。
-      enum:
-        - wechat
-        - alipay
-        - unionpay
-        - credit_card
     RiskDisposition:
       type: string
       enum:
