@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-13T04:54:57Z",
-  "implCommit": "742685cb",
+  "generatedAt": "2026-11-13T21:19:14Z",
+  "implCommit": "a4374c56",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "525451bfcb49ec3a",
@@ -145,7 +145,7 @@
     "merchant/products/getProductLinkDefaults": "5d49e86f0520c00f",
     "merchant/products/getProductLinkOrder": "1a4ae7a42d09d77b",
     "merchant/products/getProductLinkOrderCounts": "34dca3609fec2971",
-    "merchant/products/listCheckoutOptions": "0d4f92121e9c7b52",
+    "merchant/products/listCheckoutOptions": "d500b0a799232951",
     "merchant/products/listInvoices": "7b4eee7dd0b6c3eb",
     "merchant/products/listProductLinkOrders": "6aa97fcf9790f1c2",
     "merchant/products/listProductLinks": "4d6d7d6300351bbb",
@@ -185,6 +185,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "648bd189ceba4aeef90170e00799d2663ab29e87",
-  "prdStage": "stage/261112-admin-07a"
+  "prdSha": "c7ea6150e787c522c025ebf528b87e7b0e559921",
+  "prdStage": "stage/261113-mp07-links-r2"
 }
