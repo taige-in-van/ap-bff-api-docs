@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.3.6
+  version: 2.3.7
   contact:
     name: 收银台
   description: |
@@ -1563,7 +1563,7 @@ components:
           description: |
             这笔订单是哪种产品：`DYNAMIC_QR` 动态码 · `WEB_PC` 电脑网页支付 · `WEB_MOBILE` 手机网页支付 · `JSAPI` 渠道内支付。
 
-            电商插件订单不另设取值：Shopify 订单为 `DYNAMIC_QR`；AllValue 订单为网页集成类取值之一（`WEB_PC` / `WEB_MOBILE` / `JSAPI`）。遇到未列出的值按不可付处理。
+            电商插件订单不另设取值：Shopify 与 AllValue 订单都为 `DYNAMIC_QR`。遇到未列出的值按不可付处理。
         order:
           $ref: '#/components/schemas/OrderEntryContent'
     StoreQrEntryContent:

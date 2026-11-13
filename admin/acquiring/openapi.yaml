@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.5.0
+  version: 2.8.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -157,6 +157,8 @@ paths:
 
         子商户号就位即启用：不需要子商户号、或子商户号按规则生成的通道，新建即启用；需要报备的通道，填了子商户号视为已就位、新建即启用且不自动报备，没填的新建为未启用，由系统自动发起报备，首次报备成功、子商户号回写时启用。响应的 `enabled` 即建成后的启停。
 
+        同一通道商户号下该商户的其他签约共用子商户号：填了子商户号时，这些签约已有子商户号的须与所填相同；都还没有的，所填的号一并写入，这些签约随之启用（同改签约录入子商户号）。
+
         幂等基准：`Idempotency-Key`。
 
         **什么时候拒绝**：
@@ -165,6 +167,7 @@ paths:
         - `308410` 所选通道不能签给该商户（结算币种不符、与已有签约的出款方式不一致，或通道未就绪），重读总览后改选。
         - `308406` 填的比例费率超过平台上限，`context.capPercentage` 是当时的上限（小数）。
         - `308407` 该支付方式已排定了未来生效的费率，当天起写入的新费率（所填的或取标准费率的）与之重叠；签约不建，重读费率后再定。
+        - `308419` 填的子商户号与同一通道商户号下该商户其他签约已有的子商户号不同；签约不建，要换号到改签约里改子商户号。
         - 字段格式不对、比例不大于 0 或小数超过 4 位，或给子商户号按规则生成、不需要子商户号的通道填了子商户号 → `400`，`details` 定位字段。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -195,6 +198,7 @@ paths:
         - 308406
         - 308407
         - 308410
+        - 308419
   /merchants/{merchantId}/channel-contracts/{contractId}:
     parameters:
       - $ref: '#/components/parameters/MerchantIdPath'
@@ -265,9 +269,9 @@ paths:
 
         **微信 H5 支付权限**（`applicationType = h5_authorization`）另收以下字段，其他报备类型带了 → `400`：
 
-        - `limitType` 限额档，不传按 `normal`；选 `unlimited` 时 `businessDescription` 必填，且须有营业执照。
-        - `websiteState` 网站状态，不传按 `launched`；选 `not_launched` 时 `websiteHomepageScreenshotFileIds` 与 `websiteBusinessPageScreenshotFileIds` 都必填。
-        - 不传 `businessLicenseFileId` 时取商户入驻证照中的图片件（PNG / JPEG）。
+        - `limitType` 限额档、`websiteState` 网站状态，原样对应通道的同名项：`not_launched_website` / `normal` / `unlimited` 为未上线网站限额 / 普通限额 / 无限额，不传按 `normal`；`websiteState` 不传按 `launched`。
+        - 业务说明、营业执照与网站截图有则原样提交；档位、网站状态与材料是否相符由通道判，不受理的回 `308405` 并带通道给的原因。
+        - 选 `unlimited` 而不传 `businessLicenseFileId` 时取商户入驻证照中的图片件（PNG / JPEG），取不到不带。
         - 另传的营业执照与网站截图先经 `uploadMerchantFile` 上传（用途 `channel_application_material`），再带上传得到的 `fileId`。
 
         系统自动发起的 H5 申请是普通限额、已上线、不带材料；被驳回后在这里补改材料重提，仍是同一条报备。重提时档位与材料以本次请求为准整体改写、不与上次合并：先用 `ChannelApplication` 回读的上次提交内容预填，改好要改的再整份提交。
@@ -276,11 +280,11 @@ paths:
 
         **什么时候拒绝**：
 
-        - `308415` H5 申请的档位与材料不齐：选了无限额而缺营业执照或业务说明（没传营业执照时先取商户入驻证照中的图片件，仍无才拒），或选了未上线而缺网站首页或业务页截图。`details` 指到缺的字段，不向通道提交。
         - `308416` 带的 `fileId` 不可用于这里（不存在、不是本商户上传的，或用途不是 `channel_application_material`）。`details` 指到该字段，重新上传后再带。
         - `308404` 该签约或共用子商户号的另一条签约上同类报备还在审，不能再提；刷新状态后再定。
         - `308417` 商户资料不合这类报备的要求（支付宝线上二级商户报备缺经营网址；微信缺注册证件号或国家、法定名与经营名皆空，或按经营形态缺营业地址或网址；微信 H5 缺经营网址、网址取不出主机或超出渠道长度上限），不向通道提交。`details` 逐项指到缺的或不合要求的资料项，改好商户资料后重提。
         - `308405` 通道当场拒绝，`context.channelErrorCode` / `context.channelErrorMessage` 是通道给的原因（通道给了才带）；改资料后重提。
+        - `308418` 已发给通道、结果未明（请求超时或没收到通道应答），未记为在审、系统不自动重提。先到渠道服务商平台核实这次报备在通道侧是否已生效：子商户进件已建成的录入子商户号，没生效的再重提；同一 `Idempotency-Key` 重放回同码。
         - 该签约的通道不适用这类报备 → `400`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -300,10 +304,11 @@ paths:
                 limitType:
                   type: string
                   enum:
+                    - not_launched_website
                     - normal
                     - unlimited
                   default: normal
-                  description: H5 申请的限额档：`normal` 普通限额 / `unlimited` 无限额。只收 `h5_authorization`。
+                  description: H5 申请的限额档，与通道的限额档一一对应：`not_launched_website` 未上线网站限额 / `normal` 普通限额 / `unlimited` 无限额。只收 `h5_authorization`。
                 websiteState:
                   type: string
                   enum:
@@ -314,21 +319,21 @@ paths:
                 businessDescription:
                   type: string
                   minLength: 1
-                  description: 业务说明；`limitType = unlimited` 时必填。只收 `h5_authorization`。
+                  description: 业务说明，原样提交通道。只收 `h5_authorization`。
                 businessLicenseFileId:
                   allOf:
                     - $ref: '#/components/schemas/FileId'
-                  description: 另传的营业执照（`uploadMerchantFile` 用途 `channel_application_material`，只收 PNG / JPEG）；不传取商户入驻证照中的图片件。只收 `h5_authorization`。
+                  description: 另传的营业执照（`uploadMerchantFile` 用途 `channel_application_material`，只收 PNG / JPEG）；选 `unlimited` 而不传时取商户入驻证照中的图片件。只收 `h5_authorization`。
                 websiteHomepageScreenshotFileIds:
                   type: array
                   minItems: 1
-                  description: 网站首页截图（`uploadMerchantFile` 用途 `channel_application_material`）；`websiteState = not_launched` 时必填。只收 `h5_authorization`。
+                  description: 网站首页截图（`uploadMerchantFile` 用途 `channel_application_material`），原样提交通道。只收 `h5_authorization`。
                   items:
                     $ref: '#/components/schemas/FileId'
                 websiteBusinessPageScreenshotFileIds:
                   type: array
                   minItems: 1
-                  description: 网站业务页截图（`uploadMerchantFile` 用途 `channel_application_material`）；`websiteState = not_launched` 时必填。只收 `h5_authorization`。
+                  description: 网站业务页截图（`uploadMerchantFile` 用途 `channel_application_material`），原样提交通道。只收 `h5_authorization`。
                   items:
                     $ref: '#/components/schemas/FileId'
             examples:
@@ -367,9 +372,9 @@ paths:
       x-error-codes:
         - 308404
         - 308405
-        - 308415
         - 308416
         - 308417
+        - 308418
   /merchants/{merchantId}/channel-contracts/{contractId}/applications/{channelApplicationId}/synchronization:
     parameters:
       - $ref: '#/components/parameters/MerchantIdPath'
@@ -1926,6 +1931,7 @@ components:
         limitType:
           type: string
           enum:
+            - not_launched_website
             - normal
             - unlimited
           description: 上次提交的限额档；只我方提交过的微信 H5 支付权限记录有，其余不返回本键。重提时据此预填。
@@ -2121,7 +2127,7 @@ components:
           type: string
           minLength: 1
           maxLength: 64
-          description: 子商户号；只有需要报备的通道可传，不传 = 待报备回写。
+          description: 子商户号；只有需要报备的通道可传，不传 = 待报备回写。同一通道商户号下该商户其他签约已有子商户号的须与之相同，都没有的一并写入。
         mcc:
           $ref: '#/components/schemas/Mcc'
           description: MCC；不传 = 不设。

@@ -735,11 +735,6 @@
       "name": "MERCHANT_PRODUCT_LINK_DELETED",
       "retryable": false
     },
-    "308415": {
-      "httpStatus": 400,
-      "name": "ADMIN_CHANNEL_APPLICATION_MATERIAL_INCOMPLETE",
-      "retryable": false
-    },
     "308416": {
       "httpStatus": 400,
       "name": "ADMIN_CHANNEL_APPLICATION_FILE_NOT_USABLE",
@@ -748,6 +743,16 @@
     "308417": {
       "httpStatus": 409,
       "name": "ADMIN_CHANNEL_APPLICATION_PROFILE_INCOMPLETE",
+      "retryable": false
+    },
+    "308418": {
+      "httpStatus": 409,
+      "name": "ADMIN_CHANNEL_APPLICATION_RESULT_UNKNOWN",
+      "retryable": false
+    },
+    "308419": {
+      "httpStatus": 409,
+      "name": "ADMIN_MERCHANT_CHANNEL_SUB_MERCHANT_ID_MISMATCH",
       "retryable": false
     },
     "308501": {
