@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.8.0
+  version: 2.8.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -59,7 +59,7 @@ paths:
       description: |
         按支付方式列出该商户的签约：所签通道、子商户号、MCC、运营启停与商户自助开关、是否要报备才能拿到子商户号（`applicationRequired`）、银联 Express（只银联在线有）、已登记的线上平台标识、各类报备的最近一次结果与通道给的拒绝原因。入驻申请提交后由系统建立的签约与报备同样在这里。共用子商户号的签约（如同一通道商户号下的线下微信与线上微信）给同一组的报备。
 
-        `autoApplications` 是系统自动发起、还没有形成报备记录、且比该类最近一条报备记录新的那一轮自动报备的状态，每类至多一条；某类在这里有一条时显示它，否则显示 `applications` 里的那条：`IN_PROGRESS` 显示「自动报备中」；`FAILED` 显示「自动报备失败」及原因（`failureMessage`）与时间（`concludedAt`），不会再自动重提，由运营提交报备或录入子商户号。`failureCategory` 为 `outcome_unknown`（已发出、未得到通道应答，子商户可能已在通道侧建出）时，提示先到渠道服务商平台核实，再录入子商户号或重提，并显示 `merchantRemark` 供在平台上核对。
+        `autoApplications` 是系统自动发起、还没有形成报备记录、且比该类最近一条报备记录新的那一轮自动报备的状态，每类至多一条；某类在这里有一条时显示它，否则显示 `applications` 里的那条：`IN_PROGRESS` 显示「自动报备中」；`FAILED` 显示「自动报备失败」及原因（`failureMessage`）与时间（`concludedAt`），不会再自动重提，由运营提交报备或录入子商户号。`failureCategory` 为 `outcome_unknown`（已发出、未得到通道应答，子商户可能已在通道侧建出）时，提示先到渠道服务商平台核实，再录入子商户号或重提，并显示 `merchantRemark` 供在平台上核对。还在排队、尚未提交时就因不再需要而取消的那一轮（运营补录了子商户号、运营提交的报备已被通道受理、清空了子商户号等）不返回，终止失败的照常以 `FAILED` 返回；`maintain` 这一类在共用子商户号的签约都已有子商户号时不返回。
 
         `availableMethods` 列出该商户结算币种下尚未签约、可以加的支付方式，各带可选的通道（每个通道带 `applicationRequired`，为是的才可填子商户号）与标准费率（没有标准费率的不带）；加支付方式用 `createMerchantChannelContract`。
       responses:
@@ -213,7 +213,7 @@ paths:
         只提交要改的字段，并带上读到的 `updatedAt`；一次提交全部生效或全部不生效。启停不改费率，停用只影响此后的受理。
 
         - `enabled`：需要报备的通道在子商户号就位前不能启用；运营录入的子商户号视为就位。
-        - `subMerchantId`：只有需要报备的通道（`applicationRequired` 为是）上的签约可带；同一通道商户号下该商户的其他签约共用子商户号，录入或修改时一并写入。由空录入为有值即就位，这些签约随之启用（本次同时带了 `enabled: false` 的除外）；已有子商户号再改值不改启停。`null` = 清空，这些签约随之停用。
+        - `subMerchantId`：只有需要报备的通道（`applicationRequired` 为是）上的签约可带；同一通道商户号下该商户的其他签约共用子商户号，录入或修改时一并写入。由空录入为有值即就位，这些签约随之启用（本次同时带了 `enabled: false` 的除外）；已有子商户号再改值不改启停。录入或改值后这些签约都有子商户号的，系统尚未提交的 `maintain` 类自动报备不再提交。`null` = 清空，这些签约随之停用，系统尚未提交的各类自动报备也不再提交，此后由运营提交报备。
         - `mcc`：四位 MCC，此后该通道的下单按新值；`null` = 清空。
         - `expressPayEnabled`：只银联在线签约可带；签约未启用时开关值保留但不生效。
 
@@ -265,7 +265,7 @@ paths:
       x-required-privilege: chcfg:channel:manage
       summary: 提交或重提一条渠道报备
       description: |
-        对该签约向通道提交报备，内容取商户当前资料。上一次被驳回的同类报备即为重提。通道当场受理即返回，审核结果此后由系统同步，也可用 `syncMerchantChannelApplication` 按需刷新；首次子商户进件成功时系统回写子商户号并启用签约。
+        对该签约向通道提交报备，内容取商户当前资料。上一次被驳回的同类报备即为重提。通道当场受理即返回，审核结果此后由系统同步，也可用 `syncMerchantChannelApplication` 按需刷新；首次子商户进件成功时系统回写子商户号并启用签约。通道受理后，该签约所在组同类系统尚未提交的自动报备不再提交。
 
         **微信 H5 支付权限**（`applicationType = h5_authorization`）另收以下字段，其他报备类型带了 → `400`：
 
@@ -1963,7 +1963,7 @@ components:
     AutoChannelApplication:
       type: object
       additionalProperties: false
-      description: 一类报备最新一轮系统自动提交的状态；该轮形成报备记录、或该类有了更新的报备记录后不再返回。
+      description: 一类报备最新一轮系统自动提交的状态；该轮形成报备记录、尚未提交时就因不再需要而取消，或该类有了更新的报备记录后不再返回；终止失败的照常返回。
       required:
         - applicationType
         - state
@@ -2069,7 +2069,7 @@ components:
             $ref: '#/components/schemas/ChannelApplication'
         autoApplications:
           type: array
-          description: 系统自动发起、还没有形成报备记录、且比该类最近一条报备记录新的那一轮自动报备的状态，每类至多一条，共用子商户号的签约给同一组的状态；没有为空数组。
+          description: 系统自动发起、还没有形成报备记录、且比该类最近一条报备记录新的那一轮自动报备的状态，每类至多一条，共用子商户号的签约给同一组的状态；尚未提交时就因不再需要而取消的不返回（终止失败的照常返回），`maintain` 这一类在共用子商户号的签约都已有子商户号时不返回；没有为空数组。
           items:
             $ref: '#/components/schemas/AutoChannelApplication'
         updatedAt:
