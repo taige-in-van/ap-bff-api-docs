@@ -1,14 +1,23 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-13T21:19:14Z",
-  "implCommit": "a4374c56",
+  "generatedAt": "2026-11-14T03:08:13Z",
+  "implCommit": "40d51bf5",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "525451bfcb49ec3a",
+    "admin/acquiring/createMerchantFeeRate": "d936b395ae43ba9d",
+    "admin/acquiring/getMerchantSettlementTerms": "c2b1a19fa451410b",
+    "admin/acquiring/listFeeRateIssues": "5c82a5f858a3e69b",
     "admin/acquiring/listMerchantChannelContracts": "bfab18704e8323d6",
+    "admin/acquiring/listMerchantEntryPoints": "0c6993fe8d802262",
+    "admin/acquiring/listMerchantFeeRates": "10e01be42e3fe65e",
     "admin/acquiring/registerMerchantChannelSubApp": "dec5b45ad3493525",
     "admin/acquiring/syncMerchantChannelApplication": "7f8251997f211af9",
     "admin/acquiring/updateMerchantChannelContract": "1ffe3a551dc222ca",
+    "admin/acquiring/updateMerchantCsfCoverage": "e23f3bf0f63bf53b",
+    "admin/acquiring/updateMerchantEntryPoint": "ae156be5d5bce283",
+    "admin/acquiring/updateMerchantEntryPointEnablement": "b7bfcb1b7d516a4f",
+    "admin/acquiring/updateMerchantSettlementTerms": "60fd382dfbb46791",
     "admin/applications/createApplicationFileAccessUrl": "6164c77b89a72acc",
     "admin/applications/decideApplication": "53f4008c64bb3c66",
     "admin/applications/getApplication": "c96a6f235123023e",
@@ -30,6 +39,8 @@
     "admin/auth/updateMyProfile": "535ec52447de0858",
     "admin/merchants/getMerchant": "a7116de20b5ef699",
     "admin/merchants/listMerchants": "847babe797f671e5",
+    "admin/settings/listAcquiringPlatformParameters": "65ce03cfbc336251",
+    "admin/settings/updateAcquiringPlatformParameter": "91f7f1c85fe72678",
     "checkout/checkout/createCheckoutPayment": "fd03598e07fdfbe8",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
     "checkout/checkout/getCheckoutOrder": "4ab1df466903e462",
@@ -185,6 +196,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "c7ea6150e787c522c025ebf528b87e7b0e559921",
-  "prdStage": "stage/261113-mp07-links-r2"
+  "prdSha": "7826415ca069ea8b2fe0b3caddaf375bd33ab828",
+  "prdStage": "stage/261113-admin-07b"
 }
