@@ -3072,7 +3072,7 @@ components:
               type: string
               minLength: 1
               maxLength: 45
-              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP，归一后的形式（非空白名单须包含它）。
             blocklistHits:
               type: array
               minItems: 1

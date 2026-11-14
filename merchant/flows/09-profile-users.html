@@ -142,6 +142,7 @@ sequenceDiagram
 | 结算周期不在候选内 | `400`·`204017` | 重新调 #9 让用户重选，不要回落到第一项 |
 | Owner 账号不可用 | #11 `409`·`208056` | 关弹窗，提示联系客服处理 Owner 账号；刷新与重发都无用 |
 | 结算由通道方执行 | #11 / #12 `409`·`208038` | 正确页面下不会出现（该态不显示 Edit）；出现就关弹窗、重调 #1 |
+| 上一次同键的提交还在处理 | #12 `409`·`908002` | 用同一个键、同样的内容重发，直到有结果 |
 | 同一个幂等键改了请求体 | #12 `409`·`908003` | 改过内容就换新键 |
 
 - 只改 Store ID / 结算周期时跳过 #10。
@@ -150,7 +151,7 @@ sequenceDiagram
 - 三张卡的 Edit：Business Information 与 Settlement 按各自保存接口的权限点显示；Contact Information 是 Owner 专属（接口标 `owner`），按 `isOwner` 显示。结算变更的验证码发到 Owner 邮箱，不是 Owner 本人发起时要向 Owner 要码。
 - 三张卡的编辑态（Business Information、Settlement 编辑弹窗、Contact Information）有未保存的修改时，点 Cancel / 关闭 / 离开页面先弹确认框，见公共约定「未保存的修改」。
 - Settlement 卡的 Legal Business Name 回显 Business Information 的值；Store ID 取 `settlement.storeId`，没有该键就不显示这一行；`pendingReview` 为真时隐藏 Edit、显示审核中提示。`settlement.settledByChannel` 为真时，卡片只读显示「由通道方结算」，不显示银行、结算周期、Store ID，不显示 Edit、不走结算变更（#10–#12）。编辑弹窗按 `bankAccount.type` 渲染对应表单，账号框用 `accountNumberMasked` 作提示、要重新输入；结算周期初始选中 `settlement.settlementCycle` 的当前值。
-- 输错码重输、网络重试都用原键（验证码不参与幂等比对），同键同内容在验证码核验成功后的回放窗内重发返回首次结果、不会重复建变更，超出回放窗后按码已用 `206006` 重新发码；改了变更内容才换新键。
+- 输错码重输、超时或 `908002` 后重发都用原键（验证码不参与幂等比对），同键同内容在验证码核验成功后的回放窗内重发返回首次结果、不会重复建变更，超出回放窗后按码已用 `206006` 重新发码；改了变更内容才换新键。
 - Contact 卡邮箱旁的 Change 仅在当前登录者的 `loginId` 等于 `contactInformation.email` 时显示，旁边提示「修改将影响您的登录邮箱」，流程见「页面：My Profile · 改登录邮箱 弹窗」。
 - Documents 只读，缩略图用 `previewUrl`，图片还是文件按文件名后缀判断。缺失占位只对 `requiredDocuments` 里有、`documents` 里没有的键；其余没上传的不显示。签署后的合同取 `signedContract`，有才显示、不占位；文件类型不支持预览时只显示文件图标与文件名。
 - Refund Reserved 区块的 Top Up / Withdraw 两个弹窗见 [flows 05-settlement-statement](05-settlement-statement.html)；本页只读 #4 的 `refundReserve`。
@@ -225,6 +226,7 @@ sequenceDiagram
 - 改了已激活员工的登录邮箱，员工确认前列表该行显示 `pendingLoginEmail`（切换规则见 `updateTeamMember`）。
 - 改员工登录邮箱时该员工还在冷却内 → `429`·`208013`：不发链接 / 不重发邀请，提示剩余秒数（`context.cooldownSeconds`），在途一笔不被顶掉。
 - 邀请中的员工不能在这里设密，走 Resend；填了会得 `409`·`208003`。重发邀请时员工已激活也是 `409`·`208003`，重调 #14 刷新。
+- `createTeamMember`、`updateTeamMember` 带 `Idempotency-Key`：点一次提交生成一个键，超时或 `908002` 后重发用原键。上一次同键的提交还在处理 → `409`·`908002`，用同一个键、同样的内容重发，直到有结果；同一个幂等键改了请求体 → `409`·`908003`，改过内容就换新键。
 - 可见分区的复选框文案由前端按 `#16` 给的模块标识取多语言资源（与侧边栏菜单同一套）；不认识的标识显示标识本身。
 - 被运营停用的员工在列表显示 `DISABLED`，这一行只给删除与微信解绑，不给编辑、重发邀请、微信绑定（要改资料或重发邀请，先请运营解除停用）；`lastLoginAt` 缺席显示「从未登录」。
 - 新建、编辑弹窗已填了内容或有未保存的修改时，点 Cancel / 关闭先弹确认框，见公共约定「未保存的修改」。删除后用同一登录名再新建的规则见 `createTeamMember`。
@@ -315,6 +317,7 @@ sequenceDiagram
 ```
 
 - 改密码时当前密码错 `403`·`206011`，留在表单重输，不跳登录页；新密码不满足规则或与当前相同 `400`，在新密码框下提示。「Forgot your password?」走 [flows 01-login-registration「页面：Forgot Password」](01-login-registration.html#页面：Forgot%20Password)的两个接口（`requestPasswordReset`、`confirmPasswordReset`），在弹窗里完成：邮箱账号（`loginId` 是邮箱格式）点 Send code 发邮箱码；用户名账号先调 #32，`mfaEnabled` 为真就直接输验证器码，为假则不能自助重置，提示找 Owner 在成员管理里重设。重置成功后该用户所有会话失效，含当前这个，回登录页。Security 页改密表单里的同名入口与此同一个弹窗。
+- 改密码带 `Idempotency-Key`：点一次提交生成一个键，超时或 `908002` 后重发用原键。上一次同键的提交还在处理 → `409`·`908002`，用同一个键、同样的内容重发，直到有结果；同一个幂等键改了请求体 → `409`·`908003`，改过内容就换新键。
 - 改昵称、改密码的表单有未保存的修改时，离开页面先弹确认框，见公共约定「未保存的修改」。
 
 ---

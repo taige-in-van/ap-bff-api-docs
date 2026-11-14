@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.8.3
+  version: 2.9.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -154,6 +154,8 @@ paths:
         为商户新增一个尚未签约的支付方式。通道只能选 `availableMethods` 里给出的；MCC 可选填；子商户号只有需要报备的通道（候选通道的 `applicationRequired` 为是）可选填，子商户号按规则生成或不需要子商户号的通道不接受。
 
         费率：填了 `feeRate` 就按它写一条新费率，从当天起生效，该支付方式的当前费率在新费率的生效首日截断（与录入费率同规则）；不填时，该支付方式已有当前费率的沿用、不另写，没有的取该支付方式在商户结算币种下的标准费率。
+
+        AllValue 已开通时，写完本次费率后，同时为线上受理、非卡类、有当前费率的各支付方式（不限本次新加的）中还没有小红书费率（当前的或已排定的）的补写一条：比例 = 该方式 AllValue 费率（没有 AllValue 专用费率的取通用费率）的比例加平台默认上浮，不受商户费率上限约束。
 
         子商户号就位即启用：不需要子商户号、或子商户号按规则生成的通道，新建即启用；需要报备的通道，填了子商户号视为已就位、新建即启用且不自动报备，没填的新建为未启用，由系统自动发起报备，首次报备成功、子商户号回写时启用。响应的 `enabled` 即建成后的启停。
 
@@ -470,6 +472,8 @@ paths:
       description: |
         全部受理入口各一项，含默认开通、从未改过的入口。`paymentMethodFamilies` 是该入口收窄后可用的支付方式族，不返回本键即未收窄。
 
+        AllValue 小红书不单列：AllValue 一项的开关与收窄同时决定该商户的小红书单能否受理、可用哪些支付方式族。
+
         顺序即展示顺序。
       responses:
         '200':
@@ -503,8 +507,6 @@ paths:
                       - alipay
                   - entryPoint: plugin_allvalue
                     enabled: false
-                  - entryPoint: plugin_allvalue_xhs
-                    enabled: false
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
@@ -522,7 +524,8 @@ paths:
         **全量覆盖**：请求体就是目标开关态。关闭后该入口的受理被拒，已成功的支付不受影响。
 
         - POS 与商户 App 分别开关，没有合并开关。
-        - 插件入口在接入申请通过后由运营在这里开通。AllValue 首次开通时，小红书入口随之开通，并为线上受理、非卡类的各支付方式逐个写出小红书费率：比例 = 该方式 AllValue 费率（没有 AllValue 专用费率的取通用费率）的比例加平台默认上浮，不受商户费率上限约束，之后可在费率录入里调整；该方式没有当前费率，或已有当前或已排定的小红书费率时不写；小红书入口可单独关闭，不影响 AllValue。
+        - 插件入口在接入申请通过后由运营在这里开通。AllValue 小红书单跟随 AllValue 的开关受理，没有单独的开关。
+        - AllValue 每次从关闭改为开通时，为线上受理、非卡类、有当前费率的各支付方式中还没有小红书费率（当前的或已排定的）的补写一条：比例 = 该方式 AllValue 费率（没有 AllValue 专用费率的取通用费率）的比例加平台默认上浮，不受商户费率上限约束，之后可在费率录入里调整。关闭 AllValue 不动已有的小红书费率。
 
         与现状相同同样返回 `204`。天然幂等，不挂幂等键。
       parameters:
@@ -650,14 +653,14 @@ paths:
       x-required-privilege: chcfg:fee:create
       summary: 录入或调整一个支付方式的费率
       description: |
-        写一条新费率：当前费率在新费率的生效首日截断，历史不覆盖、不删除。该支付方式还没有费率时直接生效，生效首日可早于今天。录入或调整费率不改变签约的启停。
+        写一条新费率：当前费率在新费率的生效首日截断，历史不覆盖、不删除。该支付方式没有当前费率时直接生效，生效首日可早于当天。录入或调整费率不改变签约的启停。
 
         幂等基准：`Idempotency-Key`。
 
         **什么时候拒绝**：
 
         - `308406` 比例费率超过平台上限，`context.capPercentage` 是当时的上限（小数）；小红书专用行（`entryPoint` 为 `plugin_allvalue_xhs`）不按上限校验。
-        - `308407` 生效首日早于当前费率的生效首日，或与已排定的未来费率重叠。
+        - `308407` 已有当前费率时生效首日早于当天，或生效首日落在已结束的费率期内，或与已排定的未来费率重叠。
         - 比例不大于 0 或小数超过 4 位、固定费格式不对 → `400`，`details` 定位字段。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
@@ -3027,7 +3030,7 @@ components:
               type: string
               minLength: 1
               maxLength: 45
-              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP（非空白名单须包含它）。
+              description: 本人保存登录 IP 白名单被拒时，本次请求的来源 IP，归一后的形式（非空白名单须包含它）。
             blocklistHits:
               type: array
               minItems: 1
@@ -3132,7 +3135,7 @@ components:
           description: 固定单笔费免收截止日（含）；不带 = 不免。
     ConfigurableEntryPoint:
       type: string
-      description: 可配置、可开关的受理入口，取值与订单的受理入口（`EntryPoint`）同名同义，本处只收可配置的入口：`checkout` 店铺码与收银台页面 / `open_api` 开放 API / `pos` 终端 / `merchant_app` 商户 App / `plugin_shopify` Shopify / `plugin_allvalue` AllValue / `plugin_allvalue_xhs` AllValue 小红书。
+      description: 可配置、可开关的受理入口，取值与订单的受理入口（`EntryPoint`）同名同义，本处只收可配置的入口：`checkout` 店铺码与收银台页面 / `open_api` 开放 API / `pos` 终端 / `merchant_app` 商户 App / `plugin_shopify` Shopify / `plugin_allvalue` AllValue。AllValue 小红书单不另设入口，按 `plugin_allvalue` 的开关与收窄受理。
       enum:
         - pos
         - merchant_app
@@ -3140,7 +3143,6 @@ components:
         - checkout
         - plugin_shopify
         - plugin_allvalue
-        - plugin_allvalue_xhs
     PaymentMethodFamily:
       type: string
       description: 支付方式族（品牌）。
