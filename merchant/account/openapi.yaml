@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.7.2
+  version: 2.7.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -60,7 +60,7 @@ paths:
                   typeOfOwnership: CORPORATION
                   registrationNumber: BC1234567
                   referredBy: Moneris
-                  industryCategory: A0
+                  industryCategory: '533'
                   mcc: '0742'
                   businessAddress: 123 Main St
                   city: Vancouver
@@ -1002,9 +1002,9 @@ components:
           description: 没有时不返回本键。
         industryCategory:
           type: string
-          description: 行业大类码，如 `A0`。
+          description: 行业大类码（微信行业类目码），如 `533`。
           examples:
-            - A0
+            - '533'
         mcc:
           type: string
           description: 四位 MCC。

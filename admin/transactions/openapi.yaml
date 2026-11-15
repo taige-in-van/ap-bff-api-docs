@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 交易与退款 — 前端契约面
-  version: 2.2.1
+  version: 2.3.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1131,6 +1131,7 @@ components:
             - http_error
             - ack_mismatch
             - signing_unavailable
+            - payload_invalid
           description: 最近一次尝试的失败类别（取值同运维与审计的对外投递尝试）；最近一次成功或还没尝试时不返回。
         deliveredAt:
           allOf:

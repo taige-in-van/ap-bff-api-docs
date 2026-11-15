@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 机构与分润 — 前端契约面
-  version: 2.0.3
+  version: 2.0.4
   contact:
     name: 管理后台 BFF
   description: |
@@ -720,7 +720,7 @@ paths:
       x-required-privilege: session
       summary: 销售候选
       description: |
-        所选组织（不传 `partnerId` = Platform 总部，即无所属机构）下在册、未停用的后台账号，不看其数据范围，不分页，按显示名排序。改派归属销售、整机构改派的目标销售与代客建档的归属 BD 共用。当前用户数据范围为所属机构时，只有本人所属机构及其直接下级机构有候选，选其他机构或 Platform 总部回空列表。
+        所选组织（不传 `partnerId` = Platform 总部，即无所属机构）下在册、未停用的后台账号，不看其数据范围，不分页，按显示名排序。改派归属销售、整机构改派的目标销售与代客建档的归属 BD 共用；代客建档时只有持 `orgbd:merchant-assignment:manage` 的用户用得到（不持的归属 BD 固定为本人）。当前用户数据范围为所属机构时，只有本人所属机构及其直接下级机构有候选，选其他机构或 Platform 总部回空列表。
       parameters:
         - name: partnerId
           in: query

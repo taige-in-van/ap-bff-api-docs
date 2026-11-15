@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户与入驻 — 前端契约面
-  version: 2.4.2
+  version: 2.5.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -36,7 +36,7 @@ paths:
       x-required-privilege: session
       summary: 商户列表（顶栏切换器、启动链路）
       description: |
-        登录者能进的商户：Owner 是名下全部商户；主商户的员工是主商户加它名下的全部关联商户（切过去用同一个角色）；关联商户的员工只有本商户。再排除已删除、已冻结和入驻被拒的。主商户在前，关联商户在后，各按创建时间排；Owner 名下可以有不止一个主商户（工作人员代为建档的商户都是主商户）。关联商户用 `parentMerchantId` 指向它的主商户。
+        登录者能进的商户：Owner 是名下全部商户；主商户的员工是主商户加它名下的全部关联商户（切过去用同一个角色）；关联商户的员工只有本商户。再排除已删除、已冻结和入驻被拒的。主商户在前，关联商户在后，各按创建时间排；Owner 名下可以有不止一个主商户。关联商户用 `parentMerchantId` 指向它的主商户；工作人员代为建档的商户（主商户或关联商户都可能）`assistedOnboarding = true`。
         被拒的商户不在本列表，但它的入驻申请仍可按 `merchantId` 读。
 
         - 已激活的商户 `status` 为 `ACTIVE`；未激活的返回入驻申请的状态（`DRAFT` / `UNDER_REVIEW` / `MORE_INFO_REQUIRED`）。
@@ -63,11 +63,17 @@ paths:
                     tradeName: Maple Vet Clinic
                     currency: CAD
                     status: ACTIVE
+                    assistedOnboarding: false
                   - merchantId: '1000024'
                     tradeName: Maple Vet Clinic Downtown
                     parentMerchantId: '1000023'
                     currency: CAD
                     status: DRAFT
+                    assistedOnboarding: false
+                  - merchantId: '1000025'
+                    parentMerchantId: '1000023'
+                    status: DRAFT
+                    assistedOnboarding: true
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -129,6 +135,7 @@ paths:
         - 已激活（含已冻结）的商户 → `409`·208003；
         - 入驻被拒的商户 → `409`·208003；
         - 主商户 → `409`·208024；
+        - 工作人员代为建档的关联商户 → `409`·208061，撤回只能由工作人员办理；
         - 商户不存在、或不是登录者名下的商户 → 404（已删除的按下面的幂等规则返回 204）。
 
         幂等：已删除的商户再删返回 204，不挂 Idempotency-Key。
@@ -147,6 +154,7 @@ paths:
       x-error-codes:
         - 208003
         - 208024
+        - 208061
   /merchants/{merchantId}/application:
     get:
       tags:
@@ -207,7 +215,7 @@ paths:
                     timeZone: America/Toronto
                     language: en
                     businessPhone: '+14165550199'
-                    industryCategory: A0
+                    industryCategory: '533'
                     mcc: '0742'
                     typeOfOnlineService: WEBSITE
                     websiteUrl: https://maplevet.example.com
@@ -336,7 +344,7 @@ paths:
                     timeZone: America/Toronto
                     language: en
                     businessPhone: '+14165550199'
-                    industryCategory: A0
+                    industryCategory: '533'
                     mcc: '0742'
                     typeOfOnlineService: WEBSITE
                     websiteUrl: https://maplevet.example.com
@@ -510,18 +518,23 @@ components:
       required:
         - merchantId
         - status
+        - assistedOnboarding
       properties:
         merchantId:
           $ref: '#/components/schemas/MerchantId'
           readOnly: true
         tradeName:
           type: string
-          description: 对外经营名。首次入驻的主商户在 Business 步保存前没有，不返回本键
+          description: 对外经营名。首次入驻的主商户在 Business 步保存前没有，不返回本键；工作人员代为建档的关联商户在其 Business 步填写前同样没有
         parentMerchantId:
           allOf:
             - $ref: '#/components/schemas/MerchantId'
           readOnly: true
-          description: 上级主商户的 `merchantId`。主商户没有上级，不返回本键。有本键、且还没激活的行，Owner 可以删除；新建关联商户挂在当前商户所属的主商户下：当前商户有本键就挂在它指的那个商户下，没有就挂在当前商户自己下。
+          description: 上级主商户的 `merchantId`。主商户没有上级，不返回本键。有本键、还没激活、且 `assistedOnboarding = false` 的行，Owner 可以删除；新建关联商户挂在当前商户所属的主商户下：当前商户有本键就挂在它指的那个商户下，没有就挂在当前商户自己下。
+        assistedOnboarding:
+          type: boolean
+          readOnly: true
+          description: true = 工作人员代为建档的商户，与入驻申请上的同名字段同义；Owner 不能删除它，撤回只能由工作人员办理。
         currency:
           allOf:
             - $ref: '#/components/schemas/Currency'
@@ -976,7 +989,7 @@ components:
           description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         industryCategory:
           type: string
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+          description: 行业大类码（`/config/industries` 的 `items[].code`，即微信行业类目码，如 `533`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
           description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
@@ -1253,7 +1266,7 @@ components:
         industryCategory:
           type: string
           maxLength: 64
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+          description: 行业大类码（`/config/industries` 的 `items[].code`，即微信行业类目码，如 `533`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
           maxLength: 4

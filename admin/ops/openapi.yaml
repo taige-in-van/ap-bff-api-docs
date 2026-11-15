@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 运维与审计 — 前端契约面
-  version: 2.2.1
+  version: 2.3.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1106,17 +1106,19 @@ components:
             - http_error
             - ack_mismatch
             - signing_unavailable
+            - payload_invalid
           description: |
             失败类别，成功的尝试不返回：
 
             - `target_blocked` 目标地址命中拒投规则，未发出
-            - `target_rejected` 目标地址不合规，未发出
+            - `target_rejected` 对方明确拒收，不再重试
             - `connect_failed` 连不上
             - `timeout` 超时
             - `tls_failed` TLS 握手失败
             - `http_error` 对方回了非成功状态
             - `ack_mismatch` 对方应答不是约定的成功应答
             - `signing_unavailable` 签名密钥不可用，未发出
+            - `payload_invalid` 任务存的事件数据组不成通知报文，未发出（平台侧数据问题，不再重试）
         responseExcerpt:
           type: string
           maxLength: 1024

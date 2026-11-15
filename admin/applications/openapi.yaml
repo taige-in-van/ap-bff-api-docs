@@ -1,17 +1,17 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.6.1
+  version: 2.7.0
   contact:
     name: 管理后台 BFF
   description: |
-    管理后台 React SPA 消费的审核中心与代客建档契约：四类申请（入驻、受理模式开通、插件入口开通、结算信息变更）的审核队列、详情、文件取用与决定，通过入驻申请前的禁入名单比对；代客建档的检查、建档、逐步填资料（含议价条款）、上传、生成合同并发确认链接、代补料后代提交、撤回；线上平台标识补录待办。
+    管理后台 React SPA 消费的审核中心与代客建档契约：四类申请（入驻、受理模式开通、插件入口开通、结算信息变更）的审核队列、详情、文件取用与决定，通过入驻申请前的禁入名单比对；代客建档（新建商户，或为已有主商户建子商户）的检查、建档、逐步填资料（含议价条款）、一键复制主商户资料、上传、生成合同并发确认链接、代补料后代提交、撤回；线上平台标识补录待办。
     浏览器持 httpOnly 会话 cookie，字段类型与校验规则以本 spec 各字段为准。
 
     **幂等 / CSRF 口径**：
 
     - 代客建档、发起确认挂 `Idempotency-Key`：同键同请求体重发返回首次结果；同键改请求体 → `409`·`908003`；首次请求仍在处理 → `409`·`908002`，稍后同键同请求体重发。
-    - 决定、代提交、撤回带状态前置，同一申请重复提交时后到者按状态不符拒绝，不挂幂等键；逐步保存是置值写，不挂；上传每次产生新文件，不挂。
+    - 决定、代提交、撤回带状态前置，同一申请重复提交时后到者按状态不符拒绝，不挂幂等键；逐步保存与一键复制主商户资料是置值写，不挂；上传每次产生新文件，不挂。
     - cookieAuth 的非安全方法一律带 `X-CSRF-Token`。
 
     **数据可见范围**：按商户组织，同管理后台约定「数据可见范围」：列表只含范围内商户的申请，按标识访问范围外商户的申请返回 `404`。
@@ -28,7 +28,7 @@ tags:
     description: 四类申请的审核队列、详情、文件取用与决定。
   - name: assisted-onboarding
     x-displayName: 代客建档
-    description: 代客建档：检查、建档、逐步填资料、上传、发起确认、代提交、撤回（按使用顺序排列）。
+    description: 代客建档：检查、建档、逐步填资料、一键复制主商户资料、上传、发起确认、代提交、撤回（按使用顺序排列）。
 paths:
   /applications:
     get:
@@ -141,20 +141,30 @@ paths:
       x-required-privilege: mrev:assisted-onboarding:manage
       summary: 代客建档（建出待激活商户与草稿申请）
       description: |
-        录入 Owner 联系人、归属 BD 与商户语言，建出一个待激活的商户与一张入驻申请草稿（`DRAFT`），开户来源为管理后台。商户的所属机构随归属 BD 此刻的所属机构（总部 BD 或不选 BD 则无所属机构）。之后逐步填资料（`updateAssistedApplicationStep`）、上传文件、发起确认。
+        建出一个待激活的商户与一张入驻申请草稿（`DRAFT`），开户来源为管理后台。之后逐步填资料（`updateAssistedApplicationStep`）、上传文件、发起确认。建档不给商户发任何邮件；同名存量商户与禁入名单不拦建档，建档前用 `checkAssistedOnboarding` 提示。
 
+        **新建商户**（不带 `parentMerchantCode`）：录入 Owner 联系人（`owner` 必带）、归属 BD 与商户语言。商户的所属机构随归属 BD 此刻的所属机构（总部 BD 则无所属机构）。
+
+        - 归属 BD 默认是当前用户本人，不传 `bdUserId` 即按本人记。持 `orgbd:merchant-assignment:manage` 的用户可改选他人（候选取 `listSalesOptions`）；不持的，归属 BD 固定为本人，界面只读显示本人，传本人照常通过、传他人被拒。
         - Owner 邮箱不属任何平台用户：同时建出该 Owner 的账号，此时还没有密码；审核通过后 Owner 凭开户邮件设密。
         - Owner 邮箱已属平台用户，且该用户是某家商户的 Owner、或在商户后台没有身份：新商户挂在该用户名下，不另建账号、不动其密码，响应 `ownerIdentity = existing`。
-        - 建档不给商户发任何邮件。
-        - 同名存量商户与禁入名单不拦建档，建档前用 `checkAssistedOnboarding` 提示。
+
+        **为已有主商户建子商户**（带 `parentMerchantCode`）：录入主商户的商户码与商户语言，`owner` 与 `bdUserId` 不得出现。
+
+        - 录入的是子商户的商户码时，自动上溯到它的主商户，新商户挂在该主商户下；与主商户的关系为新法人主体。
+        - 新商户的 Owner 即主商户的 Owner，不另建账号、不动其密码，响应 `ownerIdentity = existing`；归属 BD 与所属机构随主商户。
+        - `contact` 步从主商户只读继承：显示主商户 Owner 的联系人资料与主商户的推荐来源，不能改。
+        - `business`、`services`、`settlement` 三步不预填主商户资料：经营名、国家与币种在 `business` 步填，要复用主商户资料调 `copyParentMerchantProfile`。
 
         幂等基准：`Idempotency-Key`。
 
         **什么时候拒绝**：
 
-        - `308205` Owner 邮箱的已有账号不能成为 Owner：是其他商户的员工，或待验证、已停用；不建任何记录。
-        - `308702` 所选归属 BD 不可选：不在册或已停用；重取 BD 候选再选，不建任何记录。
-        - 字段格式不对 → `400`。
+        - `308205` Owner 的已有账号不能成为 Owner：新建商户时 Owner 邮箱属其他商户的员工，或待验证、已停用；为已有主商户建子商户时主商户 Owner 的账号待验证或已停用。不建任何记录。
+        - `308208` 所选主商户不能作主商户：尚未激活或已冻结；不建任何记录。
+        - `308702` 所选归属 BD 不可选：不在册或已停用，所属组织不在本人可选范围内，或当前用户不持 `orgbd:merchant-assignment:manage` 却传了他人；重取 BD 候选再选（不持该权限点的不传 `bdUserId` 即可），不建任何记录。
+        - `404` 主商户的商户码不存在、该商户已删除或关户，或该商户不在本人数据范围内（不区分）。
+        - 字段格式不对；不带 `parentMerchantCode` 时缺 `owner`；带 `parentMerchantCode` 时出现 `owner` 或 `bdUserId` → `400`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
         - $ref: '#/components/parameters/IdempotencyKey'
@@ -164,15 +174,23 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AssistedApplicationCreate'
-            example:
-              owner:
-                email: jane@example.com
-                firstName: Jane
-                lastName: Merchant
-                phone: '+16045550123'
-                jobTitle: Manager
-              bdUserId: usr_b07
-              language: en
+            examples:
+              newMerchant:
+                summary: 新建商户
+                value:
+                  owner:
+                    email: jane@example.com
+                    firstName: Jane
+                    lastName: Merchant
+                    phone: '+16045550123'
+                    jobTitle: Manager
+                  bdUserId: usr_b07
+                  language: en
+              childMerchant:
+                summary: 为已有主商户建子商户
+                value:
+                  parentMerchantCode: C3BM68
+                  language: en
       responses:
         '201':
           description: 已建档（商户待激活，申请为草稿）
@@ -189,6 +207,7 @@ paths:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes:
         - 308205
+        - 308208
         - 308702
   /applications/{applicationId}:
     parameters:
@@ -202,7 +221,7 @@ paths:
       description: |
         一张申请的全部审核资料，按申请类型返回对应部分：
 
-        - 入驻申请：`steps`（入驻五步的资料，文档位只给文件引用、不给访问地址）；代客建档的另带议价条款 `steps.terms` 与 `signatureRequests`（每次发起确认的记录）。
+        - 入驻申请：`steps`（入驻五步的资料，文档位只给文件引用、不给访问地址）；代客建档的另带议价条款 `steps.terms` 与 `signatureRequests`（每次发起确认的记录）。商户是子商户时另带 `parentMerchant`；代客建档的子商户 `steps.contact` 是主商户 Owner 的联系人资料与主商户的推荐来源，只读。
         - 结算信息变更：`settlementChange`（新旧对比，账号只给末 4 位掩码）。
         - 受理模式开通：`acceptanceMode` 与 `paymentMethods`；线上模式另带 `typeOfOnlineService` 与 `websiteUrl`（商户资料当前值）。改线上服务类型或网址触发的复审也是这一类，`paymentMethods` 为空。
         - 插件入口开通：`entryPoint` 与 `storeUrl`；改店铺网址触发的复审也是这一类。
@@ -250,7 +269,7 @@ paths:
                     timeZone: America/Toronto
                     language: en
                     businessPhone: '+14165550199'
-                    industryCategory: A0
+                    industryCategory: '656'
                     mcc: '5814'
                   settlement:
                     bankName: Royal Bank of Canada
@@ -442,15 +461,21 @@ paths:
         - assisted-onboarding
       operationId: checkAssistedOnboarding
       x-required-privilege: mrev:assisted-onboarding:manage
-      summary: 建档前检查（Owner 账号、同名商户、禁入名单）
+      summary: 建档前检查（主商户、Owner 账号、同名商户、禁入名单）
       description: |
-        建档前的只读检查，不建任何记录、不进操作审计。用 POST 承载是为了不把邮箱放进地址。
+        建档前的只读检查，不建任何记录、不进操作审计。用 POST 承载是为了不把邮箱放进地址。新建商户带 `ownerEmail`；为已有主商户建子商户带 `parentMerchantCode`、不带 `ownerEmail`，Owner 按主商户的 Owner 判。
 
-        - `ownerIdentity`：`new` 该邮箱不属任何平台用户，建档会同时建出 Owner 账号；`existing` 已属平台用户，且该用户是某家商户的 Owner、或在商户后台没有身份，新商户会挂在该用户名下；`unusable` 已属其他商户的员工，或待验证、已停用的账号，不能建档。
+        - `parentMerchant`：仅带 `parentMerchantCode` 时返回，是上溯后的主商户（录入的是子商户的商户码时为它的主商户，`viaChildMerchant = true`，前端提示将挂到该主商户下）；不能作主商户时带 `ineligibleReason`，此时建档会被 `308208` 拒。
+        - `ownerIdentity`：`new` 该邮箱不属任何平台用户，建档会同时建出 Owner 账号；`existing` 已属平台用户，且该用户是某家商户的 Owner、或在商户后台没有身份，新商户会挂在该用户名下；`unusable` 已属其他商户的员工，或待验证、已停用的账号，不能建档。为已有主商户建子商户时按主商户 Owner 的账号判，只会是 `existing` 或 `unusable`。
         - `sameNameMerchants`：法定名相同或注册号相同的存量商户（只给商户码与名称，可能在本人数据范围外），供核对，不拦建档。
-        - `blocklistHits`：与禁入名单比对的命中项（`legalName` 与邮箱及其域名命中才算命中，`registrationNumber` / `ownerPhone` 只在同一名单项另有命中时一并列出），只提示，不拦建档。
+        - `blocklistHits`：与禁入名单比对的命中项（`legalName` 与邮箱及其域名命中才算命中，`registrationNumber` / `ownerPhone` 只在同一名单项另有命中时一并列出），只提示，不拦建档。为已有主商户建子商户时比对的邮箱取主商户 Owner 的登录邮箱。
 
         不挂幂等键。
+
+        **什么时候拒绝**：
+
+        - `404` 主商户的商户码不存在、该商户已删除或关户，或该商户不在本人数据范围内（不区分）。
+        - 字段格式不对；`ownerEmail` 与 `parentMerchantCode` 都没带或都带了 → `400`。
       parameters:
         - $ref: '#/components/parameters/CsrfToken'
       requestBody:
@@ -459,11 +484,19 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/AssistedOnboardingCheckRequest'
-            example:
-              ownerEmail: jane@example.com
-              legalName: Maple Coffee Inc.
-              registrationNumber: '1234567'
-              ownerPhone: '+16045550123'
+            examples:
+              newMerchant:
+                summary: 新建商户
+                value:
+                  ownerEmail: jane@example.com
+                  legalName: Maple Coffee Inc.
+                  registrationNumber: '1234567'
+                  ownerPhone: '+16045550123'
+              childMerchant:
+                summary: 为已有主商户建子商户（录入的是子商户的商户码）
+                value:
+                  parentMerchantCode: D9PL03
+                  legalName: Maple Coffee West Inc.
       responses:
         '200':
           description: 检查结果
@@ -471,13 +504,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AssistedOnboardingCheckResult'
-              example:
-                ownerIdentity: new
-                sameNameMerchants:
-                  - merchantCode: C3BM68
-                    legalName: Maple Coffee Inc.
-                    tradeName: Maple Coffee
-                blocklistHits: []
+              examples:
+                newMerchant:
+                  summary: 新建商户
+                  value:
+                    ownerIdentity: new
+                    sameNameMerchants:
+                      - merchantCode: C3BM68
+                        legalName: Maple Coffee Inc.
+                        tradeName: Maple Coffee
+                    blocklistHits: []
+                childMerchant:
+                  summary: 为已有主商户建子商户，已上溯
+                  value:
+                    parentMerchant:
+                      merchantId: mch_8001
+                      merchantCode: C3BM68
+                      tradeName: Maple Coffee
+                      legalName: Maple Coffee Inc.
+                      viaChildMerchant: true
+                    ownerIdentity: existing
+                    sameNameMerchants: []
+                    blocklistHits: []
         default:
           $ref: '#/components/responses/AdminBffDefaultError'
       x-error-codes: []
@@ -498,10 +546,11 @@ paths:
       description: |
         保存代客建档申请的一步资料，申请须为草稿或待补料。请求体恰含一个步骤键，且须与路径的 `{step}` 一致；各步字段规则同商户自己填入驻向导时的那一步。保存只校验已填字段的格式、不要求本步填齐，资料是否齐全在发起确认与代提交时统一校验。
 
+        - `contact`：为已有主商户建的子商户（申请详情带 `parentMerchant`）本步全部字段只读，服务端忽略其写入，不改主商户 Owner 的联系人资料；前端按只读展示、不提交本步。
         - `business`：改了 `country`，且已存结算银行账户的制式与新国家的制式不同（含新国家无条目）时，该账户整组视为未填：读申请不再返回 `bankAccount` / `bankName` / `storeId`，`settlement` 步要重填。
         - `documents`：按文档位绑定上传得到的 `fileId`，未传的文档位保持原绑定，传 `null` 移除。
         - `terms`：议价条款，只代客建档的入驻申请有。按支付方式（含插件入口专用行）的比例费率、固定单笔费与固定费免收截止日，外加手续费结算模式；整组置换。比例费率是小数字符串（`"0.022"` = 2.2%），须大于 0、不超过平台上限，至多 4 位小数（折成百分数至多两位小数）；固定单笔费是结算币种的最小单位整数串。条款随申请进合同，商户签署、申请提交后按它建立该商户的费率与结算模式。
-        - 有未签的确认请求时，任何改动都使它作废（链接失效），须重新发起确认、按改后资料重新生成合同；已签的确认只在改到签署关键字段（议价条款、结算账户、法定名、注册号）时作废，须重新发起确认、Owner 重签。作废时响应 `signatureInvalidated = true`。
+        - 有未签的确认请求时，任何改动都使它作废（链接失效），须重新发起确认、按改后资料重新生成合同；已签的确认只在改到签署关键字段（议价条款、结算币种、结算账户、法定名、注册号）时作废，须重新发起确认、Owner 重签。作废时响应 `signatureInvalidated = true`。
 
         置值写，不挂幂等键。
 
@@ -567,6 +616,43 @@ paths:
         - 308204
         - 308206
         - 308406
+  /applications/{applicationId}/parent-copy:
+    parameters:
+      - $ref: '#/components/parameters/ApplicationIdPath'
+    post:
+      tags:
+        - assisted-onboarding
+      operationId: copyParentMerchantProfile
+      x-required-privilege: mrev:assisted-onboarding:manage
+      summary: 代客建档：一键复制主商户资料
+      description: |
+        只用于为已有主商户建的子商户（申请详情带 `parentMerchant`）：把主商户当前的 `business`、`services`、`settlement` 三步资料复制进这份申请，字段范围同商户后台新增分店时的预填（含经营名、国家与币种，结算步不含退款密码），覆盖申请里这些字段的当前值，主商户某项没有值时该项随之清空；结算周期例外：只在主商户设了结算周期、且结算周期适用于本商户时随之覆盖，否则保持原值。之后仍可逐步修改。`contact`、`documents` 与议价条款不动。申请须为草稿或待补料。
+
+        复制算一次资料改动：有未签的确认请求时使它作废；已签的只在复制改到签署关键字段（结算币种、结算账户、法定名、注册号）时作废。作废时响应 `signatureInvalidated = true`，须重新发起确认。
+
+        置值写，不挂幂等键：重复调用按主商户当时的资料再覆盖一次。结算周期暂未写成功 → `503`，资料已复制，同样的请求重发即补上。
+
+        **什么时候拒绝**：
+
+        - `308201` 申请不在草稿或待补料，重读详情。
+        - `308204` 不是代客建档的申请。
+        - 申请所属商户没有主商户（新建商户的代客建档）→ `400`；正确页面下不出现。
+      parameters:
+        - $ref: '#/components/parameters/CsrfToken'
+      responses:
+        '200':
+          description: 已复制
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssistedStepSaveResult'
+              example:
+                signatureInvalidated: false
+        default:
+          $ref: '#/components/responses/AdminBffDefaultError'
+      x-error-codes:
+        - 308201
+        - 308204
   /applications/{applicationId}/files:
     parameters:
       - $ref: '#/components/parameters/ApplicationIdPath'
@@ -875,6 +961,9 @@ components:
               minLength: 1
               maxLength: 512
               description: 拒绝说明；仅已拒绝时返回。
+            parentMerchant:
+              $ref: '#/components/schemas/MerchantBrief'
+              description: 商户的主商户；仅入驻申请、且商户是子商户时返回。代客建档的申请带本键时 `contact` 步只读，并可调 `copyParentMerchantProfile`。
             missingFields:
               type: array
               description: 审核标记的待补项，写作 `<step>.<field>`（文档为 `documents.<docKey>`）；仅待补料时非空。
@@ -1175,14 +1264,16 @@ components:
     AssistedOnboardingCheckRequest:
       type: object
       additionalProperties: false
-      required:
-        - ownerEmail
+      description: '`ownerEmail` 与 `parentMerchantCode` 恰带其一（服务端校验，否则 400）。'
       properties:
         ownerEmail:
           type: string
           format: email
           maxLength: 254
-          description: Owner 邮箱。
+          description: Owner 邮箱；新建商户时带。
+        parentMerchantCode:
+          $ref: '#/components/schemas/MerchantCode'
+          description: 主商户的商户码；为已有主商户建子商户时带，填子商户的商户码会上溯到它的主商户。
         legalName:
           type: string
           minLength: 1
@@ -1220,6 +1311,9 @@ components:
         - sameNameMerchants
         - blocklistHits
       properties:
+        parentMerchant:
+          $ref: '#/components/schemas/ParentMerchantCheck'
+          description: 上溯后的主商户；仅请求带 `parentMerchantCode` 时返回。
         ownerIdentity:
           $ref: '#/components/schemas/OwnerIdentityStatus'
         sameNameMerchants:
@@ -1232,6 +1326,36 @@ components:
           description: 禁入名单命中项；无命中为空数组。只列法定名、邮箱、邮箱域名或商户码命中的名单项，同一名单项上的其他相同项一并列出。
           items:
             $ref: '#/components/schemas/BlocklistHit'
+    ParentMerchantCheck:
+      type: object
+      additionalProperties: false
+      description: 建档前检查里的主商户（已上溯）。
+      required:
+        - merchantId
+        - merchantCode
+        - viaChildMerchant
+      properties:
+        merchantId:
+          $ref: '#/components/schemas/MerchantId'
+        merchantCode:
+          $ref: '#/components/schemas/MerchantCode'
+        tradeName:
+          type: string
+          minLength: 1
+          description: 对外经营名；没有时不返回本键。
+        legalName:
+          type: string
+          minLength: 1
+          description: 法定名；没有时不返回本键。
+        viaChildMerchant:
+          type: boolean
+          description: 录入的是子商户的商户码、已上溯到它的主商户时为 `true`。
+        ineligibleReason:
+          type: string
+          enum:
+            - not_activated
+            - frozen
+          description: 不能作主商户的原因：`not_activated` 尚未激活 / `frozen` 已冻结。能作主商户时不返回本键。
     AssistedOwnerContact:
       type: object
       additionalProperties: false
@@ -1264,16 +1388,19 @@ components:
     AssistedApplicationCreate:
       type: object
       additionalProperties: false
-      description: 代客建档。
+      description: 代客建档。新建商户带 `owner`（可带 `bdUserId`）；为已有主商户建子商户带 `parentMerchantCode`，此时 `owner` 与 `bdUserId` 不得出现（服务端校验，否则 400）。
       required:
-        - owner
         - language
       properties:
+        parentMerchantCode:
+          $ref: '#/components/schemas/MerchantCode'
+          description: 主商户的商户码；为已有主商户建子商户时带，填子商户的商户码会上溯到它的主商户。
         owner:
           $ref: '#/components/schemas/AssistedOwnerContact'
+          description: Owner 联系人；新建商户时必带。
         bdUserId:
           $ref: '#/components/schemas/UserId'
-          description: 归属 BD（后台用户）；候选取自 BD 候选接口（`listSalesOptions`）；不传 = 暂无归属 BD。
+          description: 归属 BD（后台用户）；只用于新建商户。不传 = 当前用户本人。持 `orgbd:merchant-assignment:manage` 的可传他人，候选取自 BD 候选接口（`listSalesOptions`）；不持的只能不传或传本人，传他人回 `308702`。
         language:
           allOf:
             - $ref: '#/components/schemas/Language'
@@ -1327,7 +1454,7 @@ components:
       properties:
         signatureInvalidated:
           type: boolean
-          description: 本次保存是否使未签或已签的确认请求作废；`true` 时须重新发起确认。
+          description: 本次保存或复制是否使未签或已签的确认请求作废；`true` 时须重新发起确认。
     SignatureRequestCreated:
       type: object
       additionalProperties: false
@@ -1743,7 +1870,7 @@ components:
           description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         industryCategory:
           type: string
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+          description: 行业大类码（`/config/industries` 的 `items[].code`，即微信行业类目码，如 `533`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
           description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。
@@ -2040,7 +2167,7 @@ components:
         industryCategory:
           type: string
           maxLength: 64
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+          description: 行业大类码（`/config/industries` 的 `items[].code`，即微信行业类目码，如 `533`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
           maxLength: 4

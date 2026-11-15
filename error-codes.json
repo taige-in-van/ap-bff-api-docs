@@ -381,6 +381,11 @@
       "name": "REFERRAL_LINK_INVALID",
       "retryable": false
     },
+    "208061": {
+      "httpStatus": 409,
+      "name": "ASSISTED_MERCHANT_NOT_DELETABLE",
+      "retryable": false
+    },
     "304001": {
       "httpStatus": 400,
       "name": "ADMIN_OTP_RETRYABLE",
@@ -590,6 +595,11 @@
     "308207": {
       "httpStatus": 409,
       "name": "SETTLEMENT_CHANGE_SYNC_PENDING",
+      "retryable": false
+    },
+    "308208": {
+      "httpStatus": 409,
+      "name": "ADMIN_PARENT_MERCHANT_NOT_ELIGIBLE",
       "retryable": false
     },
     "308301": {

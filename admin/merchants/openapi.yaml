@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户运营管理 — 前端契约面
-  version: 2.4.1
+  version: 2.4.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -193,7 +193,7 @@ paths:
                 profile:
                   typeOfOwnership: CORPORATION
                   registrationNumber: '1234567'
-                  industryCategory: A0
+                  industryCategory: '656'
                   mcc: '5814'
                   businessAddress: 88 King St W
                   city: Toronto
@@ -1541,7 +1541,7 @@ components:
         industryCategory:
           type: string
           minLength: 1
-          description: 行业大类码，如 `A0`。
+          description: 行业大类码（微信行业类目码），如 `656`。
         mcc:
           type: string
           minLength: 1

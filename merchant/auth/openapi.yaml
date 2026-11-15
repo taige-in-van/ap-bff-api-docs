@@ -1670,7 +1670,7 @@ components:
           description: 商户营业电话。区号候选取自前端参考数据，服务端校验区号在白名单内。
         industryCategory:
           type: string
-          description: 行业大类码（`/config/industries` 的 `items[].code`，如 `A0`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
+          description: 行业大类码（`/config/industries` 的 `items[].code`，即微信行业类目码，如 `533`），不是展示名，展示名取同项的 `label`。身份字段（激活后不可改）。
         mcc:
           type: string
           description: 四位 MCC，级联 Industry（取自所选大类的 `mccOptions[].code`，展示名取同项的 `label`）；身份字段（激活后不可改）。

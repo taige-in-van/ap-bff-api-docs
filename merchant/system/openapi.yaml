@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -163,22 +163,16 @@ paths:
                       $ref: '#/components/schemas/ConfigIndustry'
               example:
                 items:
-                  - code: A0
+                  - code: '533'
                     label:
-                      en: Agricultural Services (0700-0999)
-                      zh: 农业服务 (0700-0999)
-                      fr: Services agricoles (0700-0999)
+                      en: Medical Service
                     mccOptions:
                       - code: '0742'
                         label:
-                          en: Veterinary Services
-                          zh: 兽医服务
-                          fr: Services vétérinaires
-                      - code: '0780'
+                          en: Veterinary services
+                      - code: '5976'
                         label:
-                          en: Landscaping and Horticultural Services
-                          zh: 园林绿化与园艺服务
-                          fr: Services d'aménagement paysager et d'horticulture
+                          en: Orthopaedic goods and prosthetic devices
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -675,9 +669,9 @@ components:
         code:
           type: string
           minLength: 1
-          description: 行业大类码，即资料与入驻申请里的 `industryCategory`。
+          description: 行业大类码，即资料与入驻申请里的 `industryCategory`。行业大类就是微信行业类目，码是微信的 3 位类目码。
           examples:
-            - A0
+            - '533'
         label:
           $ref: '#/components/schemas/LocalizedLabel'
         mccOptions:
