@@ -1,10 +1,10 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-14T20:33:02Z",
-  "implCommit": "86401064",
+  "generatedAt": "2026-11-15T01:32:07Z",
+  "implCommit": "d9798ce6",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
-    "admin/acquiring/createMerchantChannelContract": "525451bfcb49ec3a",
+    "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
     "admin/acquiring/createMerchantFeeRate": "d936b395ae43ba9d",
     "admin/acquiring/getMerchantCrossRefundPolicy": "e57a285689ac2d4b",
     "admin/acquiring/getMerchantDeveloperAccess": "996119e7ce6a7c65",
@@ -39,7 +39,7 @@
     "admin/acquiring/updateMerchantTipSettings": "9572dc7b2ff3ee78",
     "admin/applications/createApplicationFileAccessUrl": "6164c77b89a72acc",
     "admin/applications/decideApplication": "53f4008c64bb3c66",
-    "admin/applications/getApplication": "c96a6f235123023e",
+    "admin/applications/getApplication": "37acf36d2721ddee",
     "admin/applications/listApplications": "494192fa065d420c",
     "admin/applications/listMerchantAppIdTodos": "d3a718431ea91c26",
     "admin/auth/acceptInvitation": "3bbf0217a8b4294f",
@@ -132,9 +132,9 @@
     "merchant/me/updateMyProfile": "5b40d7033505d63b",
     "merchant/me/verifyLoginEmailChangeIdentity": "2de85307f1003efc",
     "merchant/merchants/createMerchant": "8b444f94da70d94b",
-    "merchant/merchants/deleteMerchant": "4758ae5f96bc0169",
+    "merchant/merchants/deleteMerchant": "6f7c82259ad2a510",
     "merchant/merchants/getOnboardingApplication": "1a0beb3670027835",
-    "merchant/merchants/listMerchants": "8cf83d2920abc6dc",
+    "merchant/merchants/listMerchants": "2e4fdaa17a1cba6f",
     "merchant/merchants/submitOnboardingApplication": "c026375e989e0fe3",
     "merchant/merchants/updateOnboardingStep": "83cf6bb40628bcff",
     "merchant/merchants/uploadOnboardingDocumentFile": "997d69ef40ae1cb8",
@@ -215,6 +215,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "7826415ca069ea8b2fe0b3caddaf375bd33ab828",
-  "prdStage": "stage/261113-admin-07b"
+  "prdSha": "d88e8efc04eb928ff371b5f915c2247365ed4fc0",
+  "prdStage": "stage/261114-repin-adm-demo"
 }
