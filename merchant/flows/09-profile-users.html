@@ -25,7 +25,7 @@
 | op# | operationId | method + path | 用途 |
 |---|---|---|---|
 | 1 | [`getAccountProfile`](../account/index.html#tag/profile/operation/getAccountProfile) | `GET /account/profile` | 读 Business Profile（Business Information / Settlement / Contact / Documents） |
-| 2 | [`listIndustryOptions`](../system/index.html#tag/config/operation/listIndustryOptions) | `GET /config/industries` | 行业大类及其 MCC（带三语 `label`） |
+| 2 | [`listIndustryOptions`](../system/index.html#tag/config/operation/listIndustryOptions) | `GET /config/industries` | 行业大类及其 MCC（带 `label`，按界面语言给，缺译时为英文名） |
 | 3 | [`listCountryOptions`](../system/index.html#tag/config/operation/listCountryOptions) | `GET /config/countries` | 国家及其省州（省州带三语 `label`）（含省 / 州的时区候选） |
 | 4 | [`getBalance`](../funds/index.html#tag/balance/operation/getBalance) | `GET /funds/balance` | 账户余额，Business Profile 取其中的 Refund Reserve |
 | 5 | [`uploadLogoFile`](../account/index.html#tag/profile/operation/uploadLogoFile) | `POST /account/profile/files` | 上传 Logo 文件 |

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.3.8
+  version: 2.4.0
   contact:
     name: 收银台
   description: |
@@ -1905,9 +1905,11 @@ components:
         cancelUrl:
           type: string
           maxLength: 2048
-          pattern: ^[A-Za-z][A-Za-z0-9+.-]*:\S+$
+          pattern: ^(?![Jj][Aa][Vv][Aa][Ss][Cc][Rr][Ii][Pp][Tt]:|[Dd][Aa][Tt][Aa]:|[Vv][Bb][Ss][Cc][Rr][Ii][Pp][Tt]:|[Bb][Ll][Oo][Bb]:|[Ff][Ii][Ll][Ee]:)[A-Za-z][A-Za-z0-9+.-]*:\S+$
           description: |
-            尚未付款或没付成时把付款人导回商户系统的地址：发起支付之前、等待付款结果期间、付款未成功、订单已失效或已关闭时都适用。只用于导航，不代表付款结果。这笔订单没有这个地址时不返回本键。
+            尚未付款、没付成或进入时订单已付时把付款人导回商户系统的地址：发起支付之前、等待付款结果期间、付款未成功、订单已失效或已关闭时都适用，进入时订单已付（`state` 为 `PAID`）也用它。只用于导航，不代表付款结果。这笔订单没有这个地址时不返回本键。
+
+            地址带协议头，不会是 `javascript` / `data` / `vbscript` / `blob` / `file` 协议（不区分大小写）；其余协议头（含 App 深链）都可能出现。
 
             付款成功后的跳回用 `CheckoutOrder.returnUrl`，与本键可以是同一个地址，也可以不同。
     CheckoutOptionItem:
@@ -2306,9 +2308,9 @@ components:
         returnUrl:
           $ref: '#/components/schemas/ReturnUrl'
           description: |
-            付款成功后把付款人带回商户系统的地址；仅 `status` 为 `SUCCEEDED` 且这笔订单有回跳地址时返回（已授权的订单同样返回）。只有经 `openOrderCheckout` 进入的会话可能返回；入口没返回 `order.cancelUrl` 的订单不会有本键。
+            付款成功后把付款人带回商户系统的地址；仅 `status` 为 `SUCCEEDED` 且这笔订单有回跳地址时返回（已授权的订单同样返回）。只有经 `openOrderCheckout` 进入的会话可能返回。
 
-            有的订单要到付款成功之后才确定回跳地址：`status` 变为 `SUCCEEDED` 时可能还不带本键，稍后才带上。
+            回跳地址不一定在下单时就有，有的订单要到付款成功之后才确定，入口没返回 `order.cancelUrl` 的订单也可能之后才有：`status` 变为 `SUCCEEDED` 时可能还不带本键，稍后才带上。
 
             经 1.0 卡收银台地址（`/creditCardGateway`）进入的会话，付款成功而本键缺失时，页面按它自己地址上的 `redirect` 查询参数跳回；该参数只在本次访问内由页面保留，只认 `http` / `https` 开头的地址，不提交给后端。
 
@@ -3158,8 +3160,8 @@ components:
     ReturnUrl:
       type: string
       maxLength: 512
-      pattern: ^[A-Za-z][A-Za-z0-9+.-]*:\S+$
-      description: 商户同步回跳地址，任意协议头（App 深链也可）；只影响导航。
+      pattern: ^(?![Jj][Aa][Vv][Aa][Ss][Cc][Rr][Ii][Pp][Tt]:|[Dd][Aa][Tt][Aa]:|[Vv][Bb][Ss][Cc][Rr][Ii][Pp][Tt]:|[Bb][Ll][Oo][Bb]:|[Ff][Ii][Ll][Ee]:)[A-Za-z][A-Za-z0-9+.-]*:\S+$
+      description: 商户同步回跳地址，须带协议头；不接受 `javascript` / `data` / `vbscript` / `blob` / `file` 协议（不区分大小写），其余协议头（含 App 深链）照收；只影响导航。
     VoucherNo:
       type: string
       minLength: 1

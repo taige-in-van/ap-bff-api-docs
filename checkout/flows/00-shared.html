@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"fd03598e07fdfbe8","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"4ab1df466903e462","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"90cd1ba57b8e5a23","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"55a934dd3898fe12","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"0738fa64650cb833","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"1e0c39f50e855660","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 收银台共用环节 —— 调用时序
@@ -204,11 +204,11 @@ sequenceDiagram
 
 ## 页面：链接状态页
 
-一般不调接口，数据来自入口接口返回的 `state`、`productCode` 与 `presentation`（商户名与 logo）；订单入口的 `PAID` 在有会话时取一次订单视图（即 `getCheckoutOrder` 返回的 `CheckoutOrder`，下同；见下表）。入口那一跳直接送来的「链接无效」没有商户信息。文案按产品选（「—」表示该产品不出现这个 `state`）：
+一般不调接口，数据来自入口接口返回的 `state`、`productCode` 与 `presentation`（商户名与 logo）。入口那一跳直接送来的「链接无效」没有商户信息。文案按产品选（「—」表示该产品不出现这个 `state`）：
 
 | state | 店铺码 | 账单 | 商品 / 票务 | 礼卡 | 动态码 / 开放 API 托管页 / 电商插件订单 |
 |---|---|---|---|---|---|
-| `PAID` | — | 这张账单已付款 | — | — | 这笔订单已付款（有会话时取一次订单视图，有 `returnUrl` 就用它给「返回商户」；没有会话，或订单视图里还没有 `returnUrl` 时，有 `order.cancelUrl` 就用它） |
+| `PAID` | — | 这张账单已付款 | — | — | 这笔订单已付款（有 `order.cancelUrl` 给「返回商户」） |
 | `EXPIRED` | — | 已过付款截止日 | — | 活动已结束（给「我的订单」入口，见 [05](05-giftcard.html#页面：我的订单)） | 订单已失效，请向商户重新获取（入口带 `order.cancelUrl` 时给「返回商户」） |
 | `INACTIVE` | 商户暂停收款 | 账单已停止收款 | 链接已下架 | 活动已结束（同上，给「我的订单」入口） | 订单已关闭（入口带 `order.cancelUrl` 时给「返回商户」） |
 | `404` | 链接无效 | 链接无效（账单已被商户删除也是这句） | 链接无效 | 链接无效 | 链接无效 |
@@ -546,7 +546,7 @@ sequenceDiagram
 
 ## 页面：支付结果
 
-拉起之后进结果页，轮询 `getCheckoutOrder`，查的是本会话的那笔订单。先是「确认中」，轮询节奏与「暂未查到付款结果」见「流程：发起支付」的「拉起之后的确认」（默认每 2 秒，20 秒后约每 5 秒，由前端定）；订单到期会收敛成 `EXPIRED`，轮询随之结束，不另设上限。到 `SUCCEEDED` 后一般不再轮询；只有入口返回过 `order.cancelUrl`、而订单视图还没有 `returnUrl` 的订单继续轮询等它，这一段有上限（多久由前端定），到上限还没有就停在成功页。等待态可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。账单会话的 `getCheckoutOrder` 另带账单当前状态：本会话订单还是 `PENDING` 时照共用的等待处理继续轮询、不看账单状态，订单是 `SUCCEEDED` 时显示成功与收据、同样不看账单状态，其余情况再按 [02-invoice.flows.md](02-invoice.html#页面：支付结果%20·%20收据) 的判定表；账单会话先按 02 的规则判，下表账单一列给的是订单各状态下的共用处理。刷新或从外部回到同一标签页时，入口接口返回 `paymentStarted` 为 true，直接进本页；`status` 为 `PENDING` 且带 `nextAction` 时按「流程：发起支付」的「拉起动作什么时候执行」处理：二维码（如 PC 上的）照常显示，其余见那条。
+拉起之后进结果页，轮询 `getCheckoutOrder`，查的是本会话的那笔订单（返回的 `CheckoutOrder` 下称订单视图）。先是「确认中」，轮询节奏与「暂未查到付款结果」见「流程：发起支付」的「拉起之后的确认」（默认每 2 秒，20 秒后约每 5 秒，由前端定）；订单到期会收敛成 `EXPIRED`，轮询随之结束，不另设上限。到 `SUCCEEDED` 后一般不再轮询；只有入口返回过 `order.cancelUrl`、而订单视图还没有 `returnUrl` 的订单继续轮询等它，这一段有上限（多久由前端定），到上限还没有就停在成功页。等待态可用 `CheckoutOrder.expiresAt` 显示这次付款的剩余时间。账单会话的 `getCheckoutOrder` 另带账单当前状态：本会话订单还是 `PENDING` 时照共用的等待处理继续轮询、不看账单状态，订单是 `SUCCEEDED` 时显示成功与收据、同样不看账单状态，其余情况再按 [02-invoice.flows.md](02-invoice.html#页面：支付结果%20·%20收据) 的判定表；账单会话先按 02 的规则判，下表账单一列给的是订单各状态下的共用处理。刷新或从外部回到同一标签页时，入口接口返回 `paymentStarted` 为 true，直接进本页；`status` 为 `PENDING` 且带 `nextAction` 时按「流程：发起支付」的「拉起动作什么时候执行」处理：二维码（如 PC 上的）照常显示，其余见那条。
 
 ```mermaid
 sequenceDiagram
@@ -608,8 +608,8 @@ sequenceDiagram
 | 情形 | 页面动作 |
 |---|---|
 | 成功页在微信 / 支付宝里 | 可给「完成」，关闭当前窗口（纯前端） |
-| 付成功后跳回（订单视图的 `returnUrl`，订单入口的订单才可能有） | 原样跳转，不加参数；跳回不代表结果，商户以查单为准。`SUCCEEDED` 后可能稍后才带上：入口带过 `order.cancelUrl` 的订单继续轮询等它，有上限（多久由前端定），到上限还没有就停在成功页；入口没带的订单不为此轮询 |
-| 「返回商户」（入口的 `order.cancelUrl`；发起支付之前（订单付款页、环境引导）、等待付款结果期间（「确认中」「暂未查到付款结果」「付款未完成」）、付款未成功、订单已失效或已关闭时都给；进入时订单已付而没有会话，或 `CheckoutOrder` 里没有 `returnUrl` 时也用它） | 原样跳转，不加参数 |
+| 付成功后跳回（订单视图的 `returnUrl`，订单入口的订单才可能有） | 原样跳转，不加参数；跳回不代表结果，商户以查单为准。`SUCCEEDED` 后可能稍后才带上：入口带过 `order.cancelUrl` 的订单继续轮询等它，有上限（多久由前端定），到上限还没有就停在成功页；入口没带的订单不为此轮询。协议是 `javascript` / `data` / `vbscript` / `blob` / `file`（不区分大小写）的按没有这个地址处理，不自动跳转 |
+| 「返回商户」（入口的 `order.cancelUrl`；发起支付之前（订单付款页、环境引导）、等待付款结果期间（「确认中」「暂未查到付款结果」「付款未完成」）、付款未成功、订单已失效或已关闭时都给；进入时订单已付时也给） | 原样跳转，不加参数。协议是 `javascript` / `data` / `vbscript` / `blob` / `file`（不区分大小写）的按没有这个地址处理，不给「返回商户」 |
 | 会话已过期（`404`） | 按「流程：刷新与会话重建」重调入口接口 |
 
 ## 流程：刷新与会话重建

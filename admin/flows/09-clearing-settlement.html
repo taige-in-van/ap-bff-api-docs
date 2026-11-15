@@ -791,7 +791,7 @@ sequenceDiagram
 已出具的商户月度对账单，调 #52。筛选：交易月区间 `fromMonth` / `toMonth`（`YYYY-MM`，两端必填）、商户 `merchantId`（可选）。
 
 - 各列取：对账单号 `statementNo`、商户 `merchant`、交易月 `statementMonth`、结算币种（取金额的币种）、成交笔数 `transactionCount`、销售净额 `grossAmount`、退款额 `refundAmount`、手续费 `feeAmount`、应结净额 `settlementAmount`、本单应收 `receivableAmount`、出具时刻 `issuedAt`。
-- 点一行打开详情，调 #53：另显示手续费明细 `feeLines`、额外收费 `chargeLines` 与税 `taxLines`（含计税省 `taxProvince`）。「下载对账单」调 #54 拿短时地址后直接下载。
+- 点一行打开详情，调 #53：另显示手续费明细 `feeLines`（不显示固定单笔费）、额外收费 `chargeLines` 与税 `taxLines`（含计税省 `taxProvince`）。「下载对账单」调 #54 拿短时地址后直接下载。
 - 「导出」调 #55，带当前筛选。
 
 ```mermaid

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.7.0
+  version: 2.7.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -468,7 +468,7 @@ paths:
         - `parentMerchant`：仅带 `parentMerchantCode` 时返回，是上溯后的主商户（录入的是子商户的商户码时为它的主商户，`viaChildMerchant = true`，前端提示将挂到该主商户下）；不能作主商户时带 `ineligibleReason`，此时建档会被 `308208` 拒。
         - `ownerIdentity`：`new` 该邮箱不属任何平台用户，建档会同时建出 Owner 账号；`existing` 已属平台用户，且该用户是某家商户的 Owner、或在商户后台没有身份，新商户会挂在该用户名下；`unusable` 已属其他商户的员工，或待验证、已停用的账号，不能建档。为已有主商户建子商户时按主商户 Owner 的账号判，只会是 `existing` 或 `unusable`。
         - `sameNameMerchants`：法定名相同或注册号相同的存量商户（只给商户码与名称，可能在本人数据范围外），供核对，不拦建档。
-        - `blocklistHits`：与禁入名单比对的命中项（`legalName` 与邮箱及其域名命中才算命中，`registrationNumber` / `ownerPhone` 只在同一名单项另有命中时一并列出），只提示，不拦建档。为已有主商户建子商户时比对的邮箱取主商户 Owner 的登录邮箱。
+        - `blocklistHits`：与禁入名单比对的命中项（`legalName` 与邮箱及其域名命中才算命中，`registrationNumber` / `ownerPhone` 只在同一名单项另有命中时一并列出），只提示，不拦建档。为已有主商户建子商户时比对的邮箱与手机号都取主商户 Owner 的（邮箱为其登录邮箱）。
 
         不挂幂等键。
 
@@ -595,8 +595,7 @@ paths:
                       - paymentMethod: wechat_instore
                         rate:
                           percentageRate: '0.022'
-                          fixedFee: '30'
-                          fixedFeeWaivedUntil: '2026-12-31'
+                          fixedFee: '0'
                     billingModel: postpaid
       responses:
         '200':
@@ -1286,6 +1285,7 @@ components:
           description: 注册号，用于同名商户提示与禁入名单比对。
         ownerPhone:
           $ref: '#/components/schemas/Phone'
+          description: Owner 手机号，用于禁入名单比对；新建商户时带。为已有主商户建子商户时不带，按主商户 Owner 的手机号比对。
     SameNameMerchant:
       type: object
       additionalProperties: false
