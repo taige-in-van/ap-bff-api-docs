@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.4.2
+  version: 2.4.3
   contact:
     name: 商户后台 BFF
   description: |
@@ -144,7 +144,7 @@ paths:
       description: |
         行业大类 → MCC 两级候选，平台配置、和当前商户无关。用在入驻向导 Business 步（选择）与 Business Profile（按码显示行业与 MCC 的名称）。
 
-        展示名按界面语言给，某语言缺译时为英文名。
+        展示名按语言分组给出各语言的名称，前端按当前界面语言取用；缺该语言时回落英文名。
 
         需要时就调，前端不必缓存。
       responses:

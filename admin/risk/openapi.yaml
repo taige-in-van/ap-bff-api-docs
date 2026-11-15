@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 风控管理 — 前端契约面
-  version: 2.0.1
+  version: 2.0.2
   contact:
     name: 管理后台 BFF
   description: |
@@ -807,7 +807,7 @@ paths:
       x-required-privilege: risk:giftcard-customer:view
       summary: 礼卡客户列表（按身份查，或列白名单客户）
       description: |
-        按付款人身份查付款人，或列出全部白名单客户，两者至少给一个；分页。每项是一位付款人：带其全部身份、礼卡风险等级、累计风险分、白名单标记与备注、最近处置时间与处置人。从未买过礼卡的付款人风险等级为 `NORMAL`、风险分为 0、不在白名单。
+        按付款人身份查付款人，或列出全部白名单客户，两者至少给一个；分页。每项是一位付款人：带其全部身份、礼卡风险等级、风险分、白名单标记与备注、风险资料最近改动时间、最近维护白名单的人。从未买过礼卡的付款人风险等级为 `NORMAL`、风险分为 0、不在白名单。
 
         按身份查：`identityType` 与 `identityValue` 同给，值精确匹配、邮箱不分大小写，不区分所属应用。
 
@@ -891,7 +891,7 @@ paths:
       x-required-privilege: risk:giftcard-customer:edit
       summary: 设或取消礼卡客户白名单
       description: |
-        把这位付款人的礼卡客户白名单标记设为 `whitelisted`、备注设为 `remark`。只改白名单标记与备注，不改礼卡风险等级与累计风险分；从未买过礼卡的付款人也可设。白名单的效果按礼卡风控规则，不在本页定义。
+        把这位付款人的礼卡客户白名单标记设为 `whitelisted`、备注设为 `remark`。只改白名单标记与备注，不改礼卡风险等级与风险分；从未买过礼卡的付款人也可设。白名单的效果按礼卡风控规则，不在本页定义。
 
         **全量覆盖**：请求体就是目标本身，`remark` 不给即清空备注。
 
@@ -1581,21 +1581,21 @@ components:
         riskScore:
           type: integer
           minimum: 0
-          description: 累计风险分。
+          description: 风险分：取该付款人各笔礼卡订单风险分（单笔超过高风险下限的按下限计）中最高的一个，不累加；放行或移出黑名单后归零。
         whitelisted:
           type: boolean
           description: 是否在礼卡客户白名单。
         remark:
           type: string
           minLength: 1
-          description: 处置备注；没有时不返回本键。
+          description: 白名单备注；没有时不返回本键。
         updatedAt:
           $ref: '#/components/schemas/Timestamp'
-          description: 最近处置时刻；从未处置、也没有风险资料时不返回本键。
+          description: 风险资料最近改动时刻；没有风险资料时不返回本键。
         updatedBy:
           allOf:
             - $ref: '#/components/schemas/UserRef'
-          description: 最近处置人；没有人工处置过时不返回本键。
+          description: 最近维护白名单的人；没有维护过白名单时不返回本键。商户在订单上的处置不改它。
     GiftcardCustomerWhitelistWrite:
       type: object
       additionalProperties: false
@@ -1609,7 +1609,7 @@ components:
           type: string
           minLength: 1
           maxLength: 256
-          pattern: \S
+          pattern: .*\S.*
           description: 备注，不能全为空白；不给即清空备注。
     DiagnosticDetail:
       type: string

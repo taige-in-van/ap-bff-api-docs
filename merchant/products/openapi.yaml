@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.5.0
+  version: 2.6.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -995,7 +995,8 @@ paths:
         部分更新：没带的字段不变。只带 `enabled` 即启停；`bannerFileId: null` 移除 Banner。内容段只能带与链接类型一致的那个（`giftcard` / `product` / `ticket`），否则 `400`；不收 `fulfillmentMode`。
 
         - 条目（商品 / 票档 / 面值档）：带回 `itemId` = 改这一项，不带 = 新增一项，没带回的既有项下架（已售与在途仍算在它头上）。`quantityLimit` 不能低于该项的 `committedQuantity`，否则 `409`·`208031`（`details` 指到出错那一项的上限字段，如 `ticket.tiers[1].quantityLimit`，`context.committedQuantity` 是该项的下界；只报第一处）；带了不属于本链接的 `itemId` → `409`·`208032`。
-        - 支付方式与采集项的校验同 `createProductLink`（`208007` / `208030`）；只改 `currency` 时按新币种复核已选的方式。已选着、后来停用的项可以原样带回，但带了 `checkoutOptions` 时整组里至少要有一项已开通，否则 → `409`·`208007`。
+        - 标价币种创建后不可改：`currency` 可不传，传了须等于链接当前的标价币种（相同即无变化），不同 → `400`；只给内容段时各项金额币种须等于链接当前的标价币种，否则 `400`。
+        - 支付方式与采集项的校验同 `createProductLink`（`208007` / `208030`）。已选着、后来停用的项可以原样带回，但带了 `checkoutOptions` 时整组里至少要有一项已开通，否则 → `409`·`208007`。
         - 礼卡：切换 `enabled` 会让该活动的限购计数重新开始。
         - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
 
@@ -1509,7 +1510,7 @@ paths:
       x-required-privilege: products:order:manage
       summary: 重发礼卡凭证邮件（可改收件邮箱）
       description: |
-        仅礼卡销售单可重发。按所填邮箱重发凭证邮件并写入动作日志，不改变订单状态与凭证内容。不传 `email` 就发到当前投递邮箱。不是礼卡销售单、凭证已失效、已核销、订单有处理中的退款或处于风控冻结时不可重发 → `409`·`208019`。
+        仅礼卡销售单可重发。按所填邮箱重发凭证邮件并写入动作日志，不改变订单状态与凭证内容。不传 `email` 就发到当前投递邮箱。不是礼卡销售单、凭证尚未就绪或首次发送还没有结果（首次发送已送达或已失败的才可重发，可重发多次）、凭证已失效、已核销、订单有处理中的退款或处于风控冻结时不可重发 → `409`·`208019`。
 
         幂等：同键同请求体重发不会再投递一封；换收件邮箱要换新键，沿用旧键改邮箱 → `409`·`908003`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
@@ -2205,7 +2206,7 @@ components:
             - $ref: '#/components/schemas/Timestamp'
         orderRiskReviewEnabled:
           type: boolean
-          description: 收款后、发放前是否做风控审核。人工处置在销售单详情里做，不在这里配。
+          description: 收款后、发放前是否做风控审核；创建时不传按开启。关着时收款后不评估、不冻结发放。人工处置在销售单详情里做，不在这里配。
         denominations:
           type: array
           minItems: 1
@@ -2496,6 +2497,7 @@ components:
           description: 链接名；票务即活动名、礼卡即礼卡名。
         currency:
           $ref: '#/components/schemas/Currency'
+          description: 标价币种，创建后不可改。
         checkoutOptions:
           type: array
           minItems: 1
@@ -2546,6 +2548,7 @@ components:
           maxLength: 256
         currency:
           $ref: '#/components/schemas/Currency'
+          description: 标价币种，创建后不可改；可不传，传了须等于链接当前的标价币种，否则 `400`。
         checkoutOptions:
           type: array
           minItems: 1
@@ -2874,7 +2877,7 @@ components:
     ProductLinkOrderVoucher:
       type: object
       additionalProperties: false
-      description: 履约凭证。商品与票务整单一张；礼卡实体卡模式主卡、赠卡各一张，兑换券模式一张承载主卡与赠卡。
+      description: 履约凭证。商品与票务整单一张；礼卡实体卡模式主卡、赠卡各一张，或一张合并卡（`kind` 为 `MAIN`，`faceAmount` 为主卡与赠卡合计面值，不返回 `bonusAmount`）；兑换券模式一张承载主卡与赠卡。
       required:
         - voucherNo
         - pin
@@ -2996,7 +2999,7 @@ components:
             - ISSUED
             - SUSPENDED
             - CANCELLED
-          description: '`PENDING` 待发放 / `ISSUED` 已发放 / `SUSPENDED` 发放失败待处理（等重试或人工补发；退款处理中不改这个值） / `CANCELLED` 已取消。'
+          description: '`PENDING` 待发放 / `ISSUED` 已发放 / `SUSPENDED` 发放失败待处理（卡分配或凭证生成失败的，系统按周期重试直到发出；邮件发送失败或没有收件邮箱的，由商户改邮箱重发；风控冻结的，放行后发放；退款处理中不改这个值） / `CANCELLED` 已取消。'
         riskLevel:
           $ref: '#/components/schemas/RiskLevel'
         riskScore:
@@ -3022,6 +3025,7 @@ components:
                 description: 是否计入订单分。
               matchedCategory:
                 type: string
+                description: 命中维度：`buyer_email` 买家邮箱 / `recipient_email` 收件人邮箱 / `buyer_name` 买家姓名 / `client_ip` 下单 IP。
               matchedContent:
                 type: string
         riskReleasedAt:

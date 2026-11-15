@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 收银台
   description: |
@@ -2530,7 +2530,7 @@ components:
         bonusAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 同一张凭证一并承载的赠卡面值；只在一张凭证同时承载主卡与赠卡时返回。
+          description: 同一张兑换券一并承载的赠卡面值；只在兑换券有赠卡时返回。没有 `qrContent` 的卡不返回本键，其中主卡与赠卡合成一张的合并卡，`faceAmount` 已是两者合计面值。
         qrContent:
           type: string
           minLength: 1
