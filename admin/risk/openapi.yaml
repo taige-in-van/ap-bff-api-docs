@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 风控管理 — 前端契约面
-  version: 2.0.2
+  version: 2.0.3
   contact:
     name: 管理后台 BFF
   description: |
@@ -1109,7 +1109,7 @@ components:
           type: string
           minLength: 1
           maxLength: 512
-          pattern: ^.*\S.*$
+          pattern: ^[\s\S]*\S[\s\S]*$
           description: 拉黑原因，不能为空白。
     PayerBlocklistEntry:
       type: object
@@ -1491,7 +1491,7 @@ components:
           type: string
           minLength: 1
           maxLength: 500
-          pattern: ^.*\S.*$
+          pattern: ^[\s\S]*\S[\s\S]*$
           description: 解除原因，不能为空白。
     MerchantBlocklistFromMerchant:
       type: object
@@ -1609,7 +1609,7 @@ components:
           type: string
           minLength: 1
           maxLength: 256
-          pattern: .*\S.*
+          pattern: '[\s\S]*\S[\s\S]*'
           description: 备注，不能全为空白；不给即清空备注。
     DiagnosticDetail:
       type: string

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.4.1
+  version: 2.6.0
   contact:
     name: 收银台
   description: |
@@ -19,7 +19,7 @@ info:
     ## 调用顺序
 
     1. 入口接口：建立或认回会话，取页面的展示内容；店铺码另返回收款页内容（币种、小费档位、采集项、说明），账单另返回账单内容与采集项，商品、票务另返回页面内容（可售项、采集项、条款），礼卡另返回面值档、买家与收件人采集项、条款。
-    2. `listCheckoutPaymentMethods`：取当前可用的支付方式与各自的总应付。店铺码会话还没有订单时，带上付款人输入的金额与小费；商品、票务会话还没有订单时，带上所选各项的小计；礼卡会话还没有订单时，带上所选面值档的售价。
+    2. `listCheckoutPaymentMethods`：取当前可用的支付方式与各自的总应付。店铺码会话还没有订单时，带上付款人输入的金额与小费；商品、票务会话还没有订单时，带上所选各项的小计；礼卡会话还没有订单时，带上所选面值档的售价。各项进页即可分开展示：带 `entryQr` 的是扫码付（订单入口在电脑上，进页即可显示码），带 `cardForm` 的在本页填卡，其余项带 `launchKind`、即发起后的拉起种类。
     3. `createCheckoutPayment` 发起支付，`getCheckoutOrder` 查结果。会话还没有订单时，请求体带上本产品那一块（付款人填的金额、选购、采集内容）；选的是带 `cardForm` 的方式时，另带 `card` 块。
     4. 商品、票务付款成功后的凭证，礼卡的发放状态与凭证，都在 `getCheckoutOrder` 返回的 `sales` 里。
 
@@ -772,7 +772,7 @@ paths:
       operationId: listCheckoutPaymentMethods
       summary: 列出该会话当前可用的支付方式与各自的总应付
       description: |
-        当前可用的支付方式，按本会话的受理环境（即入口接口返回的 `acceptanceEnv`）与这个收款入口允许的方式给出；列表是此刻的结果，发起支付时会再校验。商户下单时指定了支付方式或收银台选项（如银联卡号支付）的订单，列表只含那一项（它在当前环境不可用时为空）。
+        当前可用的支付方式，按本会话的受理环境（即入口接口返回的 `acceptanceEnv`）与这个收款入口允许的方式给出；列表是此刻的结果，发起支付时会再校验。商户下单时指定了支付方式或收银台选项（如银联卡号支付）的订单，列表只含那一项（它在当前环境不可用时为空）。各项进页即可分开展示：带 `entryQr` 的是扫码付（订单入口在电脑上，进页即可显示码，不用发起支付），带 `cardForm` 的在本页填卡后发起，其余项带 `launchKind`、即发起后的拉起种类。
 
         每项带选这一方式时的总应付，发起支付时会重算；此刻算不出总应付的方式不出现在列表里。人民币标价时，换算成商户结算币种后不足其最小单位的方式也不出现：金额已定的按已定金额判，金额由付款人选定的按 `amount` 判，还没传 `amount` 时不判这一项。没有可用方式时返回 `{ items: [] }`，不是错误；礼卡会话还没有订单而 `state` 不是 `PAYABLE` 时同样返回空列表。
 
@@ -1025,12 +1025,12 @@ paths:
                 payable:
                   amount: '4830'
                   currency: CAD
-                checkoutOption: wechat
-                checkoutOptionDisplayName: WeChat Pay
+                checkoutOption: alipay
+                checkoutOptionDisplayName: Alipay
                 expiresAt: '2026-08-28T09:45:00Z'
                 nextAction:
                   kind: qr
-                  qrContent: weixin://wxpay/bizpayurl?pr=Xk3Lm9Q
+                  qrContent: https://qr.alipay.com/bax03431ljhokirwl38f00a7
         '201':
           description: 新建了订单或发起了新的支付
           content:
@@ -1944,6 +1944,30 @@ components:
           allOf:
             - $ref: '#/components/schemas/CheckoutCardForm'
           description: 要在本页填卡的方式（信用卡、银联卡号支付）才返回；其余方式不返回本键。
+        entryQr:
+          type: object
+          description: |
+            选这一项不用在本页发起支付：付款人用手机上这一方式的 App 扫这个码，在 App 里打开同一笔订单付款。页面拿到列表即可显示这个码，不调 `createCheckoutPayment`，显示后轮询 `getCheckoutOrder` 看结果。
+
+            - 只在订单入口的会话里可能返回，当前只在 `acceptanceEnv` 为 `pc` 时返回。
+            - 同一列表里带本键的各项，`qrContent` 相同，显示一个码即可。
+            - 总应付仍以各项的 `payable` 为准：付款人扫开后用哪种方式付，就按哪一项计。
+
+            不返回本键时，这一项要付款人确认后经 `createCheckoutPayment` 发起。
+          required:
+            - qrContent
+          properties:
+            qrContent:
+              type: string
+              minLength: 1
+              description: 二维码原文，出图由前端本地渲染。
+        launchKind:
+          allOf:
+            - $ref: '#/components/schemas/CheckoutLaunchKind'
+          description: |
+            选这一项发起支付后会拿到的拉起动作种类，页面进页时可据此把各项分开展示（例如 `redirect` 的项会整页跳走）；实际拉起以发起支付返回的 `nextAction` 为准。
+
+            带 `entryQr` 的项（扫码付，不必发起）、带 `cardForm` 的项（在本页填卡后发起）不返回本键；其余项都返回。
         savedCards:
           type: array
           description: |
@@ -2466,6 +2490,11 @@ components:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
           description: 另送的赠卡面值，含义同入口面值档的 `bonusAmount`，取下单时的值；只在买赠活动返回。
+        bonusNotes:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: 赠卡说明，含义同入口面值档的 `bonusNotes`，取下单时的值；只在买赠活动且商户为这一档另写了赠卡说明时返回。
         buyerEmail:
           type: string
           format: email
@@ -2526,11 +2555,11 @@ components:
         faceAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 面值。
+          description: 兑换券上是主卡金额；没有 `qrContent` 的卡是这张卡的面值，其中主卡与赠卡合成一张的合并卡，已是两者的合计。
         bonusAmount:
           allOf:
             - $ref: '#/components/schemas/PositiveMoney'
-          description: 同一张兑换券一并承载的赠卡面值；只在兑换券有赠卡时返回。没有 `qrContent` 的卡不返回本键，其中主卡与赠卡合成一张的合并卡，`faceAmount` 已是两者合计面值。
+          description: 同一张兑换券一并承载的赠卡面值；只在兑换券有赠卡时返回。没有 `qrContent` 的卡不返回本键，其中主卡与赠卡合成一张的合并卡，`faceAmount` 已是两者合计面值。合计金额 = `faceAmount` + `bonusAmount`，由页面相加显示，不另给合计。
         qrContent:
           type: string
           minLength: 1
@@ -2603,34 +2632,40 @@ components:
             - `CANCELLED` 已失效。
 
             遇到未列出的值按不可用处理。
+    CheckoutLaunchKind:
+      type: string
+      enum:
+        - jsapi
+        - qr
+        - app_launch
+        - open_in_browser
+        - redirect
+        - hidden_form
+      description: |
+        拉起支付的动作种类：
+
+        - `jsapi` 在微信 / 支付宝内调起支付窗，带 `sdkParams`；
+        - `qr` 显示二维码让付款人用手机扫，带 `qrContent`；
+        - `app_launch` 唤起钱包 App，带 `launchUrl`，可能带 `fallbackUrl`；
+        - `open_in_browser` 当前环境唤不起所选钱包、需在手机浏览器里打开，带 `launchRef`，唤起地址在浏览器那一侧凭它调 `getCheckoutLaunch` 取；
+        - `redirect` 整页离开收银台，带 `redirectUrl` 与 `redirectMethod`：`GET` 时直接跳到 `redirectUrl`，`POST` 时把 `redirectForm` 作为表单整页提交到 `redirectUrl`；
+        - `hidden_form` 付款人留在本页，在一个看不见的框里把 `redirectForm` 作为表单以 POST 提交到 `redirectUrl`，带这两个字段；提交本身不给页面结果，结果以 `getCheckoutOrder` 为准。
+
+        遇到未列出的值按没有可执行的拉起动作处理，结果以 `getCheckoutOrder` 为准。
     CheckoutNextAction:
       type: object
       description: |
         拉起支付的动作，由服务端按所选方式与受理环境决定；照 `kind` 取对应字段。
         仅 `status` 为 `PENDING` 且在等付款人完成时返回；没有拉起动作时不返回。
 
-        例外：`productCode` 为 `DYNAMIC_QR` 的订单在电脑浏览器里选了微信时，返回 `kind` 为 `qr`，码内容是这笔订单的入口地址，要付款人用手机微信扫开后在微信里付。这时没有发起支付，`status` 保持订单当前状态，查订单不返回这个码。
+        例外：`productCode` 为 `DYNAMIC_QR` 的订单在电脑浏览器里选了微信或支付宝（`alipay`）时，返回 `kind` 为 `qr`，码内容是这笔订单的入口地址，要付款人用手机上的这个 App 扫开后在 App 里付。这两项在方式列表里已带 `entryQr`、码内容相同，页面可直接显示、不必发起。这时没有发起支付，`status` 保持订单当前状态，查订单不返回这个码。
       required:
         - kind
       properties:
         kind:
-          type: string
-          enum:
-            - jsapi
-            - qr
-            - app_launch
-            - open_in_browser
-            - redirect
-            - hidden_form
-          description: |
-            - `jsapi` 在微信 / 支付宝内调起支付窗，带 `sdkParams`；
-            - `qr` 显示二维码让付款人用手机扫，带 `qrContent`；
-            - `app_launch` 唤起钱包 App，带 `launchUrl`，可能带 `fallbackUrl`；
-            - `open_in_browser` 当前环境唤不起所选钱包、需在手机浏览器里打开，带 `launchRef`，唤起地址在浏览器那一侧凭它调 `getCheckoutLaunch` 取；
-            - `redirect` 整页离开收银台，带 `redirectUrl` 与 `redirectMethod`：`GET` 时直接跳到 `redirectUrl`，`POST` 时把 `redirectForm` 作为表单整页提交到 `redirectUrl`；
-            - `hidden_form` 付款人留在本页，在一个看不见的框里把 `redirectForm` 作为表单以 POST 提交到 `redirectUrl`，带这两个字段；提交本身不给页面结果，结果以 `getCheckoutOrder` 为准。
-
-            遇到未列出的值按没有可执行的拉起动作处理，结果以 `getCheckoutOrder` 为准。
+          allOf:
+            - $ref: '#/components/schemas/CheckoutLaunchKind'
+          description: 拉起支付的动作种类，照它取对应字段。
         sdkParams:
           type: object
           additionalProperties: true

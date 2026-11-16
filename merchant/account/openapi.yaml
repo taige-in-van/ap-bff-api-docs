@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.7.3
+  version: 2.8.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -979,8 +979,6 @@ components:
         - legalBusinessName
         - tradeName
         - typeOfOwnership
-        - industryCategory
-        - mcc
         - businessAddress
         - city
         - country
@@ -1002,12 +1000,12 @@ components:
           description: 没有时不返回本键。
         industryCategory:
           type: string
-          description: 行业大类码（微信行业类目码），如 `533`。
+          description: 行业大类码（微信行业类目码），如 `533`。没有时不返回本键。
           examples:
             - '533'
         mcc:
           type: string
-          description: 四位 MCC。
+          description: 四位 MCC。没有时不返回本键。
           examples:
             - '0742'
         businessAddress:

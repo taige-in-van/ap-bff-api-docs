@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"55a934dd3898fe12","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"0738fa64650cb833","checkout/getGiftcardOrder":"db80dc39ab6d62d6","checkout/listCheckoutPaymentMethods":"2f699ea7d0334b0a","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"1e0c39f50e855660","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"1e0c39f50e855660","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 收银台共用环节 —— 调用时序
@@ -92,7 +92,7 @@ stateDiagram-v2
 ```
 
 - 从收银台之外回来，落的是付款人原来的入口页面地址、带一次性码，凭它认回付款前的会话，见 [流程：整页跳转与回跳](#流程：整页跳转与回跳)。
-- 拉起之后结果页先确认付款结果；还没付的，「继续付款」照原来的拉起动作再执行一次，见 [流程：发起支付](#流程：发起支付)。要重来走「重新付款」（在浏览器打开引导页上叫「重新选择付款方式」）：丢掉本标签页的会话、重新打开入口地址，按一次新的进入处理，原订单不取消、留到过期；新进入落在哪一页见各产品文件。见 [页面：支付结果](#页面：支付结果)。
+- 拉起之后结果页先确认付款结果；还没付的，「继续付款」照原来的拉起动作再执行一次，见 [流程：发起支付](#流程：发起支付)。要重来走「重新付款」（在浏览器打开引导页上叫「重新选择付款方式」）：丢掉本标签页的会话、重新打开入口地址，按一次新的进入处理，原订单不取消、留到过期；新进入落在哪一页见各产品文件。见 [页面：支付结果](#页面：支付结果)。订单入口要换方式也可以不重开入口，在本会话里直接再发起，见 [流程：发起支付](#流程：发起支付)。
 - 回商户系统只有订单入口进来、且带回商户地址的订单才有：付成功自动跳回，没付成时付款页、结果页、链接状态页、环境引导页上另有「返回商户」（图上只画了结果页这一条），见 [03-order-checkout.flows.md](03-order-checkout.html#页面：订单付款页)。
 
 ## 接口
@@ -241,13 +241,14 @@ sequenceDiagram
 
 ## 页面：支付方式选择
 
-付款页拿到会话后调 `listCheckoutPaymentMethods` 取可用方式。每项给收银台选项码、展示名与图标，名称按选项码从前端多语言资源取，取不到就显示展示名；能不能用、按哪种形态拉起都由服务端按受理环境判，前端只照列表渲染。
+付款页拿到会话后调 `listCheckoutPaymentMethods` 取可用方式。每项给收银台选项码、展示名与图标，名称按选项码从前端多语言资源取，取不到就显示展示名；能不能用、按哪种形态拉起都由服务端按受理环境判；列表项的 `entryQr`（扫码付）、`cardForm`（本页填卡）、`launchKind`（其余项发起后的拉起种类）供页面进页时把各项分开展示。页面不按选项码自建形态对照，实际拉起以发起支付返回的 `nextAction` 为准。
 
 - **总应付**：列表每项直接带该方式的 `payable` 与 `customerServiceFee`（总应付可能随方式不同），付款人改选方式时页面换成该项的数，不再调接口。
 - **金额从哪来**：金额已定的会话（订单入口、账单）不用传金额，后端按已定的金额算。金额由付款人在页上定的：店铺码把当前录入的金额与小费作为参数 `amount` 与 `tip` 传上来（都是金额，小费是金额不是档位）；商品 / 票务把所选各项「售价 × 数量」的小计作为 `amount` 传上来；礼卡把所选面值档的 `price` 作为 `amount` 传上来；付款人改了金额、小费、选购或面值档就重取一次列表（前端防抖）。还没录入金额或没选任何项时不传，列表只给方式、不带 `payable`。会话已有订单后不用传，传了也不采信，按订单上的金额算。
 - **这里的数不是承诺**：发起支付时页面把显示的总应付带上，后端重算比对，不一致会拒并给出新数。
 - **空列表**：按「页面：环境引导」处理。
-- **订单入口在钱包内默认选中**：订单入口（`openOrderCheckout` 进来的会话）在微信内或支付宝内打开（入口返回的 `acceptanceEnv` 为 `wechat_internal` / `alipay_internal`）时，方式列表里有该钱包的选项就默认选中（支付宝内同时有支付宝与支付宝线上两项时，选列表里靠前的那一项），付款人点「付款」即拉起；钉了方式的订单列表只有一项，同样默认选中。不做打开即自动拉起：刷新或付完回来会重复弹出支付窗。
+- **订单入口在钱包内默认选中**：订单入口（`openOrderCheckout` 进来的会话）在微信内或支付宝内打开（入口返回的 `acceptanceEnv` 为 `wechat_internal` / `alipay_internal`）时，方式列表里有该钱包的选项就默认选中（支付宝内同时有支付宝与支付宝线上两项时，选列表里靠前的那一项），付款人点「付款」即拉起；钉了方式的订单列表只有一项，同样默认选中。不做打开即自动拉起：刷新或付完回来会重复弹出支付窗。显示 `entryQr` 的码不是发起支付，不受这条限制，见下条。
+- **电脑上的扫码付款**：订单入口在电脑上（`acceptanceEnv` 为 `pc`）时，列表项可能带 `entryQr`。带它的项进页即显示码（这类项的 `qrContent` 相同，显示一个码），不调 `createCheckoutPayment`，显示后就开始轮询 `getCheckoutOrder`，订单到终态按「页面：支付结果」处理；列表只有一项、钉了方式的订单同样如此。页面手里有每项的 `payable`；客户服务费到付款人扫开后发起时按所用方式计。付款人用手机扫开后在手机上付，手机那一侧按上条的默认选中规则选中扫码的那个钱包。没有 `entryQr` 的项（卡类、跳转类等）照旧要付款人点「付款」才发起。
 
 ```mermaid
 sequenceDiagram
@@ -257,13 +258,16 @@ sequenceDiagram
 
     Note over S,C: 入口接口已签发会话，paymentStarted 为 false
     S->>C: #35;3 [listCheckoutPaymentMethods]<br/>GET /order/payment-methods
-    C-->>S: { items: [{ checkoutOption, displayName,<br/>logoUrl?, payable?, customerServiceFee? }] }
+    C-->>S: { items: [{ checkoutOption, displayName,<br/>logoUrl?, payable?, customerServiceFee?, entryQr?, launchKind? }] }
     alt items 为空
         S->>P: 环境引导页或「暂无可用支付方式」
     else 每项带 payable
         S->>P: 列出方式，按选中项显示总应付
     else 店铺码还没录入金额或商品 / 票务还没选项（不带 payable）
         S->>P: 只列出方式
+    end
+    opt 订单入口在电脑上，有项带 entryQr
+        S->>P: 进页即显示 entryQr 的码，开始轮询 #35;5 getCheckoutOrder
     end
     P->>S: 改选另一种方式
     S->>P: 换成该项的总应付，不调接口
@@ -275,7 +279,7 @@ sequenceDiagram
 
 | 情形 | 页面动作 |
 |---|---|
-| 列表只有一项 | 照常显示该项与总应付，付款人无需选择 |
+| 列表只有一项 | 照常显示该项与总应付，付款人无需选择；该项带 `entryQr` 时进页即显示码 |
 | 停留期间商户停用了某方式 | 列表不主动刷新；发起支付时被拒（`409`·`108102`）再重取列表 |
 
 ## 页面：支付方式选择 · 卡表单 区块
@@ -346,7 +350,7 @@ sequenceDiagram
 
 ## 流程：发起支付
 
-付款人点「付款」时调 `createCheckoutPayment`，带所选的 `checkoutOption` 和页面上显示的总应付 `expectedPayable`。服务端按当下的配置重算，一致才发起；不一致返回 `409`·`108103` 并在 `context` 里带当前总应付，页面换成新数让付款人再点一次。
+付款人对不带 `entryQr` 的项点「付款」时调 `createCheckoutPayment`（带 `entryQr` 的项进页即显示码、不必调，见「页面：支付方式选择」），带所选的 `checkoutOption` 和页面上显示的总应付 `expectedPayable`。服务端按当下的配置重算，一致才发起；不一致返回 `409`·`108103` 并在 `context` 里带当前总应付，页面换成新数让付款人再点一次。
 
 - **一个会话一笔订单**：本会话还没有订单（静态码首次付款）就连订单一起建；已有订单则在同一笔订单上发起一次新的尝试，仍是同一笔订单（卡表单换卡再付、订单入口重新进入后再付都是这种）。
 - **请求按产品分块**：每次都带 `checkoutOption` 与 `expectedPayable`。会话还没有订单时另带本产品那一块，块名同入口接口返回的那一块；会话已有订单后不带，带了不采信，再发起只带 `checkoutOption` 与 `expectedPayable`。别的产品的块不采信。订单入口的会话没有产品块。卡类方式另带 `card` 块，见「页面：支付方式选择 · 卡表单 区块」。
@@ -354,11 +358,11 @@ sequenceDiagram
 - **账单的采集内容**：账单首次发起时可带 `invoice { collectedFields? }`（只有备注一项）；没有要填的内容时可以不带。
 - **商品 / 票务的选购与采集内容**：首次发起时带 `product { items, collectedFields? }` 或 `ticket { items, collectedFields? }`（`items` 每项是 `itemId` 与 `quantity`），同一次请求里建订单并占用库存；会话已有订单后选购与买家信息定在订单上。请求被拒（`400` / `409`）时本会话还没有订单、不占库存。
 - **礼卡的选购与填写内容**：首次发起时带 `giftcard { itemId, purchaseMode, collectedFields, recipientFields? }`，同一次请求里判限购、建订单，见 [05-giftcard.flows.md](05-giftcard.html#页面：礼卡购买页)。
-- **重新付款**：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理；原订单不取消、留到过期。新进入后是开一笔新订单还是认回原来那笔，见各产品文件。要改金额、改选购或换方式都走这里。
+- **重新付款**：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理；原订单不取消、留到过期。新进入后是开一笔新订单还是认回原来那笔，见各产品文件。静态码要改金额、改选购或换方式都走这里；订单入口要换方式时，可以在本会话里直接用新的 `checkoutOption` 再调 `createCheckoutPayment`，仍是这笔订单，不必重开入口。
 - **同一方式的重复点击**：这笔订单上还有同一方式的尝试在等付款人时，返回那次尝试的拉起动作，不另起（网络重试、订单入口重新进入后又选了同一方式都落在这里）。要填卡的方式还要是同一张卡，换了卡就是新的一次。
 - **返回**：订单当前状态 `status` 与拉起动作 `nextAction`，形状与 `getCheckoutOrder` 相同。这笔付款被拒时返回 `status = REJECTED`、不带 `nextAction`；超过单笔上限除外，见下表。
 - **拉起动作按 `nextAction.kind`**：`jsapi` 用 `sdkParams` 在页内调起支付窗；`qr` 在结果页显示 `qrContent` 的二维码；`app_launch` 跳 `launchUrl` 唤起钱包，唤不起时给 `fallbackUrl`；`open_in_browser` 按页面此刻是否在微信里分两侧（在微信里显示引导，不在微信里凭 `launchRef` 取唤起地址跳），见「页面：在浏览器打开引导」；`redirect` 整页跳转、`hidden_form` 在看不见的框里提交表单，见「流程：整页跳转与回跳」。
-- **电脑上动态码选微信**：返回的 `qr` 码内容是这笔订单的入口地址，付款人用手机微信扫开后在微信里付；这次没有发起支付，订单状态不因此改变，`getCheckoutOrder` 也不返回这个码。页面显示该码并轮询 `getCheckoutOrder`，订单到终态按「页面：支付结果」处理；刷新后按入口返回的 `paymentStarted` 处理：本会话此前没发起过支付的，回付款页，重选微信再出码；发起过的，进结果页，按那次支付显示。手机扫开后按「页面：支付方式选择」的订单入口默认选中规则选中微信。
+- **电脑上动态码选微信或支付宝**：这两项在方式列表里已带 `entryQr`，页面进页即显示那个码，不必发起（见「页面：支付方式选择」）。对它们调 `createCheckoutPayment` 时，返回的 `qr` 码内容同样是这笔订单的入口地址，付款人用手机上的这个 App 扫开后在 App 里付；这次没有发起支付，订单状态不因此改变，`getCheckoutOrder` 也不返回这个码。页面显示该码并轮询 `getCheckoutOrder`，订单到终态按「页面：支付结果」处理；刷新后按入口返回的 `paymentStarted` 处理：本会话此前没发起过支付的，回付款页，按方式列表的 `entryQr` 照样显示这个码；发起过的，进结果页，按那次支付显示。手机扫开后按「页面：支付方式选择」的订单入口默认选中规则选中扫码的那个钱包。
 - **拉起动作什么时候执行**：拉起动作只在付款人本次操作拿到时执行一次。本次操作拿到 = 发起支付的返回，或提交隐藏表单后轮询到的 `redirect`。以下情形不自动执行：页面加载后认回会话时拿到的（刷新、付完或取消后回来）；执行过之后轮询又返回的同一个动作（比如唤起钱包后原来那一页在结果页轮询，订单还带着同一个 `app_launch`）。这些情形按 kind 处理：
   - `qr`：照常显示二维码。
   - `hidden_form`：不再提交，只轮询等下一步。
@@ -596,7 +600,7 @@ sequenceDiagram
 
 任何产品，`autoRefunded` 为 true 时在对应提示后加「您的这笔付款将原路退回」。
 
-电脑上动态码选微信出了码（见「流程：发起支付」）之后，订单到终态前页面一直显示这个码并轮询：不显示上表 `UNPAID` 行的提示；`getCheckoutOrder` 带回本会话此前某次支付的拉起动作时，也不改变显示。订单到终态后按上表处理。
+电脑上显示这笔订单入口地址的码（列表项带的 `entryQr`，见「页面：支付方式选择」；或对这类项发起支付返回的同一个码，见「流程：发起支付」）之后，订单到终态前页面一直显示这个码并轮询：不显示上表 `UNPAID` 行的提示；`getCheckoutOrder` 带回本会话此前某次支付的拉起动作时，也不改变显示。订单到终态后按上表处理。
 
 「重新付款」按「流程：发起支付」的定义：页面丢掉本标签页的会话令牌、重新打开入口地址，按一次新的进入处理，原订单不取消、留到过期。新进入后开一笔新订单还是认回原来那笔，见各产品文件（如店铺码见 [01-store-qr.flows.md](01-store-qr.html#页面：店铺码收款页)，订单入口见 [03-order-checkout.flows.md](03-order-checkout.html#页面：订单付款页)）。
 
