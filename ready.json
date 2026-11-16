@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-16T01:05:55Z",
-  "implCommit": "2c0384787",
+  "generatedAt": "2026-11-16T03:02:31Z",
+  "implCommit": "87d25628f",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -60,10 +60,10 @@
     "admin/merchants/listMerchants": "847babe797f671e5",
     "admin/settings/listAcquiringPlatformParameters": "65ce03cfbc336251",
     "admin/settings/updateAcquiringPlatformParameter": "91f7f1c85fe72678",
-    "checkout/checkout/createCheckoutPayment": "55a934dd3898fe12",
+    "checkout/checkout/createCheckoutPayment": "3533694a02e790bd",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
-    "checkout/checkout/getCheckoutOrder": "0738fa64650cb833",
-    "checkout/checkout/listCheckoutPaymentMethods": "2f699ea7d0334b0a",
+    "checkout/checkout/getCheckoutOrder": "bab3656fad25e278",
+    "checkout/checkout/listCheckoutPaymentMethods": "a4ddff3410df8dc2",
     "checkout/checkout/openOrderCheckout": "1e0c39f50e855660",
     "checkout/checkout/openQrcodeCheckout": "1fae053461ea9566",
     "checkout/checkout/requestGiftcardEmailOtp": "c2e620ec2b5a91fa",
@@ -73,7 +73,7 @@
     "merchant/account/createSettlementChangeRequest": "71f9c0cc37a0f3a5",
     "merchant/account/deleteLogo": "eb29dde061658cb5",
     "merchant/account/disableTerminalIntegration": "d48edccbf9f40c52",
-    "merchant/account/getAccountProfile": "2f4239d89d9d2be3",
+    "merchant/account/getAccountProfile": "4219712fa9d0b68f",
     "merchant/account/getAccountService": "a36a977e8c9d6544",
     "merchant/account/getRefundPin": "1332552b55ee8873",
     "merchant/account/requestRefundPinReset": "6f1efe33354d5272",
@@ -220,6 +220,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "d0d2f0dd486824fd60b7a7ca101f6859fd33711d",
-  "prdStage": "stage/261115-giftcard-2b"
+  "prdSha": "b77056524078868520adf6f09112f27f223377ff",
+  "prdStage": "stage/261115-co-order-pc"
 }
