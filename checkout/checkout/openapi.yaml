@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.6.0
+  version: 2.7.0
   contact:
     name: 收银台
   description: |
@@ -1393,11 +1393,11 @@ paths:
       operationId: createGiftcardAlipayPass
       summary: 把一笔礼卡订单的凭证存入支付宝卡包
       description: |
-        返回一个存入支付宝卡包的地址 `redirectUrl`，每次调用一个新地址。只在礼卡会话可用，`state` 为 `PAYABLE`、`INACTIVE`、`EXPIRED` 都行；其余会话 `404`。不按受理环境拒绝。
+        返回一个把这笔订单的一张凭证存入支付宝卡包的地址 `redirectUrl`，每次调用一个新地址；主卡与赠卡分开的订单，两张各调一次。只在礼卡会话可用，`state` 为 `PAYABLE`、`INACTIVE`、`EXPIRED` 都行；其余会话 `404`。
 
         可操作的订单：本会话的订单（会话认不出付款人时也可以），或本会话付款人在这条礼卡链接下的已付款订单（认订单的规则同 `getGiftcardOrder`）；其余 `404`。礼卡链接已删除时只有本会话的订单可用。
 
-        订单此刻不能存入返回 `409`·`108326`：不是自购、凭证还没发放或不向付款人出示、有退款在处理、已作废、已退款，或这张礼卡没有开通支付宝卡包。能存入的订单在 `sales.giftcard.alipayPassAvailable` 为 `true`。
+        订单此刻不能存入返回 `409`·`108326`：不是自购、凭证还没发放或不向付款人出示、有退款在处理、已作废、已退款、这张礼卡没有开通支付宝卡包、本会话没有认出付款人的支付宝身份（不在支付宝里打开的会话都属此类），或这笔订单没有请求里指明的那张凭证。能存入的订单在 `sales.giftcard.alipayPassAvailable` 为 `true`。
 
         不需要幂等键：不改订单与凭证。
       x-error-codes:
@@ -1409,6 +1409,15 @@ paths:
           description: 订单号，取自订单视图或「我的订单」的 `orderId`。
           schema:
             $ref: '#/components/schemas/OrderId'
+      requestBody:
+        required: true
+        description: 要存入的那张凭证。
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GiftcardAlipayPassRequest'
+            example:
+              voucherKind: main
       responses:
         '200':
           description: 存入支付宝卡包的地址
@@ -1417,7 +1426,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/GiftcardAlipayPass'
               example:
-                redirectUrl: https://pass.example-alipay.com/add?ticket=9f2c7b1e4a6d8035
+                redirectUrl: alipays://platformapi/startapp?appId=APP_ID&url=ENCODED_PASS_PAGE_URL
         default:
           $ref: '#/components/responses/DefaultError'
 components:
@@ -2526,7 +2535,7 @@ components:
             $ref: '#/components/schemas/GiftcardVoucher'
         alipayPassAvailable:
           type: boolean
-          description: 为 `true` 表示这笔订单可以存入支付宝卡包（`createGiftcardAlipayPass`）：自购、`fulfillmentStatus` 为 `SENT` 或 `REDEEMED` 且返回了 `vouchers`、没有退款在处理、这张礼卡开通了支付宝卡包。只在为 `true` 时返回；不含受理环境的判断。
+          description: 为 `true` 表示这笔订单可以存入支付宝卡包（`createGiftcardAlipayPass`）：自购、`fulfillmentStatus` 为 `SENT` 或 `REDEEMED` 且返回了 `vouchers`、没有退款在处理、这张礼卡开通了支付宝卡包，且本会话认出了付款人的支付宝身份（不在支付宝里打开的会话不会为 `true`）。按订单给，`vouchers` 里的每张凭证都可各自存入。只在为 `true` 时返回。
     GiftcardVoucher:
       type: object
       description: |
@@ -2540,10 +2549,7 @@ components:
         - faceAmount
       properties:
         kind:
-          type: string
-          enum:
-            - main
-            - bonus
+          $ref: '#/components/schemas/GiftcardVoucherKind'
           description: '`main` 主卡 · `bonus` 赠卡。遇到未列出的值照常显示凭证，不报错。'
         voucherNo:
           $ref: '#/components/schemas/VoucherNo'
@@ -2939,6 +2945,20 @@ components:
           allOf:
             - $ref: '#/components/schemas/SalesOrderBlock'
           description: 买了什么与礼卡的发放状态、凭证，同 `getCheckoutOrder` 的 `sales`。
+    GiftcardVoucherKind:
+      type: string
+      enum:
+        - main
+        - bonus
+      description: 礼卡凭证是哪一张：`main` 主卡 · `bonus` 赠卡。
+    GiftcardAlipayPassRequest:
+      type: object
+      required:
+        - voucherKind
+      properties:
+        voucherKind:
+          $ref: '#/components/schemas/GiftcardVoucherKind'
+          description: 要存入哪张凭证，取那张凭证的 `kind`。这笔订单没有这张凭证时返回 `409`·`108326`。
     GiftcardAlipayPass:
       type: object
       description: 存入支付宝卡包的跳转地址。
@@ -2946,8 +2966,9 @@ components:
         - redirectUrl
       properties:
         redirectUrl:
-          $ref: '#/components/schemas/WebUrl'
-          description: 存入支付宝卡包的地址，由支付宝完成存入；原样使用、不要改写。每次调用给的地址不同。
+          type: string
+          minLength: 1
+          description: 唤起支付宝、存入卡包的地址（`alipays://` 开头），付款人在支付宝里确认领取后由支付宝完成存入；原样整页跳转、不要改写。每次调用给的地址不同。
     QrcodeId:
       type: string
       minLength: 1

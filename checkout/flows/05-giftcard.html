@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"6f85eed3a295ae32","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"1e0c39f50e855660","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"8580ca289ea24c36","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"1e0c39f50e855660","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 礼卡 —— 调用时序
@@ -73,7 +73,7 @@ stateDiagram-v2
 | 6 | [`verifyGiftcardEmailOtp`](../checkout/index.html#tag/giftcard/operation/verifyGiftcardEmailOtp) | `POST /giftcard/email/otp-challenges/{challengeId}/verification` | 提交验证码，通过后这个邮箱记为本付款人已验证 |
 | 7 | [`listGiftcardOrders`](../checkout/index.html#tag/giftcard/operation/listGiftcardOrders) | `GET /giftcard/orders` | 我的订单列表：本付款人在这条礼卡链接下已付款的订单，可按已完成、处理中、已退款筛 |
 | 8 | [`getGiftcardOrder`](../checkout/index.html#tag/giftcard/operation/getGiftcardOrder) | `GET /giftcard/orders/{orderId}` | 我的订单详情：一笔订单的所买面值、发放状态与凭证 |
-| 9 | [`createGiftcardAlipayPass`](../checkout/index.html#tag/giftcard/operation/createGiftcardAlipayPass) | `POST /giftcard/orders/{orderId}/alipay-pass` | 存入支付宝卡包：返回一个跳转地址，页面整页跳过去，由支付宝完成存入；只对 `alipayPassAvailable` 为 `true` 的订单 |
+| 9 | [`createGiftcardAlipayPass`](../checkout/index.html#tag/giftcard/operation/createGiftcardAlipayPass) | `POST /giftcard/orders/{orderId}/alipay-pass` | 存入支付宝卡包：请求体指明存哪张凭证，返回一个跳转地址，页面整页跳过去，由支付宝完成存入；只对 `alipayPassAvailable` 为 `true` 的订单 |
 
 5 至 9 只在礼卡会话里可用。`state` 为 `INACTIVE` / `EXPIRED` 的礼卡入口照样签发会话；还没有订单的这类会话只能调这五个，取方式列表返回空列表，不能发起支付。已有订单的会话不受这条限制：照常查订单、走结果页，要发起新的支付时被 `108300` / `108303` 拒。活动已结束时 9 照常可用，本会话的订单与本付款人在这条链接下的已付款订单都能存入。链接已删除的，7、8 一律 `404`，即使会话因已有订单被认回；9 只能用于本会话的这笔订单，其余 `404`；5、6 对已有订单的会话仍可用，但只能验这笔订单的买家邮箱（发码带了别的邮箱返回 `400`），让已付款的订单仍能完成验证、继续发放。
 
@@ -202,7 +202,7 @@ sequenceDiagram
 - `voucherNo` 是卡号或券号，与 `pin`、面值一起以文字显示。
 - 有 `qrContent` 的是兑换券：用 `qrContent` 生成二维码（页面只生成图、不自己拼内容）。一张券同时承载主卡与赠卡时另给 `bonusAmount`：页面分别显示主卡金额（`faceAmount`）、赠卡金额（`bonusAmount`）与合计金额（两者相加，由页面算、契约不另给），订单块有 `bonusNotes` 时一并显示赠卡说明。
 - 没有 `qrContent` 的：用 `voucherNo` 生成 Code 128 条码。赠卡单独一张，`kind = bonus`；或主卡与赠卡合成一张合并卡，`kind = main`、`faceAmount` 为两者合计面值，不给 `bonusAmount`。
-- 订单的 `alipayPassAvailable` 为 `true`、页面又在支付宝里时，另给存入支付宝卡包的入口，见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)。
+- 订单的 `alipayPassAvailable` 为 `true` 时，每张凭证各给一个存入支付宝卡包的入口，见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)。
 
 ```mermaid
 sequenceDiagram
@@ -260,8 +260,8 @@ sequenceDiagram
 
 自购的订单发放后，付款人可以把凭证存入支付宝卡包；送礼的订单没有。支付结果页与「我的订单」详情都适用。
 
-- **何时提供入口**：订单的 `sales.giftcard.alipayPassAvailable` 为 `true`，且页面在支付宝里（入口返回的 `acceptanceEnv = alipay_internal`）。两项缺一就不提供。订单能不能存由后端判、页面不自己算；在不在支付宝里由页面判，接口不按环境拒绝。
-- **怎么存**：调 `createGiftcardAlipayPass`，路径里的 `orderId` 取这笔订单的订单号，没有请求体；拿到 `redirectUrl` 整页跳过去，由支付宝完成存入。每次都重新调、拿新地址，不要缓存。
+- **何时提供入口**：订单的 `sales.giftcard.alipayPassAvailable` 为 `true` 时提供，凭证段里每张凭证各一个入口（主卡与赠卡分开的订单有两个）。能不能存由后端判、页面不自己算：只有在支付宝里打开、认出了付款人支付宝身份的会话才可能为 `true`，页面不另判环境。
+- **怎么存**：调 `createGiftcardAlipayPass`，路径里的 `orderId` 取这笔订单的订单号，请求体的 `voucherKind` 取要存的那张凭证的 `kind`；拿到 `redirectUrl`（`alipays://` 开头）整页跳过去，付款人在支付宝里确认领取，由支付宝完成存入；领取结果不回传本页。每次都重新调、拿新地址，不要缓存。
 - **哪些订单能操作**：本会话的订单（认不出付款人时也可以），或本付款人在这条礼卡链接下的已付款订单；其余 `404`。活动已结束的会话照常可用；链接已删除时只有本会话的这笔订单可用。
 
 ```mermaid
@@ -271,13 +271,16 @@ sequenceDiagram
     participant C as 收银台后端
     participant A as 支付宝
 
-    Note over P,C: 页面在支付宝里，订单的 alipayPassAvailable 为 true
-    P->>S: 选择存入支付宝卡包
-    S->>C: #35;9 [createGiftcardAlipayPass]<br/>POST /giftcard/orders/{orderId}/alipay-pass
+    Note over P,C: 订单的 alipayPassAvailable 为 true（只在支付宝里会出现）
+    P->>S: 在某张凭证上选择存入支付宝卡包
+    S->>C: #35;9 [createGiftcardAlipayPass]<br/>POST /giftcard/orders/{orderId}/alipay-pass { voucherKind }
     alt 可以存入
         C-->>S: 200 { redirectUrl }
         S->>A: 整页跳到 redirectUrl
-        A-->>P: 支付宝完成存入
+        P->>A: 确认领取
+        A->>C: 领券回调（不在本契约内）
+        C->>A: 发券
+        A-->>P: 券存入卡包
     else 订单此刻不能存入
         C-->>S: 409·108326
         S->>P: 提示暂时不能存入，重取订单
@@ -289,9 +292,9 @@ sequenceDiagram
 
 | 情形 | 接口返回 | 页面动作 |
 |---|---|---|
-| 不在支付宝里，或订单没返回 `alipayPassAvailable` | — | 不提供入口 |
+| 订单没返回 `alipayPassAvailable`（含不在支付宝里打开） | — | 不提供入口 |
 | 可以存入 | `200`，`{ redirectUrl }` | 整页跳到 `redirectUrl` |
-| 订单此刻不能存入：送礼的订单、还没发放、暂未发放（`ON_HOLD`）、凭证不向付款人出示（没返回 `vouchers`）、有退款在处理、已作废、已退款，或这张礼卡没有开通支付宝卡包 | `409`·`108326` | 提示暂时不能存入，重取订单；`alipayPassAvailable` 不再返回时入口随之撤掉 |
+| 订单此刻不能存入：送礼的订单、还没发放、暂未发放（`ON_HOLD`）、凭证不向付款人出示（没返回 `vouchers`）、有退款在处理、已作废、已退款、这张礼卡没有开通支付宝卡包、本会话没有认出付款人的支付宝身份，或订单没有 `voucherKind` 指明的那张凭证 | `409`·`108326` | 提示暂时不能存入，重取订单；`alipayPassAvailable` 不再返回时入口随之撤掉 |
 | 订单不存在、不是本付款人的，或链接已删除而订单不是本会话的 | `404` | 结果页重取订单，详情回到列表 |
 
 ## 页面：我的订单
@@ -301,7 +304,7 @@ sequenceDiagram
 - **认人**：靠会话里的付款人身份。在微信或支付宝里打开的，进入时已经认出，直接列；其余环境要先验一次邮箱：列表返回 `409`·`108309` 时，页面请付款人输入邮箱，走发码、验码，通过后再取列表，本会话之后不用再验。验证通过后，在普通浏览器里付、买家邮箱是这个邮箱的订单也会列出来；在微信或支付宝里付、邮箱从没验证过的订单不会列出来，要回到微信或支付宝里打开查看。
 - **列表**：`listGiftcardOrders`，分页照通用约定（请求带 `pageNum`、`pageSize`，返回 `total` 与 `data`），按付款时刻从新到旧。每行给 `orderId`、`paidAt`、`name`、`cardValue`、`amount`（这笔订单的标价金额，不含客户服务费）、`purchaseMode`、`fulfillmentStatus`，不带卡号、券号与 PIN。
 - **按状态筛**：页面的筛选项有「全部」「已完成」「处理中」「已退款」。「全部」不带参数，其余三项各对应 `statusGroup` 的一个取值，一次只带一个：`completed` 已完成 = `SENT`、`REDEEMED`；`processing` 处理中 = `VERIFICATION_REQUIRED`、`PROCESSING`、`ON_HOLD`；`refunded` 已退款 = `REFUNDED`。`VOIDED`（已作废）不属于任何一组，只在「全部」里出现。带筛选时 `total` 是筛选后的条数。
-- **详情**：点一行调 `getGiftcardOrder`，返回 `orderId`、`paidAt`、`amount`（标价金额）、`payable`（实付总额，含客户服务费，「支付金额」取它）、`checkoutOption` 与 `checkoutOptionDisplayName`（有才返回），以及与订单视图同形的 `sales { lines, giftcard }`。划线价、折扣额与赠送额（`sales.giftcard.listPrice` / `discountAmount` / `bonusAmount`）与赠卡说明（`bonusNotes`）的显示同结果页，没有就不显示；发放段与凭证的显示同 [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证)：自购且 `SENT` / `REDEEMED` 时有 `vouchers`，送礼没有。`alipayPassAvailable` 为 `true`、页面又在支付宝里时，详情同样给存入支付宝卡包的入口，见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)。
+- **详情**：点一行调 `getGiftcardOrder`，返回 `orderId`、`paidAt`、`amount`（标价金额）、`payable`（实付总额，含客户服务费，「支付金额」取它）、`checkoutOption` 与 `checkoutOptionDisplayName`（有才返回），以及与订单视图同形的 `sales { lines, giftcard }`。划线价、折扣额与赠送额（`sales.giftcard.listPrice` / `discountAmount` / `bonusAmount`）与赠卡说明（`bonusNotes`）的显示同结果页，没有就不显示；发放段与凭证的显示同 [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证)：自购且 `SENT` / `REDEEMED` 时有 `vouchers`，送礼没有。`alipayPassAvailable` 为 `true` 时，详情同样给存入支付宝卡包的入口，见 [流程：存入支付宝卡包](#流程：存入支付宝卡包)。
 - **等着验证的那笔**：`fulfillmentStatus` 为 `VERIFICATION_REQUIRED` 的订单，在详情里按它的 `buyerEmail` 走发码、验码，通过后重取详情。发起支付被 `108309` 拒后带过来的，也是在这里验。
 - **活动已结束的会话**：`state` 为 `INACTIVE` / `EXPIRED` 的礼卡会话照样能调列表、详情、发码、验码与存入支付宝卡包。
 - **链接已删除**：列表、详情一律 `404`，即使会话因已有订单被认回；已有订单的会话仍可在支付结果页验证这笔订单的买家邮箱（见 [页面：支付结果 · 邮箱验证与凭证](#页面：支付结果%20·%20邮箱验证与凭证)），也仍可把这笔订单存入支付宝卡包。
