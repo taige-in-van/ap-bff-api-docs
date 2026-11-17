@@ -42,7 +42,7 @@
 
 ## 页面：Settlements
 
-侧边栏 Order › Settlement。页头三张卡：Last Settled（最近一次已结算的金额、结算日、交易期间）、Account Balance、Refund Reserved。工具栏：搜索（结算单号）、Filters 面板（日期）、排序（日期、金额）、导出。表格列：结算单号、商户与结算账户、Net Sales、Service Fee、Settlement Amount、状态、日期、操作（View、Download）。不选日期时不按日期筛，按结算日倒序返回全部。
+侧边栏 Order › Settlement。页头三张卡：Last Settled（最近一次已结算的金额、结算日、交易期间）、Account Balance、Refund Reserved。工具栏：搜索（结算单号）、Filters 面板（日期、状态）、排序（日期、金额）、导出。表格列：结算单号、商户与结算账户、Net Sales、Service Fee、Settlement Amount、状态、日期、操作（View、Download）。不选日期时不按日期筛，按结算日倒序返回全部。状态是单选，可选待出款、出款中、已结算、出款失败、已退回，不选即不按状态筛；没有各状态的计数，选项不带数。
 
 ```mermaid
 sequenceDiagram
@@ -52,7 +52,7 @@ sequenceDiagram
 
     U->>S: 打开页面
     par
-        S->>A: #35;2 [listSettlements]<br/>GET /funds/settlements?from&to&sortField=settlementDate&sortOrder=descend
+        S->>A: #35;2 [listSettlements]<br/>GET /funds/settlements?from&to&status&sortField=settlementDate&sortOrder=descend
         A-->>S: 200 { total, data: [{ settlementId, settlementDate, periodFrom, periodTo,<br/>netSales, fee, payoutAmount, status, payoutAccount }] }
     and
         S->>A: #35;1 [getBalance]<br/>GET /funds/balance
@@ -93,7 +93,7 @@ sequenceDiagram
 - 结算账户取行上的 `payoutAccount`（银行名加脱敏账号），是这张结算单实际出款的账户，不是商户当前的结算账户；还没出过款的结算单没有这一项，显示「—」。导出文件里的银行账户一列同此。
 - 状态五种：待出款、出款中、已结算、出款失败、已退回。出款失败的会重新出款；被银行退回的钱回到 Account Balance，随下一次结算再出。
 - Last Settled 卡用第二个 #2 的那一行：金额取 `payoutAmount`，日期取 `settlementDate`，交易期间取 `periodFrom` 到 `periodTo`。一张都没有时显示空态。
-- 两个导出都不设行数上限。工具栏的导出是结算单列表（每张一行，末尾合计），不带日期时导出全部；要逐笔明细用行上的 Download。
+- 两个导出都不设行数上限。工具栏的导出是结算单列表（每张一行，末尾合计），带当前的搜索与日期、状态筛选，都没有时导出全部；要逐笔明细用行上的 Download。
 - Account Balance 取 `accountBalance`，含预授权挂起中的款项（并在里面、不单列）；可能为负，表示商户欠平台的钱。Dashboard、Payments 页的 To Settle 是 `toSettle`，不含挂起款项，两者不一定相等。
 - Refund Reserved 取 `refundReserve`。
 
@@ -120,21 +120,21 @@ sequenceDiagram
     A-->>S: 200 xlsx 文件
 ```
 
-- 明细的金额都是不带符号的数，显示成正还是负看 `type`：
+- 明细的金额都是不带符号的数，原样显示；这一行在 Settlement Amount 里算加还是算减由 `type` 决定（含义见 `SettlementDetailType`），不用正负号表示。类型的文案：
 
-  | `type` | 英文文案 | 正负 |
-  |---|---|---|
-  | `PAYMENT` | Payment | + |
-  | `REFUND` | Refund | − |
-  | `REFUND_REVERSAL` | Refund reversal | + |
-  | `RESERVE_DRAWDOWN` | Paid from Refund Reserved | + |
-  | `TOP_UP` | Reserve top up | − |
-  | `AUTO_REPLENISH` | Reserve auto-replenish | − |
-  | `WITHDRAW` | Reserve withdrawal | + |
-  | `PENALTY` | Adjustment (debit) | − |
-  | `COMPENSATION` | Adjustment (credit) | + |
-  | `PROMOTION_WITHDRAWAL` | Promotion payout | + |
-  | `PAYOUT_RETURN` | Returned payout | + |
+  | `type` | 英文文案 |
+  |---|---|
+  | `PAYMENT` | Payment |
+  | `REFUND` | Refund |
+  | `REFUND_REVERSAL` | Refund reversal |
+  | `RESERVE_DRAWDOWN` | Paid from Refund Reserved |
+  | `TOP_UP` | Reserve top up |
+  | `AUTO_REPLENISH` | Reserve auto-replenish |
+  | `WITHDRAW` | Reserve withdrawal |
+  | `PENALTY` | Adjustment (debit) |
+  | `COMPENSATION` | Adjustment (credit) |
+  | `PROMOTION_WITHDRAWAL` | Promotion payout |
+  | `PAYOUT_RETURN` | Returned payout |
 - `RESERVE_DRAWDOWN` 是某笔退款里由准备金出的那一段，与它的 `REFUND` 行 `refundId` 相同。两行相抵后才是这笔退款让本次结算少掉的钱。
 - 哪些类型的行带订单号、退款号、支付方式和手续费，以 `SettlementDetail` 各字段的说明为准；没返回的键那一栏为空。
 - `netAmount` 是这一行计入 Settlement Amount 的数。手续费按月另收的商户，`netAmount` 等于 `amount`，`fee` 只是展示。
@@ -194,7 +194,7 @@ sequenceDiagram
 
 ## 页面：Business Profile、General · Withdraw 弹窗
 
-与 Top Up 同一处入口，准备金大于 0 时可点。填金额（可点 Max），显示结算账户，确认后出结果。不需要验证码。
+与 Top Up 同一处入口，准备金大于 0 时可点。填金额（可点 Max），读得到结算账户时显示结算账户，确认后出结果。不需要验证码。
 
 ```mermaid
 sequenceDiagram
@@ -207,8 +207,10 @@ sequenceDiagram
         S->>A: #35;1 [getBalance]<br/>GET /funds/balance
         A-->>S: 200 { refundReserve }
     and
-        S->>A: #35;9 [getAccountProfile]<br/>GET /account/profile
-        A-->>S: 200 { settlement }
+        opt 会话有 account:profile:view
+            S->>A: #35;9 [getAccountProfile]<br/>GET /account/profile
+            A-->>S: 200 { settlement }
+        end
     end
     U->>S: 填金额，点 Withdraw
     S->>A: #35;8 [withdrawRefundReserve]<br/>POST /funds/balance/reserve/withdrawals { amount }
@@ -225,7 +227,8 @@ sequenceDiagram
 | 同一个幂等键改了金额 | `409`·`908003` | 改过金额就换新键 |
 | 网关超时 | `502` / `504` | 用同一个键、同样的金额重发，不会取两次 |
 
-- 取回的钱回到 Account Balance，随下一次结算打到结算账户，不是单独一笔转账。弹窗里的结算账户取 #9 的 `settlement`，只供核对。
+- 取回的钱回到 Account Balance，和其他可结算的钱一起随之后的结算走，不是单独一笔转账。
+- 弹窗里的结算账户取 #9 的 `settlement`（`bankName` 与 `bankAccount`），只供核对。两种情况不显示结算账户一栏、只显示取回说明：会话的 `privileges` 里没有 `account:profile:view`（这时也不调 #9）；#9 没返回 `bankAccount`（如 `settledByChannel` 为真的商户）。
 - 可取上限是 `refundReserve`；Max 就是把它填进金额。
 - 返回 `200` 后看 `status`：`POSTED` 成功；`REJECTED` 是提交时准备金已经不够（比如刚被一笔退款动用），提示余额不足。
 - `withdrawRefundReserve` 带 `Idempotency-Key`，点一次生成一个键；超时或 `908002` 后重发用原键。
@@ -236,13 +239,14 @@ sequenceDiagram
 | 位置 | demo | 改后 | 为什么 |
 |---|---|---|---|
 | 结算单状态 | 只有 Settled | 五种：待出款、出款中、已结算、出款失败、已退回 | 结算单从建出来到钱到账有过程，出款也可能失败或被银行退回 |
+| 按状态筛选 | 没有 | Filters 面板里有状态单选 | 结算单有五种状态，要能单看出款失败、已退回的 |
 | 搜索 | 结算单号、商户名、金额 | 只搜结算单号 | 列表只有当前商户的结算单；数量不多，按金额搜意义不大 |
 | Settlement Amount | 前端按 Net Sales 减 Service Fee 算 | 直接用接口给的数 | 实际打款额还受准备金划转、平台调账影响 |
 | 列表里的结算账户 | 每行都显示商户当前的结算账户 | 显示这张结算单实际出款的账户 | 商户换过结算账户后，以前的结算单是打到旧账户的 |
 | 详情明细的类型 | Payment、Refund 两种 | 多出准备金划转、平台调账等九种 | 这些也进结算，不列出来合计对不上 |
 | Top Up：余额不够时「等余额够了自动完成」的开关 | 有 | 没有；余额不够直接提示不足 | 自动补足已经是「余额到了自动充」，不需要再有一种排队的充值 |
 | Top Up：保存自动补足后立刻补一次 | 立刻补 | 每天结算前补一次 | 自动补足是每日定时任务 |
-| Withdraw：到账说明 | 「1–2 个工作日到账」，像一笔单独的转账 | 说明钱回到 Account Balance、随下次结算到账 | 取回不单独出款 |
+| Withdraw：到账说明 | 「1–2 个工作日到账」，像一笔单独的转账 | 说明钱回到 Account Balance、随之后的结算走 | 取回不单独出款 |
 | Withdraw：最低 10 元 | 有 | 没有下限 | 取回只是账户内划转，没有手续费，不需要下限 |
 
 ---
@@ -286,9 +290,9 @@ sequenceDiagram
 **详情里各栏取哪个字段**
 
 - 对账单号 `statementNo`，出具日期 `issuedAt`，币种取任一金额的 `currency`。
-- 手续费明细：`feeLines` 已由服务端归并好，一行显示一行。各栏：服务 `service`（有 `paymentMethods` 时带上，文案见下）、笔数 `transactionCount`、销售净额 `netSales`、费率 `rate`（比例与固定单笔费一起显示，固定费为 0 时只显示比例）、手续费 `fee`。
+- 手续费明细：`feeLines` 已由服务端归并好，一行显示一行。各栏：服务 `service`（有 `paymentMethods` 时带上，文案见下）、笔数 `transactionCount`、销售净额 `netSales`、退款额 `refundAmount`、费率 `rate`（比例与固定单笔费一起显示，固定费为 0 时只显示比例）、手续费 `fee`。
 - 额外收费 `charges`、税 `taxes`、本单应收 `receivableAmount`：返回了才显示。
-- 合计：销售净额 `netSales`、手续费 `fee`、应结净额 `netSettlement`。
+- 合计：成交笔数 `transactionCount`、销售净额 `netSales`、退款额 `refundAmount`、手续费 `fee`、应结净额 `netSettlement`。
 
 **明细行的服务**：分法与 Account › Service 页一致，一行 = 服务 × 费率（比例与固定单笔费合起来算一个费率）。一个服务下各支付方式费率相同时只有一行；费率不同时一个费率一行，行上带 `paymentMethods`。
 
@@ -314,6 +318,7 @@ sequenceDiagram
 | 项 | demo | 这里 | 为什么 |
 |---|---|---|---|
 | 状态（Issued / Paid） | 详情与 PDF 上有 | 没有 | 对账单本身没有状态；欠平台多少是账户上的余额，不按单结清 |
+| 退款额 | 没有，Gross 就是交易额 | 明细行与合计都有退款额 | 销售净额是收款减退款，只有退款的行销售净额为负，没有退款额对不上 |
 | 明细行的维度 | 按 Service 一维（In-Store Payment、Online e-Commerce、Shopify Integration），一个 Service 一行 | 一个 Service 下费率不同时，一个费率一行，并标出是哪几个支付方式 | 费率是按支付方式定的，一个 Service 下可以有多个费率 |
 | 额外收费、税、本单应收 | 没有 | 有就显示 | PDF 上有这些项，弹窗要和 PDF 对得上 |
 | PDF | 前端按当前页面现拼、调浏览器打印 | 取服务端存档的文件 | 已出具的单据要每次拿到同一份 |

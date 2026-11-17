@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.6.1
+  version: 2.6.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -1596,10 +1596,10 @@ paths:
       description: |
         对礼卡订单做人工处置，当前可执行的动作看详情的 `giftcard.actions.riskDispositions`：
         - `escalate`（升为高风险）与 `blacklist`（加入黑名单）：订单为中风险时可用，效果相同——付款人进入礼卡购买黑名单、此后不能再买礼卡；这笔订单还没发放的不再发放，已发放的不撤回。
-        - `approve`（放行）：订单为高风险时可用——付款人移出黑名单；订单还没发放的恢复发放。
-        - `remove_blacklist`（移出黑名单）：付款人在黑名单里时，在他的任一礼卡订单上可用——付款人移出黑名单。
+        - `approve`（放行）：订单处于风控冻结、还没放行过，且不在退款处理中、发放没取消时可用。风控冻结指订单为高风险，或订单做过风险评估、付款人在黑名单里且不在白名单（订单自身为普通或中风险也算，已发放的也算）。放行后付款人移出黑名单；订单还没发放的恢复发放，已发放的不重复发放（风控冻结期间不能重发邮件）；这位付款人其他只因他在黑名单而冻结的订单随之解冻，下次发放时发出。
+        - `remove_blacklist`（移出黑名单）：付款人在黑名单里时，在他的任一礼卡订单上可用——付款人移出黑名单；他名下只因他在黑名单而冻结的订单随之解冻，下次发放时发出，订单自身为高风险的仍要各自放行。
 
-        可用与否只看上面的条件，不看活动当前是否开着订单风险评估。
+        可用与否只看上面的条件，不看活动当前是否开着订单风险评估；「做过风险评估」看的是订单进入评估那一刻活动是否开着，之后切换不改变。
 
         幂等：同键同请求体重发不重复处置；改动作要换新键，沿用旧键改动作 → `409`·`908003`。换新键提交时风险等级已被别人改过、该动作不再可执行 → `409`·`208020`；同键的上一次提交还在处理 → `409`·`908002`。
       parameters:
@@ -2035,7 +2035,7 @@ components:
             $ref: '#/components/schemas/InvoiceListItem'
     RiskLevel:
       type: string
-      description: 礼卡订单风险等级。未评估风险的订单（还没付款，或活动没开风控审核）按 `normal` 返回、筛选与计数。
+      description: 礼卡订单风险等级。未评估风险的订单按 `normal` 返回、筛选与计数：还没付款的；已付款、买家邮箱还没验证、尚未进入评估的；付款人在白名单的；进入评估那一刻活动没开风控审核的（之后再打开也不补评估）。
       enum:
         - normal
         - medium
@@ -2991,7 +2991,7 @@ components:
           type: string
         deliveryEmail:
           type: string
-          description: 当前投递邮箱；重发改过就是改后的。
+          description: 当前投递邮箱；重发改过就是改后的。下单时没有收件邮箱、也还没经重发填过的不返回本键，此时重发必须给 `email`。
         issuanceStatus:
           type: string
           enum:
@@ -3007,7 +3007,7 @@ components:
           minimum: 0
         riskHits:
           type: array
-          description: 风控命中明细；没开风控审核或未命中为空数组。
+          description: 风控命中明细；未评估风险（情形同 `riskLevel`）或未命中为空数组。
           items:
             type: object
             additionalProperties: false
