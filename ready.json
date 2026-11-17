@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-17T00:16:13Z",
-  "implCommit": "8a6691ef3",
+  "generatedAt": "2026-11-17T03:11:51Z",
+  "implCommit": "d6b55f420",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -63,7 +63,9 @@
     "checkout/checkout/createCheckoutPayment": "3533694a02e790bd",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
     "checkout/checkout/getCheckoutOrder": "bab3656fad25e278",
+    "checkout/checkout/getGiftcardOrder": "31f3441347a704cb",
     "checkout/checkout/listCheckoutPaymentMethods": "a4ddff3410df8dc2",
+    "checkout/checkout/listGiftcardOrders": "cccb8de161efcf5d",
     "checkout/checkout/openOrderCheckout": "1e0c39f50e855660",
     "checkout/checkout/openQrcodeCheckout": "1fae053461ea9566",
     "checkout/checkout/requestGiftcardEmailOtp": "c2e620ec2b5a91fa",
@@ -220,6 +222,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "3a78fce7bf4a52a08e834b96f0572a81ed802aea",
-  "prdStage": "stage/261115-giftcard-repin-pb"
+  "prdSha": "ec2c5413658a8bf80ddbd9b44fada4d0b0bd7d4e",
+  "prdStage": "stage/261116-giftcard-repin-pc"
 }
