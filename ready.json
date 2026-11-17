@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-17T03:11:51Z",
-  "implCommit": "d6b55f420",
+  "generatedAt": "2026-11-17T07:37:54Z",
+  "implCommit": "706867173",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -61,6 +61,7 @@
     "admin/settings/listAcquiringPlatformParameters": "65ce03cfbc336251",
     "admin/settings/updateAcquiringPlatformParameter": "91f7f1c85fe72678",
     "checkout/checkout/createCheckoutPayment": "3533694a02e790bd",
+    "checkout/checkout/createGiftcardAlipayPass": "8580ca289ea24c36",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
     "checkout/checkout/getCheckoutOrder": "bab3656fad25e278",
     "checkout/checkout/getGiftcardOrder": "31f3441347a704cb",
@@ -222,6 +223,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "ec2c5413658a8bf80ddbd9b44fada4d0b0bd7d4e",
-  "prdStage": "stage/261116-giftcard-repin-pc"
+  "prdSha": "c24fc006de5920314112af803abc5382f62d849c",
+  "prdStage": "stage/261116-api-v1-pay"
 }
