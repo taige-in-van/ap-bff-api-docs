@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-17T20:00:31Z",
-  "implCommit": "6a89acf67",
+  "generatedAt": "2026-11-17T23:14:26Z",
+  "implCommit": "5f9911f6d",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -223,6 +223,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "c2858386d8ee84b92de40fdf9e203a031e9cc559",
-  "prdStage": "stage/261117-barcode-followups"
+  "prdSha": "8762c8b8273cb1f3a9bd37b9ae2aadd9ffe39126",
+  "prdStage": "stage/261117-qr-link-obf"
 }
