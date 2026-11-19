@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.6.3
+  version: 2.7.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -684,6 +684,7 @@ paths:
         - 采集项按 `key` 给全（见 `buyerInputKeys`）：缺了必填项、自撰标题以 `sys:` 开头，或去首尾空格后重复 → `409`·`208030`。
         - 政策条款不在本请求里：新链接自动带上商户当前的默认条款，之后在详情页改。
         - 礼卡：`fulfillmentMode` 创建后不可改；`campaignEndDate` 不早于今天；`bonusTerms` 为 `custom` 时 `bonusNotes` 必填——不满足均为 `400`。
+        - 票务：`eventDate` 不早于今天，否则 `400`。
         - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
 
         幂等：同一个键改了请求体 `409`·`908003`；同键的上一次提交还在处理 → `409`·`908002`。
@@ -998,6 +999,7 @@ paths:
         - 标价币种创建后不可改：`currency` 可不传，传了须等于链接当前的标价币种（相同即无变化），不同 → `400`；只给内容段时各项金额币种须等于链接当前的标价币种，否则 `400`。
         - 支付方式与采集项的校验同 `createProductLink`（`208007` / `208030`）。已选着、后来停用的项可以原样带回，但带了 `checkoutOptions` 时整组里至少要有一项已开通，否则 → `409`·`208007`。
         - 礼卡：切换 `enabled` 会让该活动的限购计数重新开始。
+        - `giftcard.campaignEndDate`、`ticket.eventDate` 带了就须不早于今天，否则 `400`；没改期就不带，截止日或活动日已过的链接照常改其他字段。
         - `bannerFileId`、`giftcard.brandLogoFileId`、`product.items[].imageFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 逐项指到出问题的那个字段，如 `product.items[1].imageFileId`）。
 
         已成交的订单不受修改影响：下单时已把名称、单价、数量、活动信息抄进订单。
@@ -2380,7 +2382,7 @@ components:
         eventDate:
           allOf:
             - $ref: '#/components/schemas/LocalDate'
-          description: 活动日，纯展示、不作销售闸。
+          description: 活动日，不早于今天；纯展示、不作销售闸。
         eventTime:
           type:
             - string
