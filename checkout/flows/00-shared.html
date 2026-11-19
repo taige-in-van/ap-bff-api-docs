@@ -156,7 +156,7 @@ sequenceDiagram
 - **`state`**：`PAYABLE` / `PAID` / `EXPIRED` / `INACTIVE`。不是 `PAYABLE` 时不签发新会话，但照常给商户名与 logo；带着有效令牌来的照常认回（比如账单在本会话付成功后刷新，仍能回到成功页）；付款后带着 `resumeCode` 回来的同样认回（见「流程：整页跳转与回跳」）。码已删除时，可认回且已有订单的会话照常认回（`state = INACTIVE`、`paymentStarted` 为 true）。礼卡例外：`INACTIVE` / `EXPIRED` 照样签发会话；还没有订单的这类会话只能用「我的订单」、存入支付宝卡包与邮箱验证（方式列表为空、不能发起支付），见 [05-giftcard.flows.md](05-giftcard.html#页面：我的订单)。已有订单的礼卡会话不受这条限制：照常进支付结果页查订单，要发起新的支付时被 `108300` / `108303` 拒。礼卡链接已删除的，认回的会话不能用「我的订单」（`404`），邮箱验证仍可用、只能验这笔订单的买家邮箱，存入支付宝卡包只能用于本会话的这笔订单。
 - **`paymentStarted`**：这个会话是否已经发起过支付。为 true 时页面直接进支付结果页。
 - **`productCode`**：这个入口是哪种产品（店铺码、账单、商品、票务、礼卡、动态码等），页面按它渲染对应的付款页、选状态页文案。页面地址里的类型段只是前端路由用，与 `productCode` 不一致时以 `productCode` 为准。
-- **静默授权失败要自动重试**：接口发现需要标识但没拿到（没带授权码、授权码失效或已用过、会话重建后标识没了）时不签发会话、只返回 `reauthorizeUrl`，前端自动整页跳过去，回来后再调入口接口。自动重试默认 2 次（可配置），次数记在本标签页 sessionStorage，拿到会话后清零；用尽仍失败进授权失败页，页上的「重试」重新计数再走一遍。
+- **静默授权失败要自动重试**：接口发现需要标识但没拿到（没带授权码、授权码失效或已用过、会话重建后标识没了）时不签发会话、只返回 `reauthorizeUrl`，前端自动整页跳过去，回来后再调入口接口。带着 `reauthorizeUrl` 就先重新授权、不看 `state`：礼卡 `INACTIVE` / `EXPIRED` 在微信或支付宝里也是拿到标识后才签发会话。自动重试默认 2 次（可配置），次数记在本标签页 sessionStorage，拿到会话后清零；用尽仍失败进授权失败页，页上的「重试」重新计数再走一遍。
 - **切换页面语言**：入口接口按 `Accept-Language` 给商户配的多语内容（说明与条款 `policies`），实际用的语言见响应头 `Content-Language`；商品名等商户录入的单语文本不随语言变；采集项标题系统项随语言、商户自撰项不随。付款人切换语言后，页面带新的 `Accept-Language` 重调本入口的入口接口，请求头照常带会话令牌，认回同一会话、不重新授权；之后发起支付也带新的 `Accept-Language`。
 
 ```mermaid
@@ -178,14 +178,14 @@ sequenceDiagram
     S->>S: 用过授权码就去掉地址上的 code 与 state
     alt 拿到会话且 paymentStarted 为 true
         S->>P: 进支付结果页继续查结果
-    else state 不是 PAYABLE
-        S->>P: 链接状态页（显示商户名与 logo）<br/>礼卡另把令牌写入 sessionStorage，给「我的订单」入口
     else 有 reauthorizeUrl，自动重试未用尽
         S->>S: 本标签页重试次数加一
         S->>W: 整页跳 reauthorizeUrl
         W-->>S: 302 回页面地址，带 code 与 state<br/>再调入口接口
     else 有 reauthorizeUrl，自动重试已用尽
         S->>P: 授权失败页（「重试」重新计数）
+    else state 不是 PAYABLE
+        S->>P: 链接状态页（显示商户名与 logo）<br/>礼卡另把令牌写入 sessionStorage、重试次数清零，给「我的订单」入口
     else 其余
         S->>S: 令牌（grant）写入 sessionStorage
         S->>S: 重试次数清零
