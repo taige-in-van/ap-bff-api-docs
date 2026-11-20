@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.7.0
+  version: 2.7.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -40,7 +40,7 @@ paths:
       x-required-privilege: products:checkout:view
       summary: 读店铺码的各个码（第 1 项是主码）
       description: |
-        当前商户的店铺码：结算币种的标准码与预授权码恒有；商户有能以 CNY 标价的已开通支付方式时另有 CNY 的标准码与预授权码；开通银联时另有银联码。第 1 项是主码，即结算币种的标准码，其余按返回顺序排列。
+        当前商户的店铺码：结算币种的标准码与预授权码恒有；商户在店铺码收款页上有能以 CNY 标价的已开通支付方式时另有 CNY 的标准码与预授权码；开通银联时另有银联码。第 1 项是主码，即结算币种的标准码，其余按返回顺序排列。
 
         `checkoutEnabled` 为 `false` 表示收银台收款已被平台关闭：码照常返回、可展示和下载，但付款人扫标准码、预授权码后付不了款（银联码不经收银台，不受影响），页面据此提示商户。
       responses:

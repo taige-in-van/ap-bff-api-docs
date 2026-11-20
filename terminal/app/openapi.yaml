@@ -1051,7 +1051,7 @@ paths:
       x-required-privilege: terminal:payment:create
       summary: 取静态收款码
       description: |
-        取商户的一张静态收款码，返回码内容与渲染好的二维码图片。可取的有门店码、预授权码、银联码；商户有能以人民币标价的已开通支付方式时，另有人民币门店码与人民币预授权码。
+        取商户的一张静态收款码，返回码内容与渲染好的二维码图片。可取的有门店码、预授权码、银联码；商户在门店码收款页上有能以人民币标价的已开通支付方式时，另有人民币门店码与人民币预授权码。
 
         - `unionpay_mode` 为 `true` 时取银联码；否则按 `currency` 与 `preauth` 取对应的门店码。
         - `code_url` 是码内容：门店码与预授权码是这个商户店铺码的付款地址；银联码是银联的静态码串，不含金额。
@@ -1059,7 +1059,7 @@ paths:
 
         下列情形返回 `400`：
 
-        - 请求的码商户没有：要人民币码而商户没有能以人民币标价的已开通支付方式，或要银联码而商户没开通银联。
+        - 请求的码商户没有：要人民币码而商户在门店码收款页上没有能以人民币标价的已开通支付方式，或要银联码而商户没开通银联。
         - `currency` 不是商户的结算币种，也不是 `CNY`。
         - 权限不足：需要商户后台「终端收款」的权限。
       parameters:
@@ -4291,10 +4291,10 @@ components:
           description: 微信支付汇率的涨跌，算法同 `alipay_trend`；取不到汇率时不返回
         unionpayonline_rate:
           type: string
-          description: 银联在线的最新汇率，写法同 `alipay_rate`；取不到时不返回
+          description: 银联（店内银联码与银联在线）在平台上最近收到的人民币标价成交汇率（按收到的先后，不按成交时间），写法同 `alipay_rate`；还没有收到过、或取不到时不返回
         unionpayonline_trend:
           type: number
-          description: 银联在线汇率的涨跌，算法同 `alipay_trend`；取不到汇率时不返回
+          description: 银联汇率的涨跌，算法同 `alipay_trend`；取不到汇率时不返回
     TransactionRecordPage:
       type: object
       description: 一页流水。
