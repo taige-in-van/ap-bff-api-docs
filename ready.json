@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-20T02:43:15Z",
-  "implCommit": "12ae4453c",
+  "generatedAt": "2026-11-20T06:52:11Z",
+  "implCommit": "08d4bf57a",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -218,6 +218,14 @@
     "merchant/team/pollMemberWechatBinding": "4c36a3b898149660",
     "merchant/team/resendInvitation": "0f8014db42d7a7ef",
     "merchant/team/updateTeamMember": "47dfc9350d031626",
+    "terminal/app/changePassword": "09f13f0d39514ea3",
+    "terminal/app/listSubMerchants": "62961da0c72fc334",
+    "terminal/app/registerPushToken": "db0197bac93853c8",
+    "terminal/app/resetPasswordWithEmailCode": "b431ee659867255e",
+    "terminal/app/sendPasswordEmailCode": "775cc773ef29ae2a",
+    "terminal/app/signIn": "ef52721b1eaccec1",
+    "terminal/app/signOut": "3aedffde06b4b112",
+    "terminal/app/switchMerchant": "45b77c5b07837bba",
     "terminal/pos/getCurrentUser": "90089a87eba12ce4",
     "terminal/pos/getLoginCaptcha": "94142d376621d776",
     "terminal/pos/getViewOnlyStatus": "ebf2d66c5d0f8f99",
@@ -228,6 +236,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "186b84a7a8427dd3d0f93c41c704b43066cf20ec",
-  "prdStage": "stage/261119-term-base"
+  "prdSha": "998713c476a9a48fbb7b2e2fe9d1bbd71f4cce58",
+  "prdStage": "stage/261119-term-base-b2"
 }
