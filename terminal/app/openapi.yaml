@@ -29,7 +29,7 @@ info:
     - 该账号经找回密码重置了登录密码：该账号所有设备上的登录都失效。
     - 该账号被停用，或被移出商户。
     - 这部手机在该商户下的设备被停用或解绑。
-    - 商户被冻结。
+    - 商户被冻结期间这部手机发出了请求：这些请求一律被拒、手机回到登录页，之后须重新登录；冻结期间没发过请求的，商户解冻后令牌照常可用。
 
     同一账号可以同时在多部手机上登录，互不影响。
 
@@ -242,9 +242,9 @@ paths:
               properties:
                 devToken:
                   type: string
-                  description: 本机的推送令牌
+                  description: 本机的推送令牌：推送服务商令牌去掉外壳后的内层串，服务端原样保存。
             example:
-              devToken: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+              devToken: xxxxxxxxxxxxxxxxxxxxxx
       responses:
         '200':
           description: 已登记，`data` 为 `null`

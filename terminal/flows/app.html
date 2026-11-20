@@ -203,7 +203,7 @@ sequenceDiagram
     Note over U,A: 切回主商户走同一段：在列表里点主商户，同样发 #35;4<br/>点当前所在的商户不发请求
 ```
 
-- **商户列表（#3）**：路径上带当前商户的商户号（首页 #17 的 `mch_code`）。端每项显示 `short_name` 与 `logo_thumbnail`，`click` 为 `true` 的一项标为当前商户；点别的项时拿它的 `client_moniker` 发 #4。列表里有哪些商户见契约 `listSubMerchants`。
+- **商户列表（#3）**：路径上带当前商户的商户代码（首页 #17 的 `mch_code`）。端每项显示 `short_name` 与 `logo_thumbnail`，`click` 为 `true` 的一项标为当前商户；点别的项时拿它的 `client_moniker` 发 #4。列表里有哪些商户见契约 `listSubMerchants`。
 - **切换请求（#4）**：`username` 放目标商户的 `client_moniker`，`adminUser` 放登录时输入的用户名，`uuid`、`devcid` 同登录；端照常带着当前令牌的 `Authorization`。端按响应的 `haveChile`（拼写如此）决定是否同时改写主商户令牌，见图；切换的规则见契约 `switchMerchant`。
 - **重新登记推送令牌**：头的带法同登录后那次，`Merchant-Id` 用目标商户的 `client_id`，`Device-Id` 为空串。
 
@@ -749,7 +749,7 @@ sequenceDiagram
     end
 ```
 
-- **首页汇总（#17）**：不带参数。端读 `mch_name`、`mch_currency`、`mch_balance`（余额卡，直接做数值运算）、`today_collection`、`today_count`、`today_Refund`（今日收款与退款卡），以及 `alipay_rate`、`alipay_trend`、`wechat_rate`、`wechat_trend`、`unionpayonline_rate`、`unionpayonline_trend`（三个品牌的汇率与涨跌，缺值显示 `-`）；`mch_code` 存下作 #3 路径上的商户号，`mch_id` 存下供月对账单（#33）用。「今日」由服务端定；各键的口径见契约 `getHomeSummary`。
+- **首页汇总（#17）**：不带参数。端读 `mch_name`、`mch_currency`、`mch_balance`（余额卡，直接做数值运算）、`today_collection`、`today_count`、`today_Refund`（今日收款与退款卡），以及 `alipay_rate`、`alipay_trend`、`wechat_rate`、`wechat_trend`、`unionpayonline_rate`、`unionpayonline_trend`（三个品牌的汇率与涨跌，缺值显示 `-`）；`mch_code` 存下作 #3 路径上的商户代码，`mch_id` 存下供月对账单（#33）用。「今日」由服务端定；各键的口径见契约 `getHomeSummary`。
 - **未读数（#27）**：端读 `order_message_count`、`notice_message_count`，两数之和大于 0 时铃铛出红点；两数存在本地，消息中心与两个列表页清零时同步改本地值。口径见契约 `getUnreadCounts`。
 - **两条并发**：#17 与 #27 一起发，任一失败整次加载作废，首页数据、红点与商户列表都不更新。
 
@@ -1902,8 +1902,9 @@ sequenceDiagram
 |---|---|---|---|
 | 切换上线时重新登录一次 | — | 现网发出的令牌不带过来 | 第一个请求收到 403、回登录页，重新登录后照常使用 |
 | 令牌有效期 | 令牌没有有效期 | 默认 69 天（可配置），不续期 | 登录满 69 天后回登录页，重新登录 |
+| 同一部手机登录另一个商户（不论账号） | 原商户下的令牌不受影响 | 上一次登录得到的令牌失效，带它的请求回 403 | 还在用上一次令牌的那个登录回登录页 |
 | 账号被停用之后 | 已登录的 App 照常可用 | 令牌失效，请求回 403 | 回登录页，再登录被拒 |
-| 商户被冻结、设备被停用之后 | 已登录的 App 照常可用；商户被冻结时登录也不拦 | 请求回 403；登录、切换到被冻结的商户或设备被停用的商户回 400；解冻或重新启用后要重新登录 | 回登录页，再登录被拒，端弹的是固定提示「用户名或密码错误」 |
+| 商户被冻结、设备被停用之后 | 已登录的 App 照常可用；商户被冻结时登录也不拦 | 请求回 403；登录、切换到被冻结的商户或设备被停用的商户回 400；重新启用后要重新登录；冻结期间被拒过的，解冻后要重新登录，冻结期间没发过请求的，解冻后照常可用 | 回登录页，再登录被拒，端弹的是固定提示「用户名或密码错误」 |
 | 在 App 内改登录密码、找回密码重置之后 | 该账号已登录的设备不受影响 | App 内改登录密码后，发起修改的这部手机保持登录，该账号在其他设备与会话上的登录失效；找回密码重置后，该账号已登录的设备全部失效 | 这些设备回登录页，用新密码重新登录 |
 | 请求缺 `devCid` 头 | 回 400，端不登出 | 回 403 | 回登录页 |
 | 登记推送令牌时会话无效 | 回 HTTP 401（响应体 `status` 为 403） | 回 403 | 端对 401 与 403 处理相同，无差别 |
