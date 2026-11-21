@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-21T17:40:36Z",
-  "implCommit": "cf686fbe1",
+  "generatedAt": "2026-11-21T19:10:20Z",
+  "implCommit": "6cecbd67b",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -237,6 +237,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "6b74cf651a2ed443ec40078340ca43995ab6c1e0",
-  "prdStage": "stage/261121-card-open-api"
+  "prdSha": "64e1f1ef094de7e1155ae6d42b50ffb2cf8c4ee1",
+  "prdStage": "stage/261121-connectors-shopify"
 }
