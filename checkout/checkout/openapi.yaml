@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.7.6
+  version: 2.8.0
   contact:
     name: 收银台
   description: |
@@ -1924,6 +1924,9 @@ components:
             地址带协议头，不会是 `javascript` / `data` / `vbscript` / `blob` / `file` 协议（不区分大小写）；其余协议头（含 App 深链）都可能出现。
 
             付款成功后的跳回用 `CheckoutOrder.returnUrl`，与本键可以是同一个地址，也可以不同。
+        redirectParamAccepted:
+          type: boolean
+          description: 为 `true` 表示这笔订单接受页面地址上的 `redirect` 查询参数作付款成功后的跳回地址，用法见 `CheckoutOrder.returnUrl`；只在页面地址上带了 `redirect` 时才用得上，为 `true` 不代表地址上一定有它。不返回本键时，页面地址上的 `redirect` 一律不用。只在为 `true` 时返回。
     CheckoutOptionItem:
       type: object
       description: 收银台上的一个支付方式选项。
@@ -2348,7 +2351,7 @@ components:
 
             回跳地址不一定在下单时就有，有的订单要到付款成功之后才确定，入口没返回 `order.cancelUrl` 的订单也可能之后才有：`status` 变为 `SUCCEEDED` 时可能还不带本键，稍后才带上。
 
-            经 1.0 卡收银台地址（`/creditCardGateway`）进入的会话，页面地址上会带 `redirect` 查询参数：页面进页时按本次入口把它留在本标签页内，只给这笔订单用、不串到同一标签页里的其他订单，付款成功而本键缺失时按留下的值跳回。持卡人验证或重新授权回到页面后地址上不再有它，仍取留下的值。只认 `http` / `https` 开头的地址，不提交给后端。
+            订单入口返回 `order.redirectParamAccepted` 为 `true` 的订单，页面地址上带了 `redirect` 查询参数时，页面在订单入口应答到了之后按本次入口把它留在本标签页内（入口返回 `reauthorizeUrl` 时也先留下再去重新授权），只给这笔订单用、不串到同一标签页里的其他订单，付款成功而本键缺失时按留下的值跳回。持卡人验证或重新授权回到页面后地址上不再有它，仍取留下的值。只认 `http` / `https` 开头的地址，不提交给后端。
 
             原样跳转、不加参数；跳回只是导航，不代表付款结果。
         payerNote:

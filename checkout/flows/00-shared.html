@@ -5,7 +5,7 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"8580ca289ea24c36","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"1e0c39f50e855660","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"8580ca289ea24c36","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"bf1e73551fb530c4","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 收银台共用环节 —— 调用时序
@@ -27,7 +27,7 @@
 | 在浏览器打开引导 | 微信里选了支付宝 | [页面：在浏览器打开引导](#页面：在浏览器打开引导) |
 | 跳转第三方网关 / 持卡人验证与回来（后续动作，不是页面） | 发起支付或查订单返回 `kind = redirect` 或 `hidden_form` | [流程：整页跳转与回跳](#流程：整页跳转与回跳) |
 | 支付结果页（确认中 / 扫码 / 成功 / 未成功 / 终态） | 拉起之后；刷新或付完回来时入口返回 `paymentStarted` 为 true | [页面：支付结果](#页面：支付结果) |
-| 卡验证结果（无会话） | 商户在自己页面收卡的付款做完持卡人验证，商户没给回跳地址 | [页面：卡验证结果（无会话）](#页面：卡验证结果（无会话）) |
+| 卡验证结果（无会话） | 商户在自己页面收卡的付款持卡人认证这一路结束（不限于验证通过），商户没给回跳地址 | [页面：卡验证结果（无会话）](#页面：卡验证结果（无会话）) |
 | 刷新与会话重建 | 刷新、从外部页面回到同一标签页、令牌过期 | [流程：刷新与会话重建](#流程：刷新与会话重建) |
 
 ## 页面流转
@@ -592,7 +592,7 @@ sequenceDiagram
 | status | 店铺码 / 商品 / 票务 / 礼卡 | 账单 | 动态码 / 开放 API 托管页 / 电商插件订单 |
 |---|---|---|---|
 | `PENDING` | 「确认中」，默认 20 秒没有终态显示「暂未查到付款结果」+「刷新结果」，见「流程：发起支付」的「拉起之后的确认」；带 `jsapi` / `app_launch` / `redirect`、或不在微信里带 `open_in_browser` 时，「暂未查到付款结果」上另有小字「还没付款？继续付款」（照这个动作再执行一次）；有 `nextAction.kind = qr` 时显示二维码；页面加载后拿到 `hidden_form` 时不提交表单，显示「确认中」并轮询；在微信里拿到 `open_in_browser` 时显示在浏览器打开引导 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
-| `SUCCEEDED` | 成功页 + 查看收据（礼卡没有查看收据；商品 / 票务另有选购明细与凭证段，见 [04 页面：支付结果 · 凭证](04-products-tickets.html#页面：支付结果%20·%20凭证)；礼卡另有发放段、邮箱验证与凭证，见 [05 页面：支付结果 · 邮箱验证与凭证](05-giftcard.html#页面：支付结果%20·%20邮箱验证与凭证)） | 「账单已付款」+ 查看收据 | 订单视图带 `returnUrl` 就自动跳回商户（「正在返回商户」+ 按钮）；还没带、而入口带过 `order.cancelUrl` 时显示「付款成功，正在返回商户」并继续轮询，到上限还没有就停在成功页、不给按钮；入口没带 `order.cancelUrl` 的订单没有回跳，成功即停在成功页；例外：经 1.0 卡收银台地址（`/creditCardGateway`）进入、订单视图没带 `returnUrl` 时，按进页时为该入口留在本标签页内的 `redirect` 跳回（持卡人验证或重新授权回来后地址上已没有它，仍取留下的值；只认 `http` / `https` 开头的地址，见「流程：刷新与会话重建」与 checkout 契约 `returnUrl` 说明） |
+| `SUCCEEDED` | 成功页 + 查看收据（礼卡没有查看收据；商品 / 票务另有选购明细与凭证段，见 [04 页面：支付结果 · 凭证](04-products-tickets.html#页面：支付结果%20·%20凭证)；礼卡另有发放段、邮箱验证与凭证，见 [05 页面：支付结果 · 邮箱验证与凭证](05-giftcard.html#页面：支付结果%20·%20邮箱验证与凭证)） | 「账单已付款」+ 查看收据 | 订单视图带 `returnUrl` 就自动跳回商户（「正在返回商户」+ 按钮）；还没带、而入口带过 `order.cancelUrl` 时显示「付款成功，正在返回商户」并继续轮询，到上限还没有就停在成功页、不给按钮；入口没带 `order.cancelUrl` 的订单没有回跳，成功即停在成功页；例外：订单入口返回 `order.redirectParamAccepted` 为 `true` 的订单，订单视图没带 `returnUrl` 时，按为该入口留在本标签页内的 `redirect` 跳回（持卡人验证或重新授权回来后地址上已没有它，仍取留下的值；只认 `http` / `https` 开头的地址，见「流程：刷新与会话重建」与 checkout 契约 `returnUrl` 说明） |
 | `UNPAID`（带 `lastAttemptFailure`） | `DECLINED`「付款被拒」/ `INCOMPLETE`「付款未完成」；给「重新付款」 | 同左 | 同左；入口带 `order.cancelUrl` 时另给「返回商户」 |
 | `EXPIRED` | 「这次付款已超时」+「重新付款」 | 「这次付款已超时」+「重新付款」（同左） | 「订单已失效，请向商户重新获取」；入口带 `order.cancelUrl` 时给「返回商户」 |
 | `CLOSED` | 「这笔付款已关闭」+「重新付款」 | 同左 | 「订单已关闭」；入口带 `order.cancelUrl` 时给「返回商户」 |
@@ -620,7 +620,7 @@ sequenceDiagram
 
 ## 页面：卡验证结果（无会话）
 
-商户在自己的页面上收卡、付款人在收银台域名下做完持卡人验证，而商户没给回跳地址时，浏览器落到本页。本页不调接口，不需要付款页访问凭证，没有会话；只按地址上的查询参数 `status` 显示固定文案：
+商户在自己的页面上收卡、持卡人认证这一路结束（不需挑战、挑战结束，含认证未通过、交易已失败或结果尚无结论），而商户没给回跳地址时，浏览器落到本页。本页不调接口，不需要付款页访问凭证，没有会话；只按地址上的查询参数 `status` 显示固定文案：
 
 | `status` | 页面文案 |
 |---|---|
@@ -633,7 +633,7 @@ sequenceDiagram
 
 ## 流程：刷新与会话重建
 
-会话令牌只在请求头里带，前端存本标签页的 sessionStorage（同一标签页跳出到渠道再回来仍在；另开标签页各自一个会话）。刷新或回到同一标签页时，页面重调入口接口，请求头带上令牌认回同一会话；令牌没了或过期，就按页面地址里的编号铸新会话，订单入口会绑回同一笔订单。在微信 / 支付宝里，新会话没有付款人标识时接口返回 `reauthorizeUrl`，按「流程：进入收银台」自动重新授权。经 1.0 卡收银台地址进入时，页面地址上的 `redirect` 在进页时同样按该入口（页面地址里的编号）存进本标签页的 sessionStorage，与该入口的会话令牌一样按入口分开、只给这笔订单用，进页即存、不等会话签发，只用于付款成功后没有 `returnUrl` 时跳回、不提交给后端；持卡人验证或重新授权回到页面地址时地址上已没有它，沿用存下的值。
+会话令牌只在请求头里带，前端存本标签页的 sessionStorage（同一标签页跳出到渠道再回来仍在；另开标签页各自一个会话）。刷新或回到同一标签页时，页面重调入口接口，请求头带上令牌认回同一会话；令牌没了或过期，就按页面地址里的编号铸新会话，订单入口会绑回同一笔订单。在微信 / 支付宝里，新会话没有付款人标识时接口返回 `reauthorizeUrl`，按「流程：进入收银台」自动重新授权。页面地址上的 `redirect` 只在订单入口返回 `order.redirectParamAccepted` 为 `true` 时，按该入口（页面地址里的编号）存进本标签页的 sessionStorage，与该入口的会话令牌一样按入口分开、只给这笔订单用；入口应答到了再存，返回 `reauthorizeUrl` 时也先存再去重新授权，不等会话签发；入口返回里没有它就不存、不用。存下的值只用于付款成功后没有 `returnUrl` 时跳回、不提交给后端；持卡人验证或重新授权回到页面地址时地址上已没有它，沿用存下的值。
 
 ```mermaid
 sequenceDiagram
