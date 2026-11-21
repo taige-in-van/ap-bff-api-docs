@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-20T22:28:32Z",
-  "implCommit": "d8f4f3bdc",
+  "generatedAt": "2026-11-21T01:03:11Z",
+  "implCommit": "fb8ce581d",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -62,6 +62,7 @@
     "admin/settings/updateAcquiringPlatformParameter": "91f7f1c85fe72678",
     "checkout/checkout/createCheckoutPayment": "3533694a02e790bd",
     "checkout/checkout/createGiftcardAlipayPass": "8580ca289ea24c36",
+    "checkout/checkout/deleteCheckoutSavedCard": "05c9bebef48154eb",
     "checkout/checkout/getCheckoutLaunch": "454f00719116c312",
     "checkout/checkout/getCheckoutOrder": "bab3656fad25e278",
     "checkout/checkout/getGiftcardOrder": "31f3441347a704cb",
@@ -236,6 +237,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "9c8a6cb959376c2b25dc4d70c716a2836f15ec24",
-  "prdStage": "stage/261120-card-3ds"
+  "prdSha": "e42f77464d8d2baf3182814263b8aca4ab5a642a",
+  "prdStage": "stage/261120-card-checkout"
 }
