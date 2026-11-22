@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-22T03:04:58Z",
-  "implCommit": "44bd203ad",
+  "generatedAt": "2026-11-22T05:21:00Z",
+  "implCommit": "1040ce3e4",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -251,6 +251,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "56ef4d87cb3f50e776e80917a5f11d6391800bf0",
-  "prdStage": "stage/261121-pos"
+  "prdSha": "bdf226075adb10e2f3825dda24e8c36d96d0fd38",
+  "prdStage": "stage/261121-co-order-product"
 }
