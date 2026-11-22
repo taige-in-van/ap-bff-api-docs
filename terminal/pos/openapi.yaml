@@ -1109,7 +1109,7 @@ paths:
               example:
                 status: 5
                 order_id: P100240001
-                order_description: In-store Payment
+                order_description: Pine Street Cafe
                 order_detail: Table 5
                 currency: CAD
                 total_amount: 14
@@ -1185,7 +1185,7 @@ paths:
       x-required-privilege: orders:refund:create
       summary: 退款（原生端的调法）
       description: |
-        对一笔订单发起退款。服务端落退款单、提交渠道，拿到渠道的首次应答后返回；返回时退款是处理中或已成功，端不用轮询。键盘机用 `POST` 调同一路径（`refundOrderByPost`），服务端行为相同。
+        对一笔订单发起退款。服务端落退款单、提交渠道，拿到渠道的首次应答后返回，渠道在时限内没有应答时也按处理中返回；返回时退款是处理中或已成功，端不用轮询。键盘机用 `POST` 调同一路径（`refundOrderByPost`），服务端行为相同。
 
         - **退款密码**：要求本设备本次登录已通过 `verifyRefundPassword`（有效到该设备下次登录为止）。退款可能由终端自带的收银应用拉起、不经过本应用密码页的终端类别不查这一条，按 `Device-Type` 识别；目前属于这一类的是 `poynt` 与 `ingenico`。
         - **金额**：`amount` 以分计，整数或数字字符串都收。币种是订单的币种，不用传。
@@ -1217,7 +1217,7 @@ paths:
               amount: 500
       responses:
         '200':
-          description: 退款已受理，返回退款结果（裸 JSON）
+          description: 退款已提交（处理中或已成功），返回退款结果（裸 JSON）
           content:
             application/json:
               schema:
@@ -1260,7 +1260,7 @@ paths:
               amount: '500'
       responses:
         '200':
-          description: 退款已受理，返回退款结果（裸 JSON），与 `refundOrder` 相同
+          description: 退款已提交（处理中或已成功），返回退款结果（裸 JSON），与 `refundOrder` 相同
           content:
             application/json:
               schema:
@@ -1581,7 +1581,7 @@ paths:
       description: |
         返回打印收款票、退款票用的抬头、页脚、单号码类型与商户名址。
 
-        - `head`、`footer`：运营为商户配置的小票抬头行与页脚行，整段包在 `<root>` 里，每行一个 `<p>`，行内文字做 XML 转义。没配抬头时 `head` 为空串；`footer` 只在抬头与页脚都配了时返回。
+        - `head`、`footer`：运营为商户配置的小票抬头行与页脚行，整段包在 `<root>` 里，每行一个 `<p>`，行内文字做 XML 转义。没配抬头时 `head` 为空串；没配页脚时不返回 `footer`，与有没有抬头无关。
         - `qr_type`：小票上单号码的类型，`QR_CODE`（二维码）或 `BAR_CODE`（一维码）；没配时为 `QR_CODE`。
         - `company_name`、`short_name`、`address1`、`address2`：商户资料里的公司名、简称与地址。
         - `timezone` 收下不用。
@@ -2382,10 +2382,10 @@ components:
           description: 订单状态；预授权收款资金是否挂起看 `pre_auth`
         error_code:
           type: string
-          description: 失败原因代码；没有失败时不返回
+          description: 失败原因代码：平台未受理的订单（`status` 为 `1`）为 `108104`；支付失败的订单为渠道给的原因代码，渠道没给时不返回；没有失败时不返回
         error_message:
           type: string
-          description: 失败原因，可以直接展示；没有失败时不返回
+          description: 失败原因，可以直接展示：平台未受理的订单为固定的一句「平台未受理这笔付款 / This payment was not accepted」，不说明原因；支付失败的订单为渠道给的原因，渠道没给时不返回；没有失败时不返回
         order_id:
           $ref: '#/components/schemas/OrderId'
           description: 订单号
@@ -2394,7 +2394,7 @@ components:
           description: 商户订单号（下单时的 `clientOrderId`）；没有时不返回
         order_description:
           type: string
-          description: 产品描述
+          description: 产品描述；终端收款的订单为商户对外经营名
         order_detail:
           type: string
           description: 备注（下单时的 `remark`）；没填备注时与 `order_description` 相同
@@ -2445,13 +2445,13 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RetailRefundLog'
-          description: 退款记录，只在 `status` 为 `6` 或 `7` 时返回；只列已受理的退款（处理中与成功），按 `create_time` 倒序
+          description: 退款记录，只在 `status` 为 `6` 或 `7` 时返回；只列已受理的退款（处理中与成功），渠道还没应答的退款等渠道受理后才列出，按 `create_time` 倒序
         logo_print:
           type: string
           description: 小票 logo 图片地址；没有配置时不返回
         additional_content:
           type: string
-          description: 小票附加文字；没有设置时不返回
+          description: 小票附加文字，即运营配置的页脚行；没有设置时不返回。只有一行时是该行纯文本；多行时每行一个 `<p>`、行内文字做 XML 转义，各行直接相连、外层不包 `<root>`，例如 `<p>Thank you</p><p>See you again</p>`
         orderReference:
           type: object
           description: 付款人付款时填写的附加信息，键是信息项的名称；没有时不返回
@@ -2513,7 +2513,7 @@ components:
           description: 退款金额，以分计（订单币种的最小单位），须是正数。整数（如 `500`）或数字字符串（如 `"500"`）都收。币种是订单的币种，不用传
     RetailRefundResult:
       type: object
-      description: 已受理的退款。
+      description: 已提交的退款（处理中或已成功）。
       required:
         - refund_id
         - partner_refund_id
@@ -2736,7 +2736,7 @@ components:
       properties:
         additional_content:
           type: string
-          description: 小票页脚文字；没有配置时不返回
+          description: 小票页脚文字；没有配置时不返回。只有一行时是该行纯文本；多行时每行一个 `<p>`、行内文字做 XML 转义，各行直接相连、外层不包 `<root>`
         logo_print:
           type: string
           description: 小票 logo 图片地址；没有配置时不返回
@@ -2774,7 +2774,7 @@ components:
             小票抬头：运营配置的抬头行，整段包在 `<root>` 里，每行一个 `<p>`，行内文字做 XML 转义，例如 `<root><p>Pine Street Cafe</p></root>`。没配抬头时为空串
         footer:
           type: string
-          description: 小票页脚：运营配置的页脚行，格式同 `head`。只在抬头与页脚都配了时返回
+          description: 小票页脚：运营配置的页脚行，格式同 `head`。没配页脚时不返回
         qr_type:
           type: string
           enum:
@@ -2945,7 +2945,10 @@ components:
         tip_amount:
           type: number
           description: |
-            小费合计，收款行加、退款行减。非人民币标价的订单：收款行计小费，退款行计这笔退款额扣在小费上的部分（扣法见 `input_amount`）。标价币种为 `CNY` 的订单：这一行的清算金额减去 `input_amount` 折算出的金额
+            小费合计，收款行加、退款行减：
+
+            - 非人民币标价的订单：收款行计小费，退款行计这笔退款额扣在小费上的部分（扣法见 `input_amount`）。
+            - 标价币种为 `CNY` 的订单：按这一行的清算金额折算，清算金额乘以小费、除以顾客实付总额，收款行与退款行都这样算。
         clearing_amount:
           type: number
           description: 清算金额合计，收款行加、退款行减。含顾客承担的手续费，所以不等于 `input_amount` 与 `tip_amount` 之和

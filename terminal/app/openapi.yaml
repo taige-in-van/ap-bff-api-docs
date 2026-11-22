@@ -1782,7 +1782,7 @@ paths:
       description: |
         按订单号查订单。
 
-        `payType` 为 `Credit` 时返回订单本身，`data` 是一个 `TransactionDetail`；为 `Debit` 时返回退款详情，路径段是退款号，`data` 是一个 `RefundDetail`。两种形状互斥，由 `payType` 决定。
+        `payType` 为 `Credit` 时返回订单本身，`data` 是一个 `TransactionDetail`；为 `Debit` 时返回退款详情，路径段是退款号，`data` 是一个 `RefundDetail`；处理中（含渠道还没应答的）与已成功的退款都查得到。两种形状互斥，由 `payType` 决定。
 
         `payType` 为 `Debit` 时，本接口标的 `orders:payment:view` 之外，另须商户后台查看退款单的权限（`orders:refund:view`）。
 
@@ -1885,7 +1885,7 @@ paths:
       x-required-privilege: orders:refund:create
       summary: 退款（请求里带退款密码）
       description: |
-        对一笔订单退款，同一个请求里带商户的退款密码。服务端先校验退款密码，再落退款单、提交渠道，拿到渠道的首次应答后返回；返回时退款处理中或已成功。
+        对一笔订单退款，同一个请求里带商户的退款密码。服务端先校验退款密码，再落退款单、提交渠道，拿到渠道的首次应答后返回，渠道在时限内没有应答时也按处理中返回；返回时退款处理中或已成功。
 
         - `fee` 是退款金额，单位是元，服务端四舍五入到分。币种是订单的币种，不传。
         - 可退金额 = 顾客实付总额（金额、小费与顾客承担的手续费之和）− 已退金额。允许部分退、多次退。
@@ -1896,7 +1896,7 @@ paths:
 
         `data` 有两种情形：
 
-        - 退款已受理：返回 `refund_id`、`partner_refund_id`、`amount`、`currency`、`result_code`。
+        - 退款已提交（处理中或已成功）：返回 `refund_id`、`partner_refund_id`、`amount`、`currency`、`result_code`。
         - 命中审核规则（金额达到审核阈值、成交超过退款周期，或当日退款笔数超限）：退款进入审核，不立即退；返回 `success`（`true`）与 `message`，没有 `refund_id`。审核通过后由服务端完成退款。审核中的退款不计入已退金额，也不出现在退款记录里。
 
         同一部手机对同一订单、同样金额的重复请求在 60 秒内（可配置）视为同一笔，返回这笔退款此刻的结果；首次请求还没建好退款单时到达的重复请求，等建好后返回这笔退款此刻的结果。
@@ -1934,7 +1934,7 @@ paths:
               remark: Returned one item
       responses:
         '200':
-          description: 退款已受理，或已进入审核。两种情形的 `data` 见接口说明与 `RefundResult`
+          description: 退款已提交（处理中或已成功），或已进入审核。两种情形的 `data` 见接口说明与 `RefundResult`
           content:
             application/json:
               schema:
@@ -1945,7 +1945,7 @@ paths:
                     $ref: '#/components/schemas/RefundResult'
               examples:
                 accepted:
-                  summary: 退款已受理
+                  summary: 退款已提交
                   value:
                     status: 200
                     message: Success
@@ -4121,7 +4121,7 @@ components:
           type:
             - string
             - 'null'
-          description: 产品描述
+          description: 产品描述；终端收款的订单为商户对外经营名
         orderRules:
           type:
             - string
@@ -4129,7 +4129,7 @@ components:
           description: 同 `remarks`
         refundTrans:
           type: array
-          description: 退款记录，只在 `orderStatus` 为 `6` 或 `7` 时返回；只列已受理的退款（处理中与成功），按创建时间倒序；各项形状与 `payType` 为 `Debit` 的退款详情相同
+          description: 退款记录，只在 `orderStatus` 为 `6` 或 `7` 时返回；只列已受理的退款（处理中与成功），渠道还没应答的退款等渠道受理后才列出，按创建时间倒序；各项形状与 `payType` 为 `Debit` 的退款详情相同
           items:
             $ref: '#/components/schemas/RefundDetail'
         orderReference:
@@ -4162,26 +4162,26 @@ components:
       description: |
         退款的结果，按情形给不同的字段：
 
-        - 退款已受理：`refund_id`、`partner_refund_id`、`amount`、`currency`、`result_code`。
+        - 退款已提交（处理中或已成功）：`refund_id`、`partner_refund_id`、`amount`、`currency`、`result_code`。
         - 进入审核：`success` 与 `message`，没有 `refund_id`。
       properties:
         refund_id:
           $ref: '#/components/schemas/RefundId'
-          description: 平台退款号，即 `getTransaction`（`payType` 为 `Debit`）的 `orderId`。仅退款已受理时返回
+          description: 平台退款号，即 `getTransaction`（`payType` 为 `Debit`）的 `orderId`。仅退款已提交时返回
         partner_refund_id:
           $ref: '#/components/schemas/RefundId'
-          description: 与 `refund_id` 相同。仅退款已受理时返回
+          description: 与 `refund_id` 相同。仅退款已提交时返回
         amount:
           type: integer
-          description: 退款金额，单位是分。仅退款已受理时返回
+          description: 退款金额，单位是分。仅退款已提交时返回
         currency:
           type: string
-          description: 退款币种，即订单的币种。仅退款已受理时返回
+          description: 退款币种，即订单的币种。仅退款已提交时返回
         result_code:
           allOf:
             - $ref: '#/components/schemas/TerminalRefundResultCode'
           description: |
-            返回时退款的进展，仅退款已受理时返回：
+            返回时退款的进展，仅退款已提交时返回：
 
             - `SUCCESS` 已提交渠道，处理中。
             - `FINISHED` 渠道已确认退款成功。
