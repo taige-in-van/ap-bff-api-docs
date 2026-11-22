@@ -597,14 +597,14 @@ paths:
                   mch_code: PINE
                   company_name: Pine Street Hospitality Ltd.
                   mch_abbreviation: Pine Street Cafe
-                  service_phone: '6045550199'
+                  service_phone: '+16045550199'
                   address: 456 Market St
                   city: Vancouver
                   province: BC
                   postal_code: V6B1A1
                   country: CANADA
                   contact_name: Amy Chen
-                  contact_phone: '6045550123'
+                  contact_phone: '+16045550123'
                   contact_email: amy@pinestreet.example.com
                   logo_url: https://cdn.example.com/merchant/logo/2026/10/1bfae8638ae9bfdeac5992645c5383db.png
                   order_expiry_time: 15m
@@ -795,8 +795,8 @@ paths:
       description: |
         改商户的营业电话与地址，或商户联系人（Owner）的姓名与电话，立即生效。只改请求里带了、且不是空串的字段，空串的字段跳过。成功时 `data` 为 `null`。
 
-        - 公司组：`service_phone`（营业电话）、`address`、`city`、`province`（省或州的代码，如 `BC`）、`post_code`。省或州须属商户所在国家，邮编按商户所在国家的格式校验（加拿大邮编先去掉空格与连字符、转大写再校验，按规整后的值保存），电话的区号须在允许的范围内。`country` 收下不用。
-        - 联系人组：`contact_name`、`contact_phone`，改的是商户 Owner 的资料。`contact_name` 按最后一个空格拆成名与姓，没有空格时整串作姓。
+        - 公司组：`service_phone`（营业电话）、`address`、`city`、`province`（省或州的代码，如 `BC`）、`post_code`。省或州须属商户所在国家，邮编按商户所在国家的格式校验（加拿大邮编先去掉空格与连字符、转大写再校验，按规整后的值保存），电话收本地号（10 位数字，或前面带 `1` / `+1`，按 `+1` 加 10 位保存）或国际格式整串（`+` 加国家码与号码，只含数字、不带空格与连字符，最多 15 位数字，如 `+85221234567`），国家码须在允许的范围内；两种都不合的返回 `400`。`country` 收下不用。
+        - 联系人组：`contact_name`、`contact_phone`，改的是商户 Owner 的资料。`contact_name` 去首尾空白后按最后一个空格拆成名与姓，两段各去首尾空白；没有空格时整串作姓、名清空；去首尾空白后为空的，按空串跳过。`contact_phone` 的写法与校验同 `service_phone`。
 
         本接口标的 `account:profile:edit` 只覆盖公司组；请求里带了联系人组的字段时，登录者须是商户 Owner。
 
@@ -1641,8 +1641,8 @@ paths:
       description: |
         请求体与 `getMerchantInfo` 返回的 `payInfo` 同形。与商户后台收款页设置是同一份设置；小费是商户级的，终端收款也用同一份。成功时 `data` 为 `null`。
 
-        - `user_info_switch`：为 `true` 时收款页向付款人收姓名与手机号，为 `false` 时不收。
-        - `remark_switch`：为 `true` 时收款页有备注栏。
+        - `user_info_switch`：为 `true` 时收款页向付款人收姓名与手机号，之前删掉的按系统目录加回；为 `false` 时不收。
+        - `remark_switch`：为 `true` 时收款页有备注栏，之前删掉的按系统目录加回。
         - `user_input_title`：商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；最多 4 项，每项标题不超过 10 个字符。不带或空数组表示没有自定义填写项。
         - `tip_switch`、`tip_preset_value`：小费开关与三档预设百分比。`tip_preset_value` 是三个 0 到 30 的整数，半角逗号分隔，如 `10,15,20`；`tip_switch` 为 `false` 时不看它。
         - `note`：收款页上的提示语；空串或不带表示不设。
@@ -1916,7 +1916,7 @@ paths:
         - `908003` 同一部手机对同一订单、同样金额在 60 秒内（可配置）再次发起退款，但备注与前一次不同。
         - 权限不足：需要商户后台「发起退款」的权限。
         - 订单不存在，或不在可退的范围内，两者不区分。
-        - `208063` 商户可用于退款的资金不够这笔退款，`message` 里含 `balance`（中文环境含「余额」）。
+        - `208063` 商户可用于退款的资金不够这笔退款，`message` 里有 balance 一词（中文环境为「余额」），不带余额数值。
         - `207001` 渠道拒绝退款，`message` 带渠道给的原因。
         - `208064` 重复提交的这笔退款已经结束而没有成功（审核未通过、已撤销，或因资金不足、渠道拒绝之外的原因失败），`message` 说明是哪一种；资金不足、渠道拒绝的那笔重复提交时仍回 `208063`、`207001`。
         - 缺 `fee`。
@@ -2038,7 +2038,7 @@ paths:
         - 「今天」是商户当前的营业日，由服务端定。
         - 今天的三项只算当前商户，不含子商户，也不按设备分：`today_collection` 是今天成交的收款金额合计，`today_count` 是今天成交的收款笔数（一单一笔），`today_Refund` 是今天受理的退款金额合计（处理中或成功，正数）。金额按结算币种，单位是元。
         - `mch_balance` 是商户的账户余额（可结算余额减去已占用的款项（已生成、待出款的结算单，处理中的退款等）和商户欠平台的钱，含预授权挂起中的款项，可能为负），与商户后台余额卡片上的账户余额 `accountBalance` 是同一个量，这里以元计。
-        - 汇率：按商户开通的该品牌与商户的结算币种取最新的汇率，仅供参考。取不到汇率的品牌，`{品牌}_rate` 与 `{品牌}_trend` 都不返回。
+        - 汇率：按商户开通的该品牌与商户的结算币种取最新的汇率，仅供参考；同一品牌开了多条收款通道时不分通道，按品牌取一个。取不到汇率的品牌，`{品牌}_rate` 与 `{品牌}_trend` 都不返回。
 
         下列情形返回 `400`：
 
@@ -2893,7 +2893,7 @@ paths:
       description: |
         返回两类未读数，没有参数。
 
-        - `order_message_count`：订单消息的未读数，即登录者上次把订单消息标为已读之后，当前商户成交的收款（一单一笔）与受理的退款（处理中或成功，一笔一笔）的笔数，不含子商户。已读按登录者本人算，各员工互不影响。登录者没有商户后台查看支付订单的权限（`orders:payment:view`）时为 `0`。
+        - `order_message_count`：订单消息的未读数，即登录者上次把订单消息标为已读之后（从没标过的，从登录者被加为成员时起），当前商户成交的收款（一单一笔）与受理的退款（处理中或成功，一笔一笔）的笔数，不含子商户。已读按登录者本人算，各员工互不影响；主商户的员工（Owner 除外）在主商户与各关联商户之间共用同一个已读位置，见 `markAllMessagesRead`。登录者没有商户后台查看支付订单的权限（`orders:payment:view`）时为 `0`。
         - `notice_message_count`：站内信（平台公告与账户事件通知）的未读数。已读按商户算，任一成员读过即算已读。
       responses:
         '200':
@@ -3125,7 +3125,7 @@ paths:
         `type` 决定清哪一类：
 
         - 不带或空串：两类都清。
-        - `order`：订单消息全部标为已读，只对登录者本人生效。
+        - `order`：订单消息全部标为已读，只对登录者本人生效。主商户的员工（Owner 除外）在主商户与各关联商户之间共用同一个已读位置，在哪一家标为已读，这几家一起生效。
         - `notice`：当前商户的站内信全部标为已读，对全商户生效。
         - 其他值：什么都不做，照常返回 `200`。
 
@@ -4290,7 +4290,7 @@ components:
           description: 支付宝对结算币种的最新汇率，保留 4 位小数（多余的舍去）；取不到时不返回
         alipay_trend:
           type: number
-          description: 支付宝最新汇率减去前一次的汇率；没有变化或没有前一次时为 `0`；取不到汇率时不返回
+          description: 支付宝最新汇率减去前一次的汇率（同一品牌、同一币种的上一个汇率）；没有变化或没有前一次时为 `0`；取不到汇率时不返回
         wechat_rate:
           type: string
           description: 微信支付的最新汇率，写法同 `alipay_rate`；取不到时不返回
@@ -4756,7 +4756,7 @@ components:
           description: 商户简称
         service_phone:
           type: string
-          description: 营业电话；没有值不返回本键
+          description: 营业电话，国际格式整串（如 `+16045550199`）；没有值不返回本键
         address:
           type: string
           description: 地址；没有值不返回本键
@@ -4774,10 +4774,10 @@ components:
           description: 国家，写法与现网相同，如 `CANADA`；没有值不返回本键
         contact_name:
           type: string
-          description: 商户 Owner 的姓名，名与姓以一个空格连接
+          description: 商户 Owner 的姓名，名与姓以一个空格连接，没有名时只给姓
         contact_phone:
           type: string
-          description: 商户 Owner 的电话；没有值不返回本键
+          description: 商户 Owner 的电话，写法同 `service_phone`；没有值不返回本键
         contact_email:
           type: string
           description: 商户 Owner 的登录邮箱
@@ -5296,7 +5296,7 @@ components:
       properties:
         service_phone:
           type: string
-          description: 营业电话
+          description: 营业电话；写法见 `updateMerchantContact` 说明
         address:
           type: string
           description: 地址
@@ -5314,10 +5314,10 @@ components:
           description: 收下不用
         contact_name:
           type: string
-          description: 商户 Owner 的姓名，按最后一个空格拆成名与姓
+          description: 商户 Owner 的姓名，拆法见 `updateMerchantContact` 说明
         contact_phone:
           type: string
-          description: 商户 Owner 的电话
+          description: 商户 Owner 的电话；写法同 `service_phone`
     MerchantEmailConfirmRequest:
       type: object
       required:

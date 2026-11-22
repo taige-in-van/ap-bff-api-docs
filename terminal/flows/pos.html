@@ -311,18 +311,20 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    actor U as 收银员
+    actor U as 员工
     participant T as POS 应用
     participant A as 服务端
 
     U->>T: 进设置页
     T->>A: #35;4 [getCurrentUser]<br/>GET /retail/app/current_user
     A-->>T: 200 账号与商户配置
-    T->>A: #35;9 [getTipConfig]<br/>GET /retail/app/trade/tip_config
-    A-->>T: 200 { enable_tip, tip_preset_value }
-    U->>T: 切换小费开关，或进 Rate of Tipping 改三档预设
-    T->>A: #35;10 [updateTipConfig]<br/>PUT /retail/app/modify/tip_config<br/>{ enable_tip, tip_preset_value }
-    A-->>T: 200 { enable_tip, tip_preset_value }
+    opt 管理员、店长（role 为 1、2），非 Poynt
+        T->>A: #35;9 [getTipConfig]<br/>GET /retail/app/trade/tip_config
+        A-->>T: 200 { enable_tip, tip_preset_value }
+        U->>T: 切换小费开关，或进 Rate of Tipping 改三档预设
+        T->>A: #35;10 [updateTipConfig]<br/>PUT /retail/app/modify/tip_config<br/>{ enable_tip, tip_preset_value }
+        A-->>T: 200 { enable_tip, tip_preset_value }
+    end
 ```
 
 - **入口**：小费设置只对管理员、店长（`role` 为 1、2）显示，收银员看不到、也不调 #9、#10；Poynt 不显示小费设置；仅查看状态（#5）为 `true` 时关掉小费设置。
@@ -819,7 +821,7 @@ sequenceDiagram
 | 退款要先验过退款密码（#18、#19） | 退款密码只由端把门，退款接口不看是否验过 | 本设备本次登录通过 #17 之后才受理退款，没有回 400；退款可由终端自带收银应用拉起的终端类别不查（目前 `poynt` 与 `ingenico`） | 原生端本就先验密码再退，正常无感；Poynt 版与键盘机照旧只靠端的密码页或终端自带收银应用把门 |
 | 退款密码锁定（#17） | 输错不限次数 | 连续错达上限（可配置）后锁定一段时间，锁定期内回 400；锁定期内退款密码校验不通过（商户后台、商户 App、POS 都一样） | 连续输错后一段时间内退不了款，原生端弹出写明锁定的 `message`，键盘机仍是固定文案 |
 | 退款密码校验的超时重发（#17） | 输错不计数 | 端超时后自动重发的那次也计一次失败 | 同一个错密码可能被多计一次失败，离锁定近一步 |
-| 退款的重复提交（#18、#19） | 5 秒内的相同请求回 400，之后不拦 | 同一台设备对同一订单、同样金额的重复请求在 60 秒内（可配置）视为同一笔，返回第一次的结果 | 超时自动重发不再重复退款；60 秒内对同一订单同额连退两次会被合并成一笔 |
+| 退款的重复提交（#18、#19） | 5 秒内的相同请求回 400，之后不拦 | 同一台设备对同一订单、同样金额的重复请求在 60 秒内（可配置）视为同一笔，返回这笔退款此刻的结果 | 超时自动重发不再重复退款；60 秒内对同一订单同额连退两次会被合并成一笔 |
 | 挂起中的预授权订单退款（#18、#19） | 服务端放行，靠原生端只给「释放」按钮拦住 | 服务端也回 400，释放后再退 | 无差别 |
 | 退子商户、兄弟商户的订单（#18、#19） | 父商户退子商户订单不限；兄弟商户互退看父商户的「子商户各自退款」开关 | 父商户退子商户订单须运营开启对应策略，没开按不存在回 400；兄弟商户的订单与查单一样不在范围内 | 没开的商户在 POS 上退子商户的订单会被拒；兄弟商户的订单查不到、也退不了 |
 | 查单的 `refund_logs`（#16） | 退款单整行，含失败的退款单 | 只列已受理的退款（处理中与成功），每条只有退款号、金额、币种与时间几项 | 失败的退款不再出现；终端发起的退款，小票上的 Refund ID 打的是平台退款号 |

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.8.0
+  version: 2.9.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -1034,12 +1034,12 @@ components:
       additionalProperties: false
       description: Contact Information 卡，即该商户 Owner 的联系人资料，字段名同入驻 Contact 步。
       required:
-        - firstName
         - lastName
         - email
       properties:
         firstName:
           type: string
+          description: 名；没有名时不返回本键。
         lastName:
           type: string
         businessTitle:
@@ -1095,7 +1095,7 @@ components:
       type: object
       additionalProperties: false
       minProperties: 1
-      description: 改联系人，只提交要改的。名、姓提交时不能为空、不能清空；职务、电话可清空。邮箱不在这里（只读）。
+      description: 改联系人，只提交要改的。名、姓提交时不能为空、不能清空；联系人当前没有名时（读联系人时不返回 `firstName`），提交须带 `firstName`。职务、电话可清空。邮箱不在这里（只读）。
       properties:
         firstName:
           type: string
