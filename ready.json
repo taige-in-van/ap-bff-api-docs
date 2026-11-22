@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-22T05:21:00Z",
-  "implCommit": "1040ce3e4",
+  "generatedAt": "2026-11-22T06:28:37Z",
+  "implCommit": "d94ae5cd3",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -227,6 +227,9 @@
     "terminal/app/signIn": "ef52721b1eaccec1",
     "terminal/app/signOut": "3aedffde06b4b112",
     "terminal/app/switchMerchant": "45b77c5b07837bba",
+    "terminal/pos/createMicropayOrder": "2fe6ed7ac01b0f91",
+    "terminal/pos/createQrcodeOrder": "6d791f9b4bfee2bd",
+    "terminal/pos/createUnionpayQrcodeOrder": "410e3b74cb8ef613",
     "terminal/pos/getCurrentUser": "90089a87eba12ce4",
     "terminal/pos/getDailyReport": "be93e1cc68b66a2f",
     "terminal/pos/getLoginCaptcha": "94142d376621d776",
@@ -240,17 +243,22 @@
     "terminal/pos/listOrders": "b21d30a983945ec8",
     "terminal/pos/listRedemptions": "ecf83d1a17323557",
     "terminal/pos/listSubMerchants": "f6af2571dafef256",
+    "terminal/pos/precalculateSurcharge": "f1e4add3ce7e117d",
     "terminal/pos/redeemVoucher": "529fa2dfd33094a0",
+    "terminal/pos/refundOrder": "c15246241659862e",
+    "terminal/pos/refundOrderByPost": "d5e34e839a53cbc6",
     "terminal/pos/registerDevice": "1e88246d30a0147e",
+    "terminal/pos/releasePreauth": "79be49cf3aef3907",
     "terminal/pos/setCustomerSurcharge": "7cda16541aec8f94",
     "terminal/pos/signIn": "5700fdbb34ec6e9f",
     "terminal/pos/updateRedemptionRemark": "f0f192dc026c07c6",
     "terminal/pos/updateTipConfig": "04a6b2559f53f9fc",
+    "terminal/pos/verifyRefundPassword": "288783cf7027ee4f",
     "wechat/wechat/completeWechatOAuth": "b9679ef4149990fd",
     "wechat/wechat/decideWechatChallenge": "bf83e2feb2f232dc",
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "bdf226075adb10e2f3825dda24e8c36d96d0fd38",
-  "prdStage": "stage/261121-co-order-product"
+  "prdSha": "4091e84c125c7885cc24588e3743abdae0793329",
+  "prdStage": "stage/261121-pos-b2"
 }
