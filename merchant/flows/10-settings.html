@@ -375,7 +375,7 @@ sequenceDiagram
 - Gateway Credential 的完整值只从 #23 拿。Reveal 之后再点 Copy 用页面上已有的值，不重调；没 Reveal 直接点 Copy 就先调 #23。Hide 只回到末 4 位显示、不调接口；Hide 后再 Reveal 用页面内存里已有的值、不重调。完整值只留在页面内存里，离开页面即丢，不写进本地存储。每次调 #23 服务端都记一条查看记录。
 - 没有 `credentialLast4` = 还没签发凭据，Gateway Credential 一行显示占位，不给 Reveal 与 Copy。凭据的 Created 取 `credentialIssuedAt`。
 - 没有 `signingKey` = 还没登记公钥，显示 Upload key；有则显示 View、Copy、Replace。登记与替换是同一个接口。页面在替换前提示「替换后被换下的那把还能用一段时间（默认 24 小时）；上一次替换后还没过这段时间就再换，更早的那把会立即失效」，不做倒计时；替换时另给一个「旧公钥立即失效」勾选（公钥泄露时用，默认不勾），勾了带 `expirePrevious: true`，被换下的那把与还在宽限期内的更早那把随替换同时失效、只剩新公钥可用；提交的公钥与当前这把相同时什么都不变（勾不勾都一样）。
-- `platformPublicKeys` 通常只有一把。平台换钥前会提前公布新的一把，这时是两把：带 `activatedAt` 的是正在用的，不带的是即将启用的。两把都显示出来，各带版本号（`keyVersion`）；Platform 的响应与 Webhook 的 `Signature` 头里有同一个版本号，接入方按它选公钥验签。
+- `platformPublicKeys` 通常只有一把。平台换钥前会提前公布即将启用的公钥，这期间会多出一把或几把：带 `activatedAt` 的是正在用的，不带的是即将启用的。都显示出来，各带版本号（`keyVersion`）；Platform 的响应与 Webhook 的 `Signature` 头里有同一个版本号，接入方按它选公钥验签。
 - 签名类型是固定的 RSA2，前端直接显示。开发者文档的地址由前端按界面语言配置：每种界面语言可配一个地址，另配一个默认地址，当前语言没配就用默认地址。
 - 公钥 PEM 文本域有未保存的修改时，点 Cancel / 离开页面先弹确认框，见公共约定「未保存的修改」。
 - Gateway Credential 由平台签发，商户不能自己重置；要重置联系平台。
@@ -393,7 +393,7 @@ sequenceDiagram
 | 凭据表的 Created 列 | 两行都有 | 只有 Gateway Credential 一行有，取 `credentialIssuedAt` | Merchant Code 是商户标识，不是签发出来的密钥 |
 | Gateway Credential 的 More 菜单（Roll credential、Deactivate） | 有 | 去掉 | 凭据由平台签发与重置，商户只能查看 |
 | Webhooks、Events 两个页签 | 有（空状态） | 去掉 | 通知地址随每笔下单请求传，没有商户级的 Webhook 端点配置，也没有事件列表 |
-| Platform 公钥 | 一把 | 换钥期间两把，各带版本号 | 平台提前公布新公钥，接入方要在启用前配好 |
+| Platform 公钥 | 一把 | 换钥期间多出即将启用的，各带版本号 | 平台提前公布新公钥，接入方要在启用前配好 |
 | 替换商户公钥 | 无失效选项 | 多一个「旧公钥立即失效」勾选，默认不勾 | 公钥泄露时能当场止损，不等宽限期 |
 
 </script>

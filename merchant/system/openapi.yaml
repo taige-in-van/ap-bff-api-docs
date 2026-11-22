@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 系统 — 前端契约面
-  version: 2.4.3
+  version: 2.4.4
   contact:
     name: 商户后台 BFF
   description: |
@@ -785,7 +785,7 @@ components:
         platformPublicKeys:
           type: array
           minItems: 1
-          description: 平台公钥，商户用它验平台的响应与 Webhook 签名。通常一把；平台换钥前会提前公布新的一把，这段时间是两把。
+          description: 平台公钥，商户用它验平台的响应与 Webhook 签名。通常一把；平台换钥前会提前公布即将启用的公钥，这段时间会多出一把或几把（不带 `activatedAt` 的是即将启用的）。
           items:
             $ref: '#/components/schemas/PlatformPublicKey'
     SigningKey:
@@ -812,14 +812,14 @@ components:
         keyVersion:
           type: integer
           minimum: 1
-          description: 版本号。平台的响应与 Webhook 的 `Signature` 头里带着签名所用公钥的版本号，两把并存时按它选。
+          description: 版本号。平台的响应与 Webhook 的 `Signature` 头里带着签名所用公钥的版本号，多把并存时按它选。
         publicKeyPem:
           type: string
           minLength: 1
         activatedAt:
           allOf:
             - $ref: '#/components/schemas/Timestamp'
-          description: 开始用于签名的时刻。已公布、还没开始用的那一把不返回本键。
+          description: 开始用于签名的时刻。已公布、还没开始用的那几把不返回本键。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
