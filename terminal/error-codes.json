@@ -73,6 +73,10 @@
       "name": "PF2_VOUCHER_REFUND_FROZEN",
       "retryable": false
     },
+    "108400": {
+      "name": "PF3_INTEGRATION_PATH_NOT_ACCEPTABLE",
+      "retryable": false
+    },
     "108500": {
       "name": "PF4_BARCODE_CREDENTIAL_EXPIRED",
       "requiredContextFields": [
@@ -150,6 +154,14 @@
       "name": "MERCHANT_LOGIN_IP_NOT_ALLOWED",
       "retryable": false
     },
+    "206021": {
+      "name": "TERMINAL_REFUND_PIN_NOT_VERIFIED",
+      "retryable": false
+    },
+    "207001": {
+      "name": "TERMINAL_REFUND_CHANNEL_REJECTED",
+      "retryable": false
+    },
     "208027": {
       "name": "LOGIN_ACCOUNT_DISABLED",
       "retryable": false
@@ -184,6 +196,18 @@
     },
     "208039": {
       "name": "TERMINAL_BANK_ACCOUNT_CHANGE_UNSUPPORTED",
+      "retryable": false
+    },
+    "208062": {
+      "name": "TERMINAL_REFUND_UNDER_REVIEW",
+      "retryable": false
+    },
+    "208063": {
+      "name": "TERMINAL_REFUND_INSUFFICIENT_FUNDS",
+      "retryable": false
+    },
+    "208064": {
+      "name": "TERMINAL_REFUND_ENDED_UNSUCCESSFUL",
       "retryable": false
     },
     "904001": {
