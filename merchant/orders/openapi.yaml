@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.4.0
+  version: 2.4.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -525,7 +525,7 @@ paths:
       description: |
         订单属于当前商户的退款，分页，包括其他商户代为发起的；当前商户代其他商户发起的退款不在这里，切换到订单所属商户查看。日期范围必填，按退款的创建日，服务端不设默认。
 
-        只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件发起的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
+        只含 `type = merchant` 的退款（后台、App、终端、开放 API、插件发起的，以及渠道侧已退、由系统补记的）；平台自动退回的多付款项（`type = system_auto`）不在列表、计数与导出里，只出现在原订单详情的关联退款中。
 
         支付方式与来源是原订单的。状态 chip 的各项与计数另取 `getRefundCounts`。
       parameters:
@@ -1434,7 +1434,11 @@ components:
               allOf:
                 - $ref: '#/components/schemas/Timestamp'
             entryPoint:
-              description: 退款从哪个入口发起。`system` = 平台自动退款；`type = system_auto` 时恒为 `system`。
+              description: |
+                退款从哪个入口发起。`system` 表示这笔退款没有商户发起动作、由系统产生，分两种：
+                `type = system_auto` 是平台自动退回的多付款项，不动商户的账、不计入已退额；
+                `type = merchant` 是渠道侧已经退给付款人、由系统补记的退款，从商户账上扣，计入已退额。
+                `type = system_auto` 时恒为 `system`。
               allOf:
                 - $ref: '#/components/schemas/EntryPoint'
             operatorId:

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 交易与退款 — 前端契约面
-  version: 2.3.0
+  version: 2.3.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1524,7 +1524,7 @@ components:
           allOf:
             - $ref: '#/components/schemas/PaymentSource'
         entryPoint:
-          description: 退款从哪个入口发起；`type = system_auto` 时恒为 `system`。
+          description: 退款从哪个入口发起；`type = system_auto` 时恒为 `system`；`type = merchant` 时 `system` 表示渠道侧已退、由系统补记。
           allOf:
             - $ref: '#/components/schemas/EntryPoint'
         createdAt:
