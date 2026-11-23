@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-22T22:40:58Z",
-  "implCommit": "38872101a",
+  "generatedAt": "2026-11-23T00:08:05Z",
+  "implCommit": "cd9bba22a",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -224,6 +224,7 @@
     "terminal/app/confirmMerchantEmail": "ce1c7de2bb6d4a92",
     "terminal/app/createBill": "1772d1f2b9f87c59",
     "terminal/app/createEmployee": "c12db4dd80d91c4d",
+    "terminal/app/createMicropayOrder": "54920e4e2a28b6d5",
     "terminal/app/deleteBill": "ab685c218f109a44",
     "terminal/app/deleteEmployee": "a9cb741ec65b0373",
     "terminal/app/getBillDetail": "d88ffcb483393dd5",
@@ -236,7 +237,9 @@
     "terminal/app/listEmployees": "69ba68abd2371a6a",
     "terminal/app/listPaymentMethods": "a2c748866d5c957e",
     "terminal/app/listSubMerchants": "62961da0c72fc334",
+    "terminal/app/refundOrder": "20b808b83383bba2",
     "terminal/app/registerPushToken": "db0197bac93853c8",
+    "terminal/app/releasePreauth": "486f3ba706c4d80c",
     "terminal/app/resetPasswordWithEmailCode": "b431ee659867255e",
     "terminal/app/sendMerchantEmailCode": "ac57dd751618815f",
     "terminal/app/sendPasswordEmailCode": "775cc773ef29ae2a",
