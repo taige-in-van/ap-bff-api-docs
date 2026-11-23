@@ -386,6 +386,11 @@
       "name": "ASSISTED_MERCHANT_NOT_DELETABLE",
       "retryable": false
     },
+    "208066": {
+      "httpStatus": 409,
+      "name": "OWNER_CONTACT_FIRST_NAME_REQUIRED",
+      "retryable": false
+    },
     "304001": {
       "httpStatus": 400,
       "name": "ADMIN_OTP_RETRYABLE",

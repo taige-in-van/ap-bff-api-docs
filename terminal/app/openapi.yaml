@@ -389,6 +389,7 @@ paths:
         - `206011` `type` 为 `login` 时旧密码不对。`message` 里含 `Invalid Original Password`。
         - `type` 为 `refund` 时旧退款密码不对。`message` 里同样含 `Invalid Original Password`。
         - `206004` `type` 为 `refund` 时旧退款密码连续输错到上限，暂时锁定。
+        - `208052` `type` 为 `refund` 而商户还没有设置退款密码，须先在商户后台设置。
         - `type` 为 `refund` 而登录者没有管理退款密码的权限。
         - `208035` `type` 为 `refund` 时商户处于仅查看状态，不能改退款密码。`login` 不受仅查看影响。
         - 新密码与旧密码相同，或不满足对应的密码规则。
@@ -423,6 +424,7 @@ paths:
         - 206004
         - 206011
         - 208035
+        - 208052
   /device/sign_out:
     get:
       tags:
@@ -1641,9 +1643,8 @@ paths:
       description: |
         请求体与 `getMerchantInfo` 返回的 `payInfo` 同形。与商户后台收款页设置是同一份设置；小费是商户级的，终端收款也用同一份。成功时 `data` 为 `null`。
 
-        - `user_info_switch`：为 `true` 时收款页向付款人收姓名与手机号，之前删掉的按系统目录加回；为 `false` 时不收。
-        - `remark_switch`：为 `true` 时收款页有备注栏，之前删掉的按系统目录加回。
-        - `user_input_title`：商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；最多 4 项，每项标题不超过 10 个字符。不带或空数组表示没有自定义填写项。
+        - `user_info_switch`、`remark_switch`：两键合起来看作一个开关，两者都为 `true` 才算开。合起来的值与当前读回的合起来的值相同时，收款页的姓名、手机号、备注三项不动；从关拨到开，三项里缺的按系统目录加回，目录里已停用的跳过、不报错；从开拨到关，三项都去掉，三项里有必填的则整次拒绝（见下）。读回的取值见 `PaySettingInfo`。
+        - `user_input_title`：商户自定义的填写项，JSON 数组文本，如 `[{"title":"Table No."}]`；最多 4 项，每项标题不超过 10 个字符，都是非必填。带了本键（含空数组）时，按所带的整份替换，空数组即清空。不带本键时：上面的开关没拨动，自定义填写项不动；从开拨到关，自定义填写项一并清空；从关拨到开，自定义填写项不动。
         - `tip_switch`、`tip_preset_value`：小费开关与三档预设百分比。`tip_preset_value` 是三个 0 到 30 的整数，半角逗号分隔，如 `10,15,20`；`tip_switch` 为 `false` 时不看它。
         - `note`：收款页上的提示语；空串或不带表示不设。
         - `full_pay_switch`、`child_refund_switch`、`mch_refund_switch`、`remarks_are_required` 收下不用。
@@ -1651,6 +1652,8 @@ paths:
         下列情形返回 `400`，`message` 写明原因：
 
         - `user_input_title` 不是上述格式、超过 4 项，或有标题超过 10 个字符、以 `sys:` 开头、去首尾空格后互相重复。
+        - `208030` 从开拨到关，而当前收款页上的姓名、手机号、备注有一项是必填的：整次不保存，`message` 说明有必填项、不能关。
+        - 加回三项或带来的自定义填写项后，收款页的付款人填写项合计超过上限（默认 10 项，可配置）。
         - `tip_switch` 为 `true` 而 `tip_preset_value` 不是三个 0 到 30 的整数。
         - `208035` 商户处于仅查看状态，不能改设置。
         - 权限不足：需要商户后台「收款页设置」的编辑权限。
@@ -1689,6 +1692,7 @@ paths:
         '403':
           $ref: '#/components/responses/ReloginRequired'
       x-error-codes:
+        - 208030
         - 208035
   /device/micropay:
     post:
@@ -1910,6 +1914,7 @@ paths:
         - 缺 `refund_password`，`message` 为 `Refund password is required.`。
         - `206003` 退款密码不对，`message` 为 `Invalid refund password.`。
         - `206004` 退款密码连续输错达到上限，暂时锁定，`message` 里含 `password`。
+        - `208052` 商户还没设置退款密码，不能退款，须先在商户后台设置。
         - `208035` 商户处于仅查看状态，不能退款。
         - `108025` 这笔退款不予受理，不细分原因：订单没有支付成功、已全额退、金额不是正数或超过可退金额、成交超过最大退款期限（可配置）、商户的退款能力被关闭等。
         - `108017` 同一登录账号对同一订单在极短时间内重复提交（不论金额）。
@@ -1983,6 +1988,7 @@ paths:
         - 206004
         - 207001
         - 208035
+        - 208052
         - 208063
         - 208064
   /device/release/pre_auth/{orderId}:
@@ -2087,7 +2093,7 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 交易流水，按日分组
       description: |
-        返回当前商户及其全部子商户的交易流水，按时间倒序分页，每页的行按营业日分组。
+        返回当前商户及与它结算币种相同的全部子商户的交易流水，按时间倒序分页，每页的行按营业日分组。结算币种与当前商户不同的子商户不在范围内，要切到该商户再看。
 
         流水的行：
 
@@ -2095,7 +2101,7 @@ paths:
         - 受理的退款（处理中或成功），一笔一行，时间是受理时刻。
         - 未成交、失败、被拒的订单不列；进入审核还没有受理的退款不列。
 
-        日期都按商户营业日：`begin`、`end` 是营业日，原样匹配，不按设备时区换算；`item_key` 是行所属的营业日。时间按商户时区。
+        日期都按商户营业日：每一行按它所属商户的营业日算，`begin`、`end` 是营业日，原样匹配，不按设备时区换算；`item_key` 是行所属的营业日，同一营业日的行归一组。时间按各行所属商户的时区。
 
         `item_statistics` 是这一个营业日里、与列表同范围同条件的收款合计与退款合计，不只是本页的行。同一个营业日的行跨页时，每一页都有这一天的组，`item_statistics` 相同。
 
@@ -2184,7 +2190,7 @@ paths:
           required: false
           schema:
             type: string
-          description: 逗号分隔的商户号。收下不用，范围恒为当前商户及其全部子商户
+          description: 逗号分隔的商户号。收下不用，范围恒为当前商户及与它结算币种相同的全部子商户
         - name: order_clear_status
           in: query
           required: false
@@ -2352,11 +2358,11 @@ paths:
       x-required-privilege: dashboard:overview:view
       summary: 数据分析图表
       description: |
-        返回当前商户及其子商户在一个营业日区间内的收款金额与笔数，按时段分点。
+        返回当前商户及与它结算币种相同的子商户在一个营业日区间内的收款金额与笔数，按时段分点。结算币种与当前商户不同的子商户不计入，要切到该商户再看。营业日按各行所属商户的营业日算。
 
         分点的粒度：
 
-        - `createdStart` 与 `createdEnd` 是同一天：按小时出 24 个点，每个点是商户时区的一个自然小时，从该营业日的起点起顺序排列，`date` 为该小时的 `HH:00`；按成交或受理时刻归点。
+        - `createdStart` 与 `createdEnd` 是同一天：按小时出 24 个点，每个点是一个自然小时，从当前商户该营业日的起点起顺序排列，`date` 为该小时的 `HH:00`；按成交或受理时刻在各行所属商户的时区里归点。
         - `createdEnd` 不早于 `createdStart` 加三个月的那一天：按月出点，`date` 为 `yyyy/MM`，每个月只计区间内的营业日。
         - 其余：按营业日出点，`date` 为 `yyyy-MM-dd`。
 
@@ -2480,7 +2486,7 @@ paths:
       x-required-privilege: dashboard:overview:view
       summary: 当前商户与关联商户的余额
       description: |
-        返回 `sub_balances`：第一项是当前商户，其后是当前商户名下、登录者可以访问的关联商户（只到下一级）。没有参数。路径中间的双斜杠与现网相同。
+        返回 `sub_balances`：第一项是当前商户，其后是当前商户名下、登录者可以访问、与当前商户结算币种相同的关联商户（只到下一级）。结算币种与当前商户不同的关联商户不列，要切到该商户再看。没有参数。路径中间的双斜杠与现网相同。
 
         `mch_balance` 是该商户的账户余额，与首页汇总（`getHomeSummary`）的 `mch_balance` 是同一个量：可结算余额减去已占用的款项（已生成、待出款的结算单，处理中的退款等）和商户欠平台的钱，含预授权挂起中的款项，可能为负；按该商户的结算币种，单位是元。
 
@@ -2526,8 +2532,8 @@ paths:
       description: |
         返回结算单，按结算日倒序分页，每页的行按结算日分组。一张结算单一行。
 
-        - 范围：不带 `mch_ids` 时是当前商户及其名下、登录者可以访问的关联商户（只到下一级）；带了只查其中列出的商户，列出的须都在这个范围内。
-        - `begin`、`end` 是结算日，`yyyyMMdd`，含 `end` 当天，按商户时区的日期原样匹配。
+        - 范围：不带 `mch_ids` 时是当前商户及其名下、登录者可以访问、与当前商户结算币种相同的关联商户（只到下一级）；带了只查其中列出的商户，列出的须都在这个范围内。结算币种与当前商户不同的关联商户不在范围内，要切到该商户再看。
+        - `begin`、`end` 是结算日，`yyyyMMdd`，含 `end` 当天，按各行所属商户的时区的日期原样匹配。
         - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
         - 行上的 `clear_detail_id` 是结算单号，查清算明细（`getSettlement`）时原样带回。
 
@@ -2556,7 +2562,7 @@ paths:
           required: false
           schema:
             type: string
-          description: 逗号分隔的商户号；不带时为当前商户及其可访问的关联商户
+          description: 逗号分隔的商户号；不带时为当前商户及其可访问、与当前商户结算币种相同的关联商户
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
       responses:
@@ -2605,7 +2611,7 @@ paths:
       description: |
         返回一张结算单的汇总（`clear_summary`）与逐笔明细（`settle_transactions`），不分页。
 
-        - 路径上的 `id` 是清算记录列表行上的 `clear_detail_id`。结算单须在清算记录列表的范围内：当前商户及其名下、登录者可以访问的关联商户。
+        - 路径上的 `id` 是清算记录列表行上的 `clear_detail_id`。结算单须属于当前商户或其名下、登录者可以访问的关联商户。
         - `settle_transactions` 分 `Credit`、`Debit` 两组，每组是「日期 → 这一天的明细行」：收款归 `Credit`，退款与其他扣减归 `Debit`。退款账户划转、罚款、补偿等不是交易的行按资金方向归组，没有 `order_id`。日期按商户时区，`yyyy-MM-dd`，日期键之间不保证顺序。
         - 金额都是元，两位小数的十进制字符串。
         - `channel` 收下不用。
@@ -2682,7 +2688,7 @@ paths:
       description: |
         返回一个商户已出具的月对账单，按月份倒序分页，一个月一行。
 
-        - `mch_id` 是要查的商户号，只接受当前商户或其名下、登录者可以访问的关联商户（只到下一级）。
+        - `mch_id` 是要查的商户号，只接受当前商户或其名下、登录者可以访问、与当前商户结算币种相同的关联商户（只到下一级）；结算币种不同的关联商户要切到该商户再看。
         - `year` 为四位年份时只列这一年的；空串或不带时都列。
         - 分页按行计：`page` 从 `1` 起，`limit` 默认 `20`。没有行时 `data.data` 为空数组。
 
@@ -2751,7 +2757,7 @@ paths:
 
         下列情形返回 `400`：
 
-        - `mch_id` 不是当前商户，也不是其名下、登录者可以访问的关联商户（只到下一级）。
+        - `mch_id` 不是当前商户，也不是其名下、登录者可以访问、与当前商户结算币种相同的关联商户（只到下一级）。
         - `query_month` 不是 `yyyyMM` 或 `yyyy-MM`，或这个月没有对账单。
         - 权限不足：需要商户后台「月对账单」的查看权限。
       parameters:
@@ -2847,7 +2853,7 @@ paths:
         - `206007` 验证码输错次数超过上限，须重新发码。
         - `amount` 不是正数，或 `depositType` 不是上面两个取值。
         - `auto_deposit` 的金额低于平台规定的下限。
-        - `balance` 时余额不足，没有划转。
+        - `208065` `balance` 时余额不足，没有划转，`message` 说明余额不足。
         - `208035` 商户处于仅查看状态，不能充值。
         - 权限不足：需要商户后台「退款准备金充值」的权限。
       requestBody:
@@ -2883,6 +2889,7 @@ paths:
         - 206006
         - 206007
         - 208035
+        - 208065
   /device/messageNum:
     get:
       tags:
@@ -4348,7 +4355,7 @@ components:
               description: 退款合计，正数
     TransactionRecord:
       type: object
-      description: 流水的一行：一笔成交的收款，或一笔受理的退款。时间按商户时区。
+      description: 流水的一行：一笔成交的收款，或一笔受理的退款。时间按这一行所属商户的时区。
       required:
         - order_id
         - currency
@@ -4713,7 +4720,7 @@ components:
       properties:
         sub_balances:
           type: array
-          description: 第一项是当前商户，其后是当前商户名下、登录者可以访问的关联商户
+          description: 第一项是当前商户，其后是当前商户名下、登录者可以访问、与当前商户结算币种相同的关联商户
           items:
             $ref: '#/components/schemas/SubMerchantBalance'
     SubMerchantBalance:
@@ -4808,10 +4815,10 @@ components:
       properties:
         user_info_switch:
           type: boolean
-          description: 收款页是否向付款人收姓名与手机号
+          description: 收款页是否向付款人收姓名与手机号：两项都在为 `true`，系统目录里已停用的项不看。保存时与 `remark_switch` 合起来看，见 `updatePaymentPageSettings`
         remark_switch:
           type: boolean
-          description: 收款页是否有备注栏
+          description: 收款页是否有备注栏：备注在为 `true`，系统目录里已停用的项不看。保存时与 `user_info_switch` 合起来看，见 `updatePaymentPageSettings`
         remarks_are_required:
           type: boolean
           description: 恒为 `false`。保存时收下不用

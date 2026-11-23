@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.8.0
+  version: 2.8.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -83,7 +83,7 @@ paths:
       description: |
         当前商户店铺码收款页的设置，各个码共用一份；小费是商户级的，终端收款也用同一份。
 
-        采集项里的系统项是商户激活时按当时的系统目录固化的，已在列表里的此后不随系统目录变化。删掉的系统项列在 `addablePayerInputs` 里，可以再加回，加回时按系统目录当前的文案与必填性。商户还没激活时，采集项按当时的系统目录给出，`addablePayerInputs` 为空数组。
+        采集项里的系统项是商户激活时按当时的系统目录固化的，已在列表里的此后不随系统目录变化，系统目录事后新增的项也不会自动补进来。系统目录里启用中、当前采集项里没有的系统项（包括之前删掉的）列在 `addablePayerInputs` 里，可以加入，加入时按系统目录当前的文案与必填性。商户还没激活时，采集项按当时的系统目录给出，`addablePayerInputs` 为空数组。
         小费还没保存过时，按平台默认档位给出且未开启。
       parameters:
         - $ref: '#/components/parameters/AcceptLanguage'
@@ -147,7 +147,7 @@ paths:
         保存店铺码收款页设置与商户小费配置，只提交要改的。
 
         - 带了 `checkoutOptions` 时，空数组按字段校验 → `400`·`904001`；整组里至少要有一项已开通（`listCheckoutOptions` 里 `opened` 为 true），相对已保存的集合新加的项也须已开通，否则 → `409`·`208007`；已选着、后来停用的项可以原样保留，付款人看不到它，重新开通后即恢复。
-        - 带了 `payerInputKeys` 时提交保存后的完整键列表，放进 `addablePayerInputs` 里某项的 `key` 即加回该系统项；缺了必填项、带了既不在当前采集项也不在 `addablePayerInputs` 里的 `sys:` 键、自撰标题以 `sys:` 开头，或去首尾空格后重复 → `409`·`208030`。
+        - 带了 `payerInputKeys` 时提交保存后的完整键列表，放进 `addablePayerInputs` 里某项的 `key` 即加入该系统项；缺了必填项、带了既不在当前采集项也不在 `addablePayerInputs` 里的 `sys:` 键、自撰标题以 `sys:` 开头，或去首尾空格后重复 → `409`·`208030`。
         - `logoFileId` 引用的文件不存在、不是本商户上传的或用途不符 → `400`·`208040`（`details` 指到 `logoFileId`）。
         - 商户还没激活、还没有收款页设置 → `404`。
         - 保存涉及收款页设置与商户小费两处，全部校验通过才写入；返回失败时原样重发同一请求体即可。
@@ -1894,7 +1894,7 @@ components:
             $ref: '#/components/schemas/InfoFieldEntry'
         addablePayerInputs:
           type: array
-          description: '可以加回的系统项：系统目录里有、当前 `payerInputs` 里没有的，按系统目录当前的文案与必填性给出（恒为 `system: true`）。保存时把其中某项的 `key` 放进 `payerInputKeys` 即加回。没有可加回的、或商户还没激活时为空数组。'
+          description: '可以加入的系统项：系统目录里启用中、当前 `payerInputs` 里没有的（包括之前删掉的），按系统目录当前的文案与必填性给出（恒为 `system: true`）。保存时把其中某项的 `key` 放进 `payerInputKeys` 即加入。没有可加入的、或商户还没激活时为空数组。'
           items:
             $ref: '#/components/schemas/InfoFieldEntry'
         inputLimit:
@@ -1924,9 +1924,9 @@ components:
         payerInputKeys:
           type: array
           description: |
-            保存后的采集项，按 `key` 给全：读回来的 `payerInputs` 里要留的项放它的 `key`，删掉的不放，要加回的系统项放它在 `addablePayerInputs` 里的 `key`，新加的自撰项放它的标题。空数组 = 不采集。
+            保存后的采集项，按 `key` 给全：读回来的 `payerInputs` 里要留的项放它的 `key`，删掉的不放，要加入的系统项放它在 `addablePayerInputs` 里的 `key`，新加的自撰项放它的标题。空数组 = 不采集。
 
-            必填项一个都不能少，`sys:` 开头的键须取自读回来的 `payerInputs` 或 `addablePayerInputs`，自撰标题不能以 `sys:` 开头、去首尾空格后不能重复，违反 → `409`·`208030`。系统项的文案与必填性以服务端为准（已在列表里的按已存的，加回的按系统目录当前的），这里只表达留不留、加不加回。合计不超过 `inputLimit` 项，超出 `400`；每条自撰标题不超过 10 字符，超出 `400`。顺序即付款人页面的展示顺序。
+            必填项一个都不能少，`sys:` 开头的键须取自读回来的 `payerInputs` 或 `addablePayerInputs`，自撰标题不能以 `sys:` 开头、去首尾空格后不能重复，违反 → `409`·`208030`。系统项的文案与必填性以服务端为准（已在列表里的按已存的，新加入的按系统目录当前的），这里只表达留不留、加不加入。合计不超过 `inputLimit` 项，超出 `400`；每条自撰标题不超过 10 字符，超出 `400`。顺序即付款人页面的展示顺序。
           items:
             $ref: '#/components/schemas/InfoFieldKey'
         description:

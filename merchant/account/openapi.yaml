@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 商户资料 — 前端契约面
-  version: 2.9.0
+  version: 2.10.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -151,6 +151,7 @@ paths:
       description: |
         改商户联系人，也就是该商户 Owner 的名、姓、职务、电话，只提交要改的，保存直接生效，Owner 名下所有商户同步显示新值。
         只有 Owner 能调，其他人 → 403。
+        联系人当前没有名（读联系人时不返回 `firstName`）而本次没带 `firstName` → `409`·`208066`，只改职务或电话也一样。
         邮箱是 Owner 登录邮箱，只读，由 Owner 本人走个人账号契约的改登录邮箱流程修改，本请求不接受。
 
         幂等：纯 PUT、天然幂等，不挂 Idempotency-Key。
@@ -172,7 +173,8 @@ paths:
           description: 已保存
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
-      x-error-codes: []
+      x-error-codes:
+        - 208066
   /account/profile/files:
     post:
       tags:

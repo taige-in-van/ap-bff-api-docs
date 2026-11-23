@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 通道进件与产品配置 — 前端契约面
-  version: 2.11.0
+  version: 2.11.1
   contact:
     name: 管理后台 BFF
   description: |
@@ -1129,7 +1129,7 @@ paths:
       description: |
         店铺码收款页的付款人采集项、收款页说明与收款页支付方式，规则同商户在商户后台的收款页设置。`checkoutOptionCandidates` 是可选的支付方式候选，`opened` 为否的未开通、不能新加。Logo 由商户自己维护，本面只读。
 
-        采集项里的系统项是商户激活时按当时的系统目录固化的，已在列表里的此后不随目录变化；删掉的系统项列在 `addablePayerInputs` 里，可以再加回，加回时按系统目录当前的文案与必填性。商户还没激活时，采集项按当时的系统目录给出，`addablePayerInputs` 为空数组。小费另见 `getMerchantTipSettings`。
+        采集项里的系统项是商户激活时按当时的系统目录固化的，已在列表里的此后不随目录变化，目录事后新增的项也不会自动补进来；系统目录里启用中、当前采集项里没有的系统项（包括之前删掉的）列在 `addablePayerInputs` 里，可以加入，加入时按系统目录当前的文案与必填性。商户还没激活时，采集项按当时的系统目录给出，`addablePayerInputs` 为空数组。小费另见 `getMerchantTipSettings`。
       responses:
         '200':
           description: OK
@@ -1184,7 +1184,7 @@ paths:
       description: |
         **全量覆盖**：三项都要传。
 
-        - `payerInputKeys`：保存后的采集项，按 `key` 给全；读回来的 `payerInputs` 里要留的放它的 `key`，要加回的系统项放它在 `addablePayerInputs` 里的 `key`，新加的自撰项放它的标题。系统项的文案与必填性以服务端为准（已在列表里的按已存的，加回的按系统目录当前的），这里只表达留不留、加不加回。合计不超过 `inputLimit` 项，自撰标题不超过 10 字符。顺序即付款人页面的展示顺序。
+        - `payerInputKeys`：保存后的采集项，按 `key` 给全；读回来的 `payerInputs` 里要留的放它的 `key`，要加入的系统项放它在 `addablePayerInputs` 里的 `key`，新加的自撰项放它的标题。系统项的文案与必填性以服务端为准（已在列表里的按已存的，新加入的按系统目录当前的），这里只表达留不留、加不加入。合计不超过 `inputLimit` 项，自撰标题不超过 10 字符。顺序即付款人页面的展示顺序。
         - `checkoutOptions`：至少 1 项且其中至少一项 `opened` 为是，整组置换。新加的项须是候选里 `opened` 为是的；已选着、后来停用的项可以原样带回。
 
         置值写，同样的请求体重发结果不变，不挂幂等键。
@@ -2591,7 +2591,7 @@ components:
             $ref: '#/components/schemas/PayerInputEntry'
         addablePayerInputs:
           type: array
-          description: '可以加回的系统项：系统目录里有、当前 `payerInputs` 里没有的，按系统目录当前的文案与必填性给出（恒为 `system: true`）。保存时把其中某项的 `key` 放进 `payerInputKeys` 即加回。没有可加回的、或商户还没激活时为空数组。'
+          description: '可以加入的系统项：系统目录里启用中、当前 `payerInputs` 里没有的（包括之前删掉的），按系统目录当前的文案与必填性给出（恒为 `system: true`）。保存时把其中某项的 `key` 放进 `payerInputKeys` 即加入。没有可加入的、或商户还没激活时为空数组。'
           items:
             $ref: '#/components/schemas/PayerInputEntry'
         inputLimit:
@@ -2622,7 +2622,7 @@ components:
       properties:
         payerInputKeys:
           type: array
-          description: 保存后的采集项的键（可含要加回的系统项），顺序即展示顺序；空数组 = 不采集。
+          description: 保存后的采集项的键（可含要加入的系统项），顺序即展示顺序；空数组 = 不采集。
           items:
             $ref: '#/components/schemas/PayerInputKey'
         description:
