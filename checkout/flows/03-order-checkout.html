@@ -5,18 +5,18 @@
 <style>body{font-family:system-ui,-apple-system,sans-serif;max-width:920px;margin:2rem auto;padding:0 1.2rem;line-height:1.65;color:#24292f}h1{border-bottom:1px solid #d0d7de;padding-bottom:.3rem}h2{margin-top:2rem;border-bottom:1px solid #eaecef;padding-bottom:.2rem}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9rem}th,td{border:1px solid #d0d7de;padding:.4rem .6rem;text-align:left}th{background:#f6f8fa}code{background:#eff1f3;padding:.1rem .35rem;border-radius:4px;font-size:.88em}.mermaid{margin:1.2rem 0;text-align:center}blockquote{color:#57606a;border-left:.25rem solid #d0d7de;padding:.2rem 1rem;margin:1rem 0}a{color:#0969da;text-decoration:none}a:hover{text-decoration:underline}small{color:#656d76}.rd{white-space:nowrap;cursor:help}#ready-note{background:#dafbe1;border:1px solid #4ac26b55;padding:.5rem .8rem;border-radius:6px;font-size:.9rem}</style></head><body>
 <p><a href="../../index.html">← 全部契约</a></p>
 <p id="ready-note" hidden></p>
-<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"8580ca289ea24c36","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"c10878cb867fa918","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
+<script type="application/json" id="contract-fp">{"consumer":"checkout","ops":{"checkout/createCheckoutPayment":"3533694a02e790bd","checkout/createGiftcardAlipayPass":"8580ca289ea24c36","checkout/deleteCheckoutSavedCard":"05c9bebef48154eb","checkout/getCheckoutLaunch":"454f00719116c312","checkout/getCheckoutOrder":"bab3656fad25e278","checkout/getGiftcardOrder":"31f3441347a704cb","checkout/listCheckoutPaymentMethods":"a4ddff3410df8dc2","checkout/listGiftcardOrders":"cccb8de161efcf5d","checkout/openOrderCheckout":"e9a62892c5e9f864","checkout/openQrcodeCheckout":"1fae053461ea9566","checkout/requestGiftcardEmailOtp":"c2e620ec2b5a91fa","checkout/verifyGiftcardEmailOtp":"671a5d19322464be"}}</script>
 <div id="content"></div>
 <script type="text/plain" id="src">
 # 订单付款页 —— 调用时序
 
-> 本文是付款人从扫码或点链接到付款结果的完整一条（动态码、开放 API 托管页；电商插件订单也是这张页，说明见 [06-plugins.flows.md](06-plugins.html)；商户在渠道内自行调起支付的订单经支付页进入也是这张页，同渠道内支付；商户在自己的 App / 小程序里付款的订单付完被带回来只看结果，见文末情形表），共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
+> 本文是付款人从扫码或点链接到付款结果的完整一条（动态码、开放 API 托管页；电商插件订单也是这张页，说明见 [06-plugins.flows.md](06-plugins.html)；商户在渠道内自行调起支付的订单经支付页进入也是这张页，同渠道内支付；原生码订单经支付页进入也是这张页，只展示下单时已出的那个码；商户在自己的 App / 小程序里付款的订单付完被带回来只看结果，见文末情形表），共用环节见 [00-shared.flows.md](00-shared.html)；接口都在 `/api/checkout/v1` 下。
 
 ## 本文的页面
 
 | 页面 | 从哪进 | 本文章节 |
 |---|---|---|
-| 订单付款页 | 扫动态码，或被商户系统引到托管页，或从电商平台结账页被带过来（见 [06-plugins.flows.md](06-plugins.html)），或打开商户在渠道内自行调起支付的订单的支付页（`productCode = NATIVE_JSAPI`，与 `JSAPI` 同样展示与付款）；入口接口返回 `state = PAYABLE`、`paymentStarted` 为 false，且 `productCode` 不是 `APP_SDK` / `MINI`（这两种可付时直接进支付结果页） | [页面：订单付款页](#页面：订单付款页) |
+| 订单付款页 | 扫动态码，或被商户系统引到托管页，或从电商平台结账页被带过来（见 [06-plugins.flows.md](06-plugins.html)），或打开商户在渠道内自行调起支付的订单的支付页（`productCode = NATIVE_JSAPI`，与 `JSAPI` 同样展示与付款），或打开原生码订单的支付页（`productCode = NATIVE_QRCODE`，只展示下单时已出的码）；入口接口返回 `state = PAYABLE`、`paymentStarted` 为 false，且 `productCode` 不是 `APP_SDK` / `MINI`（这两种可付时直接进支付结果页） | [页面：订单付款页](#页面：订单付款页) |
 | 链接状态页（已付 / 已失效 / 已关闭） | 入口接口返回 `state` 不是 `PAYABLE`，或 `404` | [00-shared 页面：链接状态页](00-shared.html#页面：链接状态页) |
 | 支付结果页 | 发起支付之后；刷新或付完回来；商户在自己的 App / 小程序里付款的订单付完被带回来（`productCode` 为 `APP_SDK` / `MINI`，只看结果） | [00-shared 页面：支付结果](00-shared.html#页面：支付结果) |
 
@@ -37,7 +37,7 @@
 
 页面内容一次由入口接口给齐：商户名与 Logo、金额 `order.amount`、说明 `order.description`（有才显示）、商户订单号 `order.merchantOrderNo`（有才显示）、到期时刻 `order.expiresAt`（用来显示剩余时间）。付款人没有可填的内容。
 
-- **支付方式**：取方式列表。商户下单时指定了方式的，列表只有那一项；指定的方式在当前环境用不了时列表为空，按 [00-shared 页面：环境引导](00-shared.html#页面：环境引导)处理（有 `order.cancelUrl` 另给「返回商户」）。在电脑上，带 `entryQr` 的项进页即显示码（这类项共用一个码），不调发起支付，显示后就开始轮询订单看结果；列表只有一项、商户指定了方式的同样如此，见 [00-shared 页面：支付方式选择](00-shared.html#页面：支付方式选择)。其余项要付款人点付款才发起，列表只有一项时也一样，页面不自动发起。在微信或支付宝内打开时的默认选中见 [00-shared 页面：支付方式选择](00-shared.html#页面：支付方式选择)。
+- **支付方式**：取方式列表。商户下单时指定了方式的，列表只有那一项；指定的方式在当前环境用不了时列表为空，按 [00-shared 页面：环境引导](00-shared.html#页面：环境引导)处理（有 `order.cancelUrl` 另给「返回商户」）。在电脑上，带 `entryQr` 的项进页即显示码（这类项共用一个码），不调发起支付，显示后就开始轮询订单看结果；列表只有一项、商户指定了方式的同样如此，见 [00-shared 页面：支付方式选择](00-shared.html#页面：支付方式选择)。原生码订单（`productCode = NATIVE_QRCODE`）在各环境都如此：列表恒只有下单时所钉的那一项、带 `entryQr`（码内容是下单时已出的那个码），进页即显示码并轮询，不调发起支付，手机上也只显示码；付成功后按 `returnUrl` 跳回。其余项要付款人点付款才发起，列表只有一项时也一样，页面不自动发起。在微信或支付宝内打开时的默认选中见 [00-shared 页面：支付方式选择](00-shared.html#页面：支付方式选择)。
 - **到期**：`expiresAt` 到了以后订单不能再付。页面停留到期时显示「订单已失效，请向商户重新获取」（有 `order.cancelUrl` 另给「返回商户」），不必再调接口确认。到期按时刻当场判：订单状态还没更新时，入口返回 `EXPIRED`，发起支付也不发起、返回过期终态。
 - **返回商户**：入口返回了 `order.cancelUrl` 时，下列位置都给「返回商户」，指向它（原样跳转，不加参数）：订单付款页（发起支付之前就给）、当前环境没有可用支付方式时的环境引导页或「暂无可用支付方式」、支付结果页所有未成功的状态（含等待中）、链接状态页的已付款、已失效与已关闭。
 - **付成功后跳回**：只看订单视图的 `returnUrl`，有值就自动跳过去（原样跳转，不加参数）。`SUCCEEDED` 时还没有 `returnUrl`、而入口带过 `order.cancelUrl` 的，显示「付款成功，正在返回商户」并继续轮询，轮询有上限（多久由前端定），到上限还没有就停在成功页、不给按钮。入口没带 `order.cancelUrl` 的订单（如终端出的动态码）没有回跳，成功即停在成功页，不为此继续轮询。例外：订单入口返回 `order.redirectParamAccepted` 为 `true`、页面为该入口留下了 `redirect`、订单视图没有 `returnUrl` 时按它跳回，见 [00-shared 页面：支付结果](00-shared.html#页面：支付结果)。
@@ -69,7 +69,7 @@ sequenceDiagram
     S->>P: 金额、说明、剩余时间、支付方式、所选方式的总应付<br/>（入口有 cancelUrl 另给「返回商户」）
 
     Note over P,C: 付款
-    alt 电脑上，列表有项带 entryQr，付款人用手机扫码
+    alt 电脑上或为原生码订单，列表有项带 entryQr，付款人用手机扫码
         S->>P: 进页即显示 entryQr 的码，不点付款、不发起
         loop 留在付款页轮询
             S->>C: #35;4 [getCheckoutOrder]<br/>GET /order
@@ -103,6 +103,7 @@ sequenceDiagram
 | 进入时订单已关闭、失败、已取消或被拒 | 入口 `state = INACTIVE` | 状态页「订单已关闭」；有 `order.cancelUrl` 给「返回商户」 |
 | 链接不存在 | 入口 `404` | 状态页「链接无效」 |
 | 商户在自己的 App / 小程序里付款的订单付完被带回来 | 入口 `productCode` 为 `APP_SDK` / `MINI` | 只是不进订单付款页：`state = PAYABLE`、`paymentStarted` 不为 true 时改为直接进结果页轮询订单视图，不调方式列表与发起支付；其余照通用分流（拿到会话且 `paymentStarted` 为 true 进结果页，否则按 `state` 照上面三行进状态页）；结果页不给「继续付款」「重新付款」 |
+| 原生码订单经支付页打开 | 入口 `productCode` 为 `NATIVE_QRCODE`、`state = PAYABLE`；方式列表只有所钉那一项、带 `entryQr` | 进付款页即显示 `entryQr` 的码、轮询订单视图，不调发起支付（发起返回 `108102`）；付成功后照「付成功时订单视图还没有 `returnUrl`」行与通用规则跳回；订单到期按结果页的终态处理 |
 | 发起时订单刚好到期或已被关闭 | 发起支付 `200`，`CheckoutOrder.status` 为 `EXPIRED` 或 `CLOSED` | 结果页对应文案 |
 | 付成功时订单视图还没有 `returnUrl` | 订单视图 `SUCCEEDED`、不带 `returnUrl` | 入口带过 `order.cancelUrl` 的显示「付款成功，正在返回商户」并继续轮询，带上了就自动跳，到上限还没有就停在成功页、不给按钮；入口没带的直接停在成功页；入口返回 `order.redirectParamAccepted` 为 `true` 且页面为该入口留下了 `redirect` 的除外，按它跳回（见 [00-shared 页面：支付结果](00-shared.html#页面：支付结果)） |
 | 当前环境没有可用的支付方式（含商户指定的方式在当前环境不可用） | 方式列表为空 | 环境引导页或「暂无可用支付方式」；有 `order.cancelUrl` 另给「返回商户」 |
