@@ -1093,9 +1093,9 @@ paths:
       description: |
         按订单号返回一笔订单的状态、金额与小票所需内容。收款后轮询结果、看订单详情、退款前后确认订单都用它。
 
-        金额是数值（例如 `12.5`），单位是元；时间按商户所在时区，格式 `yyyy-MM-dd HH:mm:ss`。`timezone` 收下不用。
+        金额是数值（例如 `12.5`），单位是元；时间按该单所属商户的时区，格式 `yyyy-MM-dd HH:mm:ss`。`timezone` 收下不用。
 
-        能查的订单是当前商户及其子商户的订单。订单不存在或不在这个范围内时返回 `400`；当前账号没有看支付订单的权限时也返回 `400`。
+        能查的订单是当前商户及其子商户的订单；当前商户有父商户、且父商户开了「子商户之间互退」时，另含同一父商户下其他子商户的订单。订单不存在或不在这个范围内时返回 `400`；当前账号没有看支付订单的权限时也返回 `400`。
       parameters:
         - name: orderId
           in: path
@@ -1108,7 +1108,7 @@ paths:
           required: false
           schema:
             type: string
-          description: 设备时区。收下不用，时间一律按商户所在时区
+          description: 设备时区。收下不用，时间一律按该单所属商户的时区
       responses:
         '200':
           description: 订单（裸 JSON）
@@ -1199,10 +1199,10 @@ paths:
       description: |
         对一笔订单发起退款。服务端落退款单、提交渠道，拿到渠道的首次应答后返回，渠道在时限内没有应答时也按处理中返回；返回时退款是处理中或已成功，端不用轮询。键盘机用 `POST` 调同一路径（`refundOrderByPost`），服务端行为相同。
 
-        - **退款密码**：要求本设备本次登录已通过 `verifyRefundPassword`（有效到该设备下次登录为止）。退款可能由终端自带的收银应用拉起、不经过本应用密码页的终端类别不查这一条，按 `Device-Type` 识别；目前属于这一类的是 `poynt` 与 `ingenico`。
+        - **退款密码**：要求本设备本次登录已通过 `verifyRefundPassword`（有效到该设备下次登录为止）。退款可能由终端自带的收银应用拉起、不经过本应用密码页的终端类别不查这一条，也不看商户是否已设置退款密码，按 `Device-Type` 识别；目前属于这一类的是 `poynt` 与 `ingenico`。
         - **金额**：`amount` 以分计，整数或数字字符串都收。币种是订单的币种，不用传。
         - **可退金额**：顾客实付总额（金额、小费与顾客承担的手续费之和）减去已退金额。允许部分退、多次退。
-        - **能退哪些订单**：当前商户及其子商户的订单。子商户的订单还要运营开了「父商户可退子商户订单」，没开按不存在处理。
+        - **能退哪些订单**：当前商户及其子商户的订单。子商户的订单还要运营开了「父商户可退子商户订单」，没开按不存在处理。当前商户有父商户时，还能退同一父商户下其他子商户的订单，须父商户开了「子商户之间互退」，没开按不存在处理。
         - **挂起中的预授权订单**（`getOrder` 的 `pre_auth` 为 `1`）不能直接退款，须先 `releasePreauth`，释放后再退。
         - **资金**：商户可用于退款的资金不够时返回 `400`，`message` 说明余额不足，里面有 balance 一词，不带余额数值。
         - **审核**：命中审核规则（金额达到审核阈值、成交超过退款周期、当日退款笔数超限）的退款进入审核、不立即退，返回 `400`，`message` 说明已提交审核；审核通过后由服务端完成退款。审核中的退款不计入 `getOrder` 的 `refund_fee`，也不出现在 `refund_logs`。
@@ -1317,7 +1317,7 @@ paths:
       description: |
         释放一笔挂起中的预授权订单（`getOrder` 的 `pre_auth` 为 `1`）：解除这笔订单的结算锁，订单进入正常结算。不调渠道、不动资金；订单状态仍是 `5`，`pre_auth` 变为 `0`，之后可以正常退款。没有请求体，成功返回 `{}`。
 
-        只能释放当前商户自己的订单，子商户的订单按不存在处理。挂起的订单不会到期自动释放。
+        能释放当前商户及其子商户的订单，别的商户的订单按不存在处理。挂起的订单不会到期自动释放。
 
         同一订单在 60 秒内（可配置）的重复释放请求（不论哪台设备）返回第一次的结果；首次请求还在处理时到达的重复请求，等首次结果出来后返回同一结果。之后再释放按「不是挂起中的预授权订单」拒绝。
 
@@ -1326,7 +1326,7 @@ paths:
         - `108005` 这笔订单不是挂起中的预授权订单（已释放、已清算，或不是预授权）。
         - `208035` 商户处于仅查看状态，不能释放。
         - 当前账号没有完成或释放预授权的权限。
-        - 订单不存在，或不是当前商户自己的订单。
+        - 订单不存在，或不属于当前商户及其子商户。
       parameters:
         - name: orderId
           in: path
@@ -1361,7 +1361,7 @@ paths:
         按页返回交易流水。一行一笔：成交的收款一单一行，已受理的退款（处理中或成功）一笔一行；未成交、失败、被拒的订单不列。按时间倒序：收款行按付款成功的时刻，退款行按退款受理的时刻。
 
         - 日期：`begin`、`end` 是商户营业日（按商户的时区与日切时刻划分），按字面匹配，不按设备时区换算。每一行按它所属商户的营业日算：收款行按付款成功的时刻归日，退款行按退款受理的时刻归日（不回到原订单那天）。行上的 `trade_date` 是这一行所属的商户营业日，与 `begin`、`end` 同一个日期；`trade_time` 是这一行的时刻（收款行为付款成功，退款行为退款受理）按这一行所属商户的时区的时分秒。
-        - 范围：不带 `app_client_ids` 时含当前商户及与它结算币种相同的全部子商户；结算币种与当前商户不同的子商户不在范围内。
+        - 范围：只含当前商户自己的流水，不含子商户。`app_client_ids` 收下不用，带了哪个商户号都按当前商户查，不因它报错。
         - 收银员查询天数：登录账号的 `role` 为 `3`（不是 Owner、也不持 Admin 或店长角色）、且运营给商户设了查询天数 N 时，只返回营业日不早于「当前营业日往前 N 天」的流水；不带 `begin` 或 `begin` 更早时都按这一天起算，不报错。没设时不限。流水汇总与日结不受这条限制。
         - 分页：`page` 从 `1` 起，`limit` 默认 `20`。没有数据时 `data` 为 `[]`。
         - 金额是数值，单位是元；时间按各行所属商户的时区。
@@ -1370,7 +1370,6 @@ paths:
         下列情形返回 `400`：
 
         - 带了 `order_id` 又带了 `begin`、`end`，区间超过上限（默认 31 天，可配置）。
-        - `app_client_ids` 不是当前商户，也不是与它结算币种相同的子商户。
         - `begin`、`end` 不是合法的 `yyyyMMdd`，或 `status`、`channel`、`gateway_app` 的取值不认识。
         - 当前账号没有看支付订单的权限。
       parameters:
@@ -1395,7 +1394,7 @@ paths:
         - $ref: '#/components/parameters/ReportStatus'
         - $ref: '#/components/parameters/ReportChannel'
         - $ref: '#/components/parameters/ReportGatewayApp'
-        - $ref: '#/components/parameters/ReportMerchant'
+        - $ref: '#/components/parameters/IgnoredReportMerchant'
         - $ref: '#/components/parameters/ReportOrderId'
         - $ref: '#/components/parameters/ReportThisDevice'
         - $ref: '#/components/parameters/ReportClearingStatus'
@@ -1493,8 +1492,9 @@ paths:
       x-required-privilege: orders:payment:view
       summary: 流水汇总（当日或所选区间）；键盘机用它打印汇总
       description: |
-        返回流水的合计。范围与条件同 `listOrders`：行集相同（成交的收款与已受理的退款），每一行按它所属商户的营业日落入 `begin`、`end`，不分页，没有按单号找单的 `order_id`，也不受收银员查询天数的限制。
+        返回流水的合计。条件同 `listOrders`：行集相同（成交的收款与已受理的退款），每一行按它所属商户的营业日落入 `begin`、`end`，不分页，没有按单号找单的 `order_id`，也不受收银员查询天数的限制。
 
+        - 范围与 `listOrders` 不同：不带 `app_client_ids` 时含当前商户及与它结算币种相同的全部子商户（已冻结的子商户也算在内，已删除的不算）；带了时只算所填的那一个商户，见 `app_client_ids`。
         - 金额是数值，单位是元；计数是整数。汇总键都返回，没有流水时为 `0`。
         - `total_surcharge`、`total_settle_amount` 只计已计费的流水，刚成交的几笔手续费可能尚未计入。
         - 键盘机（`Device-Type` 为 `ingenico`）上：`tip_amount` 为 `0`，`cny_display_amount` 为 `cny_settle_amount` 的值。
@@ -1502,7 +1502,7 @@ paths:
 
         下列情形返回 `400`：
 
-        - `app_client_ids` 不是当前商户，也不是与它结算币种相同的子商户。
+        - `app_client_ids` 不是当前商户，也不是 `listSubMerchants` 返回的子商户。
         - `begin`、`end` 不是合法的 `yyyyMMdd`，或 `status`、`channel`、`gateway_app` 的取值不认识。
         - 当前账号没有看支付订单的权限。
       parameters:
@@ -1577,11 +1577,11 @@ paths:
         - orders
       operationId: listSubMerchants
       x-required-privilege: session
-      summary: 子商户列表，流水按商户筛选时用
+      summary: 子商户列表，流水汇总按商户筛选时用
       description: |
         返回当前商户的子商户，每个只给商户号与简称。没有参数。
 
-        - 不含当前商户自己；已删除、已冻结、入驻被拒的子商户不列，结算币种与当前商户不同的子商户也不列。没有子商户时返回 `[]`。
+        - 不含当前商户自己；已删除的子商户不列，已冻结、入驻被拒的照列；结算币种与当前商户不同的子商户不列。没有子商户时返回 `[]`。
       responses:
         '200':
           description: 子商户（裸 JSON 数组）
@@ -1649,7 +1649,7 @@ paths:
 
         - 日期：路径上的 `yyyyMMdd` 是商户营业日，按字面匹配，不按设备时区换算；每一行按它所属商户的营业日算。`transDate` 为 `HH:mm:ss-HH:mm:ss` 时，在这一营业日内只取该时段，时段按各行所属商户的时区；时段的选项取自登录响应里的 `client.business_hours`。
         - 行集：同 `listOrders`，成交的收款一单一行，已受理的退款一笔一行，按时间先后排列。`thisdevice` 为 `true` 时只取本机建的订单，退款跟随原订单的发起设备。
-        - 范围：`app_client_ids` 的含义同 `listOrders`，不带时含当前商户及与它结算币种相同的全部子商户。
+        - 范围：同 `listOrders`，只含当前商户自己的流水，不含子商户；`app_client_ids` 收下不用。
         - `analysis` 的汇总键与口径同 `getTradeSummary`，另加 `date`；`total_surcharge`、`total_settle_amount` 只计已计费的流水，刚成交的几笔手续费可能尚未计入。
         - `channel_analysis` 按支付方式一行，最后一行的 `channel` 为 `All`，是前面各行的合计。
         - `additional_content`、`logo_print` 有配置才返回。
@@ -1659,7 +1659,6 @@ paths:
 
         - 这一天（或所选时段）没有流水，`message` 为 `No Transactions in date {yyyyMMdd} at {当前商户的时区}`，例如 `No Transactions in date 20261006 at America/Vancouver`。
         - 路径上的日期不是合法的 `yyyyMMdd`（`message` 为 `Invalid Date String`），或 `transDate` 既不是 `all` 也不是 `HH:mm:ss-HH:mm:ss`。
-        - `app_client_ids` 不是当前商户，也不是与它结算币种相同的子商户。
         - 当前账号没有看支付订单的权限。
       parameters:
         - name: yyyyMMdd
@@ -1677,7 +1676,7 @@ paths:
             default: all
           description: |
             取哪一段：`all`（默认）取全天；`HH:mm:ss-HH:mm:ss` 取该营业日内的这一时段，按各行所属商户的时区，例如 `09:00:00-21:00:00`
-        - $ref: '#/components/parameters/ReportMerchant'
+        - $ref: '#/components/parameters/IgnoredReportMerchant'
         - $ref: '#/components/parameters/ReportThisDevice'
         - $ref: '#/components/parameters/IgnoredTimezone'
       responses:
@@ -1776,8 +1775,8 @@ paths:
         返回所选时刻区间（或某一笔订单）的流水打印数据，结构同 `getDailyReport`，每行多一个 `transaction_date`。
 
         - 区间：`transDate` 为 `yyyyMMdd HH:mm:ss-yyyyMMdd HH:mm:ss`，按请求里的 `timezone` 解释，`timezone` 不带或为空时按各行所属商户的时区。取付款成功（收款行）或退款受理（退款行）的时刻晚于起点、早于终点的流水。这里按时刻取，与 `getDailyReport` 按营业日取不同。
-        - 单笔：带 `order_id` 时只取这笔订单的流水（收款与退款），按订单号精确匹配；可与 `transDate` 同时带，不带 `transDate` 时不限时间。订单不在当前商户及与它结算币种相同的子商户（或所选 `app_client_ids`）范围内时，按没有流水处理。
-        - 行集、`thisdevice`、`app_client_ids` 同 `getDailyReport`，行按时间先后排列。
+        - 单笔：带 `order_id` 时只取这笔订单的流水（收款与退款），按订单号精确匹配；可与 `transDate` 同时带，不带 `transDate` 时不限时间。订单不属于当前商户时，按没有流水处理。
+        - 行集、`thisdevice` 与范围同 `getDailyReport`：只含当前商户自己的流水，不含子商户，`app_client_ids` 收下不用；行按时间先后排列。
         - `transactions[].transaction_date`（`yyyy-MM-dd`）与 `transaction_time`（`HH:mm:ss`）按各行所属商户的时区。
         - `analysis` 同 `getDailyReport`；`analysis.date` 带了 `transDate` 时为区间，只带 `order_id` 时为第一笔流水的 `HH:mm:ss`。
         - 收银员查询天数不限制本接口。
@@ -1787,7 +1786,6 @@ paths:
         - 区间内（或这笔订单）没有流水，`message` 为 `No Transactions`。
         - `transDate` 与 `order_id` 都没带。
         - `transDate` 不是 `yyyyMMdd HH:mm:ss-yyyyMMdd HH:mm:ss`，或 `timezone` 不是合法的时区名。
-        - `app_client_ids` 不是当前商户，也不是与它结算币种相同的子商户。
         - 当前账号没有看支付订单的权限。
       parameters:
         - name: transDate
@@ -1810,7 +1808,7 @@ paths:
           schema:
             $ref: '#/components/schemas/OrderId'
           description: 只取这笔订单的流水，按订单号精确匹配
-        - $ref: '#/components/parameters/ReportMerchant'
+        - $ref: '#/components/parameters/IgnoredReportMerchant'
         - $ref: '#/components/parameters/ReportThisDevice'
       responses:
         '200':
@@ -2001,13 +1999,20 @@ components:
       schema:
         type: string
       description: |
-        只看哪个商户的流水，填一个商户号（`client_id`）：
+        只算哪个商户的流水，填一个商户号（`client_id`）：
 
-        - 不带或为空：当前商户及与它结算币种相同的全部子商户。
-        - 当前商户自己的商户号：只看当前商户。
-        - 某个与当前商户结算币种相同的子商户的商户号：只看该子商户。
+        - 不带或为空：当前商户及 `listSubMerchants` 返回的全部子商户（与当前商户结算币种相同、未删除的，已冻结的也在内）。
+        - 当前商户自己的商户号：只算当前商户。
+        - `listSubMerchants` 返回的某个子商户的商户号：只算该子商户。
 
         填的商户号不是当前商户、也不在 `listSubMerchants` 返回的子商户里时返回 `400`。
+    IgnoredReportMerchant:
+      name: app_client_ids
+      in: query
+      required: false
+      schema:
+        type: string
+      description: 端上所选的商户号。收下不用，范围恒为当前商户自己，不因它报错
     ReportOrderId:
       name: order_id
       in: query
@@ -2385,7 +2390,7 @@ components:
     RetailOrder:
       type: object
       description: |
-        一笔订单。金额是数值，单位是元；时间按商户所在时区，格式 `yyyy-MM-dd HH:mm:ss`。
+        一笔订单。金额是数值，单位是元；时间按该单所属商户的时区，格式 `yyyy-MM-dd HH:mm:ss`。
         没有值的字段不返回键、不返回 `null`（与现网一致，端按「键是否存在」判断）；`required` 里的是任何状态下都返回的字段。
       required:
         - status
@@ -2458,7 +2463,7 @@ components:
           description: 支付方式品牌，例如 `Wechat`、`Alipay`、`UnionPay`；顾客还没选定支付方式时不返回
         create_time:
           type: string
-          description: 建单时间，按商户所在时区，格式 `yyyy-MM-dd HH:mm:ss`
+          description: 建单时间，按该单所属商户的时区，格式 `yyyy-MM-dd HH:mm:ss`
         transaction_time:
           type: string
           description: 付款成功的时间；未成功时不返回
@@ -2515,7 +2520,7 @@ components:
           description: 退款币种，即订单币种
         create_time:
           type: string
-          description: 退款发起的时间，按商户所在时区，格式 `yyyy-MM-dd HH:mm:ss`
+          description: 退款发起的时间，按该单所属商户的时区，格式 `yyyy-MM-dd HH:mm:ss`
         confirm_time:
           type: string
           description: 渠道确认退款的时间，格式同 `create_time`；渠道确认前不返回

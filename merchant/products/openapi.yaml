@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 收款产品 — 前端契约面
-  version: 2.8.1
+  version: 2.8.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -2461,7 +2461,7 @@ components:
               $ref: '#/components/schemas/LocalizedTextRead'
     LocalizedText:
       type: object
-      description: 三语文本（EN / 中 / FR）。Policies & Support 五项的值为**受限 HTML**：允许段落 / 换行 / 粗体 / 斜体 / 标题 / 链接 / 列表 / 表格 / 高亮标签，白名单外标签与脚本保存时被服务端剥除（不报错）；每语种长度上限由后端配置，超限 → `400` 字段级错误；收款页按同一白名单渲染。
+      description: 三语文本（EN / 中 / FR）。Policies & Support 五项的值为**受限 HTML**：允许段落 / 换行 / 粗体 / 斜体 / 标题 / 链接 / 列表 / 表格标签，白名单外标签与脚本保存时被服务端剥除（不报错）；每语种长度上限由后端配置，超限 → `400` 字段级错误；收款页按同一白名单渲染。
       properties:
         en:
           type:
