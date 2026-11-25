@@ -79,7 +79,7 @@ sequenceDiagram
         P->>S: 选方式、点付款
         S->>C: #35;3 [createCheckoutPayment]<br/>POST /order/payments { checkoutOption, expectedPayable }
         C-->>S: 201 CheckoutOrder { status, expiresAt?, nextAction? }
-        S->>P: 按 nextAction 拉起（二维码、调起支付窗、唤起钱包或整页跳转），之后进支付结果页
+        S->>P: 按 nextAction 拉起（二维码、调起支付窗、唤起钱包或整页跳转，电脑上的网关新开页面），之后进支付结果页
     end
 
     Note over P,M: 结果页
