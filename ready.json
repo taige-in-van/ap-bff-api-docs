@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-25T20:49:30Z",
-  "implCommit": "0f0f198ec",
+  "generatedAt": "2026-11-26T01:51:56Z",
+  "implCommit": "aa547568a",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
