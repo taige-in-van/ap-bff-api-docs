@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.11.2
+  version: 2.11.3
   contact:
     name: 收银台
   description: |
@@ -889,6 +889,8 @@ paths:
         会话还没有订单时，总应付超过单笔上限返回 `409`·`108111`（`context.orderAmountCeiling` 带生效的单笔上限，币种是商户结算币种）：不发起支付，这次尝试记一笔被拒订单，不占用本会话，付款人改了可再发起。
 
         其他原因无法受理时 `status` 为 `REJECTED`、不带 `nextAction`，不给原因。
+
+        所选是不带 `cardForm` 的方式时：渠道当场拒绝了这次下单，返回 `201`、`status` 为 `UNPAID`、`lastAttemptFailure` 为 `DECLINED`；这次下单没能送到渠道，同样返回 `201`、`UNPAID`，`lastAttemptFailure` 为 `INCOMPLETE`；两种都不带 `nextAction`，订单仍可付，付款人可换方式或重新付款。下单已发出而渠道没有给出结论的，返回 `201` 与订单现状（`PENDING`、不带 `nextAction`），结果以 `getCheckoutOrder` 为准。
 
         商品、票务、礼卡会话首次发起时，`Accept-Language` 所示语言记为付款人的下单语言，凭证与收据邮件按它发。
 
@@ -2393,8 +2395,8 @@ components:
           description: |
             最近一次发起为什么没有成功；仅 `status` 为 `UNPAID` 且发起过支付时返回：
 
-            - `DECLINED` 付款被拒（含持卡人验证没有通过）；
-            - `INCOMPLETE` 付款没有完成（付款人没有付完，或这次发起已被关闭）。
+            - `DECLINED` 付款被拒（含持卡人验证没有通过，或渠道拒绝了这次下单）；
+            - `INCOMPLETE` 付款没有完成（付款人没有付完，或这次发起已被关闭，或这次下单没能送到渠道）。
 
             不透传渠道的原始错误文案。遇到未列出的值按 `INCOMPLETE` 处理。
     InvoiceOrderBlock:

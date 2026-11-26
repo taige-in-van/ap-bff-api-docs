@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 管理后台 商户入驻审批与合规 — 前端契约面
-  version: 2.7.1
+  version: 2.8.0
   contact:
     name: 管理后台 BFF
   description: |
@@ -1137,12 +1137,16 @@ components:
       additionalProperties: false
       required:
         - acceptanceMode
-        - paymentMethodFamily
+        - paymentMethod
       properties:
         acceptanceMode:
-          $ref: '#/components/schemas/AcceptanceMode'
-        paymentMethodFamily:
-          $ref: '#/components/schemas/PaymentMethodFamily'
+          allOf:
+            - $ref: '#/components/schemas/AcceptanceMode'
+          description: 该支付方式所属的受理模式。
+        paymentMethod:
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethod'
+          description: 申请开通的支付方式；同一品牌在门店、线上各是一个支付方式。
     SignatureRequestStatus:
       type: string
       enum:
@@ -2071,14 +2075,6 @@ components:
         - in_store
         - online
       description: 受理模式：`in_store` 线下 / `online` 线上。
-    PaymentMethodFamily:
-      type: string
-      description: 支付方式族（品牌）。
-      enum:
-        - wechat
-        - alipay
-        - unionpay
-        - credit_card
     EntryPoint:
       type: string
       description: 入口：`pos` 终端 · `merchant_app` 商户 App · `merchant_portal` 商户后台 · `open_api` 开放 API · `checkout` 收银台页面（店铺码、账单、Product Link） · `channel_inbound` 通道直接推来的订单 · `plugin_shopify` Shopify 插件 · `plugin_allvalue` AllValue 插件 · `plugin_allvalue_xhs` AllValue 小红书 · `system` 系统发起。

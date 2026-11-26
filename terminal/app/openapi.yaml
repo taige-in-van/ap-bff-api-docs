@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户 App — 终端面契约
-  version: 1.0.0
+  version: 1.0.1
   contact:
     name: 商户后台 BFF
   description: |
@@ -138,6 +138,7 @@ paths:
         - `208028` 登录所在的商户已被冻结或删除。
         - `108015` 这部手机在该商户下的设备已被停用。
         - `108018` 本机上报的 `uuid` 不能用作设备标识（为空，或是运行环境返回的固定占位值）。
+        - `906004` 这部手机的登录正在进行，稍后再试；与上面登录名失败过多的 `906004` 同码，`message` 不同。
         - 缺 `uuid`、`username`、`password` 等必填项。
       security: []
       parameters:
@@ -329,6 +330,7 @@ paths:
         - `208034` 目标商户不在登录者可以访问的范围内。可以访问的是登录者有员工身份的商户，加上其中主商户名下的关联商户（Owner 名下有多个主商户的，每个主商户及其关联商户都在内），还没开通（入驻中或被拒）、已冻结或已删除的除外；关联商户的员工只能在本商户。
         - `108015` 这部手机在目标商户下的设备已被停用。
         - `108018` 本机上报的 `uuid` 不能用作设备标识（为空，或是运行环境返回的固定占位值）。
+        - `906004` 这部手机在目标商户下的登记正在进行，稍后再试。
         - 缺 `username` 或 `uuid`。
       parameters:
         - $ref: '#/components/parameters/DevType'
@@ -1541,7 +1543,7 @@ paths:
         | `unionpayonline` | 银联（线上） | `unionpay_online` |
         | `creditcard` | 信用卡 | `card` |
 
-        - 六个开关是对应支付方式是否已开通，由运营开通，商户不能改：`wxSwitch` 微信支付、`aliSwitch` 支付宝（店内）、`aliOnlineSwitch` 支付宝（线上）、`unionSwitch` 银联（店内）、`unionOnlineSwitch` 银联（线上）、`cardSwitch` 信用卡。
+        - 六个开关是对应支付方式是否已开通，由运营开通，商户不能改；其中微信支付、银联（线上）各对应收款页设置里的一个选项，该选项下门店、线上任一方式已开通即为真：`wxSwitch` 微信支付、`aliSwitch` 支付宝（店内）、`aliOnlineSwitch` 支付宝（线上）、`unionSwitch` 银联（店内）、`unionOnlineSwitch` 银联（线上）、`cardSwitch` 信用卡。
         - `storePayWay` 是店铺码收款页上给付款人显示的支付方式，与商户后台收款页设置里选的是同一份；不会含 `unionpay`。
         - `examinePayWays` 是正在开通审核中的支付方式，没有时为空数组。
 
@@ -5363,7 +5365,7 @@ components:
           description: 银联（店内）是否已开通
         unionOnlineSwitch:
           type: boolean
-          description: 银联（线上）是否已开通
+          description: 银联（线上）是否已开通；银联在线门店、线上任一方式已开通即为真
         cardSwitch:
           type: boolean
           description: 信用卡是否已开通

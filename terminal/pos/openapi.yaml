@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: POS 终端 — 终端面契约
-  version: 1.0.1
+  version: 1.0.2
   contact:
     name: 商户后台 BFF
   description: |
@@ -224,6 +224,7 @@ paths:
         - `108014` 设备已在其他商户名下使用或停用（不是登录者可以访问的商户），须由原商户先解绑。
         - `108015` 这台设备已被停用。
         - `108018` 上报的终端序列号不能用作设备标识（为空，或是运行环境返回的固定占位值）。
+        - `906004` 这台设备的登录正在进行，稍后再试。
         - `208028` 商户已被冻结。
         - 请求体解不开，或解开后缺 `client_device_id`、`sign_key`。
       security: []
@@ -1360,11 +1361,11 @@ paths:
       description: |
         按页返回交易流水。一行一笔：成交的收款一单一行，已受理的退款（处理中或成功）一笔一行；未成交、失败、被拒的订单不列。按时间倒序：收款行按付款成功的时刻，退款行按退款受理的时刻。
 
-        - 日期：`begin`、`end` 是商户营业日（按商户的时区与日切时刻划分），按字面匹配，不按设备时区换算。每一行按它所属商户的营业日算：收款行按付款成功的时刻归日，退款行按退款受理的时刻归日（不回到原订单那天）。行上的 `trade_date` 是这一行所属的商户营业日，与 `begin`、`end` 同一个日期；`trade_time` 是这一行的时刻（收款行为付款成功，退款行为退款受理）按这一行所属商户的时区的时分秒。
+        - 日期：`begin`、`end` 是商户营业日（按商户的时区与日切时刻划分），按字面匹配，不按设备时区换算。每一行按当前商户的营业日算：收款行按付款成功的时刻归日，退款行按退款受理的时刻归日（不回到原订单那天）。行上的 `trade_date` 是这一行所属的商户营业日，与 `begin`、`end` 同一个日期；`trade_time` 是这一行的时刻（收款行为付款成功，退款行为退款受理）按当前商户的时区的时分秒。
         - 范围：只含当前商户自己的流水，不含子商户。`app_client_ids` 收下不用，带了哪个商户号都按当前商户查，不因它报错。
         - 收银员查询天数：登录账号的 `role` 为 `3`（不是 Owner、也不持 Admin 或店长角色）、且运营给商户设了查询天数 N 时，只返回营业日不早于「当前营业日往前 N 天」的流水；不带 `begin` 或 `begin` 更早时都按这一天起算，不报错。没设时不限。流水汇总与日结不受这条限制。
         - 分页：`page` 从 `1` 起，`limit` 默认 `20`。没有数据时 `data` 为 `[]`。
-        - 金额是数值，单位是元；时间按各行所属商户的时区。
+        - 金额是数值，单位是元；时间按当前商户的时区。
         - 键盘机（`Device-Type` 为 `ingenico`）上的行另有改写：退款行的 `order_id` 是流水号与订单号拼成的串、`total_amount` 为 `0`、`refund_fee` 为这笔退款的金额；收款行的 `refund_fee` 为 `0`；标价币种为 `CNY` 的订单的收款行，`total_amount` 为 `clearing_amount` 的值。细节见行的字段说明。
 
         下列情形返回 `400`：
@@ -1647,7 +1648,7 @@ paths:
       description: |
         返回某一营业日的日结报表，三块：当天的每笔流水（`transactions`）、整体汇总（`analysis`）、按支付方式的汇总（`channel_analysis`）。
 
-        - 日期：路径上的 `yyyyMMdd` 是商户营业日，按字面匹配，不按设备时区换算；每一行按它所属商户的营业日算。`transDate` 为 `HH:mm:ss-HH:mm:ss` 时，在这一营业日内只取该时段，时段按各行所属商户的时区；时段的选项取自登录响应里的 `client.business_hours`。
+        - 日期：路径上的 `yyyyMMdd` 是商户营业日，按字面匹配，不按设备时区换算；每一行按当前商户的营业日算。`transDate` 为 `HH:mm:ss-HH:mm:ss` 时，在这一营业日内只取该时段，时段按当前商户的时区；时段的选项取自登录响应里的 `client.business_hours`。
         - 行集：同 `listOrders`，成交的收款一单一行，已受理的退款一笔一行，按时间先后排列。`thisdevice` 为 `true` 时只取本机建的订单，退款跟随原订单的发起设备。
         - 范围：同 `listOrders`，只含当前商户自己的流水，不含子商户；`app_client_ids` 收下不用。
         - `analysis` 的汇总键与口径同 `getTradeSummary`，另加 `date`；`total_surcharge`、`total_settle_amount` 只计已计费的流水，刚成交的几笔手续费可能尚未计入。
@@ -1675,7 +1676,7 @@ paths:
             type: string
             default: all
           description: |
-            取哪一段：`all`（默认）取全天；`HH:mm:ss-HH:mm:ss` 取该营业日内的这一时段，按各行所属商户的时区，例如 `09:00:00-21:00:00`
+            取哪一段：`all`（默认）取全天；`HH:mm:ss-HH:mm:ss` 取该营业日内的这一时段，按当前商户的时区，例如 `09:00:00-21:00:00`
         - $ref: '#/components/parameters/IgnoredReportMerchant'
         - $ref: '#/components/parameters/ReportThisDevice'
         - $ref: '#/components/parameters/IgnoredTimezone'
@@ -1774,10 +1775,10 @@ paths:
       description: |
         返回所选时刻区间（或某一笔订单）的流水打印数据，结构同 `getDailyReport`，每行多一个 `transaction_date`。
 
-        - 区间：`transDate` 为 `yyyyMMdd HH:mm:ss-yyyyMMdd HH:mm:ss`，按请求里的 `timezone` 解释，`timezone` 不带或为空时按各行所属商户的时区。取付款成功（收款行）或退款受理（退款行）的时刻晚于起点、早于终点的流水。这里按时刻取，与 `getDailyReport` 按营业日取不同。
+        - 区间：`transDate` 为 `yyyyMMdd HH:mm:ss-yyyyMMdd HH:mm:ss`，按请求里的 `timezone` 解释，`timezone` 不带或为空时按当前商户的时区。取付款成功（收款行）或退款受理（退款行）的时刻晚于起点、早于终点的流水。这里按时刻取，与 `getDailyReport` 按营业日取不同。
         - 单笔：带 `order_id` 时只取这笔订单的流水（收款与退款），按订单号精确匹配；可与 `transDate` 同时带，不带 `transDate` 时不限时间。订单不属于当前商户时，按没有流水处理。
         - 行集、`thisdevice` 与范围同 `getDailyReport`：只含当前商户自己的流水，不含子商户，`app_client_ids` 收下不用；行按时间先后排列。
-        - `transactions[].transaction_date`（`yyyy-MM-dd`）与 `transaction_time`（`HH:mm:ss`）按各行所属商户的时区。
+        - `transactions[].transaction_date`（`yyyy-MM-dd`）与 `transaction_time`（`HH:mm:ss`）按当前商户的时区。
         - `analysis` 同 `getDailyReport`；`analysis.date` 带了 `transDate` 时为区间，只带 `order_id` 时为第一笔流水的 `HH:mm:ss`。
         - 收银员查询天数不限制本接口。
 
@@ -1801,7 +1802,7 @@ paths:
           schema:
             type: string
           description: |
-            解释 `transDate` 用的时区名，例如 `America/Vancouver`。不带或为空时按各行所属商户的时区
+            解释 `transDate` 用的时区名，例如 `America/Vancouver`。不带或为空时按当前商户的时区
         - name: order_id
           in: query
           required: false
