@@ -1,7 +1,7 @@
 {
   "environment": "dev",
-  "generatedAt": "2026-11-26T21:50:41Z",
-  "implCommit": "1fcd89a7e",
+  "generatedAt": "2026-11-27T05:02:03Z",
+  "implCommit": "9e77424e8",
   "ops": {
     "admin/acquiring/createMerchantChannelApplication": "0620df7acb699abd",
     "admin/acquiring/createMerchantChannelContract": "15f4ff24de6f0ce0",
@@ -313,6 +313,6 @@
     "wechat/wechat/enterWechatChallenge": "f2bdf0cd7d137443",
     "wechat/wechat/getWechatConfirmation": "7fd5f36375975ce2"
   },
-  "prdSha": "17dd4c6f0c33dbed2a96ef923720eeda36d36e21",
-  "prdStage": "stage/261126-unionpay-online-instore"
+  "prdSha": "718843db38f683465d91aad009994b5a8ee45637",
+  "prdStage": "stage/261126-mandate-sign-first"
 }
