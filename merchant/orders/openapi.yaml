@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 商户后台 订单与退款 — 前端契约面
-  version: 2.4.2
+  version: 2.5.0
   contact:
     name: 商户后台 BFF
   description: |
@@ -82,6 +82,7 @@ paths:
                         status: PAID
                         createdAt: '2026-07-19T03:12:00Z'
                         refundable: true
+                        releasable: false
                       - orderId: P100240002
                         paymentMethodFamily: alipay
                         source: invoice
@@ -92,6 +93,7 @@ paths:
                         createdAt: '2026-07-19T02:40:00Z'
                         note: 门店订单
                         refundable: true
+                        releasable: false
                       - orderId: P100240003
                         source: product_link
                         amount:
@@ -100,6 +102,7 @@ paths:
                         status: REJECTED
                         createdAt: '2026-07-19T01:05:00Z'
                         refundable: false
+                        releasable: false
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -201,6 +204,7 @@ paths:
                     status: PAID
                     createdAt: '2026-07-19T03:12:00Z'
                     refundable: true
+                    releasable: false
                   - orderId: P100240000
                     paymentMethodFamily: alipay
                     source: product_link
@@ -210,6 +214,7 @@ paths:
                     status: REFUNDED
                     createdAt: '2026-07-19T01:05:00Z'
                     refundable: false
+                    releasable: false
         default:
           $ref: '#/components/responses/MerchantBffDefaultError'
       x-error-codes: []
@@ -339,6 +344,7 @@ paths:
                     createdAt: '2026-07-19T02:40:00Z'
                     note: 门店订单
                     refundable: true
+                    releasable: false
                     remainingRefundable:
                       amount: '15000'
                       currency: CNY
@@ -497,9 +503,9 @@ paths:
       x-required-privilege: orders:preauth:create
       summary: 预授权完成（Release）
       description: |
-        对挂起中的预授权单（`status = PREAUTH_HOLDING`）执行完成：订单解除挂起、进入下一批清结算。完成后的状态按已退情况是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`，重取详情读到。
+        对 `releasable` 为真的订单（挂起中、需商户手动完成的预授权订单）执行完成：订单解除挂起、进入下一批清结算。完成后的状态按已退情况是 `PAID` / `PARTIALLY_REFUNDED` / `REFUNDED`，重取详情读到。
 
-        订单已不是挂起状态 → `409`·208010。
+        订单已不是挂起状态、是到期自动完成的订单（电商平台托管订单，不能手动完成），或结算额待定（`settleAmountPending: true`，到达后可再完成）→ `409`·208010。
 
         幂等：带 `Idempotency-Key`。本接口没有请求体，同键重发同一订单返回首次结果；同键用到别的订单 → `409`·908003；同键的上一次提交还在处理 → `409`·908002。
       parameters:
@@ -1143,7 +1149,7 @@ components:
         - auto_debit
     RefundType:
       type: string
-      description: 退款类型：`merchant` 退已生效订单的退款，从商户账上出钱；`system_auto` 平台自动退回的多付款项（重复支付、关单后才到的成功支付），不动商户的账，不计入订单的已退金额。
+      description: 退款类型：`merchant` 退已生效订单的退款，计入订单的已退金额，订单款项由平台结算的从商户账上出钱；`system_auto` 平台自动退回的多付款项（重复支付、关单后才到的成功支付），不动商户的账，不计入订单的已退金额。
       enum:
         - merchant
         - system_auto
@@ -1169,6 +1175,7 @@ components:
         - status
         - createdAt
         - refundable
+        - releasable
       properties:
         orderId:
           $ref: '#/components/schemas/OrderId'
@@ -1196,6 +1203,9 @@ components:
         refundable:
           type: boolean
           description: '能否发起退款，服务端的判定结果。结算额待定（`settleAmountPending: true`）的订单为 false，成交折算金额到达后按剩余可退额恢复。关联的商品、票或礼卡已核销或已作废的订单也为 false。'
+        releasable:
+          type: boolean
+          description: '能否执行预授权完成（Release），服务端的判定结果。挂起中、需商户手动完成的预授权订单为 true；到期自动完成的挂起订单（电商平台托管订单）与其他订单为 false。结算额待定（`settleAmountPending: true`）的订单为 false，成交折算金额到达后恢复。'
     PaymentList:
       type: object
       required:
@@ -1439,7 +1449,7 @@ components:
               description: |
                 退款从哪个入口发起。`system` 表示这笔退款没有商户发起动作、由系统产生，分两种：
                 `type = system_auto` 是平台自动退回的多付款项，不动商户的账、不计入已退额；
-                `type = merchant` 是渠道侧已经退给付款人、由系统补记的退款，从商户账上扣，计入已退额。
+                `type = merchant` 是渠道侧已经退给付款人、由系统补记的退款，计入已退额；订单款项由平台结算的，从商户账上扣。
                 `type = system_auto` 时恒为 `system`。
               allOf:
                 - $ref: '#/components/schemas/EntryPoint'
