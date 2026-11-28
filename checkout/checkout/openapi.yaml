@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 收银台 — 付款人契约面
-  version: 2.11.3
+  version: 2.11.4
   contact:
     name: 收银台
   description: |
@@ -1518,7 +1518,7 @@ components:
           description: 签发新会话（`201`）或凭 `resumeCode` 认回（`200`）时返回，规则见顶部「会话」一节。
         reauthorizeUrl:
           $ref: '#/components/schemas/WebUrl'
-          description: 需要付款人标识但没拿到时返回（没带授权码、授权码失效或已用过；会话令牌丢失或过期后重新进入、要签发新会话时同样要重新取得）； 此时不签发会话、不返回 `grant`。只在本来要签发新会话时才可能返回（见顶部「会话」一节）： `state` 为 `PAYABLE`，或礼卡入口 `state` 为 `INACTIVE`、`EXPIRED`；其余 `state` 不返回本键。 地址已带好回跳信息，原样使用、不要改写。
+          description: 需要付款人标识但没拿到时返回（没带授权码、授权码失效或已用过；会话令牌丢失或过期后重新进入、要签发新会话时同样要重新取得；这个商户在微信里要取多个公众号下的标识、还没取全时也返回，指向下一个）； 此时不签发会话、不返回 `grant`。只在本来要签发新会话时才可能返回（见顶部「会话」一节）： `state` 为 `PAYABLE`，或礼卡入口 `state` 为 `INACTIVE`、`EXPIRED`；其余 `state` 不返回本键。 地址已带好回跳信息，原样使用、不要改写。
         paymentStarted:
           type: boolean
           description: 本会话是否已经发起过支付；本会话的订单已是终态（含被拒绝受理 `REJECTED`）时也为 true；凭付款人付完被带回来时的 `resumeCode` 按订单建立的会话也为 true。签发或认回会话时都返回；没有签发会话时不返回。

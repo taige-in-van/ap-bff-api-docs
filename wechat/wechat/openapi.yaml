@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: 微信侧公开面 · 微信确认页
-  version: 2.1.2
+  version: 2.2.0
   contact:
     name: 微信确认页契约
   description: |
@@ -31,7 +31,7 @@ paths:
       operationId: enterWechatChallenge
       summary: 扫码落地并跳微信网页授权
       description: |
-        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信静默网页授权（`snsapi_base`：只识别是哪个微信，不弹授权框、不取昵称头像）。挑战被认领（网页授权回调带回 `code`）之前，或认领后因系统失败释放（`completeWechatOAuth` 回 `#failure=UNAVAILABLE`）之后，同一 `scanToken` 可以重复落地：每次落地换发新的 `state`，之前发出的 `state` 随即失效。
+        凭二维码里的 `scanToken` 定位挑战，生成独立的一次性网页授权 `state`，`302` 跳微信静默网页授权（`snsapi_base`：只识别是哪个微信，不弹授权框、不取昵称头像）。用挑战上记的公众号：微信绑定与外部账号身份确认是发起时选定的号、落地时不改；扫码登录每次落地都先把它重置为第一个要试的号，再从这个号开始逐号识别（见 `completeWechatOAuth`）。挑战被认领（网页授权回调带回 `code`）之前，或认领后因系统失败释放（`completeWechatOAuth` 回 `#failure=UNAVAILABLE`）之后，同一 `scanToken` 可以重复落地：每次落地换发新的 `state`，之前发出的 `state` 随即失效（扫码登录逐号识别途中重新落地的，在途那次跳号的回调也因此回 `#failure=INVALID`）。
 
         发给微信的 `redirect_uri` 为登记域名上的回调中转静态页，其 `redirect` 参数指向本面的授权回调（`completeWechatOAuth`）；`state` 为本面生成的一次性字母数字串。
 
@@ -60,7 +60,7 @@ paths:
       description: |
         本接口承接两次网页授权的回跳：扫码落地那次，与确认成功后资料授权那次（`profileAuthorizationUrl`）。两次各有自己的一次性 `state`，本接口凭 `state` 区分。
 
-        **扫码落地那次**：校验 `state`，认领挑战并作废该 `state`，服务端以 `code` 换取外部账号身份并记到原挑战上（静默授权拿不到昵称头像），再按挑战用途做预检，然后 `302` 到微信确认页。本步不出页面、不呈现预检结果。扫码登录的预检在访问资格之后核该用户的登录 IP 白名单（来源 IP 取发起扫码那次请求的），不在白名单记为预检未过（`failReason = IP_NOT_ALLOWED`）；本服务自身判定都通过后调用发起 client 的登录准入回调，判不准入记为预检未过（`failReason = LOGIN_NOT_ELIGIBLE`）。
+        **扫码落地那次**：校验 `state`，认领挑战并作废该 `state`，服务端用挑战上记的公众号以 `code` 换取外部账号身份并记到原挑战上（静默授权拿不到昵称头像），再按挑战用途做预检，然后 `302` 到微信确认页。扫码登录逐号识别：换得的微信在当前公众号下没有绑定、且还有没试的公众号时，照下文 `#failure=UNAVAILABLE` 那样释放认领，把挑战上记的公众号改为下一个，换发新的 `state` 后 `302` 跳该号的静默网页授权，回跳仍到本接口；任一号下命中绑定即按上句继续，都不命中时按未绑定（`failReason = NOT_BOUND`）继续。本步不出页面、不呈现预检结果。扫码登录的预检在访问资格之后核该用户的登录 IP 白名单（来源 IP 取发起扫码那次请求的），不在白名单记为预检未过（`failReason = IP_NOT_ALLOWED`）；本服务自身判定都通过后调用发起 client 的登录准入回调，判不准入记为预检未过（`failReason = LOGIN_NOT_ELIGIBLE`）。
 
         跳转微信确认页时 fragment 有两种形态：
 
@@ -313,7 +313,12 @@ components:
         initiator:
           allOf:
             - $ref: '#/components/schemas/ExternalAccountAssertionDisplay'
-          description: 仅 `purpose = ASSERTION` 时返回：发起这次确认的一方给出的展示名与用途码；页面按 `usage` 选固定文案模板，`displayName` 只填模板里的一个位置。`usage = NOTIFICATION_RECIPIENT` 时确认成功后页面展示关注公众号的入口，未关注收不到微信通知。
+          description: 仅 `purpose = ASSERTION` 时返回：发起这次确认的一方给出的展示名与用途码；页面按 `usage` 选固定文案模板，`displayName` 只填模板里的一个位置。`usage = NOTIFICATION_RECIPIENT` 时确认成功后页面展示关注 `appId` 那个公众号的入口，未关注收不到微信通知。
+        appId:
+          type: string
+          minLength: 1
+          maxLength: 64
+          description: 本次挑战所用公众号的 appid；已知时返回（微信绑定与外部账号身份确认恒有，扫码登录识别落定后有）。页面按它取该公众号的关注入口。
     DiagnosticDetail:
       type: string
       description: '**诊断描述的单一口径**——凡叫「detail / resultDetail」这类的字段都用本类型，语义只此一份、各处不再复述。 面向排查（日志 / 客服 / 配合 `traceId` 定位），**不是给终端用户看的文案、也不做本地化**。 **不要直接展示本字段，也不要拿它做分支依据**；用户可见文案与分支依据另有结构化来源 （失败响应看 `code`，`200` 响应体内的失败态看该端点自己的原因枚举）。'
